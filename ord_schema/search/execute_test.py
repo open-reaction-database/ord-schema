@@ -3143,6 +3143,63 @@ def test_a_level_already_derived_is_not_derived_again(wide_root, tmp_path, caplo
     assert sum("deriving the pivot artifacts" in m for m in said) == 1
 
 
+def test_a_derivation_interrupted_partway_is_finished_by_the_next(
+    corpus_dir, tmp_path, caplog
+):
+    # A set covering some of the projections is exactly what the pairing check refuses,
+    # so reading the level before deriving it would make an interrupted run permanent:
+    # the pass that would complete the set is the one behind the refusal.
+    pivots = tmp_path / "pivots" / "inputs.components"
+    pivots.mkdir(parents=True)
+    projections = sorted((corpus_dir / "projections").glob("*.parquet"))
+    assert len(projections) > 1, "one projection cannot be a partial set"
+    pivot.write_pivot(
+        projections[0], pivots / projections[0].name, level_path="inputs.components"
+    )
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(tmp_path / "pivots"),
+            derive_pivots=True,
+        ) as corpus,
+    ):
+        found = _search(
+            corpus, _exists({"op": "eq", "path": "smiles", "value": {"literal": "CCO"}})
+        )
+    assert found == {"ord-bb01"}
+    assert len(list(pivots.glob("*.parquet"))) == len(projections)
+    # The one already there was left alone rather than written again.
+    assert any("1 already current" in m for m in _messages(caplog))
+
+
+def test_a_stranger_s_pivots_are_still_refused_when_deriving(
+    wide_root, corpus_dir, tmp_path
+):
+    # Deriving before reading must not turn the pairing check into a formality: a pass
+    # over this corpus's projections adds its own artifacts beside the stranger's rather
+    # than displacing them, and answering from the union would be wrong twice over.
+    stranger = tmp_path / "pivots" / "outcomes.products"
+    stranger.mkdir(parents=True)
+    for projected in sorted((corpus_dir / "projections").glob("*.parquet")):
+        pivot.write_pivot(
+            projected, stranger / projected.name, level_path="outcomes.products"
+        )
+    with (
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(tmp_path / "pivots"),
+            derive_pivots=True,
+        ) as corpus,
+        pytest.raises(execute.PairingError, match="another corpus"),
+    ):
+        _search(corpus, _white("exists"))
+
+
 def test_checking_the_pivots_derives_none_of_them(wide_root, tmp_path):
     # check_pivots reaches every level the schema has, and deriving there would be
     # 39 unnests of the projection at startup for a deployment that asked about two.

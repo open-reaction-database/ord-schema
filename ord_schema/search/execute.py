@@ -1486,9 +1486,17 @@ class Corpus:
         than started again. It reads a projection at a time and streams the rows out, so
         it holds a batch where building the level in memory holds the level.
 
-        One derivation at a time, and the level is looked up again under the lock:
-        whoever held it may have been deriving exactly this, and a second pass would
-        rewrite the artifacts the first one just wrote.
+        Derived before the level is read rather than after refusing to read it. What an
+        interrupted run leaves behind is a set covering some of the projections, which
+        is exactly what ``_pivot_view`` refuses; checking first would turn the
+        interruption into a level that can never be completed from here, since the pass
+        that would complete it is the one behind the refusal. The cost of that ordering
+        is one ``derive_tree`` pass per level per process where every artifact is
+        already current, which reads footers and writes nothing.
+
+        One derivation at a time, and the published view is looked up again under the
+        lock: whoever held it may have been deriving exactly this, and a second pass
+        would rewrite the artifacts the first one just wrote.
 
         Args:
             path: The repeated level, as the query grammar names it.
@@ -1499,15 +1507,18 @@ class Corpus:
             built in process.
 
         Raises:
-            PairingError: If what was written does not pair with this corpus, which
-                ``_pivot_view`` decides.
+            PairingError: If what is there once the derivation has run still does not
+                pair with this corpus -- a stranger's artifacts, or a level filed under
+                another one's name, neither of which a pass over the projections
+                displaces. ``_pivot_view`` decides.
             ValueError: If a projection is stale, since a pivot derived from one would
                 claim a provenance it does not have. Reachable only with
                 ``require_current`` off, which is what let the corpus open at all.
         """
         assert self._pivots_dir is not None  # Checked when derive_pivots was accepted.
         with self._derive_lock:
-            published = self._pivot_view(path)
+            with self._views_lock:
+                published = self._pivot_views.get(path)
             if published is not None:
                 return published
             start = time.perf_counter()
@@ -1528,8 +1539,8 @@ class Corpus:
             )
             if not written and not skipped:
                 return None
-            # The glob that found nothing is remembered, so it has to be forgotten
-            # before the same call can find what this just wrote.
+            # A glob that found nothing is remembered, so it has to be forgotten before
+            # the same call can find what this just wrote.
             with self._views_lock:
                 self._pivot_views.pop(path, None)
             return self._pivot_view(path)
@@ -1559,11 +1570,14 @@ class Corpus:
         if level is None:
             yield None
             return
-        published = self._pivot_view(path)
-        if published is None and self._derive_pivots:
+        if self._derive_pivots:
             # The same pass, spent where it survives the process rather than dying with
             # it -- and against no budget, since what comes back is a view over Parquet.
+            # It reads the level as well as writing it, because a set an interrupted run
+            # left partial is one that has to be completed before it can be read.
             published = self._derive_pivot(path)
+        else:
+            published = self._pivot_view(path)
         if published is not None:
             # A view over artifacts costs no memory to hold and nothing to release, so
             # there is no reader to take and no budget to spend.
