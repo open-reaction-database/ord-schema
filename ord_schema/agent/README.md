@@ -153,17 +153,31 @@ structs, and a scalar pulled out of a deep struct across the whole corpus is sec
 
 That also decides coverage without a list anybody maintains. A body reaching a field the
 pivot dropped fails to resolve against the pruned element type, so the quantifier falls
-back to the elements — nested quantifiers included, since an inner path names a repeated
-field by definition. What a pivot does carry is `structure_id`, so a structure predicate
-inside a pivoted quantifier works too, reading `structure_offset` from the enclosing
-reaction.
+back to the elements. What a pivot does carry is `structure_id`, so a structure
+predicate inside a pivoted quantifier works too, reading `structure_offset` from the
+enclosing reaction. A quantifier's path need not name a level either: descending from
+one through singular struct fields reaches one value per element rather than a list of
+its own — an authentic standard is one compound per measurement — so the level it ranges
+over is the nearest repeated ancestor, whose pivot already carries the struct.
 
-The ordinals are what a flat row needs to say *which* element it was. Reconstructing
-co-membership on anything less over-returns: correlating "a desired product with a yield
-above 50%" on `(reaction_id, outcome_index)` rather than the full prefix returns 23,608
-reactions where the answer is 22,666 — 942 wrong, silently. ORD is effectively
-single-outcome, so dropping the *outcome* ordinal changes nothing at all, which is
-exactly why the product-level error looks correct until it is checked.
+The ordinals are what a flat row needs to say *which* element it was, and a **nested**
+quantifier is where they are spent: an `exists` inside a pivoted one becomes a semi-join
+against the child level's pivot, joined on the reaction and every ordinal the enclosing
+level carries.
+
+```sql
+EXISTS (SELECT 1 FROM pivot_outcomes_products_measurements AS x1
+        WHERE x1.reaction_id = x0.reaction_id
+          AND x1.outcome_index = x0.outcome_index
+          AND x1.product_index = x0.product_index AND …)
+```
+
+Correlating on anything short of that whole prefix returns reactions where the two
+clauses hold of *different* elements: "a desired product with a yield above 50%" answers
+23,608 reactions on `(reaction_id, outcome_index)` where the answer is 22,666 — 942
+wrong, silently. ORD is effectively single-outcome, so dropping the *outcome* ordinal
+changes nothing at all, which is exactly why the product-level error looks correct until
+it is checked.
 
 Over the whole corpus, warm, against the same queries answered from the elements:
 
