@@ -1,4 +1,4 @@
-# Reaching ORD from an agent
+# Searching ORD
 
 The serialized protocol buffers in [ord-data](https://github.com/open-reaction-database/ord-data)
 are the [source of truth](https://en.wikipedia.org/wiki/Single_source_of_truth), and the
@@ -7,7 +7,7 @@ leaf without deserializing the rest. This package is how a language model reache
 projection: what the model is told it may query, what it is allowed to emit, and how that
 becomes SQL.
 
-Requires the `agent` extra (`pip install "ord-schema[agent]"`).
+Requires the `search` extra (`pip install "ord-schema[search]"`).
 
 ## Why the model does not write SQL
 
@@ -325,7 +325,7 @@ finding 4. Every corpus-scale figure on this page was measured against that logb
 entry's snapshot of ORD.
 
 ```python
-from ord_schema.agent import execute, query
+from ord_schema.search import execute, query
 
 corpus = execute.Corpus("projections/*/*.parquet", "structures/*/*.parquet")
 table = corpus.search(
@@ -364,7 +364,7 @@ rather than the bare projection schema.
 ### Tell the model what it may query
 
 ```python
-from ord_schema.agent import schema
+from ord_schema.search import schema
 
 print(schema.describe())
 ```
@@ -394,7 +394,7 @@ behavior.
 ### Compile a query
 
 ```python
-from ord_schema.agent import query
+from ord_schema.search import query
 
 compiled = query.compile_query(
     query.Query.model_validate(

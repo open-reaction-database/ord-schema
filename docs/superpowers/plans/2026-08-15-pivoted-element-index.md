@@ -33,11 +33,11 @@ artifacts so a container loads instead of builds.
 
 | file | responsibility |
 | --- | --- |
-| `ord_schema/agent/pivot.py` (create) | pure schema functions: the repeated-level walk, the pruned element type, table naming. Imports pyarrow and `ord_schema.projection` only, so `query.py` may import it without a cycle. |
-| `ord_schema/agent/pivot_test.py` (create) | tests for the walk |
-| `ord_schema/agent/query.py` (modify) | `PivotIndex`, `compile_query(pivot=...)`, `_quantifier` routing |
-| `ord_schema/agent/execute.py` (modify) | generalized cache key, `_pivot`, wiring |
-| `ord_schema/agent/execute_test.py` (modify) | build, budget, and differential tests |
+| `ord_schema/search/pivot.py` (create) | pure schema functions: the repeated-level walk, the pruned element type, table naming. Imports pyarrow and `ord_schema.projection` only, so `query.py` may import it without a cycle. |
+| `ord_schema/search/pivot_test.py` (create) | tests for the walk |
+| `ord_schema/search/query.py` (modify) | `PivotIndex`, `compile_query(pivot=...)`, `_quantifier` routing |
+| `ord_schema/search/execute.py` (modify) | generalized cache key, `_pivot`, wiring |
+| `ord_schema/search/execute_test.py` (modify) | build, budget, and differential tests |
 
 ---
 
@@ -45,8 +45,8 @@ artifacts so a container loads instead of builds.
 
 **Files:**
 
-- Create: `ord_schema/agent/pivot.py`
-- Test: `ord_schema/agent/pivot_test.py`
+- Create: `ord_schema/search/pivot.py`
+- Test: `ord_schema/search/pivot_test.py`
 
 **Interfaces:**
 
@@ -118,7 +118,7 @@ def test_table_name_is_an_identifier():
 
 - [ ] **Step 2: Run to verify they fail**
 
-Run: `pytest ord_schema/agent/pivot_test.py -x -q`
+Run: `pytest ord_schema/search/pivot_test.py -x -q`
 Expected: FAIL, no module named `pivot`.
 
 - [ ] **Step 3: Implement the walk**
@@ -132,14 +132,14 @@ answer structure predicates.
 
 - [ ] **Step 4: Run to verify they pass**
 
-Run: `pytest ord_schema/agent/pivot_test.py -q`
+Run: `pytest ord_schema/search/pivot_test.py -q`
 
 - [ ] **Step 5: Lint and commit**
 
 ```bash
-ruff format ord_schema/agent/pivot.py ord_schema/agent/pivot_test.py
-ruff check ord_schema/agent/pivot.py ord_schema/agent/pivot_test.py
-git add ord_schema/agent/pivot.py ord_schema/agent/pivot_test.py
+ruff format ord_schema/search/pivot.py ord_schema/search/pivot_test.py
+ruff check ord_schema/search/pivot.py ord_schema/search/pivot_test.py
+git add ord_schema/search/pivot.py ord_schema/search/pivot_test.py
 git commit -m "Walk the schema for every repeated level"
 ```
 
@@ -149,8 +149,8 @@ git commit -m "Walk the schema for every repeated level"
 
 **Files:**
 
-- Modify: `ord_schema/agent/query.py`
-- Test: `ord_schema/agent/query_test.py`
+- Modify: `ord_schema/search/query.py`
+- Test: `ord_schema/search/query_test.py`
 
 **Interfaces:**
 
@@ -217,7 +217,7 @@ def test_without_a_pivot_nothing_changes():
 
 - [ ] **Step 2: Run to verify they fail**
 
-Run: `pytest ord_schema/agent/query_test.py -x -q -k pivot`
+Run: `pytest ord_schema/search/query_test.py -x -q -k pivot`
 
 - [ ] **Step 3: Implement**
 
@@ -230,13 +230,13 @@ cannot resolve declines to the lambda form. Emit the `EXISTS` / `NOT EXISTS` for
 
 - [ ] **Step 4: Run to verify they pass, then the whole query suite**
 
-Run: `pytest ord_schema/agent/query_test.py -q`
+Run: `pytest ord_schema/search/query_test.py -q`
 
 - [ ] **Step 5: Lint and commit**
 
 ```bash
-ruff format ord_schema/agent/query.py ord_schema/agent/query_test.py
-ruff check ord_schema/agent/query.py ord_schema/agent/query_test.py
+ruff format ord_schema/search/query.py ord_schema/search/query_test.py
+ruff check ord_schema/search/query.py ord_schema/search/query_test.py
 git commit -am "Compile a covered quantifier to a semi-join over its pivot"
 ```
 
@@ -246,9 +246,9 @@ git commit -am "Compile a covered quantifier to a semi-join over its pivot"
 
 **Files:**
 
-- Modify: `ord_schema/agent/execute.py` (`_Narrow`, `_materialize`, `_cached`,
+- Modify: `ord_schema/search/execute.py` (`_Narrow`, `_materialize`, `_cached`,
   `_build`, `_evict`, `_warn_refused`, `search`)
-- Test: `ord_schema/agent/execute_test.py`
+- Test: `ord_schema/search/execute_test.py`
 
 **Interfaces:**
 
@@ -295,7 +295,7 @@ read on the entry for the query's lifetime the way `_narrowed_table` does.
 
 - [ ] **Step 4: Run**
 
-Run: `pytest ord_schema/agent/execute_test.py -q -n auto`
+Run: `pytest ord_schema/search/execute_test.py -q -n auto`
 
 - [ ] **Step 5: Commit**
 
@@ -305,7 +305,7 @@ Run: `pytest ord_schema/agent/execute_test.py -q -n auto`
 
 **Files:**
 
-- Modify: `ord_schema/agent/execute_test.py`
+- Modify: `ord_schema/search/execute_test.py`
 
 - [ ] **Step 1: Add a fixture the real corpus does not provide**
 
@@ -341,9 +341,9 @@ Drop an ordinal from the emitted prefix join and confirm the suite fails. Restor
 
 **Files:**
 
-- Modify: `ord_schema/agent/pivot.py` (add the writer)
+- Modify: `ord_schema/search/pivot.py` (add the writer)
 - Create: `ord_schema/scripts/build_pivots.py`
-- Test: `ord_schema/agent/pivot_test.py`
+- Test: `ord_schema/search/pivot_test.py`
 
 **Interfaces:**
 
@@ -367,7 +367,7 @@ One Parquet file per (projection file, repeated level), laid out as
 
 **Files:**
 
-- Modify: `ord_schema/agent/execute.py`
+- Modify: `ord_schema/search/execute.py`
 
 - [ ] **Step 1:** test that a corpus opened with a pivots pattern registers views over
   the artifacts and never builds in process

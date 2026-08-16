@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for ord_schema.agent.query."""
+"""Tests for ord_schema.search.query."""
 
 import warnings
 
@@ -22,7 +22,7 @@ from pydantic import ValidationError
 from rdkit import Chem
 
 from ord_schema import projection
-from ord_schema.agent import pivot, query, sql
+from ord_schema.search import pivot, query, sql
 
 
 def _compile(payload):

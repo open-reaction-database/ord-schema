@@ -16,7 +16,7 @@ r"""Derives pivot artifacts from projections, one per repeated level.
 
 A quantifier over a repeated level is answered by a semi-join against a pivot -- one
 row per element, carrying the ordinals that say which element it was and the element's
-own fields with the repeated ones removed; see ``ord_schema.agent.pivot`` for the shape
+own fields with the repeated ones removed; see ``ord_schema.search.pivot`` for the shape
 and why. Building one unnests the projection, which is minutes per level over ORD, so
 it belongs here rather than in whichever query asks first.
 
@@ -48,8 +48,8 @@ import functools
 import pathlib
 
 from ord_schema import artifacts, projection
-from ord_schema.agent import pivot
 from ord_schema.logging import get_logger
+from ord_schema.search import pivot
 
 logger = get_logger(__name__)
 

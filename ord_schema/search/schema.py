@@ -27,7 +27,7 @@ field's own metadata, so this stays a rendering of the schema and nothing else.
 The rendering is generated from ``projection.SCHEMA`` rather than written by hand,
 because that schema is itself generated from the proto descriptors -- a field added
 upstream becomes a column with nobody deciding it should, and a hand-written description
-would silently fall behind it. ``ord_schema.agent.sql`` validates against the same
+would silently fall behind it. ``ord_schema.search.sql`` validates against the same
 schema object, so the columns a model is told about and the columns its query is checked
 against cannot disagree.
 

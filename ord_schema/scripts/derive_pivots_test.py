@@ -14,7 +14,7 @@
 
 """Tests for ord_schema.scripts.derive_pivots.
 
-Artifact behavior is covered in ord_schema.agent.pivot_test; these cover the CLI: the
+Artifact behavior is covered in ord_schema.search.pivot_test; these cover the CLI: the
 per-level layout a Corpus reads, which matches count as sources, the skip-if-current
 shortcut, and how an unknown level is refused.
 """
@@ -25,9 +25,9 @@ import pathlib
 import pytest
 
 from ord_schema import artifacts, parquet
-from ord_schema.agent import execute, pivot, query
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import derive_pivots, derive_projection, derive_structures
+from ord_schema.search import execute, pivot, query
 
 
 def _dataset(dataset_id: str):
@@ -142,7 +142,7 @@ def test_a_corpus_reads_the_tree_this_script_writes(projected, caplog):
         "where": {"op": "eq", "path": "type", "value": {"literal": "EXTRACTION"}},
     }
     with (
-        caplog.at_level(logging.INFO, logger="ord_schema.agent.execute"),
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
         execute.Corpus(
             str(projected / "projections" / "*" / "*.parquet"),
             str(projected / "structures" / "*" / "*.parquet"),

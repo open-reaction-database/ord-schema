@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for ord_schema.agent.pivot."""
+"""Tests for ord_schema.search.pivot."""
 
 import pathlib
 
@@ -21,8 +21,8 @@ import pyarrow.parquet as pq
 import pytest
 
 from ord_schema import artifacts, parquet, projection
-from ord_schema.agent import pivot
 from ord_schema.proto import dataset_pb2, reaction_pb2
+from ord_schema.search import pivot
 
 
 def test_covers_the_levels_a_query_quantifies_over():

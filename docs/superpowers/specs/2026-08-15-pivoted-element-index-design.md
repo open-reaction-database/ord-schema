@@ -74,7 +74,7 @@ not shape, is the deciding property.
 
 ## Phase 1 — the query path
 
-### New module: `ord_schema/agent/pivot.py`
+### New module: `ord_schema/search/pivot.py`
 
 Pure schema functions, importing `pyarrow` and `ord_schema.projection` only, so that
 `query.py` may import it without a cycle:
@@ -90,7 +90,7 @@ Pure schema functions, importing `pyarrow` and `ord_schema.projection` only, so 
 
 Nothing here reads the corpus or emits SQL.
 
-### `ord_schema/agent/query.py`
+### `ord_schema/search/query.py`
 
 - `PivotIndex = Callable[[str], str | None]` — a path to the pivot table holding it, or
   None. The compiler derives the pruned element type from the schema itself, so this is
@@ -119,7 +119,7 @@ reaction and return nothing.
 A body that fails to resolve against the pruned type declines rather than raising: the
 projection can still answer it.
 
-### `ord_schema/agent/execute.py`
+### `ord_schema/search/execute.py`
 
 - `_pivot(path) -> str | None` — builds the pivot for one path on first use and returns
   its table name, or None if the budget refuses it.

@@ -42,7 +42,7 @@ target ``T``, every bit of ``Q``'s pattern fingerprint is set in ``T``'s, so
 query/target pairs, including explicit-hydrogen queries, with no exception. What a
 query layer still has to handle is that these molecules are built from SMILES and so
 hold their hydrogens implicitly: a SMARTS naming one as its own atom matches nothing,
-which :mod:`ord_schema.agent.query` rewrites rather than runs. Similarity needs no
+which :mod:`ord_schema.search.query` rewrites rather than runs. Similarity needs no
 verification at all: Tanimoto is defined on the Morgan fingerprint, so the screen *is*
 the answer, and ``morgan_popcount`` bounds it (``popcount(B)`` must lie within ``[t *
 popcount(A), popcount(A) / t]`` for Tanimoto ``>= t``).

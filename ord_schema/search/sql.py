@@ -17,7 +17,7 @@
 Validation needs no corpus. ``projection.SCHEMA`` is generated from the proto
 descriptors, so an empty Arrow table carrying it has the real 442-leaf shape, and
 planning a query against that resolves every column reference and type without reading a
-byte of data. The prompt in :mod:`ord_schema.agent.schema` renders the same schema
+byte of data. The prompt in :mod:`ord_schema.search.schema` renders the same schema
 object, so the columns a model is told about and the columns its query is checked
 against come from one call.
 

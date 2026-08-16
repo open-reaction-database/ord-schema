@@ -50,11 +50,11 @@ dependencies = [
 Homepage = "https://github.com/Open-Reaction-Database/ord-schema"
 
 [project.optional-dependencies]
-# Optional: the ord_schema.agent subpackage holds the schema descriptions, query
-# validation, and (later) prompts and tool surfaces an agent uses to query ORD. DuckDB
-# is the dialect the generated SQL is written in and the planner that checks it; parsing
-# or validating a dataset needs neither.
-agent = [
+# Optional: the ord_schema.search subpackage holds the query grammar, its compiler, the
+# executor, and the schema description a model is given to write against. DuckDB is the
+# dialect the generated SQL is written in and the planner that checks it; parsing or
+# validating a dataset needs neither.
+search = [
     "duckdb>=1.1",
     "pydantic>=2",
 ]
@@ -99,7 +99,7 @@ tests = [
     "treon>=0.1.3",
     # The suite exercises the optional-feature modules, so collecting it needs
     # their extras. Self-reference rather than duplicate the dependencies.
-    "ord-schema[agent,huggingface,orm]",
+    "ord-schema[search,huggingface,orm]",
 ]
 
 [tool.setuptools.packages.find]
@@ -108,7 +108,7 @@ include = ["ord_schema*"]
 [tool.setuptools.package-data]
 "ord_schema.proto" = ["*.pyi"]
 # The projection schema snapshot, read back through importlib.resources by its test.
-"ord_schema.agent" = ["*.txt"]
+"ord_schema.search" = ["*.txt"]
 
 [tool.ruff]
 line-length = 88

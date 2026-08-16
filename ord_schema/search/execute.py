@@ -14,7 +14,7 @@
 
 """Running a compiled query against a corpus of projections and structures artifacts.
 
-The compiler (:mod:`ord_schema.agent.query`) leaves two kinds of work undone on
+The compiler (:mod:`ord_schema.search.query`) leaves two kinds of work undone on
 purpose, and this module is where both happen:
 
 * **Names become structures.** Compound names bind as resolved SMILES, through
@@ -93,8 +93,8 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import rdSubstructLibrary
 
 from ord_schema import artifacts, projection, resolvers, structures
-from ord_schema.agent import pivot, query
 from ord_schema.logging import get_logger
+from ord_schema.search import pivot, query
 
 logger = get_logger(__name__)
 
