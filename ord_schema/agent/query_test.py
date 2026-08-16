@@ -22,7 +22,7 @@ from pydantic import ValidationError
 from rdkit import Chem
 
 from ord_schema import projection
-from ord_schema.agent import query, sql
+from ord_schema.agent import pivot, query, sql
 
 
 def _compile(payload):
@@ -672,3 +672,269 @@ def test_a_compound_named_like_a_structure_parameter_is_refused():
                 }
             )
         )
+
+
+def _pivot_sql(body, pivot=None):
+    return query.compile_query(query.Query.model_validate(body), pivot=pivot).sql
+
+
+def _every_level(path):
+    return pivot.table_name(path) if path in pivot.LEVELS else None
+
+
+def test_exists_over_a_pivoted_level_becomes_a_semi_join():
+    sql = _pivot_sql(
+        {
+            "where": {
+                "op": "exists",
+                "path": "workups",
+                "where": {
+                    "op": "eq",
+                    "path": "type",
+                    "value": {"literal": "EXTRACTION"},
+                },
+            }
+        },
+        pivot=_every_level,
+    )
+    assert "EXISTS (SELECT 1 FROM pivot_workups AS x0" in sql
+    # Qualified on both sides. A pivot carries a reaction_id of its own, so an
+    # unqualified outer reference binds to the inner one and the correlation compares a
+    # column to itself -- true of every reaction that has any element at all.
+    assert "x0.reaction_id = reactions.reaction_id" in sql
+    assert "x0.element.type" in sql
+    assert "list_filter" not in sql
+
+
+def test_forall_over_a_pivoted_level_becomes_a_negated_semi_join():
+    sql = _pivot_sql(
+        {
+            "where": {
+                "op": "forall",
+                "path": "workups",
+                "where": {
+                    "op": "eq",
+                    "path": "type",
+                    "value": {"literal": "EXTRACTION"},
+                },
+            }
+        },
+        pivot=_every_level,
+    )
+    assert sql.count("NOT EXISTS (SELECT 1 FROM pivot_workups AS x0") == 1
+    assert "NOT IN" not in sql
+    assert "list_filter" not in sql
+
+
+def test_a_nested_quantifier_joins_on_the_whole_ordinal_prefix():
+    # The correctness point the ordinals exist for. Correlating a measurement to its
+    # product on the reaction alone returned 23,608 reactions over ORD where the answer
+    # is 22,666 -- and dropping only the outcome ordinal changed nothing at all, since
+    # the corpus is effectively single-outcome, which is what made it look right.
+    sql = _pivot_sql(
+        {
+            "where": {
+                "op": "exists",
+                "path": "outcomes.products",
+                "where": {
+                    "op": "and",
+                    "clauses": [
+                        {
+                            "op": "eq",
+                            "path": "is_desired_product",
+                            "value": {"literal": True},
+                        },
+                        {
+                            "op": "exists",
+                            "path": "measurements",
+                            "where": {
+                                "op": "eq",
+                                "path": "type",
+                                "value": {"literal": "YIELD"},
+                            },
+                        },
+                    ],
+                },
+            }
+        },
+        pivot=_every_level,
+    )
+    assert "FROM pivot_outcomes_products_measurements AS x1" in sql
+    assert "x1.reaction_id = x0.reaction_id" in sql
+    assert "x1.outcome_index = x0.outcome_index" in sql
+    assert "x1.product_index = x0.product_index" in sql
+    assert "list_filter" not in sql
+
+
+def test_a_quantifier_inside_a_list_lambda_is_left_to_the_elements():
+    # With the outer level unavailable there is no alias to correlate to, so the inner
+    # quantifier compiles over the elements rather than against a pivot keyed by
+    # nothing.
+    sql = _pivot_sql(
+        {
+            "where": {
+                "op": "exists",
+                "path": "outcomes.products",
+                "where": {
+                    "op": "exists",
+                    "path": "measurements",
+                    "where": {
+                        "op": "eq",
+                        "path": "type",
+                        "value": {"literal": "YIELD"},
+                    },
+                },
+            }
+        },
+        pivot=lambda path: None,
+    )
+    assert "pivot_" not in sql
+    assert sql.count("list_filter") == 2
+
+
+def test_a_declined_body_leaves_no_parameters_behind():
+    # The structure clause compiles -- and names its parameter -- before the nested
+    # quantifier reaches a field the pruned type dropped. That name must not survive
+    # the decline, or the query would carry a parameter nothing binds.
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "outcomes.products",
+                    "where": {
+                        "op": "and",
+                        "clauses": [
+                            {
+                                "op": "substructure",
+                                "path": "smiles",
+                                "smarts": "c1ccncc1",
+                            },
+                            {
+                                "op": "exists",
+                                "path": "measurements",
+                                "where": {
+                                    "op": "eq",
+                                    "path": "type",
+                                    "value": {"literal": "YIELD"},
+                                },
+                            },
+                        ],
+                    },
+                }
+            }
+        ),
+        # The measurements level is refused -- a budget may do exactly this -- so the
+        # inner quantifier declines, the outer body fails to resolve against the pruned
+        # type, and the outer declines with it.
+        pivot=lambda path: (
+            None if path == "outcomes.products.measurements" else _every_level(path)
+        ),
+    )
+    assert "pivot_" not in compiled.sql
+    assert len(compiled.structures) == 1
+
+
+def test_without_a_pivot_the_sql_is_unchanged():
+    body = {
+        "where": {
+            "op": "exists",
+            "path": "workups",
+            "where": {
+                "op": "eq",
+                "path": "type",
+                "value": {"literal": "EXTRACTION"},
+            },
+        }
+    }
+    assert _pivot_sql(body) == _pivot_sql(body, pivot=lambda path: None)
+
+
+def test_a_structure_predicate_routes_through_the_pivot_with_the_outer_offset():
+    # The occurrence index declines a body that is not one structure predicate plus
+    # string equalities, so this lands on the pivot. Its rows carry structure_id but no
+    # structure_offset, and the bitmap is indexed by the two added: the offset resolves
+    # outward to the reaction the element belongs to, which is the one its ID is meant
+    # to be read against. Pinned here because it holds by name resolution -- a pivot
+    # that ever carried an offset column of its own would bind inward instead.
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "inputs.components",
+                    "where": {
+                        "op": "and",
+                        "clauses": [
+                            {
+                                "op": "substructure",
+                                "path": "smiles",
+                                "smarts": "c1ccncc1",
+                            },
+                            {"op": "not_null", "path": "smiles"},
+                        ],
+                    },
+                }
+            }
+        ),
+        pivot=_every_level,
+    )
+    assert "EXISTS (SELECT 1 FROM pivot_inputs_components AS x0" in compiled.sql
+    assert "x0.element.structure_id" in compiled.sql
+    # Unqualified, so it is the enclosing relation's column rather than one of the
+    # pivot's; the pivot has none.
+    assert "+ structure_offset)" in compiled.sql
+    assert "x0.structure_offset" not in compiled.sql
+    assert len(compiled.structures) == 1
+
+
+def test_a_declining_body_is_never_charged_for_a_pivot():
+    # Supplying a pivot is what builds it, and over ORD that is minutes per level. A
+    # body reaching a repeated field declines, so it must not ask for one first.
+    asked = []
+
+    def watched(path):
+        asked.append(path)
+        return _every_level(path)
+
+    query.compile_query(
+        query.Query.model_validate(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "workups",
+                    "where": {
+                        "op": "exists",
+                        "path": "input.components",
+                        "where": {
+                            "op": "eq",
+                            "path": "reaction_role",
+                            "value": {"literal": "SOLVENT"},
+                        },
+                    },
+                }
+            }
+        ),
+        pivot=lambda path: (
+            None if path == "workups.input.components" else watched(path)
+        ),
+    )
+    # The inner level was refused, so the outer body could not resolve and the outer
+    # level was never asked for -- which is what stops a declining query from paying
+    # for a table it will not use.
+    assert asked == []
+
+
+def test_a_singular_struct_routes_to_its_ancestor_level_s_pivot():
+    sql = _pivot_sql(
+        {
+            "where": {
+                "op": "exists",
+                "path": "outcomes.products.measurements.authentic_standard",
+                "where": {"op": "not_null", "path": "smiles"},
+            }
+        },
+        pivot=_every_level,
+    )
+    assert "FROM pivot_outcomes_products_measurements AS x0" in sql
+    assert "x0.element.authentic_standard.smiles" in sql
