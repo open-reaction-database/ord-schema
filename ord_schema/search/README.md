@@ -109,21 +109,24 @@ larger one. An **occurrence index** — one row per structure occurrence, carryi
 corpus-wide ID, the path, and the element's own `reaction_role` — makes that a semi-join
 against a narrow table rather than a scan of every reaction. Keeping the role beside the
 structure is what keeps a bound query a condition on one row. At corpus scale the index
-is 14.1M rows and about 130 MB, resident for the life of the `Corpus`. A search for
-pyridine among the inputs returns in 1.46s **end to end**, pyridine as the solvent in
-1.74s, and a boronic acid in 0.15s — and for a common pattern nearly all of that is the
-RDKit screen and verify, which the index does not touch: pyridine's match alone is about
-1.4s of its 1.46s. What the index cut is the reaction lookup, from roughly 3.5s to 0.2s.
+is 18,847,978 rows and **1.19 GiB**, built in 58s and resident for the life of the
+`Corpus` — a row is three strings and an integer, and the strings are what it costs. A
+search for pyridine among the inputs returns in 1.46s **end to end**, pyridine as the
+solvent in 1.74s, and a boronic acid in 0.15s — and for a common pattern nearly all of
+that is the RDKit screen and verify, which the index does not touch: pyridine's match
+alone is about 1.4s of its 1.46s. What the index cut is the reaction lookup, from roughly
+3.5s to 0.2s.
 
 The index answers one *quantifier* at a time, not one query: an `exists` whose body asks
 for one structure and at most one role becomes `reaction_id IN (...)`, and the rest of
 the query compiles as if the index did not exist. So "reactions with yield > 50% where
 pyridine is the solvent" spends the index on its pyridine clause and answers the yield
-clause from the projection, in one query — and aggregates, orderings, limits, negations,
-disjunctions, and second structure predicates all compose the same way. A quantifier the
-index cannot carry — one binding another element field, holding no structure predicate
-or two, or any `forall`, which needs every element rather than some — compiles over the
-elements, and the projection answers it. Either way it is one compiled query, screened
+clause from the pivot over `outcomes.products.measurements`, in one query — and
+aggregates, orderings, limits, negations, disjunctions, and second structure predicates
+all compose the same way. A quantifier the index cannot carry — one binding another
+element field, holding no structure predicate or two, or any `forall`, which needs every
+element rather than some — falls to the pivot, and to the elements only if no pivot holds
+the level either. Either way it is one compiled query, screened
 and verified identically; the log line says whether the index took a clause. A level the
 source never recorded — most reactions have no workups and no authentic standards — is a
 level with no elements: nothing satisfies an `exists` there and nothing contradicts a
@@ -179,47 +182,54 @@ wrong, silently. ORD is effectively single-outcome, so dropping the *outcome* or
 changes nothing at all, which is exactly why the product-level error looks correct until
 it is checked.
 
-Over the whole corpus, warm, against the same queries answered from the elements:
+Over the whole corpus, warm, against the same queries answered from the elements — the
+pivots read as artifacts, and the same pivots built in process:
 
-| query | pivot | elements |
-| --- | --- | --- |
-| a white product | 0.050s | 0.936s |
-| yield > 50% | 0.086s | 2.758s |
-| every product is desired | 0.070s | 2.055s |
-| **not** a yield above 50% | 0.098s | 3.480s |
-| a solvent input | 0.178s | 4.229s |
-| an extraction workup | 3.660s | 7.816s |
-| above 350 K | 0.041s | 0.035s |
+| query | artifacts | in memory | elements |
+| --- | --- | --- | --- |
+| a white product | 0.061s | 0.054s | 0.737s |
+| yield > 50% | 0.099s | 0.085s | 2.384s |
+| every product is desired | 0.076s | 0.070s | 1.781s |
+| **not** a yield above 50% | 0.114s | 0.093s | 3.113s |
+| an extraction workup | 0.114s | 0.103s | 2.341s |
+| "reflux" in a workup | 0.147s | 0.105s | 2.239s |
+| a solvent input | 0.176s | 0.155s | 1.794s |
+| above 350 K | 0.033s | 0.033s | 0.032s |
 
-Every one returns the same reactions either way. The last two are the shape of the
-thing: `above 350 K` is a scalar path with no quantifier, so no pivot is involved and
-nothing moves, and the workup query is one whose pivot the budget refused — the
-projection answered it, which is the fallback working rather than the pivot helping.
+Every one returns the same reactions on all three routes. `above 350 K` is the control:
+a scalar path with no quantifier, so no pivot is involved and nothing moves. Everything
+else is 6–27× against the elements, and **a pivot read from Parquet is within a few tens
+of milliseconds of the same pivot held in memory** — which is the whole argument for
+deriving them, since the artifact costs no budget at all.
 
-Building one unnests the projection down to its level, and is charged against the same
-`narrow_budget_bytes` as a materialized column set and evicted by the same LRU. What it
-costs, measured one build per process so eviction cannot corrupt the reading, beside the
-top-level column a query would otherwise materialize (GiB):
+Building one in process unnests the projection down to its level, and is charged against
+the same `narrow_budget_bytes` as a materialized column set and evicted by the same LRU.
+What it costs, measured one build per process so eviction cannot corrupt the reading,
+beside the top-level column a query would otherwise materialize:
 
-| level | unnests | pivot | build | column | | build |
-| --- | --- | --- | --- | --- | --- | --- |
-| `workups` | 1 | 4.40 | 42s | `workups` | 5.20 | 3.3s |
-| `outcomes.products` | 2 | 0.45 | 461s | `outcomes` | 3.23 | 4.1s |
-| `inputs.components` | 2 | 2.75 | 626s | `inputs` | 4.05 | 2.5s |
-| `outcomes.products.measurements` | 3 | 1.61 | 854s | `outcomes` | 3.23 | 4.1s |
+| level | unnests | held | build | as an artifact | column | held | build |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `workups` | 1 | 4.18 GiB | 42s | 149 MB | `workups` | 5.20 GiB | 3.3s |
+| `outcomes.products` | 2 | 0.39 GiB | 461s | 104 MB | `outcomes` | 3.23 GiB | 4.1s |
+| `inputs.components` | 2 | 2.64 GiB | 626s | 224 MB | `inputs` | 4.05 GiB | 2.5s |
+| `outcomes.products.measurements` | 3 | 1.34 GiB | 854s | 37 MB | `outcomes` | 3.23 GiB | 4.1s |
 
-Two things fall out, and they are independent. **Build cost is depth**: one unnest is
-42 seconds, and each further repeated level costs roughly an order of magnitude, so a
-shallow pivot is cheap and a deep one is not. **Size saving is width**: it depends on
-how much of its column an element carries once the repeated fields are pruned away, from
-86% for `outcomes.products` down to 15% for `workups`, whose elements carry a whole
-`ReactionInput` besides. The 4.40 GiB workup pivot is over the 4 GB default, so it is
-refused and the projection answers — which is why the workup query above is seconds
-where the two `outcomes` levels are tenths.
+Three things fall out. **Build cost is depth**: one unnest is 42 seconds, and each
+further repeated level costs roughly an order of magnitude, where materializing a column
+is 2.5–4.1s whatever it holds. **Size saving is width**: how much of its column an
+element still carries once the repeated fields are pruned away. And **the two are
+anti-correlated** — `workups` is the cheapest to build and the worst to hold, at 4.18 GiB
+against a 4 GB default that refuses it.
 
-A deep pivot's build therefore belongs offline, which is what
-`scripts/derive_pivots.py` is for — one subdirectory per level, one file per projection
-within it, stamped like any other derived artifact and read by
+The third is what makes the artifact the answer rather than a further prune. All four
+levels are **514 MB on disk against 9.21 GiB held**, because Parquet charges for data
+where an in-memory column charges for shape: `workups` carries 40 leaves, most of them
+NULL in most rows, which encode to almost nothing and occupy a full-width vector and a
+validity mask apiece. Publishing all four as views takes 0.9s and no memory, against
+32 minutes and 9.21 GiB to build them in process.
+
+That is what `scripts/derive_pivots.py` is for — one subdirectory per level, one file per
+projection within it, stamped like any other derived artifact and read by
 `Corpus(..., pivots_dir=...)`. Artifacts are refused unless they were derived from this
 corpus's own projections: a pivot names its reactions by ID, so one derived elsewhere
 answers against rows this corpus does not hold, confidently and wrongly. A level with no
@@ -237,37 +247,48 @@ another as SMARTS. A predicate asked
 again while the first pass is still running waits for that pass, so a burst of identical
 requests costs one match; unrelated searches still overlap.
 
-Queries the index declines read the projection, and read it faster from a **materialized
-column set** holding only the top-level columns they name. Reading a handful of columns
-out of a 442-leaf projection spread over 53 files costs mostly per-file overhead, which
-is the same whatever the query asks for; paying it once and answering from memory
-afterwards takes a temperature filter from 1.24s to 0.21s and a group-by on stirring
-type from 0.75s to 0.003s. The columns are read back off the compiled SQL and the query
-is then compiled again against the table, so a column it names and the table lacks is a
-catalog error rather than a wrong answer, and no SQL text is edited. Sets are held to a
-memory budget and evicted least-recently-used, skipping any a search is still reading;
-one too large to keep is not kept, the projection answers directly, and that is
-remembered rather than rediscovered by building it again. Only builds wait on builds: a
-search whose columns are already materialized is answered while another is being built. The rows are the
-same rows either way, in an order neither relation promises — a query wanting one has to
-say so.
+Queries the index declines read the projection, and most of what that costs is not the
+reading. A scan re-parses the footer of every file it touches, and a 442-leaf projection
+over 53 files has large footers; the parse is charged again on every query however few
+leaves the query goes on to read. DuckDB will **hold the parsed footers** between
+queries, which the corpus turns on at open, and over ORD that is most of the cost of a
+projection query:
 
-**The budget is the cliff, and it says so.** A refused column set logs a **warning** on
-every query that names it, giving what the set costs, what the budget is, and the
-argument that changes them — so a query that suddenly takes seconds explains itself in
-the log rather than by profiling:
+| query | footers reparsed | footers held | held as a column set |
+| --- | --- | --- | --- |
+| temperature filter | 0.759s | 0.096s | 0.032s |
+| group-by on stirring type | 0.728s | 0.055s | 0.003s |
+| temperature and city | 0.712s | 0.029s | 0.002s |
+| substring of a safety note | 0.713s | 0.026s | 0.001s |
+
+The footers cost about **200 MB** over the whole corpus, once, and are bounded by the
+files rather than by what is asked of them — which is why they are held unconditionally
+where the gigabytes a column set costs are weighed against a budget.
+
+The third column is a **materialized column set** holding only the top-level columns a
+query names. Sets were worth an order of magnitude before the footers were held and are
+worth tens of milliseconds after; what still justifies the budget is the pivots, which
+share it and are worth seconds. The columns are read back off the compiled SQL and the
+query is then compiled again against the table, so a column it names and the table lacks
+is a catalog error rather than a wrong answer, and no SQL text is edited. Sets are held
+to a memory budget and evicted least-recently-used, skipping any a search is still
+reading; one too large to keep is not kept, the projection answers directly, and that is
+remembered rather than rediscovered by building it again. Only builds wait on builds: a
+search whose columns are already materialized is answered while another is being built.
+The rows are the same rows either way, in an order neither relation promises — a query
+wanting one has to say so.
+
+**The budget is the cliff, and it says so.** A refused entry logs a **warning** on every
+query that wants it, giving what it costs, what the budget is, and the argument that
+changes them — so a query that suddenly takes seconds explains itself in the log rather
+than by profiling:
 
 ```text
-WARNING materializing ['outcomes', 'reaction_id'] takes 3.0 GB, over this corpus's
-budget of 4.0 GB, so every query naming those columns reads the Parquet files instead
--- seconds rather than tenths of a second at ORD's scale. Open the Corpus with a larger
-narrow_budget_bytes if the machine has the memory to spare.
+WARNING materializing the pivot over outcomes.products.measurements takes 1.6 GB, over
+this corpus's budget of 1.0 GB, so every query wanting it reads the Parquet files
+instead. Open the Corpus with a larger narrow_budget_bytes if the machine has the memory
+to spare.
 ```
-
-A column set the budget refuses is read from the 53 Parquet files on every query that
-names it, and scattered rows do not let a reader skip row groups, so the same question
-costs seconds instead of tenths — "pyridine as the solvent with a yield above 50%" is
-3.34s where `outcomes` is refused and 0.41s where it is held.
 
 The projection is **18.46 GB in memory**, from 1.53 GB of Parquet — a twelvefold
 expansion, and more than any default should claim:
@@ -292,27 +313,42 @@ names `inputs` at all, so what has to be resident is far smaller than for the sa
 question answered from the elements.
 
 **Sizing a deployment.** What must be resident is the RDKit library (about 1.5 GB), the
-occurrence index (about 130 MB), and the runtime — call it 3 GB, and nothing about that
-is optional for substructure search, since the screen and verify are RDKit in this
-process rather than SQL in an engine. Everything above that is latency: a container held
-to `narrow_budget_bytes=0` answers every query from Parquet in seconds, and one given
-room to hold `outcomes` answers the same query in tenths. There is no managed service to
-move this to — Athena and its kin can scan the Parquet, but the chemistry is not SQL.
+occurrence index (1.19 GiB), the parsed footers (about 200 MB), and the runtime — call
+it 4 GB, and nothing about that is optional for substructure search, since the
+screen and verify are RDKit in this process rather than SQL in an engine. Everything
+above that is latency: a container held to `narrow_budget_bytes=0` answers every query
+from Parquet in hundredths of a second, and one given room to hold `outcomes` answers
+the same query in thousandths. There is no managed service to move this to — Athena and
+its kin can scan the Parquet, but the chemistry is not SQL.
 
-Over the whole corpus (2,428,291 reactions, 53 files, a 6 GB budget, warm), a mixed set
-of queries pairing an indexed clause with one only the projection can answer:
+DuckDB's own file cache sits beside these and is bounded by `memory_limit` rather than
+stated here: it holds 752 MB at a 1 GB limit and 2.66 GB at 3 GB, filling what it is
+given and evicted under pressure. The parsed footers do not shrink that way, so on a
+small limit they are a fifth of it.
 
-| query | index | projection |
+Over the whole corpus (2,428,291 reactions, 53 files, the default budget, pivots read as
+artifacts, warm), a mixed set of queries pairing an indexed structure clause with one the
+index cannot carry. The second column refuses the index, so the pivots take every
+quantifier — which is what a corpus without an index now falls to, rather than to the
+elements:
+
+| query | index | pivots alone |
 | --- | --- | --- |
-| pyridine solvent, above 350 K | 0.02s | 0.20s |
-| pyridine solvent, yield > 50% | 0.41s | 4.82s |
-| pyridine solvent, white product | 0.24s | 4.30s |
-| pyridine solvent, "reflux" in the procedure | 0.05s | 0.20s |
-| yields by product color (grouped) | 0.40s | 1.53s |
-| hottest with a yield (ordered, limited) | 0.41s | 0.99s |
-| boronic acid, pyridine solvent, yield > 50% | 0.43s | 12.75s |
-| any aromatic carbon, yield > 50% | 0.45s | 14.79s |
-| **not** pyridine anywhere, with a yield | 0.55s | 14.86s |
+| pyridine solvent, above 350 K | 0.020s | 0.484s |
+| pyridine solvent, yield > 50% | 0.033s | 0.105s |
+| pyridine solvent, white product | 0.028s | 0.101s |
+| pyridine solvent, "reflux" in the procedure | 0.054s | 0.493s |
+| yields by product color (grouped) | 0.036s | 0.104s |
+| hottest with a yield (ordered, limited) | 0.033s | 0.105s |
+| boronic acid, pyridine solvent, yield > 50% | 0.041s | 0.142s |
+| any aromatic carbon, yield > 50% | 0.153s | 0.259s |
+| a benzene ring, yield > 50% | 0.142s | 0.241s |
+| **not** pyridine anywhere, with a yield | 0.123s | 0.218s |
+
+Same answers on both routes. The index is 2–24× ahead, and the gap is widest where the
+other clause is cheap — a scalar path or a substring — because there the whole query is
+the structure clause. Where the other clause is itself a quantifier the pivot answers, the
+two routes converge.
 
 The screen itself is not a lever. It is the same `PatternFingerprint` the RDKit
 PostgreSQL cartridge screens with (`rdkit.sss_fp_size`, via `makeMolSignature`), and for
