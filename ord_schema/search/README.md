@@ -631,3 +631,14 @@ Execution has no sandbox. `enable_external_access=false` cannot be combined with
 view — only a materialized table survives it — so running against the full corpus needs
 DuckDB's `allowed_directories` or a separate process. Compiling from an IR removes the reasons
 to fear the *query*; it does not remove the reasons to contain the *process*.
+
+**Text search is deferred, not approximated.** `contains`, `starts_with`, and `ends_with`
+compile and run against any of the projection's 234 string leaves, including the 72 that hold
+free prose, and searching a short string field — a `type`, a `vendor`, a compound's name — is
+squarely in scope. What is out of scope is *tuning for* the prose ones: nothing here is
+indexed, cached, or budgeted on their behalf, and where a measurement on this page involves a
+substring it is reported rather than optimized against. Searching unstructured text properly
+wants an inverted index over the prose columns, which is a different shape from a scan of a
+nested projection, and building toward it inside this design would make the eventual thing
+harder rather than nearer. Compound names have a route that is not string matching anyway: a
+`{"compound": ...}` value resolves to SMILES and becomes a structure predicate.
