@@ -856,6 +856,42 @@ def test_the_footer_cache_reaches_the_cursor_a_search_runs_on(corpus):
     assert setting == (True,)
 
 
+def test_a_rewritten_artifact_is_not_answered_from_its_cached_footer(
+    corpus_dir, tmp_path
+):
+    # Holding the footers means holding something the file can go on to contradict. The
+    # rewrite lands in the same second as the read that cached it, which is the case a
+    # cache keyed on a coarse timestamp would answer stale. Nothing is materialized, so
+    # both searches reach the Parquet files rather than the second one reading a table
+    # the first one built.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    request = query.Query.model_validate(
+        {
+            "where": _exists(
+                {
+                    "op": "eq",
+                    "path": "reaction_role",
+                    "value": {"literal": "SOLVENT"},
+                }
+            )
+        }
+    )
+    with execute.Corpus(
+        str(root / "projections" / "*.parquet"),
+        str(root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        narrow_budget_bytes=0,
+    ) as value:
+        assert _reactions(value.search(request)) == {"ord-aa01"}
+        projected = root / "projections" / "ord_dataset-aa.parquet"
+        table = pq.read_table(projected)
+        kept = table.filter(
+            pa.compute.not_equal(table.column("reaction_id"), "ord-aa01")
+        )
+        pq.write_table(kept, projected)
+        assert _reactions(value.search(request)) == set()
+
+
 def test_concurrent_searches_return_their_own_answers(corpus_dir):
     # Distinct queries with distinct answers, run at once against one corpus: each
     # thread has to come back with the reactions its own query selected. Sharing one
