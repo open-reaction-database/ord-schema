@@ -301,6 +301,45 @@ def element_expression(dtype: pa.DataType, source: str) -> str:
     return "{" + ", ".join(parts) + "}"
 
 
+def reach(
+    path: str, levels: dict[str, RepeatedLevel] | None = None
+) -> tuple[RepeatedLevel, tuple[str, ...], pa.DataType] | None:
+    """Returns the pivot a quantifier over ``path`` ranges within, if one does.
+
+    A quantifier's path need not name a repeated level itself. Descending from one
+    through singular struct fields reaches one value per element rather than a list of
+    its own -- ``outcomes.products.measurements.authentic_standard`` is one compound per
+    measurement -- so the level it ranges over is the nearest repeated ancestor, and the
+    pivot over that level already carries the struct.
+
+    Args:
+        path: The dotted path the quantifier ranges over.
+        levels: Levels to search; the projection's by default.
+
+    Returns:
+        The level whose pivot holds it, the remaining segments from that level's
+        element down to the value, and the type they reach -- or None if no repeated
+        ancestor covers the path, or the descent leaves the element's pruned type,
+        which is where every repeated field it dropped would have been.
+    """
+    found = LEVELS if levels is None else levels
+    segments = path.split(".")
+    for cut in range(len(segments), 0, -1):
+        level = found.get(".".join(segments[:cut]))
+        if level is None:
+            continue
+        remainder = tuple(segments[cut:])
+        dtype = level.element_type
+        for segment in remainder:
+            if not pa.types.is_struct(dtype) or segment not in [
+                field.name for field in dtype
+            ]:
+                return None
+            dtype = dtype.field(segment).type
+        return level, remainder, dtype
+    return None
+
+
 def table_name(path: str) -> str:
     """Returns the relation name holding the pivot over ``path``.
 

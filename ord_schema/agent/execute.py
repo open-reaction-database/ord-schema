@@ -763,6 +763,45 @@ class Corpus:
             )
         return total, searchable
 
+    def check_pivots(self) -> dict[str, int]:
+        """Publishes every pivot artifact this corpus can read, and returns the counts.
+
+        Meant for startup. Artifacts are otherwise found by the first query that wants
+        a level, so a tree derived from another corpus, filed under the wrong level, or
+        left stale is a ``PairingError`` raised at whatever hour that query arrives.
+        Calling this makes the same refusal happen while a server is still starting,
+        where it is a failed deployment rather than a failed request.
+
+        Publishing is the check: a level whose artifacts are wrong cannot be published,
+        and one that is fine is left ready, so the first real query does not pay the
+        glob. Cheap either way -- a view over Parquet reads footers, not rows.
+
+        Returns:
+            The number of artifacts found per level, for the levels that have any.
+            Empty when the corpus was opened without ``pivots_dir``, which is not an
+            error: every level is then built in process.
+
+        Raises:
+            PairingError: If any level's artifacts were not derived from this corpus's
+                projections, hold a different level than the one they are filed under,
+                or -- with ``require_current`` -- are stale.
+        """
+        if self._pivots_dir is None:
+            return {}
+        found = {}
+        for path in sorted(pivot.LEVELS):
+            if self._pivot_view(path) is not None:
+                found[path] = len(
+                    glob.glob(f"{self._pivots_dir}/{path}/**/*.parquet", recursive=True)
+                )
+        logger.info(
+            "%d of %d levels are held as artifacts: %s",
+            len(found),
+            len(pivot.LEVELS),
+            ", ".join(f"{path} {count}" for path, count in found.items()) or "none",
+        )
+        return found
+
     def __enter__(self) -> Self:
         """Returns the corpus itself; closing on exit is the whole protocol."""
         return self

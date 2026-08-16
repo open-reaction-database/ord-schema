@@ -946,3 +946,18 @@ def test_a_declining_body_is_never_charged_for_a_pivot():
         pivot=watched,
     )
     assert asked == []
+
+
+def test_a_singular_struct_routes_to_its_ancestor_level_s_pivot():
+    sql = _pivot_sql(
+        {
+            "where": {
+                "op": "exists",
+                "path": "outcomes.products.measurements.authentic_standard",
+                "where": {"op": "not_null", "path": "smiles"},
+            }
+        },
+        pivot=_every_level,
+    )
+    assert "FROM pivot_outcomes_products_measurements AS x0" in sql
+    assert "x0.element.authentic_standard.smiles" in sql

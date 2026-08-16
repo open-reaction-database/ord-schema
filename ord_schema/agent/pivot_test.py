@@ -223,3 +223,56 @@ def test_pivoting_something_that_is_not_a_projection_is_refused(projected, tmp_p
         pivot.write_pivot(
             output, tmp_path / "again.parquet", level_path="outcomes.products"
         )
+
+
+def test_reach_finds_a_level_that_is_the_path_itself():
+    reached = pivot.reach("outcomes.products")
+    assert reached is not None
+    level, remainder, dtype = reached
+    assert level.path == "outcomes.products"
+    assert remainder == ()
+    assert dtype is level.element_type
+
+
+def test_reach_descends_to_a_singular_struct_under_a_level():
+    # One authentic standard per measurement rather than a list of its own, so the
+    # level it ranges over is the measurements, and the pivot over those carries it.
+    reached = pivot.reach("outcomes.products.measurements.authentic_standard")
+    assert reached is not None
+    level, remainder, dtype = reached
+    assert level.path == "outcomes.products.measurements"
+    assert remainder == ("authentic_standard",)
+    assert "smiles" in [field.name for field in dtype]
+
+
+def test_reach_declines_a_path_leaving_the_pruned_element():
+    # measurements is a repeated field of a product, so it is not on the pruned type;
+    # it is a level of its own, and reach finds that level rather than descending.
+    reached = pivot.reach("outcomes.products.measurements")
+    assert reached is not None
+    level, remainder, _ = reached
+    assert level.path == "outcomes.products.measurements"
+    assert remainder == ()
+    # A repeated field whose elements are scalars is no level of its own -- there is no
+    # element struct to pivot -- and pruning removed it from the measurement, so
+    # descending to it finds nothing either way.
+    assert (
+        pivot.reach("outcomes.products.measurements.mass_spec_details.eic_masses")
+        is None
+    )
+    # Whereas a repeated field of structs is a level, reached as itself rather than by
+    # descending into the measurement that holds it.
+    nested = pivot.reach(
+        "outcomes.products.measurements.authentic_standard.identifiers"
+    )
+    assert nested is not None
+    standard, remainder, _ = nested
+    assert standard.path == (
+        "outcomes.products.measurements.authentic_standard.identifiers"
+    )
+    assert remainder == ()
+
+
+def test_reach_declines_a_path_with_no_repeated_ancestor():
+    assert pivot.reach("conditions.temperature") is None
+    assert pivot.reach("reaction_id") is None

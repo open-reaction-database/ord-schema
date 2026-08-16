@@ -726,9 +726,12 @@ def _pivoted(
         The condition, or None if no pivot holds the level or the body asks for
         something its rows do not carry.
     """
-    level = pivot_levels.LEVELS.get(node.path)
-    if level is None or routing.pivot is None:
+    if routing.pivot is None:
         return None
+    reached = pivot_levels.reach(node.path)
+    if reached is None:
+        return None
+    level, remainder, element_type = reached
     variable = f"x{depth}"
     # Compiled into throwaway lists: a body that raises partway would otherwise leave
     # this quantifier's parameters behind for a compilation that no longer wants them.
@@ -736,8 +739,8 @@ def _pivoted(
     try:
         body = _predicate(
             node.where,
-            f"{variable}.{pivot_levels.ELEMENT}",
-            level.element_type,
+            ".".join([variable, pivot_levels.ELEMENT, *remainder]),
+            element_type,
             taken_compounds,
             taken_structures,
             depth + 1,
@@ -748,7 +751,7 @@ def _pivoted(
     # Asked for only once the body is known to resolve, because supplying a pivot is
     # what builds it: a level unnested over ORD is minutes, and a body reaching a
     # repeated field would otherwise pay them and then decline anyway.
-    table = routing.pivot(node.path)
+    table = routing.pivot(level.path)
     if table is None:
         return None
     compounds[:], structures[:] = taken_compounds, taken_structures

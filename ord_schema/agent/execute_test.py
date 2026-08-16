@@ -3165,3 +3165,82 @@ def test_a_pivoted_quantifier_still_reaches_the_structures_artifact(corpus):
         },
     )
     assert found == {"ord-bb01"}
+
+
+def test_check_pivots_reports_the_levels_held_as_artifacts(wide_root):
+    pivots = _write_pivots(wide_root, ("outcomes.products", "workups"))
+    with execute.Corpus(
+        str(wide_root / "projections" / "*.parquet"),
+        str(wide_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots),
+    ) as corpus:
+        assert corpus.check_pivots() == {"outcomes.products": 1, "workups": 1}
+
+
+def test_check_pivots_is_empty_without_a_directory(wide_corpus):
+    # Not an error: every level is built in process, which is the phase the executor
+    # started in and still supports.
+    assert wide_corpus.check_pivots() == {}
+
+
+def test_check_pivots_refuses_a_stranger_at_startup(wide_root, corpus_dir):
+    # The whole point: this refusal would otherwise arrive with whichever query first
+    # wanted the level, at whatever hour that was.
+    stranger = _write_pivots(corpus_dir, ("outcomes.products",))
+    with (
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(stranger),
+        ) as corpus,
+        pytest.raises(execute.PairingError, match="another corpus"),
+    ):
+        corpus.check_pivots()
+
+
+def test_check_pivots_leaves_the_levels_ready(wide_root, caplog):
+    # Publishing is the check, so a level it accepted is one the first query does not
+    # have to glob for or build.
+    pivots = _write_pivots(wide_root, ("outcomes.products",))
+    with execute.Corpus(
+        str(wide_root / "projections" / "*.parquet"),
+        str(wide_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots),
+    ) as corpus:
+        corpus.check_pivots()
+        # Cleared, because check_pivots logs the publish it just did and the question
+        # here is what the *query* had left to do.
+        caplog.clear()
+        with caplog.at_level(logging.INFO, logger="ord_schema.agent.execute"):
+            found = _search(corpus, _white("exists"))
+    assert found == {"ord-wd01", "ord-wd02", "ord-wd06"}
+    messages = [record.message for record in caplog.records]
+    assert not any("read 1 pivot artifacts" in message for message in messages)
+    assert not any("building the pivot" in message for message in messages)
+
+
+def test_a_singular_struct_under_a_level_is_answered_by_that_level_s_pivot(
+    deep_corpus, monkeypatch
+):
+    # An authentic standard is one compound per measurement rather than a list of its
+    # own, so no pivot is named for it; the measurements' pivot carries it. This is the
+    # one occurrence-indexed path that is not a repeated level, so it is also what an
+    # index the pivot was meant to subsume would have quietly stopped covering.
+    where = {
+        "op": "exists",
+        "path": "outcomes.products.measurements.authentic_standard",
+        "where": {
+            "op": "and",
+            "clauses": [
+                {"op": "substructure", "path": "smiles", "smarts": "c1ccccc1"},
+                {"op": "not_null", "path": "smiles"},
+            ],
+        },
+    }
+    pivoted = _search(deep_corpus, where)
+    assert pivoted == {"ord-cc01"}
+    monkeypatch.setattr(execute.Corpus, "_pivoted_table", _no_pivoted_table)
+    assert _search(deep_corpus, where) == pivoted
