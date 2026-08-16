@@ -203,30 +203,29 @@ of milliseconds of the same pivot held in memory** — which is the whole argume
 deriving them, since the artifact costs no budget at all.
 
 Building one in process unnests the projection down to its level, and is charged against
-the same `narrow_budget_bytes` as a materialized column set and evicted by the same LRU.
-What it costs, measured one build per process so eviction cannot corrupt the reading,
-beside the top-level column a query would otherwise materialize:
+`pivot_budget_bytes` and evicted least-recently-used. What it costs, measured one build
+per process so eviction cannot corrupt the reading:
 
-| level | unnests | held | build | as an artifact | column | held | build |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `workups` | 1 | 4.18 GiB | 42s | 149 MB | `workups` | 5.20 GiB | 3.3s |
-| `outcomes.products` | 2 | 0.39 GiB | 461s | 104 MB | `outcomes` | 3.23 GiB | 4.1s |
-| `inputs.components` | 2 | 2.64 GiB | 626s | 224 MB | `inputs` | 4.05 GiB | 2.5s |
-| `outcomes.products.measurements` | 3 | 1.34 GiB | 854s | 37 MB | `outcomes` | 3.23 GiB | 4.1s |
+| level | unnests | held | build | as an artifact |
+| --- | --- | --- | --- | --- |
+| `workups` | 1 | 4.18 GiB | 42s | 149 MB |
+| `outcomes.products` | 2 | 0.39 GiB | 461s | 104 MB |
+| `inputs.components` | 2 | 2.64 GiB | 626s | 224 MB |
+| `outcomes.products.measurements` | 3 | 1.34 GiB | 854s | 37 MB |
 
 Three things fall out. **Build cost is depth**: one unnest is 42 seconds, and each
-further repeated level costs roughly an order of magnitude, where materializing a column
-is 2.5–4.1s whatever it holds. **Size saving is width**: how much of its column an
-element still carries once the repeated fields are pruned away. And **the two are
-anti-correlated** — `workups` is the cheapest to build and the worst to hold, at 4.18 GiB
-against a 4 GB default that refuses it.
+further repeated level costs roughly an order of magnitude. **Size saving is width**: how
+much of its column an element still carries once the repeated fields are pruned away. And
+**the two are anti-correlated** — `workups` is the cheapest to build and the worst to
+hold, at 4.18 GiB against a 4 GB default that refuses it.
 
 The third is what makes the artifact the answer rather than a further prune. All four
 levels are **514 MB on disk against 9.21 GiB held**, because Parquet charges for data
 where an in-memory column charges for shape: `workups` carries 40 leaves, most of them
 NULL in most rows, which encode to almost nothing and occupy a full-width vector and a
-validity mask apiece. Publishing all four as views takes 0.9s and no memory, against
-32 minutes and 9.21 GiB to build them in process.
+validity mask apiece. The projection itself expands the same way, 1.53 GB of Parquet to
+**18.46 GB in memory**, which is why nothing here holds it. Publishing all four levels as
+views takes 0.9s and no memory, against 32 minutes and 9.21 GiB to build them in process.
 
 That is what `scripts/derive_pivots.py` is for — one subdirectory per level, one file per
 projection within it, stamped like any other derived artifact and read by
@@ -254,67 +253,46 @@ leaves the query goes on to read. DuckDB will **hold the parsed footers** betwee
 queries, which the corpus turns on at open, and over ORD that is most of the cost of a
 projection query:
 
-| query | footers reparsed | footers held | held as a column set |
-| --- | --- | --- | --- |
-| temperature filter | 0.759s | 0.096s | 0.032s |
-| group-by on stirring type | 0.728s | 0.055s | 0.003s |
-| temperature and city | 0.712s | 0.029s | 0.002s |
-| substring of a safety note | 0.713s | 0.026s | 0.001s |
+| query | footers reparsed | footers held |
+| --- | --- | --- |
+| temperature filter | 0.759s | 0.096s |
+| group-by on stirring type | 0.728s | 0.055s |
+| temperature and city | 0.712s | 0.029s |
+| substring of a safety note | 0.713s | 0.026s |
 
 The footers cost about **200 MB** over the whole corpus, once, and are bounded by the
 files rather than by what is asked of them — which is why they are held unconditionally
-where the gigabytes a column set costs are weighed against a budget.
+where the gigabytes a pivot costs are weighed against a budget. With them held, a scalar
+query over the projection lands in hundredths of a second, so there is nothing left for a
+cache of the columns themselves to buy.
 
-The third column is a **materialized column set** holding only the top-level columns a
-query names. Sets were worth an order of magnitude before the footers were held and are
-worth tens of milliseconds after; what still justifies the budget is the pivots, which
-share it and are worth seconds. The columns are read back off the compiled SQL and the
-query is then compiled again against the table, so a column it names and the table lacks
-is a catalog error rather than a wrong answer, and no SQL text is edited. Sets are held
-to a memory budget and evicted least-recently-used, skipping any a search is still
-reading; one too large to keep is not kept, the projection answers directly, and that is
-remembered rather than rediscovered by building it again. Only builds wait on builds: a
-search whose columns are already materialized is answered while another is being built.
-The rows are the same rows either way, in an order neither relation promises — a query
-wanting one has to say so.
+Pivots are held to that memory budget and evicted least-recently-used, skipping any a
+search is still reading; one too large to keep is not kept, the quantifier compiles over
+the elements, and that is remembered rather than rediscovered by building it again. Only
+builds wait on builds: a search over a level already materialized is answered while
+another is being built.
 
-**The budget is the cliff, and it says so.** A refused entry logs a **warning** on every
-query that wants it, giving what it costs, what the budget is, and the argument that
-changes them — so a query that suddenly takes seconds explains itself in the log rather
-than by profiling:
+**The budget is the cliff, and it says so.** A refused level logs a **warning** on every
+query over it, giving what it costs, what the budget is, and what changes them — so a
+query that suddenly takes seconds explains itself in the log rather than by profiling:
 
 ```text
-WARNING materializing the pivot over outcomes.products.measurements takes 1.6 GB, over
-this corpus's budget of 1.0 GB, so every query wanting it reads the Parquet files
-instead. Open the Corpus with a larger narrow_budget_bytes if the machine has the memory
-to spare.
+WARNING the pivot over outcomes.products.measurements takes 1.6 GB, over this corpus's
+budget of 1.0 GB, so every query over that level unnests the projection instead. Derive
+the pivot as an artifact, or open the Corpus with a larger pivot_budget_bytes if the
+machine has the memory to spare.
 ```
 
-The projection is **18.46 GB in memory**, from 1.53 GB of Parquet — a twelvefold
-expansion, and more than any default should claim:
-
-| column | in memory | | column | in memory |
-| --- | --- | --- | --- | --- |
-| `workups` | 5.08 GB | | `notes` | 1.33 GB |
-| `inputs` | 3.93 GB | | `smiles` | 0.89 GB |
-| `outcomes` | 3.04 GB | | `setup` | 0.59 GB |
-| `provenance` | 1.65 GB | | `observations` | 0.13 GB |
-| `conditions` | 1.61 GB | | `identifiers`, `reaction_id` | 0.21 GB |
-
-So every budget is a partial cache and the only question is which columns fit. The
-default is a fixed **4 GB**, which holds any single one of the large columns — what a
-query pairing a structure clause with a projection one needs — and
-`Corpus(narrow_budget_bytes=...)` states otherwise on a machine with room to spare.
-Building a set costs its size whether or not it is kept, so the peak is the budget plus
-the largest set, not the budget alone — `narrow_budget_bytes=0` is the one figure that
-avoids the build entirely, and so the one that bounds a small machine. This is also the
-second thing the index buys: a query whose structure clause becomes a semi-join never
-names `inputs` at all, so what has to be resident is far smaller than for the same
-question answered from the elements.
+The default is a fixed **4 GB**, which holds any single one of the pivots worth the most,
+and `Corpus(pivot_budget_bytes=...)` states otherwise on a machine with room to spare.
+Building one costs its size whether or not it is kept, so the peak is the budget plus the
+largest pivot, not the budget alone — `pivot_budget_bytes=0` is the one figure that
+avoids the build entirely, and so the one that bounds a small machine. A deployment with
+derived artifacts spends none of it: those are views over Parquet, not tables.
 
 **Sizing a deployment.** Measured as process resident size, since that is what a memory
 limit is applied to, building each part in the order a first substructure query would,
-with `narrow_budget_bytes=0` and the pivots read as artifacts:
+with `pivot_budget_bytes=0` and the pivots read as artifacts:
 
 | after | resident |
 | --- | --- |
@@ -326,10 +304,10 @@ with `narrow_budget_bytes=0` and the pivots read as artifacts:
 
 None of it is optional for substructure search, since the screen and verify are RDKit in
 this process rather than SQL in an engine. Everything above it is latency: a container
-held to `narrow_budget_bytes=0` answers every query from Parquet in hundredths of a
-second, and one given room to hold `outcomes` answers the same query in thousandths.
-There is no managed service to move this to — Athena and its kin can scan the Parquet,
-but the chemistry is not SQL.
+held to `pivot_budget_bytes=0` and given no artifacts answers a quantifier by unnesting
+the projection, in seconds rather than the tens of milliseconds a pivot takes. There is
+no managed service to move this to — Athena and its kin can scan the Parquet, but the
+chemistry is not SQL.
 
 The last row is mostly not the index. The table is 1.19 GiB; the rest is DuckDB's own
 caches, which are bounded by `memory_limit` and fill what they are given — 752 MB at a
