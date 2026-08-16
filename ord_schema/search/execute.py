@@ -486,9 +486,9 @@ def _cache_footers(connection: duckdb.DuckDBPyConnection) -> None:
 
     Roughly 200 MB across the whole corpus, and bounded by the files rather than by what
     is asked of them, which is what makes it worth spending unconditionally where the
-    gigabytes a materialized column set costs are worth weighing. DuckDB re-reads a file
-    that has been rewritten, so an artifact replaced under an open corpus is read as it
-    stands.
+    gigabytes a materialized column set costs are weighed against a budget. DuckDB
+    re-reads a file that has been rewritten, so an artifact replaced under an open
+    corpus is read as it stands.
 
     Set globally rather than on this connection: a search runs on its own cursor, which
     is its own session, and a session-scoped setting would leave every search paying the
