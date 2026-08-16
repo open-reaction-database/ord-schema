@@ -303,12 +303,18 @@ names `inputs` at all, so what has to be resident is far smaller than for the sa
 question answered from the elements.
 
 **Sizing a deployment.** What must be resident is the RDKit library (about 1.5 GB), the
-occurrence index (about 130 MB), and the runtime — call it 3 GB, and nothing about that
-is optional for substructure search, since the screen and verify are RDKit in this
-process rather than SQL in an engine. Everything above that is latency: a container held
-to `narrow_budget_bytes=0` answers every query from Parquet in seconds, and one given
-room to hold `outcomes` answers the same query in tenths. There is no managed service to
-move this to — Athena and its kin can scan the Parquet, but the chemistry is not SQL.
+occurrence index (about 130 MB), the parsed footers (about 200 MB), and the runtime —
+call it 3 GB, and nothing about that is optional for substructure search, since the
+screen and verify are RDKit in this process rather than SQL in an engine. Everything
+above that is latency: a container held to `narrow_budget_bytes=0` answers every query
+from Parquet in hundredths of a second, and one given room to hold `outcomes` answers
+the same query in thousandths. There is no managed service to move this to — Athena and
+its kin can scan the Parquet, but the chemistry is not SQL.
+
+DuckDB's own file cache sits beside these and is bounded by `memory_limit` rather than
+stated here: it holds 752 MB at a 1 GB limit and 2.66 GB at 3 GB, filling what it is
+given and evicted under pressure. The parsed footers do not shrink that way, so on a
+small limit they are a fifth of it.
 
 Over the whole corpus (2,428,291 reactions, 53 files, a 6 GB budget, warm), a mixed set
 of queries pairing an indexed clause with one only the projection can answer:
