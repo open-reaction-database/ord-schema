@@ -196,19 +196,28 @@ thing: `above 350 K` is a scalar path with no quantifier, so no pivot is involve
 nothing moves, and the workup query is one whose pivot the budget refused — the
 projection answered it, which is the fallback working rather than the pivot helping.
 
-Building one unnests the projection down to its level, which over ORD is minutes:
-`outcomes.products` is 487.8 MB in 478s and `outcomes.products.measurements` 1.7 GB in
-783s, charged against the same `narrow_budget_bytes` as a materialized column set and
-evicted by the same LRU.
+Building one unnests the projection down to its level, and is charged against the same
+`narrow_budget_bytes` as a materialized column set and evicted by the same LRU. What it
+costs, measured one build per process so eviction cannot corrupt the reading, beside the
+top-level column a query would otherwise materialize (GiB):
 
-How much a pivot saves depends on how wide its elements are, and pruning only the
-repeated fields is coarse. `workups` is the case that shows it: its elements carry a
-whole `ReactionInput` besides, so the pivot is **4.4 GB** against 5.08 GB for the nested
-column — over the 4 GB default, refused, and answered from the projection. A level whose
-elements are narrow behaves the other way, which is why the two `outcomes` levels are
-tenths of a second and the workup query is seconds.
+| level | unnests | pivot | build | column | | build |
+| --- | --- | --- | --- | --- | --- | --- |
+| `workups` | 1 | 4.40 | 42s | `workups` | 5.20 | 3.3s |
+| `outcomes.products` | 2 | 0.45 | 461s | `outcomes` | 3.23 | 4.1s |
+| `inputs.components` | 2 | 2.75 | 626s | `inputs` | 4.05 | 2.5s |
+| `outcomes.products.measurements` | 3 | 1.61 | 854s | `outcomes` | 3.23 | 4.1s |
 
-That build cost belongs offline, which is what
+Two things fall out, and they are independent. **Build cost is depth**: one unnest is
+42 seconds, and each further repeated level costs roughly an order of magnitude, so a
+shallow pivot is cheap and a deep one is not. **Size saving is width**: it depends on
+how much of its column an element carries once the repeated fields are pruned away, from
+86% for `outcomes.products` down to 15% for `workups`, whose elements carry a whole
+`ReactionInput` besides. The 4.40 GiB workup pivot is over the 4 GB default, so it is
+refused and the projection answers — which is why the workup query above is seconds
+where the two `outcomes` levels are tenths.
+
+A deep pivot's build therefore belongs offline, which is what
 `scripts/derive_pivots.py` is for — one subdirectory per level, one file per projection
 within it, stamped like any other derived artifact and read by
 `Corpus(..., pivots_dir=...)`. Artifacts are refused unless they were derived from this
