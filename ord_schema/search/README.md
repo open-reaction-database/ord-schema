@@ -312,19 +312,55 @@ second thing the index buys: a query whose structure clause becomes a semi-join 
 names `inputs` at all, so what has to be resident is far smaller than for the same
 question answered from the elements.
 
-**Sizing a deployment.** What must be resident is the RDKit library (about 1.5 GB), the
-occurrence index (1.19 GiB), the parsed footers (about 200 MB), and the runtime — call
-it 4 GB, and nothing about that is optional for substructure search, since the
-screen and verify are RDKit in this process rather than SQL in an engine. Everything
-above that is latency: a container held to `narrow_budget_bytes=0` answers every query
-from Parquet in hundredths of a second, and one given room to hold `outcomes` answers
-the same query in thousandths. There is no managed service to move this to — Athena and
-its kin can scan the Parquet, but the chemistry is not SQL.
+**Sizing a deployment.** Measured as process resident size, since that is what a memory
+limit is applied to, building each part in the order a first substructure query would,
+with `narrow_budget_bytes=0` and the pivots read as artifacts:
 
-DuckDB's own file cache sits beside these and is bounded by `memory_limit` rather than
-stated here: it holds 752 MB at a 1 GB limit and 2.66 GB at 3 GB, filling what it is
-given and evicted under pressure. The parsed footers do not shrink that way, so on a
-small limit they are a fifth of it.
+| after | resident |
+| --- | --- |
+| the interpreter | 0.15 GiB |
+| the corpus is open | 1.09 GiB |
+| the pivots are published | 1.22 GiB |
+| the library is built (8s) | 3.46 GiB |
+| the index is built (57s) | 7.28 GiB |
+
+None of it is optional for substructure search, since the screen and verify are RDKit in
+this process rather than SQL in an engine. Everything above it is latency: a container
+held to `narrow_budget_bytes=0` answers every query from Parquet in hundredths of a
+second, and one given room to hold `outcomes` answers the same query in thousandths.
+There is no managed service to move this to — Athena and its kin can scan the Parquet,
+but the chemistry is not SQL.
+
+The last row is mostly not the index. The table is 1.19 GiB; the rest is DuckDB's own
+caches, which are bounded by `memory_limit` and fill what they are given — 752 MB at a
+1 GB limit, 2.66 GB at 3 GB, evicted under pressure. `Corpus` sets no `memory_limit`, so
+DuckDB takes its default share of whatever machine it finds.
+
+**The index build has a floor, and it is not a soft one.** Over ORD it wants about **5 GB**
+of DuckDB memory:
+
+| `memory_limit` | result | temporary files |
+| --- | --- | --- |
+| 4 GB | `OutOfMemoryException` after 64s | — |
+| 5 GB | built in 114s | 15.79 GiB |
+| 6 GB | built in 65s | 16.10 GiB |
+| 8 GB | built in 64s | 25.28 GiB |
+
+Below the floor it raises rather than running slowly, because a block it cannot pin is
+not one it can spill — and it raises even with a `temp_directory` to spill into, which is
+the remedy DuckDB's own message suggests. Neither refusing to preserve insertion order
+nor building the paths one at a time moves it, so the shape of the statement is not what
+costs. Above the floor but near it, it needs scratch disk in quantities a container may
+not have: a Fargate task carries 20 GB of ephemeral storage by default, and `Corpus` sets
+no `temp_directory`, so a constrained deployment fails rather than filling the disk.
+
+Which is survivable but should not be discovered by a user. The index is built by the
+first query that can spend it, so a container short of the floor starts cleanly, passes
+`check_pivots()`, answers scalar queries, and then raises at whoever runs the first
+substructure search. `Corpus.check_index()` moves that to startup, where it is a failed
+deployment rather than a failed request. It is opt-in for the same reason the build is
+lazy — a minute and 1.19 GB that a corpus asked only for scalar or similarity queries
+never needs to spend.
 
 Over the whole corpus (2,428,291 reactions, 53 files, the default budget, pivots read as
 artifacts, warm), a mixed set of queries pairing an indexed structure clause with one the
