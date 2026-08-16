@@ -2,7 +2,7 @@
 
 The serialized protocol buffers in [ord-data](https://github.com/open-reaction-database/ord-data)
 are the [source of truth](https://en.wikipedia.org/wiki/Single_source_of_truth), and the
-[projection](../projection.py) restates them as nested Parquet so a query engine can read one
+[projection](../artifacts/projection.py) restates them as nested Parquet so a query engine can read one
 leaf without deserializing the rest. This package is how a language model reaches that
 projection: what the model is told it may query, what it is allowed to emit, and how that
 becomes SQL.
@@ -88,10 +88,58 @@ is a compile error rather than a wrong answer:
   those are real graph atoms in a stored molecule and the query already works;
   28,297 ORD reactions have an `[H][H]` component.
 
+## How a query is answered
+
+One `Query` becomes one SQL statement. The chemistry and the compound names are lifted
+out of it and bound as parameters, so what DuckDB runs is a filter over the projection
+and nothing else:
+
+```mermaid
+flowchart TB
+    Q["Query, as JSON"] --> V["validate against projection.SCHEMA<br/>paths, leaf types, quantifiers"]
+    V --> C["compile to one SQL statement<br/>one relation, no join, no recursion"]
+    C --> N["compound names<br/>resolvers → SMILES"]
+    C --> S["structure predicates<br/>RDKit screen → verify → bitmap"]
+    C --> X["run on this search's own cursor"]
+    N -- "bound parameters" --> X
+    S -- "bound parameters" --> X
+    X --> O["reaction_id, or the group<br/>and measure columns"]
+```
+
+Three relations can answer a quantifier, and the compiler chooses **per quantifier**
+rather than per query — so one statement can spend the occurrence index on one clause
+and a pivot on the next:
+
+```mermaid
+flowchart TB
+    A["exists / forall over a repeated level"] --> B{"an exists whose body is one structure<br/>predicate on the element's own smiles,<br/>at most a reaction_role beside it?"}
+    B -- yes --> I["<b>occurrence index</b><br/>reaction_id IN (SELECT … FROM occurrences …)"]
+    B -- no --> P{"does the body resolve against<br/>the pivot's pruned element,<br/>and does a pivot fit?"}
+    P -- yes --> V["<b>a pivot</b><br/>EXISTS (SELECT 1 FROM pivot_… AS x0 …)"]
+    P -- no --> E["<b>the elements</b><br/>list_filter over the nested column"]
+```
+
+The three answer identically — that is what the differential tests pin — and differ only
+in what they read. Worked examples, with the route each clause takes:
+
+| query | clause | route |
+| --- | --- | --- |
+| above 350 K | `conditions.temperature.setpoint_kelvin > 350` | no quantifier: the projection |
+| pyridine as the solvent | `exists inputs.components` | occurrence index |
+| pyridine as the solvent, yield above 50% | `exists inputs.components` | occurrence index |
+| | `exists outcomes.products.measurements` | pivot |
+| every product is desired | `forall outcomes.products` | pivot — the index shows which elements match, never that all of them do |
+| pyridine **and** a boronic acid in one component | `exists inputs.components` | pivot — two structure predicates is one more than an occurrence row can carry |
+| a desired product with a yield above 50% | `exists outcomes.products`, nested `exists measurements` | both levels' pivots, joined on the ordinal prefix |
+
+Every pivot row above falls to the elements when no pivot is available — a level the
+budget refused, or one with neither an artifact nor room to build. The answer does not
+change; the query gets slower, and the log says which route it took.
+
 ## Structure search
 
 A structure predicate compiles to a bitmap test, not to chemistry. The chemistry runs
-in [`execute.Corpus`](execute.py) against the [structures artifact](../structures.py).
+in [`execute.Corpus`](execute.py) against the [structures artifact](../artifacts/structures.py).
 Substructure runs through an RDKit `SubstructLibrary` built over the corpus: a
 fingerprint **screen** — complete but not exact — over every distinct molecule in the
 corpus, then exact subgraph **verification** of the survivors. It runs on RDKit's own
@@ -181,6 +229,23 @@ clauses hold of *different* elements: "a desired product with a yield above 50%"
 wrong, silently. ORD is effectively single-outcome, so dropping the *outcome* ordinal
 changes nothing at all, which is exactly why the product-level error looks correct until
 it is checked.
+
+A reaction with the shape of those 942 — one outcome, two products, and the high yield on
+the one nobody wanted — is two rows in each pivot:
+
+```text
+pivot over outcomes.products                pivot over outcomes.products.measurements
+reaction  outcome product  is_desired       reaction  outcome product  meas  type   value
+ord-wd07  1       1        true             ord-wd07  1       1        1     YIELD  10
+ord-wd07  1       2        false            ord-wd07  1       2        1     YIELD  90
+          └───────┴──── the outer clause selects this product ────┘
+                          ...and the inner clause selects the other product's measurement
+```
+
+The outer clause holds of `(1, 1)` and the inner of `(1, 2, 1)`. Joined on the reaction
+alone — or on `(reaction, outcome)`, which over ORD is the same join — the desired product
+pairs with its sibling's 90% and the reaction answers yes. Joined on the whole prefix it
+does not: product 1's only measurement is 10%.
 
 Over the whole corpus, warm, against the same queries answered from the elements — the
 pivots read as artifacts, and the same pivots built in process:
