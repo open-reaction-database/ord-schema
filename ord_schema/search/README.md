@@ -237,37 +237,48 @@ another as SMARTS. A predicate asked
 again while the first pass is still running waits for that pass, so a burst of identical
 requests costs one match; unrelated searches still overlap.
 
-Queries the index declines read the projection, and read it faster from a **materialized
-column set** holding only the top-level columns they name. Reading a handful of columns
-out of a 442-leaf projection spread over 53 files costs mostly per-file overhead, which
-is the same whatever the query asks for; paying it once and answering from memory
-afterwards takes a temperature filter from 1.24s to 0.21s and a group-by on stirring
-type from 0.75s to 0.003s. The columns are read back off the compiled SQL and the query
-is then compiled again against the table, so a column it names and the table lacks is a
-catalog error rather than a wrong answer, and no SQL text is edited. Sets are held to a
-memory budget and evicted least-recently-used, skipping any a search is still reading;
-one too large to keep is not kept, the projection answers directly, and that is
-remembered rather than rediscovered by building it again. Only builds wait on builds: a
-search whose columns are already materialized is answered while another is being built. The rows are the
-same rows either way, in an order neither relation promises — a query wanting one has to
-say so.
+Queries the index declines read the projection, and most of what that costs is not the
+reading. A scan re-parses the footer of every file it touches, and a 442-leaf projection
+over 53 files has large footers; the parse is charged again on every query however few
+leaves the query goes on to read. DuckDB will **hold the parsed footers** between
+queries, which the corpus turns on at open, and over ORD that is most of the cost of a
+projection query:
 
-**The budget is the cliff, and it says so.** A refused column set logs a **warning** on
-every query that names it, giving what the set costs, what the budget is, and the
-argument that changes them — so a query that suddenly takes seconds explains itself in
-the log rather than by profiling:
+| query | footers reparsed | footers held | held as a column set |
+| --- | --- | --- | --- |
+| temperature filter | 0.759s | 0.096s | 0.032s |
+| group-by on stirring type | 0.728s | 0.055s | 0.003s |
+| temperature and city | 0.712s | 0.029s | 0.002s |
+| substring of a safety note | 0.713s | 0.026s | 0.001s |
+
+The footers cost about **200 MB** over the whole corpus, once, and are bounded by the
+files rather than by what is asked of them — which is why they are held unconditionally
+where the gigabytes a column set costs are weighed against a budget.
+
+The third column is a **materialized column set** holding only the top-level columns a
+query names. Sets were worth an order of magnitude before the footers were held and are
+worth tens of milliseconds after; what still justifies the budget is the pivots, which
+share it and are worth seconds. The columns are read back off the compiled SQL and the
+query is then compiled again against the table, so a column it names and the table lacks
+is a catalog error rather than a wrong answer, and no SQL text is edited. Sets are held
+to a memory budget and evicted least-recently-used, skipping any a search is still
+reading; one too large to keep is not kept, the projection answers directly, and that is
+remembered rather than rediscovered by building it again. Only builds wait on builds: a
+search whose columns are already materialized is answered while another is being built.
+The rows are the same rows either way, in an order neither relation promises — a query
+wanting one has to say so.
+
+**The budget is the cliff, and it says so.** A refused entry logs a **warning** on every
+query that wants it, giving what it costs, what the budget is, and the argument that
+changes them — so a query that suddenly takes seconds explains itself in the log rather
+than by profiling:
 
 ```text
-WARNING materializing ['outcomes', 'reaction_id'] takes 3.0 GB, over this corpus's
-budget of 4.0 GB, so every query naming those columns reads the Parquet files instead
--- seconds rather than tenths of a second at ORD's scale. Open the Corpus with a larger
-narrow_budget_bytes if the machine has the memory to spare.
+WARNING materializing the pivot over outcomes.products.measurements takes 1.6 GB, over
+this corpus's budget of 1.0 GB, so every query wanting it reads the Parquet files
+instead. Open the Corpus with a larger narrow_budget_bytes if the machine has the memory
+to spare.
 ```
-
-A column set the budget refuses is read from the 53 Parquet files on every query that
-names it, and scattered rows do not let a reader skip row groups, so the same question
-costs seconds instead of tenths — "pyridine as the solvent with a yield above 50%" is
-3.34s where `outcomes` is refused and 0.41s where it is held.
 
 The projection is **18.46 GB in memory**, from 1.53 GB of Parquet — a twelvefold
 expansion, and more than any default should claim:

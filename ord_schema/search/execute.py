@@ -64,6 +64,10 @@ An occurrence names its reaction by ID, so the index is built only over a corpus
 states each reaction once; two files carrying one reaction would have each copy's
 structures answering for the other.
 
+Reading the projection at all costs a re-parse of every file's footer, and over a
+442-leaf schema in 53 files that parse is most of what a query spends however few leaves
+it goes on to read. The corpus keeps the parsed footers instead; see ``_cache_footers``.
+
 The grammar bounds what a query can cost (one pass and a sort), and ``search``
 takes a wall-clock timeout that interrupts the final query. Name resolution, the
 one-time library and index builds, screening, and verification all run before the timer
@@ -470,6 +474,32 @@ def _memory_bytes(cursor: duckdb.DuckDBPyConnection) -> int:
     return int(row[0]) if row is not None and row[0] is not None else 0
 
 
+def _cache_footers(connection: duckdb.DuckDBPyConnection) -> None:
+    """Keeps the Parquet footers parsed between queries.
+
+    A scan re-reads and re-parses the footer of every file it touches, and the
+    projection's footers are large: 442 leaves over 53 files, with statistics per row
+    group. Over ORD that parse is most of what a query costs, and it is charged again on
+    every query however little column data the query goes on to read -- a temperature
+    filter falls from 0.76s to 0.10s once the footers are held, a group-by on stirring
+    type from 0.73s to 0.055s.
+
+    Roughly 200 MB across the whole corpus, and bounded by the files rather than by what
+    is asked of them, which is what makes it worth spending unconditionally where the
+    gigabytes a materialized column set costs are worth weighing. DuckDB re-reads a file
+    that has been rewritten, so an artifact replaced under an open corpus is read as it
+    stands.
+
+    Set globally rather than on this connection: a search runs on its own cursor, which
+    is its own session, and a session-scoped setting would leave every search paying the
+    parse.
+
+    Args:
+        connection: The corpus connection, on the database every cursor shares.
+    """
+    connection.execute("SET GLOBAL parquet_metadata_cache=true")
+
+
 def _run_with_timeout(
     cursor: duckdb.DuckDBPyConnection,
     sql: str,
@@ -585,15 +615,15 @@ class Corpus:
                 artifact, and RDKit versions. The screen's completeness guarantee
                 assumes the query and the artifact fingerprint identically, so turning
                 this off is only for reading a corpus known to match anyway.
-            narrow_budget_bytes: How much memory the materialized column sets may
-                hold between them; 4 GB by default. Worth stating on a machine that can
-                spend more, since a column set the budget refuses is read from the
-                Parquet files on every query that names it -- over ORD, seconds against
-                tenths of a second. The whole projection is 18.46 GB in memory, so a
-                corpus asked about most of it wants most of that. Zero materializes
-                nothing at all, which is what bounds a small machine: a set is measured
-                by building it, so any other figure has a peak of itself plus the
-                largest set a query names, whether or not that set is then kept.
+            narrow_budget_bytes: How much memory the materialized column sets and
+                pivots may hold between them; 4 GB by default. Worth stating on a
+                machine that can spend more, since what the budget refuses is read from
+                the Parquet files on every query that wants it -- tens of milliseconds
+                for a column set, seconds for a pivot. The whole projection is 18.46 GB
+                in memory, so a corpus asked about most of it wants most of that. Zero
+                materializes nothing at all, which is what bounds a small machine: an
+                entry is measured by building it, so any other figure has a peak of
+                itself plus the largest entry a query wants, kept or not.
             pivots_dir: Directory holding derived pivot artifacts, one subdirectory per
                 repeated level. Given one, a quantifier over a level reads the artifact
                 instead of unnesting the projection to build it, which is minutes per
@@ -674,6 +704,7 @@ class Corpus:
         self._pivot_lock = threading.Lock()
         self._connection = duckdb.connect()
         try:
+            _cache_footers(self._connection)
             self._total, self._searchable = self._prepare(pairs)
         except Exception:
             # Nothing else holds the connection yet, and the caller has no object to
@@ -1241,9 +1272,8 @@ class Corpus:
         """
         logger.warning(
             "materializing %s takes %s, over this corpus's budget of %s, so every "
-            "query wanting it reads the Parquet files instead -- seconds rather than "
-            "tenths of a second at ORD's scale. Open the Corpus with a larger "
-            "narrow_budget_bytes if the machine has the memory to spare.",
+            "query wanting it reads the Parquet files instead. Open the Corpus with a "
+            "larger narrow_budget_bytes if the machine has the memory to spare.",
             held.description,
             _format_bytes(cost),
             _format_bytes(self._narrow_budget),

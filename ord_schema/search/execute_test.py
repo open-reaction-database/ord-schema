@@ -842,6 +842,20 @@ def test_a_search_runs_on_a_cursor_rather_than_the_shared_connection(corpus_dir)
         assert counter.cursors == taken + 1
 
 
+def test_the_footer_cache_reaches_the_cursor_a_search_runs_on(corpus):
+    # A cursor is its own session, and a session-scoped setting would leave the parse
+    # charged to every search while the corpus's own connection -- which runs no
+    # queries -- reported the cache as on.
+    cursor = corpus._connection.cursor()
+    try:
+        setting = cursor.execute(
+            "SELECT current_setting('parquet_metadata_cache')"
+        ).fetchone()
+    finally:
+        cursor.close()
+    assert setting == (True,)
+
+
 def test_concurrent_searches_return_their_own_answers(corpus_dir):
     # Distinct queries with distinct answers, run at once against one corpus: each
     # thread has to come back with the reactions its own query selected. Sharing one
