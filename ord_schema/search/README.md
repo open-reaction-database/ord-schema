@@ -109,21 +109,24 @@ larger one. An **occurrence index** — one row per structure occurrence, carryi
 corpus-wide ID, the path, and the element's own `reaction_role` — makes that a semi-join
 against a narrow table rather than a scan of every reaction. Keeping the role beside the
 structure is what keeps a bound query a condition on one row. At corpus scale the index
-is 14.1M rows and about 130 MB, resident for the life of the `Corpus`. A search for
-pyridine among the inputs returns in 1.46s **end to end**, pyridine as the solvent in
-1.74s, and a boronic acid in 0.15s — and for a common pattern nearly all of that is the
-RDKit screen and verify, which the index does not touch: pyridine's match alone is about
-1.4s of its 1.46s. What the index cut is the reaction lookup, from roughly 3.5s to 0.2s.
+is 18,847,978 rows and **1.19 GiB**, built in 58s and resident for the life of the
+`Corpus` — a row is three strings and an integer, and the strings are what it costs. A
+search for pyridine among the inputs returns in 1.46s **end to end**, pyridine as the
+solvent in 1.74s, and a boronic acid in 0.15s — and for a common pattern nearly all of
+that is the RDKit screen and verify, which the index does not touch: pyridine's match
+alone is about 1.4s of its 1.46s. What the index cut is the reaction lookup, from roughly
+3.5s to 0.2s.
 
 The index answers one *quantifier* at a time, not one query: an `exists` whose body asks
 for one structure and at most one role becomes `reaction_id IN (...)`, and the rest of
 the query compiles as if the index did not exist. So "reactions with yield > 50% where
 pyridine is the solvent" spends the index on its pyridine clause and answers the yield
-clause from the projection, in one query — and aggregates, orderings, limits, negations,
-disjunctions, and second structure predicates all compose the same way. A quantifier the
-index cannot carry — one binding another element field, holding no structure predicate
-or two, or any `forall`, which needs every element rather than some — compiles over the
-elements, and the projection answers it. Either way it is one compiled query, screened
+clause from the pivot over `outcomes.products.measurements`, in one query — and
+aggregates, orderings, limits, negations, disjunctions, and second structure predicates
+all compose the same way. A quantifier the index cannot carry — one binding another
+element field, holding no structure predicate or two, or any `forall`, which needs every
+element rather than some — falls to the pivot, and to the elements only if no pivot holds
+the level either. Either way it is one compiled query, screened
 and verified identically; the log line says whether the index took a clause. A level the
 source never recorded — most reactions have no workups and no authentic standards — is a
 level with no elements: nothing satisfies an `exists` there and nothing contradicts a
@@ -310,8 +313,8 @@ names `inputs` at all, so what has to be resident is far smaller than for the sa
 question answered from the elements.
 
 **Sizing a deployment.** What must be resident is the RDKit library (about 1.5 GB), the
-occurrence index (about 130 MB), the parsed footers (about 200 MB), and the runtime —
-call it 3 GB, and nothing about that is optional for substructure search, since the
+occurrence index (1.19 GiB), the parsed footers (about 200 MB), and the runtime — call
+it 4 GB, and nothing about that is optional for substructure search, since the
 screen and verify are RDKit in this process rather than SQL in an engine. Everything
 above that is latency: a container held to `narrow_budget_bytes=0` answers every query
 from Parquet in hundredths of a second, and one given room to hold `outcomes` answers
@@ -323,20 +326,29 @@ stated here: it holds 752 MB at a 1 GB limit and 2.66 GB at 3 GB, filling what i
 given and evicted under pressure. The parsed footers do not shrink that way, so on a
 small limit they are a fifth of it.
 
-Over the whole corpus (2,428,291 reactions, 53 files, a 6 GB budget, warm), a mixed set
-of queries pairing an indexed clause with one only the projection can answer:
+Over the whole corpus (2,428,291 reactions, 53 files, the default budget, pivots read as
+artifacts, warm), a mixed set of queries pairing an indexed structure clause with one the
+index cannot carry. The second column refuses the index, so the pivots take every
+quantifier — which is what a corpus without an index now falls to, rather than to the
+elements:
 
-| query | index | projection |
+| query | index | pivots alone |
 | --- | --- | --- |
-| pyridine solvent, above 350 K | 0.02s | 0.20s |
-| pyridine solvent, yield > 50% | 0.41s | 4.82s |
-| pyridine solvent, white product | 0.24s | 4.30s |
-| pyridine solvent, "reflux" in the procedure | 0.05s | 0.20s |
-| yields by product color (grouped) | 0.40s | 1.53s |
-| hottest with a yield (ordered, limited) | 0.41s | 0.99s |
-| boronic acid, pyridine solvent, yield > 50% | 0.43s | 12.75s |
-| any aromatic carbon, yield > 50% | 0.45s | 14.79s |
-| **not** pyridine anywhere, with a yield | 0.55s | 14.86s |
+| pyridine solvent, above 350 K | 0.020s | 0.484s |
+| pyridine solvent, yield > 50% | 0.033s | 0.105s |
+| pyridine solvent, white product | 0.028s | 0.101s |
+| pyridine solvent, "reflux" in the procedure | 0.054s | 0.493s |
+| yields by product color (grouped) | 0.036s | 0.104s |
+| hottest with a yield (ordered, limited) | 0.033s | 0.105s |
+| boronic acid, pyridine solvent, yield > 50% | 0.041s | 0.142s |
+| any aromatic carbon, yield > 50% | 0.153s | 0.259s |
+| a benzene ring, yield > 50% | 0.142s | 0.241s |
+| **not** pyridine anywhere, with a yield | 0.123s | 0.218s |
+
+Same answers on both routes. The index is 2–24× ahead, and the gap is widest where the
+other clause is cheap — a scalar path or a substring — because there the whole query is
+the structure clause. Where the other clause is itself a quantifier the pivot answers, the
+two routes converge.
 
 The screen itself is not a lever. It is the same `PatternFingerprint` the RDKit
 PostgreSQL cartridge screens with (`rdkit.sss_fp_size`, via `makeMolSignature`), and for
