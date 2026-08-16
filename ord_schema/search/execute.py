@@ -82,8 +82,10 @@ import array
 import collections
 import contextlib
 import dataclasses
+import functools
 import glob
 import math
+import pathlib
 import threading
 import time
 from collections.abc import Callable, Iterable, Iterator, Sequence
@@ -540,6 +542,7 @@ class Corpus:
         require_current: bool = True,
         pivot_budget_bytes: int | None = None,
         pivots_dir: str | None = None,
+        derive_pivots: bool = False,
     ) -> None:
         """Pairs the artifacts, checks their stamps, and prepares the relations.
 
@@ -576,13 +579,23 @@ class Corpus:
                 milliseconds of the built ones. A level with no subdirectory is still
                 built in process, so a partial set of artifacts is a partial speedup
                 rather than a missing answer.
+            derive_pivots: Write the artifact for a level that has none, rather than
+                building the level in memory. Needs a writable ``pivots_dir``. The pass
+                costs what building in memory costs, and once, since the next process
+                over the same directory reads what this one wrote; it also holds a
+                projection at a time rather than the whole level, so a level too large
+                for the budget is still derivable. Off by default: a deployment reading
+                artifacts someone else derives should not start writing them because a
+                directory was mistyped, and a corpus-scale derivation belongs in
+                ``ord_schema.artifacts.scripts.derive_pivots``.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
                 partner on the other, a pair's stamps disagree about the source
                 dataset, or -- with ``require_current`` -- any artifact is stale.
             ValueError: If ``pivot_budget_bytes`` is negative, which no amount of
-                memory is; zero is allowed, and materializes nothing.
+                memory is; zero is allowed, and materializes nothing; or if
+                ``derive_pivots`` is set without a ``pivots_dir`` to derive into.
         """
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
         if pivot_budget_bytes is not None and pivot_budget_bytes < 0:
@@ -638,9 +651,19 @@ class Corpus:
         # Held across a materialization, so the two memory readings bracket one table
         # and no search waits on a build to be told what the cache already holds.
         self._build_lock = threading.Lock()
+        if derive_pivots and pivots_dir is None:
+            raise ValueError(
+                "derive_pivots was set without a pivots_dir, so there is nowhere to "
+                "write what it would derive"
+            )
         pairs = _pair(projection_pattern, structures_pattern, require_current)
         self._pivots_dir = pivots_dir
+        self._derive_pivots = derive_pivots
         self._require_current = require_current
+        # The pattern the derivation reads, which is what mirrors the projections'
+        # layout under a level's subdirectory; see _derive_pivot.
+        self._projection_pattern = projection_pattern
+        self._derive_lock = threading.Lock()
         # The projections a pivot artifact has to have been derived from, and the views
         # already published over the artifacts that were; see _pivot_view.
         self._projections = [pair[0] for pair in pairs]
@@ -751,6 +774,10 @@ class Corpus:
         Publishing is the check: a level whose artifacts are wrong cannot be published,
         and one that is fine is left ready, so the first real query does not pay the
         glob. Cheap either way -- a view over Parquet reads footers, not rows.
+
+        Reports what is held rather than arranging for it: this reaches every level the
+        schema has, and ``derive_pivots`` here would be 39 unnests of the projection at
+        startup for a deployment that asks about two.
 
         Returns:
             The number of artifacts found per level, for the levels that have any.
@@ -1450,6 +1477,74 @@ class Corpus:
                 "of another corpus names reactions this one does not hold"
             )
 
+    def _derive_pivot(self, path: str) -> str | None:
+        """Writes the pivot artifacts for ``path`` and publishes them.
+
+        The same derivation ``derive_pivots`` runs offline, aimed at this corpus's own
+        projections: one artifact per projection, stamped, and skipped where one is
+        already current -- so a run interrupted partway is finished by the next rather
+        than started again. It reads a projection at a time and streams the rows out, so
+        it holds a batch where building the level in memory holds the level.
+
+        Derived before the level is read rather than after refusing to read it. What an
+        interrupted run leaves behind is a set covering some of the projections, which
+        is exactly what ``_pivot_view`` refuses; checking first would turn the
+        interruption into a level that can never be completed from here, since the pass
+        that would complete it is the one behind the refusal. The cost of that ordering
+        is one ``derive_tree`` pass per level per process where every artifact is
+        already current, which reads footers and writes nothing.
+
+        One derivation at a time, and the published view is looked up again under the
+        lock: whoever held it may have been deriving exactly this, and a second pass
+        would rewrite the artifacts the first one just wrote.
+
+        Args:
+            path: The repeated level, as the query grammar names it.
+
+        Returns:
+            The view's name, or None if the derivation wrote nothing -- which means the
+            pattern reaches no projection this corpus reads, and the level is left to be
+            built in process.
+
+        Raises:
+            PairingError: If what is there once the derivation has run still does not
+                pair with this corpus -- a stranger's artifacts, or a level filed under
+                another one's name, neither of which a pass over the projections
+                displaces. ``_pivot_view`` decides.
+            ValueError: If a projection is stale, since a pivot derived from one would
+                claim a provenance it does not have. Reachable only with
+                ``require_current`` off, which is what let the corpus open at all.
+        """
+        assert self._pivots_dir is not None  # Checked when derive_pivots was accepted.
+        with self._derive_lock:
+            with self._views_lock:
+                published = self._pivot_views.get(path)
+            if published is not None:
+                return published
+            start = time.perf_counter()
+            logger.info("deriving the pivot artifacts for %s", path)
+            written, skipped, _ = base.derive_tree(
+                self._projection_pattern,
+                str(pathlib.Path(self._pivots_dir) / path),
+                artifact=pivot.ARTIFACT,
+                write=functools.partial(pivot.write_pivot, level_path=path),
+                parent_artifact=projection.ARTIFACT,
+            )
+            logger.info(
+                "derived %d pivot artifacts for %s in %.1fs (%d already current)",
+                written,
+                path,
+                time.perf_counter() - start,
+                skipped,
+            )
+            if not written and not skipped:
+                return None
+            # A glob that found nothing is remembered, so it has to be forgotten before
+            # the same call can find what this just wrote.
+            with self._views_lock:
+                self._pivot_views.pop(path, None)
+            return self._pivot_view(path)
+
     @contextlib.contextmanager
     def _pivoted_table(self, path: str) -> Iterator[str | None]:
         """Yields a pivot over ``path``, held against eviction while read.
@@ -1475,7 +1570,14 @@ class Corpus:
         if level is None:
             yield None
             return
-        published = self._pivot_view(path)
+        if self._derive_pivots:
+            # The same pass, spent where it survives the process rather than dying with
+            # it -- and against no budget, since what comes back is a view over Parquet.
+            # It reads the level as well as writing it, because a set an interrupted run
+            # left partial is one that has to be completed before it can be read.
+            published = self._derive_pivot(path)
+        else:
+            published = self._pivot_view(path)
         if published is not None:
             # A view over artifacts costs no memory to hold and nothing to release, so
             # there is no reader to take and no budget to spend.

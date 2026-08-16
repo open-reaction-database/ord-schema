@@ -235,6 +235,15 @@ answers against rows this corpus does not hold, confidently and wrongly. A level
 artifacts is still built in process, so a partial set is a partial speedup rather than a
 missing answer.
 
+`Corpus(..., pivots_dir=..., derive_pivots=True)` writes the missing ones instead of
+building them: the same pass, spent where it outlives the process and costs no budget,
+and holding a projection at a time rather than the whole level — so a level too large for
+the budget is still derivable this way. Artifacts already current are skipped, so an
+interrupted run is finished by the next rather than started again. It is off by default,
+and `check_pivots()` never triggers it: that call reaches all 39 levels, and deriving
+there would unnest the projection 39 times at startup for a deployment that asks about
+two.
+
 What remains is the chemistry itself, and two things cut it. Structures are deduplicated
 per dataset, so the library holds one entry per **distinct** molecule — 1,435,426 of the
 corpus's 2,016,224 rows, so 29% of the matching disappears — and maps each entry back to

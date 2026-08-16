@@ -3051,6 +3051,182 @@ def test_a_level_without_artifacts_is_still_built(wide_root, caplog):
     )
 
 
+def _messages(caplog) -> list[str]:
+    """Returns what the executor logged."""
+    return [
+        record.message
+        for record in caplog.records
+        if record.name == "ord_schema.search.execute"
+    ]
+
+
+def test_a_level_with_no_artifacts_is_derived_rather_than_built(
+    wide_root, tmp_path, caplog
+):
+    # The pass costs what building in memory costs, and the difference is what survives
+    # it: a file the next process reads, against a table that dies with this one.
+    pivots = tmp_path / "pivots"
+    # The answer the level itself gives, so a derivation that lost rows shows up below.
+    with execute.Corpus(
+        str(wide_root / "projections" / "*.parquet"),
+        str(wide_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as built:
+        expected = _search(built, _white("exists"))
+    caplog.clear()
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+            derive_pivots=True,
+        ) as corpus,
+    ):
+        assert _search(corpus, _white("exists")) == expected
+    assert sorted(path.name for path in pivots.glob("outcomes.products/*.parquet")) == [
+        "ord_dataset-wd.parquet"
+    ]
+    said = _messages(caplog)
+    assert any("deriving the pivot artifacts for outcomes.products" in m for m in said)
+    assert not any("building the pivot" in m for m in said)
+
+
+def test_a_derived_pivot_is_read_by_the_next_corpus_over_the_directory(
+    wide_root, tmp_path, caplog
+):
+    # Deriving into a directory is only worth more than building in memory if what it
+    # wrote is what a later process finds there -- including one that derives nothing.
+    pivots = tmp_path / "pivots"
+    with execute.Corpus(
+        str(wide_root / "projections" / "*.parquet"),
+        str(wide_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots),
+        derive_pivots=True,
+    ) as deriving:
+        expected = _search(deriving, _white("exists"))
+    caplog.clear()
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+        ) as reading,
+    ):
+        assert _search(reading, _white("exists")) == expected
+    said = _messages(caplog)
+    assert any("read 1 pivot artifacts" in m for m in said)
+    assert not any("deriving" in m or "building the pivot" in m for m in said)
+
+
+def test_a_level_already_derived_is_not_derived_again(wide_root, tmp_path, caplog):
+    # The second query wants the same level, and re-globbing is what tells it there is
+    # nothing left to write. A derivation per query would be minutes per query at scale.
+    pivots = tmp_path / "pivots"
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+            derive_pivots=True,
+        ) as corpus,
+    ):
+        _search(corpus, _white("exists"))
+        _search(corpus, _white("exists"))
+    said = _messages(caplog)
+    assert sum("deriving the pivot artifacts" in m for m in said) == 1
+
+
+def test_a_derivation_interrupted_partway_is_finished_by_the_next(
+    corpus_dir, tmp_path, caplog
+):
+    # A set covering some of the projections is exactly what the pairing check refuses,
+    # so reading the level before deriving it would make an interrupted run permanent:
+    # the pass that would complete the set is the one behind the refusal.
+    pivots = tmp_path / "pivots" / "inputs.components"
+    pivots.mkdir(parents=True)
+    projections = sorted((corpus_dir / "projections").glob("*.parquet"))
+    assert len(projections) > 1, "one projection cannot be a partial set"
+    pivot.write_pivot(
+        projections[0], pivots / projections[0].name, level_path="inputs.components"
+    )
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(tmp_path / "pivots"),
+            derive_pivots=True,
+        ) as corpus,
+    ):
+        found = _search(
+            corpus, _exists({"op": "eq", "path": "smiles", "value": {"literal": "CCO"}})
+        )
+    assert found == {"ord-bb01"}
+    assert len(list(pivots.glob("*.parquet"))) == len(projections)
+    # The one already there was left alone rather than written again.
+    assert any("1 already current" in m for m in _messages(caplog))
+
+
+def test_a_stranger_s_pivots_are_still_refused_when_deriving(
+    wide_root, corpus_dir, tmp_path
+):
+    # Deriving before reading must not turn the pairing check into a formality: a pass
+    # over this corpus's projections adds its own artifacts beside the stranger's rather
+    # than displacing them, and answering from the union would be wrong twice over.
+    stranger = tmp_path / "pivots" / "outcomes.products"
+    stranger.mkdir(parents=True)
+    for projected in sorted((corpus_dir / "projections").glob("*.parquet")):
+        pivot.write_pivot(
+            projected, stranger / projected.name, level_path="outcomes.products"
+        )
+    with (
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(tmp_path / "pivots"),
+            derive_pivots=True,
+        ) as corpus,
+        pytest.raises(execute.PairingError, match="another corpus"),
+    ):
+        _search(corpus, _white("exists"))
+
+
+def test_checking_the_pivots_derives_none_of_them(wide_root, tmp_path):
+    # check_pivots reaches every level the schema has, and deriving there would be
+    # 39 unnests of the projection at startup for a deployment that asked about two.
+    pivots = tmp_path / "pivots"
+    with execute.Corpus(
+        str(wide_root / "projections" / "*.parquet"),
+        str(wide_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots),
+        derive_pivots=True,
+    ) as corpus:
+        assert corpus.check_pivots() == {}
+    assert not pivots.exists()
+
+
+def test_deriving_with_nowhere_to_derive_into_is_refused(wide_root):
+    # Silently building in memory instead would answer every query the slow way for a
+    # deployment that believed it had asked for artifacts.
+    with pytest.raises(ValueError, match="without a pivots_dir"):
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            derive_pivots=True,
+        )
+
+
 def test_a_pivot_from_another_corpus_is_refused(wide_root, corpus_dir, tmp_path):
     # The failure this pins is silent: a pivot names reactions by ID, so artifacts
     # derived elsewhere answer a quantifier against rows this corpus does not hold.
