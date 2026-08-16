@@ -880,7 +880,7 @@ def test_a_rewritten_artifact_is_not_answered_from_its_cached_footer(
         str(root / "projections" / "*.parquet"),
         str(root / "structures" / "*.parquet"),
         resolver={}.__getitem__,
-        narrow_budget_bytes=0,
+        pivot_budget_bytes=0,
     ) as value:
         assert _reactions(value.search(request)) == {"ord-aa01"}
         projected = root / "projections" / "ord_dataset-aa.parquet"
@@ -2098,108 +2098,18 @@ def test_the_cache_stays_bounded(corpus_dir, monkeypatch):
         assert [key[2] for key in value._matched] == ["c1ccccc1", "[Pt]"]
 
 
-def _columns_key(columns: frozenset[str]) -> tuple[str, ...]:
-    """Returns the cache key a materialized column set is held under."""
-    return ("columns", *sorted(columns))
+def _over_products(where):
+    return {"op": "exists", "path": "outcomes.products", "where": where}
 
 
-@contextlib.contextmanager
-def _no_narrow_table(self, columns: frozenset[str]) -> Iterator[str | None]:
-    """Stands in for _narrowed_table so a search reads the projection directly."""
-    del self, columns  # Unused.
-    yield None
+_WHITE_PRODUCT = _over_products(
+    {"op": "eq", "path": "isolated_color", "value": {"literal": "white"}}
+)
 
 
-def test_a_narrow_table_answers_what_the_projection_would(corpus_dir):
-    # Materializing the columns a query names is a second relation to answer from, so
-    # what makes it safe is that it answers identically. Each of these is run against
-    # the narrow table and against the projection, and compared as multisets: a query
-    # with no ordering has none, and the two relations really do return the same rows
-    # in different orders at corpus scale. What must never differ is which rows.
-    requests = {
-        "a scalar leaf": {
-            "where": {
-                "op": "not_null",
-                "path": "conditions.temperature.setpoint_kelvin",
-            }
-        },
-        "a nested quantifier": {
-            "where": _exists(
-                {"op": "eq", "path": "smiles", "value": {"literal": "CCO"}}
-            )
-        },
-        "an aggregate": {
-            "where": None,
-            "aggregate": {
-                "group_by": ["conditions.stirring.type"],
-                "measures": [{"fn": "count", "name": "n"}],
-            },
-        },
-        "an ordering and a limit": {
-            "where": None,
-            "order_by": [{"key": "reaction_id"}],
-            "limit": 2,
-        },
-        "a structure predicate the index declines": {
-            "where": {
-                "op": "and",
-                "clauses": [
-                    _exists(
-                        {"op": "substructure", "path": "smiles", "smarts": "[OX2H]"}
-                    ),
-                    {"op": "not_null", "path": "reaction_id"},
-                ],
-            }
-        },
-    }
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-    ) as value:
-        for label, body in requests.items():
-            request = query.Query.model_validate(body)
-            narrowed = value.search(request).to_pylist()
-            # The same request with the materialization turned off.
-            with pytest.MonkeyPatch.context() as patcher:
-                patcher.setattr(execute.Corpus, "_narrowed_table", _no_narrow_table)
-                direct = value.search(request).to_pylist()
-            if request.order_by:
-                # An ordered query is the one case where the order is the answer, so
-                # this is the one comparison that may not sort first.
-                assert list(map(repr, narrowed)) == list(map(repr, direct)), label
-            else:
-                assert sorted(map(repr, narrowed)) == sorted(map(repr, direct)), label
-
-
-def test_the_columns_a_query_names_are_the_ones_materialized(corpus_dir):
-    # Too few and the query fails to resolve; too many and the corpus holds columns
-    # nobody asked about. A name inside a string literal costs a column, nothing more.
-    assert execute._mentioned(
-        "SELECT reaction_id FROM reactions WHERE conditions.temperature.x > 1"
-    ) == frozenset({"reaction_id", "conditions"})
-    assert "provenance" in execute._mentioned("SELECT provenance.doi FROM reactions")
-    # reaction_id comes along whether or not the query said so.
-    assert "reaction_id" in execute._mentioned("SELECT 1 FROM reactions")
-    # A substring of a real column is not that column.
-    assert "conditions" not in execute._mentioned(
-        "SELECT reaction_id FROM reactions WHERE notes.preconditions_x = 'a'"
-    )
-    # An element's field is not the reaction's column of the same name: a query
-    # filtering components by their SMILES reads no reaction-level smiles column, and
-    # materializing one costs the largest column in the projection.
-    assert "smiles" not in execute._mentioned(
-        "SELECT reaction_id FROM reactions WHERE len(list_filter("
-        "flatten(list_transform(map_values(inputs), x -> x.components)), "
-        "e0 -> e0.smiles = 'CCO')) > 0"
-    )
-    # Where a path starts is where a top-level column is named.
-    assert "smiles" in execute._mentioned("SELECT smiles FROM reactions")
-
-
-def test_a_materialized_column_set_is_reused(corpus_dir):
+def test_a_materialized_pivot_is_reused(corpus_dir):
     request = query.Query.model_validate(
-        {"where": {"op": "not_null", "path": "conditions.temperature.setpoint_kelvin"}}
+        {"where": _exists({"op": "eq", "path": "smiles", "value": {"literal": "CCO"}})}
     )
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
@@ -2207,17 +2117,13 @@ def test_a_materialized_column_set_is_reused(corpus_dir):
         resolver={}.__getitem__,
     ) as value:
         value.search(request)
-        assert len(value._narrowed) == 1
-        built = dict(value._narrowed)
+        assert list(value._pivoted) == ["inputs.components"]
+        built = dict(value._pivoted)
         value.search(request)
-        assert dict(value._narrowed) == built  # Reused, not rebuilt under a new name.
-        # A query naming other columns is a different set, materialized separately.
-        value.search(
-            query.Query.model_validate(
-                {"where": {"op": "not_null", "path": "provenance.doi"}}
-            )
-        )
-        assert len(value._narrowed) == 2
+        assert dict(value._pivoted) == built  # Reused, not rebuilt under a new name.
+        # A quantifier over another level is another pivot, materialized separately.
+        value.search(query.Query.model_validate({"where": _WHITE_PRODUCT}))
+        assert list(value._pivoted) == ["inputs.components", "outcomes.products"]
 
 
 def _stated_bytes(*readings):
@@ -2241,32 +2147,28 @@ def _tables(value) -> set[str]:
 
 
 def test_a_budget_no_memory_could_answer_to_is_refused(corpus_dir):
-    # Negative is not an amount of memory, and taken as one it makes every set too
+    # Negative is not an amount of memory, and taken as one it makes every pivot too
     # large and every eviction immediate, which reads as a corpus that cannot cache.
     with pytest.raises(ValueError, match="not an amount of memory"):
         execute.Corpus(
             str(corpus_dir / "projections" / "*.parquet"),
             str(corpus_dir / "structures" / "*.parquet"),
             resolver={}.__getitem__,
-            narrow_budget_bytes=-1,
+            pivot_budget_bytes=-1,
         )
     # Zero is an amount of memory, and a caller asking to materialize nothing means it
-    # -- including the build that would otherwise measure a set before dropping it,
+    # -- including the build that would otherwise measure a pivot before dropping it,
     # which is the peak a machine has to have room for.
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
-        narrow_budget_bytes=0,
+        pivot_budget_bytes=0,
     ) as value:
-        value.search(
-            query.Query.model_validate(
-                {"where": {"op": "not_null", "path": "provenance.doi"}}
-            )
-        )
-        assert not value._narrowed
-        assert value._narrow_serial == 0  # No table was built to find that out.
-        assert not [name for name in _tables(value) if name.startswith("narrow_")]
+        value.search(query.Query.model_validate({"where": _WHITE_PRODUCT}))
+        assert not value._pivoted
+        assert value._pivot_serial == 0  # No table was built to find that out.
+        assert not [name for name in _tables(value) if name.startswith("pivoted_")]
 
 
 def test_a_materialization_is_measured_in_bytes(corpus_dir):
@@ -2278,19 +2180,15 @@ def test_a_materialization_is_measured_in_bytes(corpus_dir):
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
     ) as value:
-        value.search(
-            query.Query.model_validate(
-                {"where": {"op": "not_null", "path": "provenance.doi"}}
-            )
-        )
-        (entry,) = value._narrowed.values()
+        value.search(query.Query.model_validate({"where": _WHITE_PRODUCT}))
+        (entry,) = value._pivoted.values()
         assert entry.held > 1024
 
 
 def test_the_cache_evicts_the_least_recently_used_and_drops_its_table(
     corpus_dir, monkeypatch
 ):
-    # An unevicted cache is one table per column set a server is ever asked for, none of
+    # An unevicted cache is one table per level a server is ever asked about, none of
     # them ever freed. Sizes are stated here rather than measured so the budget admits
     # exactly one table whatever DuckDB's allocator does with three rows.
     budget = 150
@@ -2298,19 +2196,17 @@ def test_the_cache_evicts_the_least_recently_used_and_drops_its_table(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
-        narrow_budget_bytes=budget,
+        pivot_budget_bytes=budget,
     ) as value:
         monkeypatch.setattr(
             execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
         )
-        first = frozenset({"reaction_id", "provenance"})
-        second = frozenset({"reaction_id", "conditions"})
-        with value._narrowed_table(first) as name:
+        with value._pivoted_table("inputs.components") as name:
             dropped = name
         assert dropped in _tables(value)
-        with value._narrowed_table(second) as name:
+        with value._pivoted_table("outcomes.products") as name:
             kept = name
-        assert list(value._narrowed) == [_columns_key(second)]
+        assert list(value._pivoted) == ["outcomes.products"]
         assert dropped not in _tables(value)  # Dropped, not merely forgotten.
         assert kept in _tables(value)
 
@@ -2325,27 +2221,22 @@ def test_a_table_a_search_is_reading_is_not_evicted(corpus_dir, monkeypatch):
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
-        narrow_budget_bytes=budget,
+        pivot_budget_bytes=budget,
     ) as value:
         monkeypatch.setattr(
             execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
         )
-        first = frozenset({"reaction_id", "provenance"})
-        second = frozenset({"reaction_id", "conditions"})
-        with value._narrowed_table(first) as reading:
-            with value._narrowed_table(second):
+        with value._pivoted_table("inputs.components") as reading:
+            with value._pivoted_table("outcomes.products"):
                 pass
             # Over budget, and the only candidate is being read: it stays, and the
             # cache stays over its budget until the reader is done.
             assert reading in _tables(value)
-            assert list(value._narrowed) == [
-                _columns_key(first),
-                _columns_key(second),
-            ]
+            assert list(value._pivoted) == ["inputs.components", "outcomes.products"]
         # Released, so the next materialization can take it.
-        with value._narrowed_table(frozenset({"reaction_id", "notes"})):
+        with value._pivoted_table("identifiers"):
             pass
-        assert first not in value._narrowed
+        assert "inputs.components" not in value._pivoted
         assert reading not in _tables(value)
 
 
@@ -2375,7 +2266,7 @@ def _stalled_build(value, monkeypatch) -> Iterator[threading.Event]:
 
     def build() -> None:
         try:
-            with value._narrowed_table(frozenset({"reaction_id", "conditions"})):
+            with value._pivoted_table("outcomes.products"):
                 pass
         except BaseException as error:  # noqa: BLE001 - reported below, not handled.
             stalled.append(error)
@@ -2404,21 +2295,20 @@ def test_a_materialized_table_is_handed_out_while_another_is_being_built(
     corpus_dir, monkeypatch
 ):
     # A build is a pass over the corpus, and a Corpus is shared between searches. A
-    # search whose columns are already materialized has nothing to wait for, and making
-    # it wait turns one slow first query into a stall for everyone. Asked from a thread
+    # search over a level already materialized has nothing to wait for, and making it
+    # wait turns one slow first query into a stall for everyone. Asked from a thread
     # rather than here, so a hit that does wait fails this test rather than hanging it.
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
     ) as value:
-        cached = frozenset({"reaction_id", "provenance"})
-        with value._narrowed_table(cached):
+        with value._pivoted_table("inputs.components"):
             pass
         with _stalled_build(value, monkeypatch):
 
             def read() -> str | None:
-                with value._narrowed_table(cached) as name:
+                with value._pivoted_table("inputs.components") as name:
                     return name
 
             reader, answered = _in_a_thread(read)
@@ -2428,33 +2318,30 @@ def test_a_materialized_table_is_handed_out_while_another_is_being_built(
         assert not reader.is_alive()
 
 
-def test_one_column_set_is_built_once_however_many_searches_want_it(
-    corpus_dir, monkeypatch
-):
-    # Two searches naming the same columns arrive together on a cold cache. Building
-    # twice costs two passes over the corpus and leaves two tables of one column set,
-    # of which only the last is remembered -- the other is memory nothing will free.
+def test_one_pivot_is_built_once_however_many_searches_want_it(corpus_dir, monkeypatch):
+    # Two searches over the same level arrive together on a cold cache. Building twice
+    # costs two passes over the corpus and leaves two tables of one level, of which only
+    # the last is remembered -- the other is memory nothing will free.
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
     ) as value:
-        wanted = frozenset({"reaction_id", "conditions"})
         with _stalled_build(value, monkeypatch):
 
             def read() -> str | None:
-                with value._narrowed_table(wanted) as name:
+                # The stalled build is materializing this very level.
+                with value._pivoted_table("outcomes.products") as name:
                     return name
 
-            # The stalled build is materializing these very columns.
             second, answered = _in_a_thread(read)
             second.join(timeout=1)
             assert not answered, "the second ask did not wait for the build in flight"
         second.join(timeout=30)
         assert answered, "the second ask never got its table"
         assert answered[0] is not None
-        assert value._narrow_serial == 1  # One name taken, so one table built.
-        assert [name for name in _tables(value) if name.startswith("narrow_")] == [
+        assert value._pivot_serial == 1  # One name taken, so one table built.
+        assert [name for name in _tables(value) if name.startswith("pivoted_")] == [
             answered[0]
         ]
 
@@ -2471,18 +2358,17 @@ def test_a_table_a_second_search_took_from_the_cache_is_not_evicted(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
-        narrow_budget_bytes=budget,
+        pivot_budget_bytes=budget,
     ) as value:
         monkeypatch.setattr(
             execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
         )
-        first = frozenset({"reaction_id", "provenance"})
-        with value._narrowed_table(first) as built:
+        with value._pivoted_table("inputs.components") as built:
             pass
         # Taken from the cache this time, and read while the budget forces an eviction.
-        with value._narrowed_table(first) as reading:
+        with value._pivoted_table("inputs.components") as reading:
             assert reading == built
-            with value._narrowed_table(frozenset({"reaction_id", "conditions"})):
+            with value._pivoted_table("outcomes.products"):
                 pass
             assert reading in _tables(value)
 
@@ -2490,9 +2376,7 @@ def test_a_table_a_second_search_took_from_the_cache_is_not_evicted(
 def test_a_failed_materialization_leaves_nothing_behind(corpus_dir, monkeypatch):
     # A table nobody tracks is memory nobody frees, and under a name a later attempt
     # would collide with. The failure is raised after the CREATE, which is the window.
-    request = query.Query.model_validate(
-        {"where": {"op": "not_null", "path": "provenance.doi"}}
-    )
+    request = query.Query.model_validate({"where": _WHITE_PRODUCT})
     failing = True
     original = execute._memory_bytes
     reads = 0
@@ -2514,64 +2398,22 @@ def test_a_failed_materialization_leaves_nothing_behind(corpus_dir, monkeypatch)
     ) as value:
         with pytest.raises(duckdb.Error, match="no memory accounting"):
             value.search(request)
-        assert not value._narrowed
-        assert not [name for name in _tables(value) if name.startswith("narrow_")]
+        assert not value._pivoted
+        assert not [name for name in _tables(value) if name.startswith("pivoted_")]
         failing = False
-        # The column set is still materializable, under a name of its own.
+        # The level is still materializable, under a name of its own.
         value.search(request)
-        assert len(value._narrowed) == 1
+        assert len(value._pivoted) == 1
 
 
-def test_a_literal_naming_the_relation_is_not_a_rewrite(tmp_path):
-    # The columns are read off the compiled SQL, which carries string literals inline --
-    # so a query searching for the text "FROM reactions" puts that text in the SQL. The
-    # narrow table is reached by compiling again against it, not by editing that SQL: an
-    # edit would rewrite the literal too, and this reaction would stop being findable by
-    # what its own notes say.
-    note = "distilled FROM reactions overnight"
-    reaction = _reaction("ord-dd01", components=[("CCO", _ROLE.REACTANT)])
-    reaction.notes.procedure_details = note
-    source = tmp_path / "data" / "ord_dataset-dd.parquet"
-    source.parent.mkdir(parents=True, exist_ok=True)
-    parquet.save_dataset(
-        dataset_pb2.Dataset(
-            dataset_id="ord_dataset-dd",
-            name="test",
-            description="test",
-            reactions=[reaction],
-        ),
-        str(source),
-    )
-    projected = tmp_path / "projections" / source.name
-    projected.parent.mkdir(parents=True, exist_ok=True)
-    projection.write_projection(source, projected)
-    structured = tmp_path / "structures" / source.name
-    structured.parent.mkdir(parents=True, exist_ok=True)
-    structures.write_structures(projected, structured)
-    request = query.Query.model_validate(
-        {
-            "where": {
-                "op": "eq",
-                "path": "notes.procedure_details",
-                "value": {"literal": note},
-            }
-        }
-    )
-    with execute.Corpus(
-        str(projected), str(structured), resolver={}.__getitem__
-    ) as value:
-        assert _reactions(value.search(request)) == {"ord-dd01"}
-        assert len(value._narrowed) == 1
-
-
-def test_a_column_set_too_large_to_keep_is_not_kept(corpus_dir, monkeypatch):
+def test_a_pivot_too_large_to_keep_is_not_kept(corpus_dir, monkeypatch):
     # Materializing is only worth it if the table survives to answer the next query.
     budget = 1
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
-        narrow_budget_bytes=budget,
+        pivot_budget_bytes=budget,
     ) as value:
         matched = value.search(
             query.Query.model_validate(
@@ -2584,20 +2426,16 @@ def test_a_column_set_too_large_to_keep_is_not_kept(corpus_dir, monkeypatch):
         )
         # Answered anyway, straight from the projection.
         assert matched.column("reaction_id").to_pylist() == ["ord-bb01"]
-        assert not value._narrowed
+        assert not value._pivoted
 
 
-def test_a_column_set_too_large_to_keep_says_so_and_says_what_to_change(
-    corpus_dir, caplog
-):
-    # The slowest thing a corpus does is answer from Parquet because a column set did
-    # not fit, and nothing about the answer says that is what happened. Whoever is
-    # asking why a query takes seconds is reading the log, so the log has to name the
-    # columns, the two figures, and the argument that changes it.
+def test_a_pivot_too_large_to_keep_says_so_and_says_what_to_change(corpus_dir, caplog):
+    # The slowest thing a corpus does is unnest the projection because a pivot did not
+    # fit, and nothing about the answer says that is what happened. Whoever is asking
+    # why a query takes seconds is reading the log, so the log has to name the level,
+    # the two figures, and what changes it.
     caplog.set_level(logging.INFO, logger="ord_schema.search.execute")
-    request = query.Query.model_validate(
-        {"where": {"op": "not_null", "path": "provenance.doi"}}
-    )
+    request = query.Query.model_validate({"where": _WHITE_PRODUCT})
 
     def warnings() -> list[str]:
         return [
@@ -2611,14 +2449,14 @@ def test_a_column_set_too_large_to_keep_says_so_and_says_what_to_change(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
-        narrow_budget_bytes=1,
+        pivot_budget_bytes=1,
     ) as value:
         value.search(request)
         assert len(warnings()) == 1
         said = warnings()[0]
-        assert "provenance" in said
-        assert "narrow_budget_bytes" in said
-        assert execute._format_bytes(value._narrow_budget) in said
+        assert "outcomes.products" in said
+        assert "pivot_budget_bytes" in said
+        assert execute._format_bytes(value._pivot_budget) in said
         # Both figures have to be figures. Stated in gigabytes, a fixture costing
         # kilobytes against a budget of one byte reads "0.0 GB over 0.0 GB", which
         # names the problem in units that hide it.
@@ -2630,9 +2468,7 @@ def test_a_column_set_too_large_to_keep_says_so_and_says_what_to_change(
         assert len(warnings()) == 2
 
 
-def test_two_searches_wanting_one_refused_column_set_build_it_once(
-    corpus_dir, monkeypatch
-):
+def test_two_searches_wanting_one_refused_pivot_build_it_once(corpus_dir, monkeypatch):
     # The refusal is settled under the build lock as well as before it, so a search
     # that waited out another's build finds the answer rather than repeating a pass
     # over the corpus to reach the same refusal.
@@ -2640,13 +2476,12 @@ def test_two_searches_wanting_one_refused_column_set_build_it_once(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
-        narrow_budget_bytes=1,
+        pivot_budget_bytes=1,
     ) as value:
-        wanted = frozenset({"reaction_id", "conditions"})
         with _stalled_build(value, monkeypatch):
 
             def read() -> str | None:
-                with value._narrowed_table(wanted) as name:
+                with value._pivoted_table("outcomes.products") as name:
                     return name
 
             second, answered = _in_a_thread(read)
@@ -2654,28 +2489,27 @@ def test_two_searches_wanting_one_refused_column_set_build_it_once(
             assert not answered, "the second ask did not wait for the build in flight"
         second.join(timeout=30)
         assert answered == [None]  # Refused, and told so rather than building again.
-        assert value._narrow_serial == 1
+        assert value._pivot_serial == 1
 
 
-def test_a_column_set_too_large_to_keep_is_not_built_twice(corpus_dir, monkeypatch):
+def test_a_pivot_too_large_to_keep_is_not_built_twice(corpus_dir, monkeypatch):
     # What the refusal costs is a pass over the corpus, and the projection it reads
     # does not change while the corpus is open. Asking again is the common case -- a
     # notebook loop, a server serving one shape of question -- and rebuilding a table
-    # only to drop it again holds the narrow lock against every other search each time.
+    # only to drop it again holds the build lock against every other search each time.
     budget = 1
-    columns = frozenset({"reaction_id", "provenance"})
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
-        narrow_budget_bytes=budget,
+        pivot_budget_bytes=budget,
     ) as value:
-        with value._narrowed_table(columns) as name:
+        with value._pivoted_table("inputs.components") as name:
             assert name is None
-        built = value._narrow_serial
-        with value._narrowed_table(columns) as name:
+        built = value._pivot_serial
+        with value._pivoted_table("inputs.components") as name:
             assert name is None
-        assert value._narrow_serial == built  # No second CREATE to name.
+        assert value._pivot_serial == built  # No second CREATE to name.
 
 
 def test_a_library_that_lost_a_molecule_is_refused(corpus_dir, monkeypatch):
