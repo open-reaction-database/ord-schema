@@ -116,9 +116,11 @@ _CACHED_MATCHES = 16
 # the caller states no budget. The whole projection is 18.46 GB in memory at ORD's scale
 # and no default holds it, so every budget is a partial cache and the question is only
 # what fits. This holds any single one of the large entries -- the workups column is
-# 5.08 GB, inputs 3.93 GB, outcomes 3.04 GB, and the pivots worth the most are 0.45 to
-# 4.40 GB. A corpus asked for more says so on every query it costs, naming this
-# argument; see _warn_refused.
+# 5.08 GB, inputs 3.93 GB, outcomes 3.04 GB, and the pivots worth the most are 0.39 to
+# 4.18 GB. A corpus asked for more says so on every query it costs, naming this
+# argument; see _warn_refused. A pivot read from an artifact costs nothing here, and
+# answers within tens of milliseconds of one held, so a deployment holding much of this
+# is one that has not derived them.
 #
 # Held to after an entry is built rather than before, since what one costs is known only
 # once it exists: the peak is this plus the largest single entry, and building one costs
@@ -627,9 +629,12 @@ class Corpus:
             pivots_dir: Directory holding derived pivot artifacts, one subdirectory per
                 repeated level. Given one, a quantifier over a level reads the artifact
                 instead of unnesting the projection to build it, which is minutes per
-                level over ORD and is paid by whichever query asks first. A level with
-                no subdirectory is still built in process, so a partial set of
-                artifacts is a partial speedup rather than a missing answer.
+                level over ORD and is paid by whichever query asks first. Worth pointing
+                at wherever a deployment can: the four levels that answer the most are
+                514 MB as artifacts against 9.21 GB built, and answer within tens of
+                milliseconds of the built ones. A level with no subdirectory is still
+                built in process, so a partial set of artifacts is a partial speedup
+                rather than a missing answer.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no

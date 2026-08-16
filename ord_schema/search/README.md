@@ -179,47 +179,54 @@ wrong, silently. ORD is effectively single-outcome, so dropping the *outcome* or
 changes nothing at all, which is exactly why the product-level error looks correct until
 it is checked.
 
-Over the whole corpus, warm, against the same queries answered from the elements:
+Over the whole corpus, warm, against the same queries answered from the elements — the
+pivots read as artifacts, and the same pivots built in process:
 
-| query | pivot | elements |
-| --- | --- | --- |
-| a white product | 0.050s | 0.936s |
-| yield > 50% | 0.086s | 2.758s |
-| every product is desired | 0.070s | 2.055s |
-| **not** a yield above 50% | 0.098s | 3.480s |
-| a solvent input | 0.178s | 4.229s |
-| an extraction workup | 3.660s | 7.816s |
-| above 350 K | 0.041s | 0.035s |
+| query | artifacts | in memory | elements |
+| --- | --- | --- | --- |
+| a white product | 0.061s | 0.054s | 0.737s |
+| yield > 50% | 0.099s | 0.085s | 2.384s |
+| every product is desired | 0.076s | 0.070s | 1.781s |
+| **not** a yield above 50% | 0.114s | 0.093s | 3.113s |
+| an extraction workup | 0.114s | 0.103s | 2.341s |
+| "reflux" in a workup | 0.147s | 0.105s | 2.239s |
+| a solvent input | 0.176s | 0.155s | 1.794s |
+| above 350 K | 0.033s | 0.033s | 0.032s |
 
-Every one returns the same reactions either way. The last two are the shape of the
-thing: `above 350 K` is a scalar path with no quantifier, so no pivot is involved and
-nothing moves, and the workup query is one whose pivot the budget refused — the
-projection answered it, which is the fallback working rather than the pivot helping.
+Every one returns the same reactions on all three routes. `above 350 K` is the control:
+a scalar path with no quantifier, so no pivot is involved and nothing moves. Everything
+else is 6–27× against the elements, and **a pivot read from Parquet is within a few tens
+of milliseconds of the same pivot held in memory** — which is the whole argument for
+deriving them, since the artifact costs no budget at all.
 
-Building one unnests the projection down to its level, and is charged against the same
-`narrow_budget_bytes` as a materialized column set and evicted by the same LRU. What it
-costs, measured one build per process so eviction cannot corrupt the reading, beside the
-top-level column a query would otherwise materialize (GiB):
+Building one in process unnests the projection down to its level, and is charged against
+the same `narrow_budget_bytes` as a materialized column set and evicted by the same LRU.
+What it costs, measured one build per process so eviction cannot corrupt the reading,
+beside the top-level column a query would otherwise materialize:
 
-| level | unnests | pivot | build | column | | build |
-| --- | --- | --- | --- | --- | --- | --- |
-| `workups` | 1 | 4.40 | 42s | `workups` | 5.20 | 3.3s |
-| `outcomes.products` | 2 | 0.45 | 461s | `outcomes` | 3.23 | 4.1s |
-| `inputs.components` | 2 | 2.75 | 626s | `inputs` | 4.05 | 2.5s |
-| `outcomes.products.measurements` | 3 | 1.61 | 854s | `outcomes` | 3.23 | 4.1s |
+| level | unnests | held | build | as an artifact | column | held | build |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `workups` | 1 | 4.18 GiB | 42s | 149 MB | `workups` | 5.20 GiB | 3.3s |
+| `outcomes.products` | 2 | 0.39 GiB | 461s | 104 MB | `outcomes` | 3.23 GiB | 4.1s |
+| `inputs.components` | 2 | 2.64 GiB | 626s | 224 MB | `inputs` | 4.05 GiB | 2.5s |
+| `outcomes.products.measurements` | 3 | 1.34 GiB | 854s | 37 MB | `outcomes` | 3.23 GiB | 4.1s |
 
-Two things fall out, and they are independent. **Build cost is depth**: one unnest is
-42 seconds, and each further repeated level costs roughly an order of magnitude, so a
-shallow pivot is cheap and a deep one is not. **Size saving is width**: it depends on
-how much of its column an element carries once the repeated fields are pruned away, from
-86% for `outcomes.products` down to 15% for `workups`, whose elements carry a whole
-`ReactionInput` besides. The 4.40 GiB workup pivot is over the 4 GB default, so it is
-refused and the projection answers — which is why the workup query above is seconds
-where the two `outcomes` levels are tenths.
+Three things fall out. **Build cost is depth**: one unnest is 42 seconds, and each
+further repeated level costs roughly an order of magnitude, where materializing a column
+is 2.5–4.1s whatever it holds. **Size saving is width**: how much of its column an
+element still carries once the repeated fields are pruned away. And **the two are
+anti-correlated** — `workups` is the cheapest to build and the worst to hold, at 4.18 GiB
+against a 4 GB default that refuses it.
 
-A deep pivot's build therefore belongs offline, which is what
-`scripts/derive_pivots.py` is for — one subdirectory per level, one file per projection
-within it, stamped like any other derived artifact and read by
+The third is what makes the artifact the answer rather than a further prune. All four
+levels are **514 MB on disk against 9.21 GiB held**, because Parquet charges for data
+where an in-memory column charges for shape: `workups` carries 40 leaves, most of them
+NULL in most rows, which encode to almost nothing and occupy a full-width vector and a
+validity mask apiece. Publishing all four as views takes 0.9s and no memory, against
+32 minutes and 9.21 GiB to build them in process.
+
+That is what `scripts/derive_pivots.py` is for — one subdirectory per level, one file per
+projection within it, stamped like any other derived artifact and read by
 `Corpus(..., pivots_dir=...)`. Artifacts are refused unless they were derived from this
 corpus's own projections: a pivot names its reactions by ID, so one derived elsewhere
 answers against rows this corpus does not hold, confidently and wrongly. A level with no
