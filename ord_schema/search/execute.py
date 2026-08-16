@@ -839,6 +839,43 @@ class Corpus:
         )
         return found
 
+    def check_index(self) -> dict[str, int]:
+        """Builds the occurrence index and returns what it reached, per path.
+
+        The sibling of ``check_pivots``, and for the same reason: the index is
+        otherwise built by the first query that can spend it, so a corpus it refuses --
+        a reaction stated twice, a structure no indexed path reaches -- fails that query
+        rather than the deployment. It also has a memory floor, and meeting that one the
+        other way is worse still. Over ORD the build wants about 5 GB of DuckDB memory
+        and writes 16-25 GB of temporary files getting there; below that it raises
+        ``duckdb.OutOfMemoryException`` rather than running slowly, since a block it
+        cannot pin is not one it can spill.
+
+        Opt-in rather than done at open, because the cost is real and a corpus asked
+        only for scalar or similarity queries never pays it: about a minute, and 1.19 GB
+        resident afterwards at ORD's scale.
+
+        Returns:
+            The number of occurrences found per indexed path, including the paths that
+            hold none -- most corpora record no authentic standards, and a zero there is
+            ordinary rather than a sign the walk missed something.
+
+        Raises:
+            PairingError: If the corpus states a reaction more than once, or the index
+                does not reach every structure the corpus holds.
+        """
+        self._occurrences()
+        cursor = self._connection.cursor()
+        try:
+            counts = dict(
+                cursor.execute(
+                    "SELECT path, count(*) FROM occurrences GROUP BY path"
+                ).fetchall()
+            )
+        finally:
+            cursor.close()
+        return {path: counts.get(path, 0) for path in INDEXED_PATHS}
+
     def __enter__(self) -> Self:
         """Returns the corpus itself; closing on exit is the whole protocol."""
         return self

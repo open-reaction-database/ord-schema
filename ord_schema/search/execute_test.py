@@ -1432,6 +1432,44 @@ def test_the_index_is_built_once_and_only_when_wanted(corpus_dir, caplog):
     assert len(builds) == 1
 
 
+def test_checking_the_index_builds_it_and_counts_every_path(corpus_dir):
+    # The point of the check is that it happens at startup rather than inside whichever
+    # query first wants the index, so it has to leave the index built. Every indexed
+    # path is reported, including the ones this corpus records nothing at: a zero is
+    # ordinary, and omitting it would read as a path the walk lost.
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        counts = value.check_index()
+        assert value._occurrences_built
+        assert set(counts) == set(execute.INDEXED_PATHS)
+        # Four components across the three reactions, and nothing anywhere else.
+        assert counts["inputs.components"] == 4
+        assert counts["workups.input.components"] == 0
+
+
+def test_checking_a_corpus_the_index_refuses_fails_the_check(corpus_dir, tmp_path):
+    # The refusal a deployment wants at startup: a corpus stating one reaction twice
+    # would have each copy's structures answering for the other. Raised here rather
+    # than at whatever hour the first structure query arrives.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    doubled = root / "projections" / "ord_dataset-aa.parquet"
+    table = pq.read_table(doubled)
+    pq.write_table(pa.concat_tables([table, table]), doubled)
+    with (
+        execute.Corpus(
+            str(root / "projections" / "*.parquet"),
+            str(root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            require_current=False,
+        ) as value,
+        pytest.raises(execute.PairingError, match="is stated by 2 rows"),
+    ):
+        value.check_index()
+
+
 @pytest.mark.parametrize(
     ("path", "smarts", "expected"),
     [
