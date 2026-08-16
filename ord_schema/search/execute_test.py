@@ -29,9 +29,10 @@ import pytest
 from rdkit import Chem
 from rdkit.Chem import rdSubstructLibrary
 
-from ord_schema import parquet, projection, structures
+from ord_schema import parquet
+from ord_schema.artifacts import pivot, projection, structures
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.search import execute, pivot, query
+from ord_schema.search import execute, query
 
 _ROLE = reaction_pb2.ReactionRole
 

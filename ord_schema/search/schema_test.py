@@ -19,7 +19,7 @@ from importlib import resources
 import pyarrow as pa
 import pytest
 
-from ord_schema import projection
+from ord_schema.artifacts import projection
 from ord_schema.search import schema
 
 

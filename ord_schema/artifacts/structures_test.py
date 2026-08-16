@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for ord_schema.structures."""
+"""Tests for ord_schema.artifacts.structures."""
 
 import pathlib
 from importlib import metadata
@@ -22,7 +22,8 @@ import pyarrow.parquet as pq
 import pytest
 from rdkit import Chem, DataStructs
 
-from ord_schema import artifacts, parquet, projection, structures
+from ord_schema import parquet
+from ord_schema.artifacts import base, projection, structures
 from ord_schema.proto import reaction_pb2
 
 
@@ -190,7 +191,7 @@ def test_a_dataset_with_no_structures_writes_an_empty_artifact(tmp_path):
     table = pq.read_table(output)
     assert table.num_rows == 0
     assert table.schema.names == structures.SCHEMA.names
-    stamps = artifacts.load_stamps(output)
+    stamps = base.load_stamps(output)
     assert stamps.artifact == structures.ARTIFACT
     assert structures.is_current(output, stamps.source_md5)
 
@@ -205,7 +206,7 @@ def test_stamps_name_the_source_dataset_not_the_projection(tmp_path):
     projection.write_projection(source_path, projected)
     output = tmp_path / "structures.parquet"
     structures.write_structures(projected, output)
-    stamps = artifacts.load_stamps(output)
+    stamps = base.load_stamps(output)
     assert stamps.artifact == structures.ARTIFACT
     assert stamps.source_md5 == parquet.DatasetView(source_path).md5()
     assert stamps.source_dataset_id == "ord_dataset-1"
@@ -225,8 +226,8 @@ def test_a_source_dataset_is_refused(tmp_path):
 
 def _corrupt_projection(tmp_path, rows) -> pathlib.Path:
     """Writes ``rows`` under a projection's schema and stamps, bypassing the writer."""
-    stamps = artifacts.current_stamps(projection.ARTIFACT, "ord_dataset-1", "0" * 32)
-    schema = projection.SCHEMA.with_metadata(artifacts.to_metadata(stamps))
+    stamps = base.current_stamps(projection.ARTIFACT, "ord_dataset-1", "0" * 32)
+    schema = projection.SCHEMA.with_metadata(base.to_metadata(stamps))
     path = tmp_path / "projection.parquet"
     pq.write_table(pa.Table.from_pylist(rows, schema=schema), path)
     return path
@@ -299,7 +300,7 @@ def test_a_projection_missing_the_id_columns_is_refused(tmp_path):
     # read_row_group silently drops requested columns a file does not have, so an
     # old-schema projection would otherwise state no pairs at all and derive an empty
     # artifact that stamps itself current.
-    stamps = artifacts.current_stamps(projection.ARTIFACT, "ord_dataset-1", "0" * 32)
+    stamps = base.current_stamps(projection.ARTIFACT, "ord_dataset-1", "0" * 32)
     component = pa.struct([pa.field("smiles", pa.string())])
     reaction_input = pa.struct([pa.field("components", pa.list_(component))])
     schema = pa.schema(
@@ -307,7 +308,7 @@ def test_a_projection_missing_the_id_columns_is_refused(tmp_path):
             pa.field("reaction_id", pa.string()),
             pa.field("inputs", pa.map_(pa.string(), reaction_input)),
         ]
-    ).with_metadata(artifacts.to_metadata(stamps))
+    ).with_metadata(base.to_metadata(stamps))
     path = tmp_path / "projection.parquet"
     pq.write_table(
         pa.Table.from_pylist(
@@ -322,15 +323,15 @@ def test_a_projection_missing_the_id_columns_is_refused(tmp_path):
 def test_a_stale_projection_is_refused(tmp_path):
     # The output inherits the dataset hash, so an artifact derived from a stale
     # projection would claim a provenance it does not have and never read stale again.
-    stamps = artifacts.Stamps(
+    stamps = base.Stamps(
         artifact=projection.ARTIFACT,
         source_dataset_id="ord_dataset-1",
         source_md5="0" * 32,
         ord_schema_version="0.0.0",
-        artifact_version=artifacts.ARTIFACT_VERSION,
+        artifact_version=base.ARTIFACT_VERSION,
         rdkit_version="0000.00.0",
     )
-    schema = projection.SCHEMA.with_metadata(artifacts.to_metadata(stamps))
+    schema = projection.SCHEMA.with_metadata(base.to_metadata(stamps))
     path = tmp_path / "projection.parquet"
     pq.write_table(pa.Table.from_pylist([], schema=schema), path)
     with pytest.raises(ValueError, match="stale"):

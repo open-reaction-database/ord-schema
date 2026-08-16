@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Running a compiled query against a corpus of projections and structures artifacts.
+"""Running a compiled query against a corpus of projections and structures base.
 
 The compiler (:mod:`ord_schema.search.query`) leaves two kinds of work undone on
 purpose, and this module is where both happen:
@@ -92,9 +92,10 @@ import pyarrow.parquet as pq
 from rdkit import Chem, DataStructs
 from rdkit.Chem import rdSubstructLibrary
 
-from ord_schema import artifacts, projection, resolvers, structures
+from ord_schema import resolvers
+from ord_schema.artifacts import base, pivot, projection, structures
 from ord_schema.logging import get_logger
-from ord_schema.search import pivot, query
+from ord_schema.search import query
 
 logger = get_logger(__name__)
 
@@ -238,10 +239,10 @@ def _index(pattern: str, artifact: str, require_current: bool) -> dict[str, str]
     """
     index: dict[str, str] = {}
     for path in sorted(glob.glob(pattern, recursive=True)):
-        stamps = artifacts.load_stamps(path)
+        stamps = base.load_stamps(path)
         if stamps.artifact != artifact:
             raise PairingError(f"{path} is a {stamps.artifact}, not a {artifact}")
-        if require_current and not artifacts.stamps_are_current(stamps, artifact):
+        if require_current and not base.stamps_are_current(stamps, artifact):
             raise PairingError(f"{path} is stale; derive it again first")
         if stamps.source_md5 in index:
             raise PairingError(
@@ -259,8 +260,8 @@ def _pair(
     """Returns (projection, structures) path pairs, verified by their stamps.
 
     Args:
-        projection_pattern: Glob matching the projection artifacts.
-        structures_pattern: Glob matching the structures artifacts.
+        projection_pattern: Glob matching the projection base.
+        structures_pattern: Glob matching the structures base.
         require_current: Refuse artifacts not written by the current versions.
 
     Returns:
@@ -550,7 +551,7 @@ class _Narrow:
 
 
 class Corpus:
-    """A searchable pairing of projections with their structures artifacts.
+    """A searchable pairing of projections with their structures base.
 
     Opens one DuckDB connection over both artifact sets and publishes the relation a
     compiled query runs against. Use as a context manager, or call ``close``.
@@ -571,7 +572,7 @@ class Corpus:
 
         Args:
             projection_pattern: Glob matching the projection files.
-            structures_pattern: Glob matching the structures artifacts.
+            structures_pattern: Glob matching the structures base.
             resolver: Maps a compound name to SMILES. Defaults to
                 ``ord_schema.resolvers``, which calls external services; inject
                 something local for tests or offline use.
@@ -1450,10 +1451,10 @@ class Corpus:
                 datasets differs from the projections', or -- with ``require_current``
                 -- if any artifact is stale.
         """
-        wanted = {artifacts.load_stamps(name).source_md5 for name in self._projections}
+        wanted = {base.load_stamps(name).source_md5 for name in self._projections}
         found = set()
         for name in files:
-            stamps = artifacts.load_stamps(name)
+            stamps = base.load_stamps(name)
             if stamps.artifact != pivot.ARTIFACT:
                 raise PairingError(
                     f"{name} is a {stamps.artifact}, not a {pivot.ARTIFACT}"
@@ -1464,7 +1465,7 @@ class Corpus:
                     f"{name} holds the pivot over {held}, but sits where {path} is "
                     "read from, so a quantifier would be answered by the wrong level"
                 )
-            if self._require_current and not artifacts.stamps_are_current(
+            if self._require_current and not base.stamps_are_current(
                 stamps, pivot.ARTIFACT
             ):
                 raise PairingError(f"{name} is a stale {pivot.ARTIFACT}")

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for ord_schema.artifacts."""
+"""Tests for ord_schema.artifacts.base."""
 
 import dataclasses
 import pathlib
@@ -23,7 +23,8 @@ import pyarrow.parquet as pq
 import pytest
 from rdkit import rdBase
 
-from ord_schema import artifacts, parquet
+from ord_schema import parquet
+from ord_schema.artifacts import base
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -42,7 +43,7 @@ def _current_metadata(**overrides):
 def _valid_metadata(**overrides):
     metadata = {
         "ord.artifact": "structures",
-        "ord.artifact_version": artifacts.ARTIFACT_VERSION,
+        "ord.artifact_version": base.ARTIFACT_VERSION,
         "ord.source_md5": "0" * 32,
         "ord.ord_schema_version": "9.9.9",
         "ord.rdkit_version": rdBase.rdkitVersion,
@@ -56,16 +57,14 @@ def _valid_metadata(**overrides):
 
 
 def test_stamps_carries_the_current_versions():
-    value = artifacts.current_stamps("structures", "ord_dataset-1", "abc")
+    value = base.current_stamps("structures", "ord_dataset-1", "abc")
     assert value.artifact == "structures"
-    assert value.artifact_version == artifacts.ARTIFACT_VERSION
+    assert value.artifact_version == base.ARTIFACT_VERSION
     assert value.ord_schema_version
 
 
 def test_to_metadata_omits_a_missing_dataset_id():
-    metadata = artifacts.to_metadata(
-        artifacts.current_stamps("structures", None, "abc")
-    )
+    metadata = base.to_metadata(base.current_stamps("structures", None, "abc"))
     assert "ord.source_dataset_id" not in metadata
     assert metadata["ord.source_md5"] == "abc"
 
@@ -73,7 +72,7 @@ def test_to_metadata_omits_a_missing_dataset_id():
 def test_load_stamps_round_trips(tmp_path):
     path = tmp_path / "artifact.parquet"
     _write(path, _valid_metadata())
-    stamps = artifacts.load_stamps(path)
+    stamps = base.load_stamps(path)
     assert stamps.artifact == "structures"
     assert stamps.source_dataset_id == "ord_dataset-1"
     assert stamps.source_md5 == "0" * 32
@@ -84,7 +83,7 @@ def test_load_stamps_tolerates_a_missing_dataset_id(tmp_path):
     metadata = _valid_metadata()
     del metadata["ord.source_dataset_id"]
     _write(path, metadata)
-    assert artifacts.load_stamps(path).source_dataset_id is None
+    assert base.load_stamps(path).source_dataset_id is None
 
 
 @pytest.mark.parametrize(
@@ -102,22 +101,22 @@ def test_load_stamps_names_every_missing_key(tmp_path, missing):
     del metadata[missing]
     _write(path, metadata)
     with pytest.raises(ValueError, match=missing):
-        artifacts.load_stamps(path)
+        base.load_stamps(path)
 
 
 def test_load_stamps_rejects_a_file_with_no_metadata(tmp_path):
     path = tmp_path / "plain.parquet"
     pq.write_table(pa.table({"x": [1]}), path)
     with pytest.raises(ValueError, match="not a derived artifact"):
-        artifacts.load_stamps(path)
+        base.load_stamps(path)
 
 
 def test_is_artifact_recognizes_only_stamped_files(tmp_path):
     _write(tmp_path / "artifact.parquet", _valid_metadata())
     pq.write_table(pa.table({"x": [1]}), tmp_path / "plain.parquet")
-    assert artifacts.is_artifact(tmp_path / "artifact.parquet")
-    assert not artifacts.is_artifact(tmp_path / "plain.parquet")
-    assert not artifacts.is_artifact(tmp_path / "absent.parquet")
+    assert base.is_artifact(tmp_path / "artifact.parquet")
+    assert not base.is_artifact(tmp_path / "plain.parquet")
+    assert not base.is_artifact(tmp_path / "absent.parquet")
 
 
 def test_is_artifact_refuses_to_call_an_unreadable_file_a_source(tmp_path):
@@ -127,21 +126,21 @@ def test_is_artifact_refuses_to_call_an_unreadable_file_a_source(tmp_path):
     _write(path, _valid_metadata())
     path.write_bytes(path.read_bytes()[:200])
     with pytest.raises(ValueError, match="not readable as Parquet"):
-        artifacts.is_artifact(path)
+        base.is_artifact(path)
 
 
 def test_is_current_requires_every_stamp_to_match(tmp_path, monkeypatch):
     # Each of these alone can change a projected value, so each alone must force a
-    # rebuild; a check that quietly stopped working would serve obsolete artifacts.
+    # rebuild; a check that quietly stopped working would serve obsolete base.
     path = tmp_path / "artifact.parquet"
     _write(path, _valid_metadata(**{"ord.ord_schema_version": "9.9.9"}))
-    monkeypatch.setattr(artifacts.metadata, "version", lambda _: "9.9.9")
-    assert artifacts.is_current(path, "structures", "0" * 32)
-    monkeypatch.setattr(artifacts.metadata, "version", lambda _: "9.9.10")
-    assert not artifacts.is_current(path, "structures", "0" * 32)
-    monkeypatch.setattr(artifacts.metadata, "version", lambda _: "9.9.9")
-    monkeypatch.setattr(artifacts, "ARTIFACT_VERSION", "99")
-    assert not artifacts.is_current(path, "structures", "0" * 32)
+    monkeypatch.setattr(base.metadata, "version", lambda _: "9.9.9")
+    assert base.is_current(path, "structures", "0" * 32)
+    monkeypatch.setattr(base.metadata, "version", lambda _: "9.9.10")
+    assert not base.is_current(path, "structures", "0" * 32)
+    monkeypatch.setattr(base.metadata, "version", lambda _: "9.9.9")
+    monkeypatch.setattr(base, "ARTIFACT_VERSION", "99")
+    assert not base.is_current(path, "structures", "0" * 32)
 
 
 # Output paths
@@ -159,18 +158,18 @@ def test_is_current_requires_every_stamp_to_match(tmp_path, monkeypatch):
     ],
 )
 def test_glob_root(pattern, expected):
-    assert artifacts.glob_root(pattern) == pathlib.PurePath(expected)
+    assert base.glob_root(pattern) == pathlib.PurePath(expected)
 
 
 def test_output_path_mirrors_the_input_layout():
-    assert artifacts.output_path(
+    assert base.output_path(
         "data/aa/ord_dataset-x.parquet", "data/*/*.parquet", "structures"
     ) == pathlib.Path("structures/aa/ord_dataset-x.parquet")
 
 
 def test_output_path_for_an_exact_filename_writes_into_the_directory():
     # A pattern naming one file must land inside output_dir, not become it.
-    assert artifacts.output_path(
+    assert base.output_path(
         "data/aa/one.parquet", "data/aa/one.parquet", "structures"
     ) == pathlib.Path("structures/one.parquet")
 
@@ -195,7 +194,7 @@ def _fake_source(path):
 
 def test_derive_tree_raises_when_nothing_matches(tmp_path):
     with pytest.raises(ValueError, match="no datasets matched"):
-        artifacts.derive_tree(
+        base.derive_tree(
             str(tmp_path / "*.parquet"),
             str(tmp_path / "out"),
             artifact="structures",
@@ -215,7 +214,7 @@ def test_derive_tree_writes_one_artifact_per_source(tmp_path):
         pathlib.Path(output).write_bytes(b"")
         return 1
 
-    written, skipped, ignored = artifacts.derive_tree(
+    written, skipped, ignored = base.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
         artifact="structures",
@@ -237,7 +236,7 @@ def test_derive_tree_hands_the_writer_the_source_and_its_provenance(tmp_path):
         pathlib.Path(output).write_bytes(b"")
         return 1
 
-    artifacts.derive_tree(
+    base.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
         artifact="structures",
@@ -251,7 +250,7 @@ def test_derive_tree_refuses_to_write_over_its_own_sources(tmp_path):
     _fake_source(tmp_path / "aa" / "source.parquet")
     calls = []
     with pytest.raises(ValueError, match="would write over its inputs"):
-        artifacts.derive_tree(
+        base.derive_tree(
             str(tmp_path / "*" / "*.parquet"),
             str(tmp_path),
             artifact="structures",
@@ -269,7 +268,7 @@ def test_derive_tree_refuses_to_write_over_a_different_source(tmp_path):
     _fake_source(victim)
     original = victim.read_bytes()
     with pytest.raises(ValueError, match="would write over its inputs"):
-        artifacts.derive_tree(
+        base.derive_tree(
             str(tmp_path / "**" / "*.parquet"),
             str(tmp_path / "aa"),
             artifact="structures",
@@ -291,7 +290,7 @@ def test_derive_tree_ignores_matches_that_are_themselves_artifacts(tmp_path):
         pathlib.Path(output).write_bytes(b"")
         return 1
 
-    assert artifacts.derive_tree(
+    assert base.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
         artifact="structures",
@@ -311,15 +310,15 @@ def test_derive_tree_skips_current_artifacts_unless_forced(tmp_path, monkeypatch
         pathlib.Path(output).write_bytes(b"")
         return 1
 
-    monkeypatch.setattr(artifacts, "is_current", lambda *args: True)
-    assert artifacts.derive_tree(
+    monkeypatch.setattr(base, "is_current", lambda *args: True)
+    assert base.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
         artifact="structures",
         write=_write_one,
     ) == (0, 1, 0)
     assert not calls
-    assert artifacts.derive_tree(
+    assert base.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
         artifact="structures",
@@ -342,7 +341,7 @@ def test_derive_tree_reads_the_named_parent_artifact(tmp_path):
         pathlib.Path(output).write_bytes(b"")
         return 1
 
-    assert artifacts.derive_tree(
+    assert base.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
         artifact="structures",
@@ -369,7 +368,7 @@ def test_derive_tree_ignores_a_source_dataset_when_a_parent_artifact_is_named(tm
         pathlib.Path(output).write_bytes(b"")
         return 1
 
-    assert artifacts.derive_tree(
+    assert base.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
         artifact="structures",
@@ -386,7 +385,7 @@ def test_derive_tree_ignores_an_artifact_of_the_wrong_kind(tmp_path):
         tmp_path / "aa" / "already.parquet",
         _valid_metadata(**{"ord.artifact": "structures"}),
     )
-    assert artifacts.derive_tree(
+    assert base.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
         artifact="structures",
@@ -403,9 +402,9 @@ def test_derive_tree_refuses_a_stale_parent(tmp_path, monkeypatch):
     (tmp_path / "aa").mkdir()
     parent = tmp_path / "aa" / "projected.parquet"
     _write(parent, _current_metadata(**{"ord.artifact": "projection"}))
-    monkeypatch.setattr(artifacts, "ARTIFACT_VERSION", "next")
+    monkeypatch.setattr(base, "ARTIFACT_VERSION", "next")
     with pytest.raises(ValueError, match="stale projection"):
-        artifacts.derive_tree(
+        base.derive_tree(
             str(tmp_path / "*" / "*.parquet"),
             str(tmp_path / "out"),
             artifact="structures",
@@ -429,7 +428,7 @@ def test_derive_tree_refuses_to_write_over_a_file_it_did_not_derive(tmp_path):
     _fake_source(source)
     before = source.read_bytes()
     with pytest.raises(ValueError, match="would write over its inputs"):
-        artifacts.derive_tree(
+        base.derive_tree(
             str(tmp_path / "projections" / "*.parquet"),
             str(tmp_path / "data"),
             artifact="structures",
@@ -449,7 +448,7 @@ def test_derive_tree_still_rewrites_its_own_artifacts(tmp_path):
     )
     (tmp_path / "structures").mkdir()
     _write(tmp_path / "structures" / "ds.parquet", _valid_metadata())
-    written, skipped, ignored = artifacts.derive_tree(
+    written, skipped, ignored = base.derive_tree(
         str(tmp_path / "projections" / "*.parquet"),
         str(tmp_path / "structures"),
         artifact="structures",
@@ -461,9 +460,9 @@ def test_derive_tree_still_rewrites_its_own_artifacts(tmp_path):
 
 
 def test_stamps_record_the_rdkit_version():
-    value = artifacts.current_stamps("structures", "ord_dataset-1", "abc")
+    value = base.current_stamps("structures", "ord_dataset-1", "abc")
     assert value.rdkit_version == rdBase.rdkitVersion
-    assert artifacts.stamps_are_current(value, "structures")
+    assert base.stamps_are_current(value, "structures")
 
 
 def test_an_artifact_from_a_different_rdkit_reads_stale():
@@ -471,17 +470,17 @@ def test_an_artifact_from_a_different_rdkit_reads_stale():
     # must mark artifacts stale or the screen's completeness rests on cross-version
     # fingerprint compatibility nothing enforces.
     value = dataclasses.replace(
-        artifacts.current_stamps("structures", "ord_dataset-1", "abc"),
+        base.current_stamps("structures", "ord_dataset-1", "abc"),
         rdkit_version="0000.00.0",
     )
-    assert not artifacts.stamps_are_current(value, "structures")
+    assert not base.stamps_are_current(value, "structures")
 
 
 def test_an_artifact_with_no_rdkit_stamp_reads_stale():
     # Files stamped before the key existed still load, and read stale: rebuilding is
     # the safe answer for an artifact whose RDKit nobody recorded.
     value = dataclasses.replace(
-        artifacts.current_stamps("structures", "ord_dataset-1", "abc"),
+        base.current_stamps("structures", "ord_dataset-1", "abc"),
         rdkit_version=None,
     )
-    assert not artifacts.stamps_are_current(value, "structures")
+    assert not base.stamps_are_current(value, "structures")

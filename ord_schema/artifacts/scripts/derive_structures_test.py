@@ -14,8 +14,9 @@
 
 """Tests for ord_schema.scripts.derive_structures.
 
-Artifact behavior is covered in ord_schema.structures_test; these cover the CLI: path
-mapping, which matches count as sources, the skip-if-current shortcut, and --force.
+Artifact behavior is covered in ord_schema.artifacts.structures_test; these cover the
+CLI: path mapping, which matches count as sources, the skip-if-current shortcut, and
+--force.
 """
 
 import pathlib
@@ -23,9 +24,10 @@ import pathlib
 import pyarrow.parquet as pq
 import pytest
 
-from ord_schema import artifacts, parquet, structures
+from ord_schema import parquet
+from ord_schema.artifacts import base, structures
+from ord_schema.artifacts.scripts import derive_projection, derive_structures
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.scripts import derive_projection, derive_structures
 
 # Distinct molecules per shard, so a test can tell one dataset's artifact -- and its
 # id space -- from another's.
@@ -96,9 +98,7 @@ def test_main_stamps_artifacts_with_their_source(tmp_path):
     _project(tmp_path)
     _run(tmp_path)
     source = tmp_path / "data" / "aa" / "ord_dataset-aa.parquet"
-    stamps = artifacts.load_stamps(
-        tmp_path / "structures" / "aa" / "ord_dataset-aa.parquet"
-    )
+    stamps = base.load_stamps(tmp_path / "structures" / "aa" / "ord_dataset-aa.parquet")
     assert stamps.artifact == structures.ARTIFACT
     assert stamps.source_dataset_id == "ord_dataset-aa"
     assert stamps.source_md5 == parquet.DatasetView(source).md5()

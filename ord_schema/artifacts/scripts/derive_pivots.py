@@ -14,11 +14,11 @@
 
 r"""Derives pivot artifacts from projections, one per repeated level.
 
-A quantifier over a repeated level is answered by a semi-join against a pivot -- one
-row per element, carrying the ordinals that say which element it was and the element's
-own fields with the repeated ones removed; see ``ord_schema.search.pivot`` for the shape
-and why. Building one unnests the projection, which is minutes per level over ORD, so
-it belongs here rather than in whichever query asks first.
+A quantifier over a repeated level is answered by a semi-join against a pivot -- one row
+per element, carrying the ordinals that say which element it was and the element's own
+fields with the repeated ones removed; see ``ord_schema.artifacts.pivot`` for the shape
+and why. Building one unnests the projection, which is minutes per level over ORD, so it
+belongs here rather than in whichever query asks first.
 
 Each level gets its own subdirectory, and each projection its own file within it::
 
@@ -47,9 +47,8 @@ import argparse
 import functools
 import pathlib
 
-from ord_schema import artifacts, projection
+from ord_schema.artifacts import base, pivot, projection
 from ord_schema.logging import get_logger
-from ord_schema.search import pivot
 
 logger = get_logger(__name__)
 
@@ -100,7 +99,7 @@ def main(args: argparse.Namespace) -> None:
             f"known levels are {sorted(pivot.LEVELS)}"
         )
     for level_path in args.levels:
-        written, skipped, ignored = artifacts.derive_tree(
+        written, skipped, ignored = base.derive_tree(
             args.input_pattern,
             str(pathlib.Path(args.output_dir) / level_path),
             artifact=pivot.ARTIFACT,

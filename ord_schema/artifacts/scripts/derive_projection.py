@@ -15,9 +15,9 @@
 """Derives queryable projections from Parquet datasets.
 
 Each input dataset yields one projection carrying every field of every message reachable
-from Reaction; see ``ord_schema.projection`` for what it normalizes and why. Outputs
-mirror the inputs' directory layout beneath ``--output_dir``, rooted at the leading
-components of ``--input_pattern`` that hold no wildcard::
+from Reaction; see ``ord_schema.artifacts.projection`` for what it normalizes and why.
+Outputs mirror the inputs' directory layout beneath ``--output_dir``, rooted at the
+leading components of ``--input_pattern`` that hold no wildcard::
 
     derive_projection.py --input_pattern='data/*/*.parquet' --output_dir=projections
 
@@ -32,7 +32,7 @@ would write over any source dataset is an error, as is a run that derives nothin
 
 import argparse
 
-from ord_schema import artifacts, projection
+from ord_schema.artifacts import base, projection
 from ord_schema.logging import silence_rdkit_logs
 
 
@@ -66,7 +66,7 @@ def main(args: argparse.Namespace) -> None:
             pipeline step downstream proceed as though the projections had been built.
     """
     silence_rdkit_logs()
-    written, skipped, ignored = artifacts.derive_tree(
+    written, skipped, ignored = base.derive_tree(
         args.input_pattern,
         args.output_dir,
         artifact=projection.ARTIFACT,

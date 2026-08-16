@@ -59,7 +59,7 @@ from typing import Any
 import duckdb
 import pyarrow as pa
 
-from ord_schema import projection
+from ord_schema.artifacts import projection
 
 # The name the model is told to query. The only relation in scope, so no other table is
 # reachable -- which is not the same as no join being expressible, since a query can

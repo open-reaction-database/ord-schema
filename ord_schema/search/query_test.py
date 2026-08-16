@@ -21,8 +21,8 @@ import pytest
 from pydantic import ValidationError
 from rdkit import Chem
 
-from ord_schema import projection
-from ord_schema.search import pivot, query, sql
+from ord_schema.artifacts import pivot, projection
+from ord_schema.search import query, sql
 
 
 def _compile(payload):

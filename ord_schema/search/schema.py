@@ -38,7 +38,7 @@ the model writes. Units are already in the column names -- ``setpoint_kelvin``,
 
 import pyarrow as pa
 
-from ord_schema import projection
+from ord_schema.artifacts import projection
 
 # Arrow leaf types the projection can hold, in DuckDB's names. Deliberately not a
 # fallback to ``str(dtype)``: a type the projection gains later should surface here as a

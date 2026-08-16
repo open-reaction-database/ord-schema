@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for ord_schema.projection."""
+"""Tests for ord_schema.artifacts.projection."""
 
 import pathlib
 from types import SimpleNamespace
@@ -24,7 +24,8 @@ import pytest
 from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from rdkit import Chem
 
-from ord_schema import artifacts, parquet, projection
+from ord_schema import parquet
+from ord_schema.artifacts import base, projection
 from ord_schema.proto import reaction_pb2
 
 
@@ -416,9 +417,9 @@ def test_write_projection_stamps_the_footer(tmp_path):
     source = _source(tmp_path, [_reaction()])
     output = tmp_path / "projection.parquet"
     projection.write_projection(source, output)
-    stamps = artifacts.load_stamps(output)
+    stamps = base.load_stamps(output)
     assert stamps.artifact == projection.ARTIFACT
-    assert stamps.artifact_version == artifacts.ARTIFACT_VERSION
+    assert stamps.artifact_version == base.ARTIFACT_VERSION
     assert stamps.source_dataset_id == "ord_dataset-1"
 
 
@@ -434,7 +435,7 @@ def test_is_current_rejects_a_different_artifact(tmp_path):
     source = _source(tmp_path, [_reaction()])
     output = tmp_path / "projection.parquet"
     projection.write_projection(source, output)
-    assert not artifacts.is_current(output, "view", parquet.DatasetView(source).md5())
+    assert not base.is_current(output, "view", parquet.DatasetView(source).md5())
 
 
 def test_is_current_is_false_for_a_missing_file(tmp_path):

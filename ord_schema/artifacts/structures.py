@@ -61,7 +61,8 @@ import pyarrow.parquet as pq
 from rdkit import Chem, DataStructs
 from rdkit.Chem import rdFingerprintGenerator
 
-from ord_schema import artifacts, atomic_io, projection
+from ord_schema import atomic_io
+from ord_schema.artifacts import base, projection
 from ord_schema.logging import get_logger
 
 logger = get_logger(__name__)
@@ -307,7 +308,7 @@ def _row(structure_id: int, smiles: str) -> dict[str, Any]:
 def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
     """Returns whether ``path`` is a structures artifact of ``source_md5`` by us.
 
-    Delegates to ``artifacts.is_current``, which requires the artifact name, the source
+    Delegates to ``base.is_current``, which requires the artifact name, the source
     content, the library version, the artifact version, and the RDKit version to all
     match. A missing or unreadable file is not current.
 
@@ -319,7 +320,7 @@ def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
     Returns:
         Whether the file is a structures artifact this library would write today.
     """
-    return artifacts.is_current(path, ARTIFACT, source_md5)
+    return base.is_current(path, ARTIFACT, source_md5)
 
 
 def write_structures(
@@ -356,7 +357,7 @@ def write_structures(
         ValueError: If ``source`` is not a projection, or does not state a single dense
             (smiles, structure_id) mapping.
     """
-    parent = artifacts.load_stamps(source)
+    parent = base.load_stamps(source)
     if parent.artifact != projection.ARTIFACT:
         raise ValueError(
             f"{source} is a {parent.artifact}, not a {projection.ARTIFACT}; the "
@@ -365,7 +366,7 @@ def write_structures(
     # derive_tree refuses stale parents, but this writer is public and its output
     # inherits the dataset hash: an artifact derived from a stale projection would
     # claim a provenance it does not have and nothing would ever mark it stale again.
-    if not artifacts.stamps_are_current(parent, projection.ARTIFACT):
+    if not base.stamps_are_current(parent, projection.ARTIFACT):
         raise ValueError(
             f"{source} is a stale {projection.ARTIFACT}; derive it again first"
         )
@@ -373,8 +374,8 @@ def write_structures(
         source_md5 = parent.source_md5
     if source_dataset_id is None:
         source_dataset_id = parent.source_dataset_id
-    stamps = artifacts.current_stamps(ARTIFACT, source_dataset_id, source_md5)
-    schema = SCHEMA.with_metadata(artifacts.to_metadata(stamps))
+    stamps = base.current_stamps(ARTIFACT, source_dataset_id, source_md5)
+    schema = SCHEMA.with_metadata(base.to_metadata(stamps))
     all_smiles = _collect(source)
     unparseable = 0
     with (
