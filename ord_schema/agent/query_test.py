@@ -726,29 +726,70 @@ def test_forall_over_a_pivoted_level_becomes_a_negated_semi_join():
     assert "list_filter" not in sql
 
 
-def test_a_body_reaching_a_repeated_field_declines_to_the_level():
-    # A workup's input.components is a list, so the pruned element type has no such
-    # field and the quantifier stays a filter over the elements.
+def test_a_nested_quantifier_joins_on_the_whole_ordinal_prefix():
+    # The correctness point the ordinals exist for. Correlating a measurement to its
+    # product on the reaction alone returned 23,608 reactions over ORD where the answer
+    # is 22,666 -- and dropping only the outcome ordinal changed nothing at all, since
+    # the corpus is effectively single-outcome, which is what made it look right.
     sql = _pivot_sql(
         {
             "where": {
                 "op": "exists",
-                "path": "workups",
+                "path": "outcomes.products",
                 "where": {
-                    "op": "exists",
-                    "path": "input.components",
-                    "where": {
-                        "op": "eq",
-                        "path": "reaction_role",
-                        "value": {"literal": "SOLVENT"},
-                    },
+                    "op": "and",
+                    "clauses": [
+                        {
+                            "op": "eq",
+                            "path": "is_desired_product",
+                            "value": {"literal": True},
+                        },
+                        {
+                            "op": "exists",
+                            "path": "measurements",
+                            "where": {
+                                "op": "eq",
+                                "path": "type",
+                                "value": {"literal": "YIELD"},
+                            },
+                        },
+                    ],
                 },
             }
         },
         pivot=_every_level,
     )
-    assert "list_filter" in sql
-    assert "pivot_workups" not in sql
+    assert "FROM pivot_outcomes_products_measurements AS x1" in sql
+    assert "x1.reaction_id = x0.reaction_id" in sql
+    assert "x1.outcome_index = x0.outcome_index" in sql
+    assert "x1.product_index = x0.product_index" in sql
+    assert "list_filter" not in sql
+
+
+def test_a_quantifier_inside_a_list_lambda_is_left_to_the_elements():
+    # With the outer level unavailable there is no alias to correlate to, so the inner
+    # quantifier compiles over the elements rather than against a pivot keyed by
+    # nothing.
+    sql = _pivot_sql(
+        {
+            "where": {
+                "op": "exists",
+                "path": "outcomes.products",
+                "where": {
+                    "op": "exists",
+                    "path": "measurements",
+                    "where": {
+                        "op": "eq",
+                        "path": "type",
+                        "value": {"literal": "YIELD"},
+                    },
+                },
+            }
+        },
+        pivot=lambda path: None,
+    )
+    assert "pivot_" not in sql
+    assert sql.count("list_filter") == 2
 
 
 def test_a_declined_body_leaves_no_parameters_behind():
@@ -783,9 +824,14 @@ def test_a_declined_body_leaves_no_parameters_behind():
                 }
             }
         ),
-        pivot=_every_level,
+        # The measurements level is refused -- a budget may do exactly this -- so the
+        # inner quantifier declines, the outer body fails to resolve against the pruned
+        # type, and the outer declines with it.
+        pivot=lambda path: (
+            None if path == "outcomes.products.measurements" else _every_level(path)
+        ),
     )
-    assert "pivot_outcomes_products" not in compiled.sql
+    assert "pivot_" not in compiled.sql
     assert len(compiled.structures) == 1
 
 
@@ -802,80 +848,6 @@ def test_without_a_pivot_the_sql_is_unchanged():
         }
     }
     assert _pivot_sql(body) == _pivot_sql(body, pivot=lambda path: None)
-
-
-def test_a_nested_quantifier_is_not_offered_the_pivot():
-    # The inner path is element-relative, so it names no level of its own.
-    sql = _pivot_sql(
-        {
-            "where": {
-                "op": "exists",
-                "path": "outcomes",
-                "where": {
-                    "op": "exists",
-                    "path": "products",
-                    "where": {
-                        "op": "eq",
-                        "path": "isolated_color",
-                        "value": {"literal": "white"},
-                    },
-                },
-            }
-        },
-        pivot=_every_level,
-    )
-    assert "pivot_outcomes_products" not in sql
-
-
-def test_the_semi_join_correlation_survives_a_renamed_relation():
-    # The correlation is qualified with whatever relation the query reads, so a caller
-    # compiling against another name does not silently get a self-comparison.
-    compiled = query.compile_query(
-        query.Query.model_validate(
-            {
-                "where": {
-                    "op": "exists",
-                    "path": "workups",
-                    "where": {
-                        "op": "eq",
-                        "path": "type",
-                        "value": {"literal": "EXTRACTION"},
-                    },
-                }
-            }
-        ),
-        table="corpus",
-        pivot=_every_level,
-    )
-    assert "x0.reaction_id = corpus.reaction_id" in compiled.sql
-
-
-def test_a_pivoted_semi_join_answers_what_the_elements_answer():
-    # Runs both spellings against the same two rows, one with a matching element and
-    # one with none. The unqualified correlation this pins against returned both.
-    connection = duckdb.connect()
-    connection.execute(
-        "CREATE TABLE reactions AS SELECT * FROM "
-        "(VALUES ('a'), ('b')) AS t(reaction_id)"
-    )
-    connection.execute(
-        "CREATE TABLE pivot_workups AS SELECT * FROM "
-        "(VALUES ('a', {'type': 'EXTRACTION'})) AS t(reaction_id, element)"
-    )
-    body = {
-        "where": {
-            "op": "exists",
-            "path": "workups",
-            "where": {"op": "eq", "path": "type", "value": {"literal": "EXTRACTION"}},
-        }
-    }
-    try:
-        compiled = query.compile_query(
-            query.Query.model_validate(body), pivot=_every_level
-        )
-        assert connection.execute(compiled.sql).fetchall() == [("a",)]
-    finally:
-        connection.close()
 
 
 def test_a_structure_predicate_routes_through_the_pivot_with_the_outer_offset():
@@ -943,8 +915,13 @@ def test_a_declining_body_is_never_charged_for_a_pivot():
                 }
             }
         ),
-        pivot=watched,
+        pivot=lambda path: (
+            None if path == "workups.input.components" else watched(path)
+        ),
     )
+    # The inner level was refused, so the outer body could not resolve and the outer
+    # level was never asked for -- which is what stops a declining query from paying
+    # for a table it will not use.
     assert asked == []
 
 

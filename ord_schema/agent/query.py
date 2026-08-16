@@ -112,11 +112,17 @@ class _Routing:
             correlation compares a column to itself, which is true of every row.
         index: An occurrence index, consulted for an ``exists`` at the row.
         pivot: Pivoted levels, consulted after ``index`` and for ``forall`` too.
+        enclosing: The alias and level of the pivot this clause is compiling inside,
+            if it is inside one. A nested quantifier correlates to *that* rather than
+            to the row: its level's ordinals extend the enclosing level's, and joining
+            on the whole prefix is what keeps a measurement bound to the product it
+            was reached through.
     """
 
     table: str
     index: ElementIndex | None = None
     pivot: PivotIndex | None = None
+    enclosing: "tuple[str, pivot_levels.RepeatedLevel] | None" = None
 
 
 def executable_schema(schema: pa.Schema | None = None) -> pa.Schema:
@@ -690,6 +696,34 @@ def _element_terms(
     return structure, fields
 
 
+def _pivot_target(
+    path: str, routing: _Routing
+) -> "tuple[pivot_levels.RepeatedLevel, tuple[str, ...], pa.DataType] | None":
+    """Returns the pivot a quantifier over ``path`` would range within, or None.
+
+    Args:
+        path: The quantifier's path, relative to the enclosing element if there is one.
+        routing: Where this quantifier may be answered; its ``enclosing`` says which
+            element the path is relative to.
+
+    Returns:
+        The level, the remaining segments from its element down to the value, and the
+        type they reach -- or None if no pivot covers the path, or the level found is
+        not a descendant of the enclosing one, which leaves no ordinal prefix to say
+        which outer element an inner one belongs to.
+    """
+    if routing.enclosing is None:
+        return pivot_levels.reach(path)
+    alias_level = routing.enclosing[1]
+    # A nested quantifier's path is relative to the element it sits inside, so the
+    # level it names is that element's level extended by it.
+    reached = pivot_levels.reach(f"{alias_level.path}.{path}")
+    if reached is None:
+        return None
+    outer = alias_level.ordinals
+    return reached if reached[0].ordinals[: len(outer)] == outer else None
+
+
 def _pivoted(
     node: "Quantifier",
     compounds: list[str],
@@ -728,7 +762,7 @@ def _pivoted(
     """
     if routing.pivot is None:
         return None
-    reached = pivot_levels.reach(node.path)
+    reached = _pivot_target(node.path, routing)
     if reached is None:
         return None
     level, remainder, element_type = reached
@@ -744,7 +778,7 @@ def _pivoted(
             taken_compounds,
             taken_structures,
             depth + 1,
-            routing,
+            dataclasses.replace(routing, enclosing=(variable, level)),
         )
     except QueryError:
         return None
@@ -757,10 +791,28 @@ def _pivoted(
     compounds[:], structures[:] = taken_compounds, taken_structures
     # S608: the relation is named by this module's own walk of the schema, and every
     # fragment of the body is an expression resolved against that walk's element type.
+    if routing.enclosing is None:
+        correlation = [
+            f"{variable}.{pivot_levels.REACTION_ID} = "
+            f"{routing.table}.{pivot_levels.REACTION_ID}"
+        ]
+    else:
+        alias, outer_level = routing.enclosing
+        # Joined on the whole ordinal prefix, not merely the reaction: a measurement
+        # reached through a product belongs to *that* product, and correlating on
+        # anything less returns reactions where the two clauses hold of different
+        # elements.
+        correlation = [
+            f"{variable}.{pivot_levels.REACTION_ID} = "
+            f"{alias}.{pivot_levels.REACTION_ID}",
+            *(
+                f"{variable}.{ordinal} = {alias}.{ordinal}"
+                for ordinal in outer_level.ordinals
+            ),
+        ]
     inner = (
         f"SELECT 1 FROM {table} AS {variable} "  # noqa: S608
-        f"WHERE {variable}.{pivot_levels.REACTION_ID} = "
-        f"{routing.table}.{pivot_levels.REACTION_ID} AND "
+        f"WHERE {' AND '.join(correlation)} AND "
     )
     if node.op == "exists":
         return f"EXISTS ({inner}{body})"
@@ -813,6 +865,13 @@ def _quantifier(
     Raises:
         QueryError: If the path does not reach a repeated level.
     """
+    # Offered before the path is resolved, because inside a pivot it cannot be: the
+    # enclosing element's type is pruned of exactly the repeated fields a nested
+    # quantifier ranges over, so resolving first would raise and decline every one.
+    if routing.pivot is not None and routing.enclosing is not None:
+        condition = _pivoted(node, compounds, structures, depth, routing)
+        if condition is not None:
+            return condition
     resolved = resolve(node.path, schema=schema, root=scope)
     if not resolved.repeated:
         raise QueryError(
@@ -834,6 +893,8 @@ def _quantifier(
             )
             if condition is not None:
                 return condition
+    # A nested quantifier was offered the pivot above, before its path was resolved.
+    # Inside a list lambda there is nothing to correlate to, so the elements answer it.
     if routing.pivot is not None and scope is None:
         condition = _pivoted(node, compounds, structures, depth, routing)
         if condition is not None:

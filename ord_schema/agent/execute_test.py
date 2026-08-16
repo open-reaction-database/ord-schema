@@ -2807,6 +2807,17 @@ def _wide_reactions() -> list[reaction_pb2.Reaction]:
     outcome.products.add(is_desired_product=True, isolated_color="white")
     reactions.append(several)
 
+    # One outcome holding both, so the *product* ordinal is what separates them. This
+    # is the shape of the 942 reactions a product-blind correlation over-returned on
+    # ORD, which an outcome-blind one could not see: the corpus is single-outcome.
+    sibling = reaction_pb2.Reaction(reaction_id="ord-wd07")
+    outcome = sibling.outcomes.add()
+    wanted = outcome.products.add(is_desired_product=True, isolated_color="blue")
+    wanted.measurements.add(type="YIELD").percentage.value = 10
+    other = outcome.products.add(is_desired_product=False, isolated_color="blue")
+    other.measurements.add(type="YIELD").percentage.value = 90
+    reactions.append(sibling)
+
     return reactions
 
 
@@ -2890,6 +2901,39 @@ _DIFFERENTIAL = {
         "op": "forall",
         "path": "outcomes.products.measurements",
         "where": {"op": "eq", "path": "type", "value": {"literal": "YIELD"}},
+    },
+    # The nested-correlation case, and the one the wide corpus was built for: ord-wd01
+    # carries the 90% yield on the product that is *not* desired, in a different
+    # outcome from the one that is. A correlation joining on anything short of the
+    # whole ordinal prefix pairs them and answers yes.
+    "a desired product with a yield above 50%": {
+        "op": "exists",
+        "path": "outcomes.products",
+        "where": {
+            "op": "and",
+            "clauses": [
+                {
+                    "op": "eq",
+                    "path": "is_desired_product",
+                    "value": {"literal": True},
+                },
+                {
+                    "op": "exists",
+                    "path": "measurements",
+                    "where": {
+                        "op": "and",
+                        "clauses": [
+                            {"op": "eq", "path": "type", "value": {"literal": "YIELD"}},
+                            {
+                                "op": "gt",
+                                "path": "percentage.value",
+                                "value": {"literal": 50},
+                            },
+                        ],
+                    },
+                },
+            ],
+        },
     },
     "a yield above 50%": {
         "op": "exists",
@@ -3077,7 +3121,7 @@ def test_a_level_without_artifacts_is_still_built(wide_root, caplog):
                 },
             },
         )
-    assert found == {"ord-wd01", "ord-wd02"}
+    assert found == {"ord-wd01", "ord-wd02", "ord-wd07"}
     assert any(
         "building the pivot over outcomes.products.measurements" in record.message
         for record in caplog.records
@@ -3244,3 +3288,14 @@ def test_a_singular_struct_under_a_level_is_answered_by_that_level_s_pivot(
     assert pivoted == {"ord-cc01"}
     monkeypatch.setattr(execute.Corpus, "_pivoted_table", _no_pivoted_table)
     assert _search(deep_corpus, where) == pivoted
+
+
+def test_a_nested_correlation_binds_the_measurement_to_its_own_product(wide_corpus):
+    # ord-wd01 has a 90% yield on an undesired product in one outcome and a desired
+    # product with 10% in another; ord-wd02 has both on one product. Only the second
+    # answers, and a correlation that lost either ordinal would return both.
+    found = _search(
+        wide_corpus, _DIFFERENTIAL["a desired product with a yield above 50%"]
+    )
+    # ord-wd07 keeps both in one outcome, so only the product ordinal separates them.
+    assert found == {"ord-wd02"}
