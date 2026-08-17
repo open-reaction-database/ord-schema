@@ -25,7 +25,8 @@ import datetime
 import glob
 import pathlib
 import re
-import defusedxml.ElementTree as ET
+from xml.etree import ElementTree as ET
+import defusedxml.ElementTree as _defusedET
 
 import joblib
 
@@ -523,7 +524,7 @@ def run(
     filename: str,
 ) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.Reaction]]:
     """Parses reactions from a single CML file."""
-    tree = ET.parse(filename)  # noqa: S314  (parses trusted USPTO XML downloads)
+    tree = _defusedET.parse(filename)  # noqa: S314  (parses trusted USPTO XML downloads)
     root = tree.getroot()
     reactions = []
     failures = []
