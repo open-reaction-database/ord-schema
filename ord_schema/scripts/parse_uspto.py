@@ -25,7 +25,7 @@ import datetime
 import glob
 import pathlib
 import re
-from xml.etree import ElementTree as ET
+import defusedxml.ElementTree as ET
 
 import joblib
 
