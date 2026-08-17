@@ -236,49 +236,18 @@ Joined on the reaction alone — or on `(reaction, outcome)`, which over ORD is 
 join — the desired product pairs with its sibling's 90% and the reaction answers yes.
 Joined on the whole prefix it does not: product 1's only measurement is 10%.
 
-Over the whole corpus, warm, against the same queries answered from the elements — the
-pivots read as artifacts, and the same pivots built in process:
+Over ORD a pivot answers a quantifier **6–27× faster than the elements**, and one read
+from Parquet lands within tens of milliseconds of the same pivot held in memory — which
+is the whole argument for deriving them, since the artifact costs no budget at all. The
+four levels that answer the most are **514 MB as artifacts against 9.21 GiB held**,
+published as views in 0.9s against 32 minutes to build them in process.
 
-| query | artifacts | in memory | elements |
-| --- | --- | --- | --- |
-| a white product | 0.061s | 0.054s | 0.737s |
-| yield > 50% | 0.099s | 0.085s | 2.384s |
-| every product is desired | 0.076s | 0.070s | 1.781s |
-| **not** a yield above 50% | 0.114s | 0.093s | 3.113s |
-| an extraction workup | 0.114s | 0.103s | 2.341s |
-| "reflux" in a workup | 0.147s | 0.105s | 2.239s |
-| a solvent input | 0.176s | 0.155s | 1.794s |
-| above 350 K | 0.033s | 0.033s | 0.032s |
-
-Every one returns the same reactions on all three routes. `above 350 K` is the control:
-a scalar path with no quantifier, so no pivot is involved and nothing moves. Everything
-else is 6–27× against the elements, and **a pivot read from Parquet is within a few tens
-of milliseconds of the same pivot held in memory** — which is the whole argument for
-deriving them, since the artifact costs no budget at all.
-
-Building one in process unnests the projection down to its level. What that costs,
-measured one build per process so eviction cannot corrupt the reading:
-
-| level | unnests | held | build | as an artifact |
-| --- | --- | --- | --- | --- |
-| `workups` | 1 | 4.18 GiB | 42s | 149 MB |
-| `outcomes.products` | 2 | 0.39 GiB | 461s | 104 MB |
-| `inputs.components` | 2 | 2.64 GiB | 626s | 224 MB |
-| `outcomes.products.measurements` | 3 | 1.34 GiB | 854s | 37 MB |
-
-Three things fall out. **Build cost is depth**: one unnest is 42 seconds, and each
-further repeated level costs roughly an order of magnitude. **Size saving is width**: how
-much of its column an element still carries once the repeated fields are pruned away. And
-**the two are anti-correlated** — `workups` is the cheapest to build and the worst to
-hold, at 4.18 GiB against a 4 GB default that refuses it.
-
-The third is what makes the artifact the answer rather than a further prune. All four
-levels are **514 MB on disk against 9.21 GiB held**, because Parquet charges for data
-where an in-memory column charges for shape: `workups` carries 40 leaves, most of them
-NULL in most rows, which encode to almost nothing and occupy a full-width vector and a
-validity mask apiece. The projection itself expands the same way, 1.53 GB of Parquet to
-**18.46 GB in memory**, which is why nothing here holds it. Publishing all four levels as
-views takes 0.9s and no memory, against 32 minutes to build them in process.
+Building one in process unnests the projection down to its level, and the two costs pull
+against each other: build cost is *depth*, an order of magnitude per further repeated
+level, while what it costs to hold is *width*, how much of its column an element still
+carries. `workups` is the cheapest to build and the worst to hold, at 4.18 GiB against a
+4 GB default that refuses it. Every figure here, and the per-level tables behind them,
+are in [the logbook entry][cache-entry], findings 12–14.
 
 That is what `scripts/derive_pivots.py` is for — one subdirectory per level, one file per
 projection within it, stamped like any other derived artifact and read by
@@ -303,15 +272,9 @@ Queries the index declines read the projection, and most of what that costs is n
 reading. A scan re-parses the footer of every file it touches, and a 442-leaf projection
 over 53 files has large footers; the parse is charged again on every query however few
 leaves the query goes on to read. DuckDB will **hold the parsed footers** between
-queries, which the corpus turns on at open, and over ORD that is most of the cost of a
-projection query:
-
-| query | footers reparsed | footers held |
-| --- | --- | --- |
-| temperature filter | 0.759s | 0.096s |
-| group-by on stirring type | 0.728s | 0.055s |
-| temperature and city | 0.712s | 0.029s |
-| substring of a safety note | 0.713s | 0.026s |
+queries, which the corpus turns on at open. Over ORD that parse is most of what a
+projection query costs — **8–27×** across a range of scalar queries
+([logbook][cache-entry], finding 10).
 
 The footers cost about **200 MB** over the whole corpus, once, and are bounded by the
 files rather than by what is asked of them — which is why they are held unconditionally
@@ -345,47 +308,27 @@ derived artifacts spends none of it: those are views over Parquet, not tables.
 
 ## Sizing a deployment
 
-Measured as process resident size, since that is what a memory limit is applied to,
-building each part in the order a first substructure query would, with
-`pivot_budget_bytes=0` and the pivots read as artifacts:
+Budget **about 8 GiB of resident memory** for a corpus serving substructure search over
+ORD: 1.1 GiB to open, 2.2 GiB for the `SubstructLibrary`, 1.19 GiB for the occurrence
+index, and DuckDB's own caches on top, which fill whatever `memory_limit` allows. `Corpus`
+sets no limit, so DuckDB takes its default share of the machine it finds. The step-by-step
+breakdown is in [the logbook entry][cache-entry], finding 16.
 
-| after | resident |
-| --- | --- |
-| the interpreter | 0.15 GiB |
-| the corpus is open | 1.09 GiB |
-| the pivots are published | 1.22 GiB |
-| the library is built (8s) | 3.46 GiB |
-| the index is built (57s) | 7.28 GiB |
-
-None of it is optional for substructure search, since the screen and verify are RDKit in
+None of that is optional for substructure search, since the screen and verify are RDKit in
 this process rather than SQL in an engine. Everything above it is latency: a container
 held to `pivot_budget_bytes=0` and given no artifacts answers a quantifier by unnesting
 the projection, in seconds rather than the tens of milliseconds a pivot takes. There is
 no managed service to move this to — Athena and its kin can scan the Parquet, but the
 chemistry is not SQL.
 
-The last row is mostly not the index. The table is 1.19 GiB; the rest is DuckDB's own
-caches, which are bounded by `memory_limit` and fill what they are given — 752 MB at a
-1 GB limit, 2.66 GB at 3 GB, evicted under pressure. `Corpus` sets no `memory_limit`, so
-DuckDB takes its default share of whatever machine it finds.
-
 **The index build has a floor, and it is not a soft one.** Over ORD it wants about **5 GB**
-of DuckDB memory:
-
-| `memory_limit` | result | temporary files |
-| --- | --- | --- |
-| 4 GB | `OutOfMemoryException` after 64s | — |
-| 5 GB | built in 114s | 15.79 GiB |
-| 6 GB | built in 65s | 16.10 GiB |
-| 8 GB | built in 64s | 25.28 GiB |
-
-Below the floor it raises rather than running slowly, because a block it cannot pin is
-not one it can spill — and it raises even with a `temp_directory` to spill into, which is
-the remedy DuckDB's own message suggests. Neither refusing to preserve insertion order
-nor building the paths one at a time moves it, so the shape of the statement is not what
-costs. Above the floor but near it, it needs scratch disk in quantities a container may
+of DuckDB memory, and below that it raises `OutOfMemoryException` rather than running
+slowly — a block it cannot pin is not one it can spill, so a `temp_directory` does not
+rescue it. Near the floor it also wants 16–25 GiB of scratch disk, which a container may
 not have: a Fargate task carries 20 GB of ephemeral storage by default, and `Corpus` sets
-no `temp_directory`, so a constrained deployment fails rather than filling the disk.
+no `temp_directory`. Three remedies were measured and none moves the floor; a fourth,
+building per projection file, lowers it to ~2 GB and costs every unconstrained deployment
+68% more time — measured and rejected ([logbook][cache-entry], findings 16–17).
 
 Which is survivable but should not be discovered by a user. The index is built by the
 first query that can spend it, so a container short of the floor starts cleanly, passes
@@ -395,28 +338,10 @@ deployment rather than a failed request. It is opt-in for the same reason the bu
 lazy — a minute and 1.19 GB that a corpus asked only for scalar or similarity queries
 never needs to spend.
 
-Over the whole corpus (2,428,291 reactions, 53 files, the default budget, pivots read as
-artifacts, warm), a mixed set of queries pairing an indexed structure clause with one the
-index cannot carry. The second column refuses the index, so the pivots take every
-quantifier — which is where a corpus without an index lands:
-
-| query | index | pivots alone |
-| --- | --- | --- |
-| pyridine solvent, above 350 K | 0.020s | 0.484s |
-| pyridine solvent, yield > 50% | 0.033s | 0.105s |
-| pyridine solvent, white product | 0.028s | 0.101s |
-| pyridine solvent, "reflux" in the procedure | 0.054s | 0.493s |
-| yields by product color (grouped) | 0.036s | 0.104s |
-| hottest with a yield (ordered, limited) | 0.033s | 0.105s |
-| boronic acid, pyridine solvent, yield > 50% | 0.041s | 0.142s |
-| any aromatic carbon, yield > 50% | 0.153s | 0.259s |
-| a benzene ring, yield > 50% | 0.142s | 0.241s |
-| **not** pyridine anywhere, with a yield | 0.123s | 0.218s |
-
-Same answers on both routes. The index is 2–24× ahead, and the gap is widest where the
-other clause is cheap — a scalar path or a substring — because there the whole query is
-the structure clause. Where the other clause is itself a quantifier the pivot answers, the
-two routes converge.
+Across a mixed workload pairing an indexed structure clause with one the index cannot
+carry, the index is **2–24× ahead** of the same corpus answering every quantifier from
+the pivots, with the gap widest where the other clause is cheap and the whole query is
+therefore the structure clause ([logbook][cache-entry], finding 18).
 
 ## The screen and the match set
 
@@ -433,11 +358,11 @@ identical requests costs one match; unrelated searches still overlap.
 The screen itself is not a lever. It is the same `PatternFingerprint` the RDKit
 PostgreSQL cartridge screens with (`rdkit.sss_fp_size`, via `makeMolSignature`), and for
 a small common query it admits most of the corpus — 80% for pyridine, of which 73% then
-fail verification. Measured and rejected: more bits does nothing (2048 → 8192 moves
-pyridine 80% → 79%), and a circular fingerprint is not usable at all, since it cannot be
-computed from a SMARTS and its bits are not preserved under subgraph extraction — a
-radius-2 Morgan screen dropped 4 of 5 true matches. Verification of the survivors is the
-real cost, and it is intrinsic.
+fail verification. Widening it does not help, and a circular fingerprint cannot do the job
+at all, since it is not computable from a SMARTS and its bits are not preserved under
+subgraph extraction; both were measured and rejected in
+[the structure-search entry](https://github.com/open-reaction-database/ord-logbook/blob/main/entries/2026-08-08-structure-search-without-the-orm/README.md).
+Verification of the survivors is the real cost, and it is intrinsic.
 
 Similarity needs no verification — Tanimoto is defined on the Morgan fingerprint, so
 the screen is the answer — and stays in SQL. The verified match set re-enters the query
@@ -446,8 +371,15 @@ offset), which is how the projection path tests a single element: `exists(compon
 substructure(pyridine) and role = SOLVENT)` means one component that is both. The
 alternative — intersecting reaction-ID sets — over-returns by 94% on exactly that
 query; see [ord-logbook#28](https://github.com/open-reaction-database/ord-logbook/pull/28),
-finding 4. Every corpus-scale figure on this page was measured against that logbook
-entry's snapshot of ORD.
+finding 4.
+
+Every corpus-scale figure on this page is measured, against one snapshot of ORD
+(2,428,291 reactions in 53 file pairs, 2,016,224 structures). The measurements and the
+experiments that were tried and rejected live in
+[**where the agent search cache can live**][cache-entry], which is where to look before
+citing any of these numbers or re-litigating a decision they settled.
+
+[cache-entry]: https://github.com/open-reaction-database/ord-logbook/blob/main/entries/2026-08-15-where-the-search-cache-lives/README.md
 
 ## Usage
 
