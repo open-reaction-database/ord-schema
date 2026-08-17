@@ -218,20 +218,6 @@ The `tests` extra pulls in the feature extras (`huggingface`, `orm`) it needs to
 
 ## Conventions
 
-### 1. convention: compound stoichiometry
-
-#### Created: 2023.07.04
-
-#### Last updated: 2023.07.04
-
-#### Description
-
-1. The preferred field for compound stoichiometry is the map `Compound.features` or `ProductCompound.features`.
-2. The key should be "stoichiometric_coefficient" or "stoichiometric_ratio".
-3. The value should be a `Data` message with its `float_value` representing the compound's stoichiometric
-coefficient or ratio.
-
-#### Related links
-
-[#683](https://github.com/open-reaction-database/ord-schema/issues/683)
-[#684](https://github.com/open-reaction-database/ord-schema/pull/684)
+Some things the schema can hold in more than one shape have an agreed shape to prefer, so
+that data from different depositors answers the same query. These are guidance rather than
+validation rules; see [CONVENTIONS.md](CONVENTIONS.md).

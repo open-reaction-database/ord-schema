@@ -83,12 +83,18 @@ Or a **relational database**, for field-level queries against a live server:
 
 ```bash
 python -m ord_schema.scripts.validate_dataset --input_pattern='data/*/*.pb.gz'
+
 python -m ord_schema.scripts.build_dataset --input_pattern='reactions/*.pbtxt' \
     --name=... --description=... --output=dataset.pb.gz
+
 python -m ord_schema.scripts.enumerate_dataset --template=... --spreadsheet=... \
-    --output=dataset.pb.gz
+    --name=... --description=... --output=dataset.pb.gz
+
 python -m ord_schema.scripts.pb_to_parquet_dataset data/*/*.pb.gz --output=dataset.parquet
 ```
+
+Every option shown is required; each script takes optional ones too, so ask it for
+`--help` rather than reading this as the whole interface.
 
 `parse_uspto.py` converts CML from the NRD and is not part of the normal path.
 
