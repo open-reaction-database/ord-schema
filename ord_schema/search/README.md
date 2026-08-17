@@ -278,7 +278,7 @@ where an in-memory column charges for shape: `workups` carries 40 leaves, most o
 NULL in most rows, which encode to almost nothing and occupy a full-width vector and a
 validity mask apiece. The projection itself expands the same way, 1.53 GB of Parquet to
 **18.46 GB in memory**, which is why nothing here holds it. Publishing all four levels as
-views takes 0.9s and no memory, against 32 minutes and 9.21 GiB to build them in process.
+views takes 0.9s and no memory, against 32 minutes to build them in process.
 
 That is what `scripts/derive_pivots.py` is for — one subdirectory per level, one file per
 projection within it, stamped like any other derived artifact and read by

@@ -34,7 +34,7 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
    ### GitHub
 
     1. Create a fork of `ord-schema` by clicking the "Fork" button at the top-right of this page.
-       Note that you only need to do this once---all of your changes can use the same fork.
+       You only need to do this once---all of your changes can use the same fork.
     1. Follow
        the [GitHub flow](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/github-flow)
        to make changes and send a pull request to the official repository. While you are making
@@ -70,7 +70,9 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
        npx --yes markdownlint-cli2@0.23.1 "**/*.md"
        ```
 
-    1. Create a new branch and make your changes.
+    1. Create a new branch and make your changes. If you edit `proto/*.proto`,
+       [install](https://grpc.io/docs/protoc-installation/) `protoc` and run
+       `./compile_proto_wrappers.sh` to rebuild the generated wrappers, and commit those too.
     1. Test your changes by syncing the environment and running the test suite, for example:
        `uv sync --extra tests` then `uv run pytest` (or `pytest` after activating the `.venv` that `uv` creates).
        CI runs the same checks when you open a pull request, but running them locally first saves time.

@@ -25,16 +25,15 @@ flowchart LR
 | [`structures`](structures.py) | projection | one row per distinct structure: `pattern_fp`, `morgan_fp`, `morgan_popcount`, `mol_binary`, keyed by `structure_id` | the screen and verify steps of substructure search |
 | [`pivot`](pivot.py) | projection × repeated level | one row per element, carrying `reaction_id`, the ordinal of every enclosing level, and the element's own non-repeated fields | quantifiers, as a semi-join |
 
-The projection leaves **no field out** — a field left out is a question nobody can ask,
-and the point is to serve questions nobody enumerated in advance. Its schema is generated
-from the proto descriptors rather than written by hand, so a field added upstream appears
-without anyone deciding it is worth carrying. Only two normalizations are applied, both
-because the un-normalized form is a trap rather than because it is inconvenient: united
-`{value, precision, units}` triples become columns named for their unit
-(`setpoint_kelvin`), so `WHERE temperature > 350` cannot silently miss the rows recorded
-in Celsius; and the structural identifiers collapse to one `smiles`, so "what is this
-molecule" has one answer. Everything else stays in the source `reaction` column, which
-remains authoritative for byte-exact round-tripping.
+The projection leaves **no field out** — a field left out is a question nobody can ask.
+Its schema is generated from the proto descriptors, so a field added upstream appears
+without anyone deciding it is worth carrying. Two normalizations are applied, both
+because the un-normalized form is a trap: united `{value, precision, units}` triples
+become columns named for their unit (`setpoint_kelvin`), so `WHERE temperature > 350`
+cannot silently miss the rows recorded in Celsius; and the structural identifiers
+collapse to one `smiles`, so "what is this molecule" has one answer. Everything else
+stays in the source `reaction` column, which remains authoritative for byte-exact
+round-tripping.
 
 ## Stamps
 
@@ -54,11 +53,11 @@ A sixth, `ord.source_dataset_id`, is written only when the source records one, a
 only key not required to read stamps back.
 
 An artifact derived from another artifact **passes `source_md5` through** rather than
-hashing its parent. So every artifact names the dataset it reflects however many
+hashing its parent, so every artifact names the dataset it reflects however many
 derivations away it sits, and one comparison answers "is this current for that dataset?"
 A chain is invisible to a consumer checking currency.
 
-The version is deliberately shared rather than per-artifact. A derivation change usually
+The version is shared rather than per-artifact because a derivation change usually
 touches shared helpers, and a reader comparing two artifacts to each other needs to know
 they were built by the same definition.
 

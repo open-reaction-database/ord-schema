@@ -6,8 +6,8 @@ definitions themselves, and everything that builds, validates, stores, and queri
 The serialized protos in
 [ord-data](https://github.com/open-reaction-database/ord-data) are the
 [source of truth](https://en.wikipedia.org/wiki/Single_source_of_truth). Every other
-representation here is derived from them and is expected to be reproducible from them —
-which is what lets a derived form be rebuilt rather than reconciled when it disagrees.
+representation here is derived from them and reproducible from them, which is what lets a
+derived form be rebuilt rather than reconciled when it disagrees.
 
 ```mermaid
 flowchart TB
@@ -62,20 +62,22 @@ query paths below exist for.
 
 ## Querying at scale
 
-Two independent paths, neither of which replaces the protos:
+Two independent paths, neither of which replaces the protos. **Derived Parquet**, read
+by a query engine:
 
-- [`artifacts/`](artifacts/) — derived Parquet restating the same reactions in shapes a
-  query engine can read: a **projection** carrying every field as nested columns, a
-  **structures** artifact carrying fingerprints for chemical search, and **pivots** over
-  the repeated levels. Footer stamps make an artifact's staleness detectable without
-  reading column data. See [artifacts/README.md](artifacts/README.md).
-- [`search/`](search/) — the query layer over those artifacts, for callers that should
-  not be writing SQL. A model emits a validated `Query`, and the library compiles it to
-  one DuckDB statement whose worst case is one pass and a sort. See
-  [search/README.md](search/README.md).
-- [`orm/`](orm/) — SQLAlchemy mappers loading the protos into PostgreSQL, one table per
-  message type, for field-level queries against a live database. See
-  [orm/README.md](orm/README.md).
+- [`artifacts/`](artifacts/) restates the same reactions in shapes that can be read
+  cheaply — a **projection** carrying every field as nested columns, a **structures**
+  artifact carrying fingerprints for chemical search, and **pivots** over the repeated
+  levels. Footer stamps make staleness detectable without reading column data.
+  ([README](artifacts/README.md))
+- [`search/`](search/) is the query layer over them, for callers who should not be
+  writing SQL. A model emits a validated `Query`, and the library compiles it to one
+  DuckDB statement whose worst case is one pass and a sort. ([README](search/README.md))
+
+Or a **relational database**, for field-level queries against a live server:
+
+- [`orm/`](orm/) maps the protos into PostgreSQL through SQLAlchemy, one table per
+  message type. ([README](orm/README.md))
 
 ## Command-line entry points
 

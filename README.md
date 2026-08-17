@@ -206,7 +206,7 @@ Click here to run the examples with Binder:
 
 ## Development
 
-To install in editable/development mode (recommended: [uv](https://docs.astral.sh/uv/)):
+Editable install, with [uv](https://docs.astral.sh/uv/) or with pip (`pip install -e ".[tests]"`):
 
 ```shell
 $ git clone https://github.com/open-reaction-database/ord-schema.git
@@ -214,15 +214,7 @@ $ cd ord-schema
 $ uv sync --extra tests
 ```
 
-The `tests` extra pulls in the feature extras (`huggingface`, `orm`) it needs to exercise their code paths, so this is enough to run the full suite. Add `--extra examples` as well to run the notebooks (heavier deps):
-
-```shell
-$ uv sync --extra examples --extra tests
-```
-
-You can still use pip if you prefer: `pip install -e ".[tests]"`.
-
-If you make changes to the protocol buffer definitions, [install](https://grpc.io/docs/protoc-installation/) `protoc` and run `./compile_proto_wrappers.sh` to rebuild the wrappers.
+The `tests` extra pulls in the feature extras (`huggingface`, `orm`) it needs to exercise their code paths, so this is enough to run the full suite; add `--extra examples` for the notebooks. [CONTRIBUTING.md](CONTRIBUTING.md) covers the rest: pre-commit hooks, running the same checks by hand, rebuilding the proto wrappers, and how a release is cut.
 
 ## Conventions
 
