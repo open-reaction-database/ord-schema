@@ -17,6 +17,7 @@ This installs the core schema and helpers (building, parsing, validation, and me
 
 | Extra | Enables | Install |
 | ------- | --------- | --------- |
+| `search` | `ord_schema.search`: query derived Parquet artifacts with a validated query grammar (DuckDB) | `pip install "ord-schema[search]"` |
 | `huggingface` | `ord_schema.huggingface.fetch_dataset`: download datasets from the Hugging Face [ord-data](https://huggingface.co/datasets/open-reaction-database/ord-data) mirror | `pip install "ord-schema[huggingface]"` |
 | `orm` | `ord_schema.orm`: map the schema into a relational (SQLAlchemy + PostgreSQL) database | `pip install "ord-schema[orm]"` |
 | `examples` | running the notebooks under `examples/` (see below) | `pip install "ord-schema[examples]"` |
@@ -199,9 +200,13 @@ $ pip install "ord-schema[examples]"
 Click here to run the examples with Binder:
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/open-reaction-database/ord-schema/HEAD?labpath=examples)
 
+## Package layout
+
+[`ord_schema/README.md`](ord_schema/README.md) maps the package: which module builds a message, which stores a dataset, and which of the two query paths answers which kind of question. The subsystems document themselves — [`artifacts/`](ord_schema/artifacts/README.md) for the derived Parquet and its staleness stamps, [`search/`](ord_schema/search/README.md) for the query grammar and its compiler, [`orm/`](ord_schema/orm/README.md) for the relational mapping.
+
 ## Development
 
-To install in editable/development mode (recommended: [uv](https://docs.astral.sh/uv/)):
+Editable install, with [uv](https://docs.astral.sh/uv/) or with pip (`pip install -e ".[tests]"`):
 
 ```shell
 $ git clone https://github.com/open-reaction-database/ord-schema.git
@@ -209,32 +214,10 @@ $ cd ord-schema
 $ uv sync --extra tests
 ```
 
-The `tests` extra pulls in the feature extras (`huggingface`, `orm`) it needs to exercise their code paths, so this is enough to run the full suite. Add `--extra examples` as well to run the notebooks (heavier deps):
-
-```shell
-$ uv sync --extra examples --extra tests
-```
-
-You can still use pip if you prefer: `pip install -e ".[tests]"`.
-
-If you make changes to the protocol buffer definitions, [install](https://grpc.io/docs/protoc-installation/) `protoc` and run `./compile_proto_wrappers.sh` to rebuild the wrappers.
+The `tests` extra pulls in the feature extras (`huggingface`, `orm`) it needs to exercise their code paths, so this is enough to run the full suite; add `--extra examples` for the notebooks. [CONTRIBUTING.md](CONTRIBUTING.md) covers the rest: pre-commit hooks, running the same checks by hand, rebuilding the proto wrappers, and how a release is cut.
 
 ## Conventions
 
-### 1. convention: compound stoichiometry
-
-#### Created: 2023.07.04
-
-#### Last updated: 2023.07.04
-
-#### Description
-
-1. The preferred field for compound stoichiometry is the map `Compound.features` or `ProductCompound.features`.
-2. The key should be "stoichiometric_coefficient" or "stoichiometric_ratio".
-3. The value should be a `Data` message with its `float_value` representing the compound's stoichiometric
-coefficient or ratio.
-
-#### Related links
-
-[#683](https://github.com/open-reaction-database/ord-schema/issues/683)
-[#684](https://github.com/open-reaction-database/ord-schema/pull/684)
+Some things the schema can hold in more than one shape have an agreed shape to prefer, so
+that data from different depositors answers the same query. These are guidance rather than
+validation rules; see [CONVENTIONS.md](CONVENTIONS.md).

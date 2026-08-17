@@ -2,7 +2,7 @@
 
 The serialized protocol buffers in [ord-data](https://github.com/open-reaction-database/ord-data)
 are the [source of truth](https://en.wikipedia.org/wiki/Single_source_of_truth), and the
-[projection](../projection.py) restates them as nested Parquet so a query engine can read one
+[projection](../artifacts/projection.py) restates them as nested Parquet so a query engine can read one
 leaf without deserializing the rest. This package is how a language model reaches that
 projection: what the model is told it may query, what it is allowed to emit, and how that
 becomes SQL.
@@ -88,10 +88,58 @@ is a compile error rather than a wrong answer:
   those are real graph atoms in a stored molecule and the query already works;
   28,297 ORD reactions have an `[H][H]` component.
 
+## How a query is answered
+
+One `Query` becomes one SQL statement. The chemistry and the compound names are lifted
+out of it and bound as parameters, so what DuckDB runs is a filter over the projection
+and nothing else:
+
+```mermaid
+flowchart TB
+    Q["Query, as JSON"] --> V["validate against projection.SCHEMA<br/>paths, leaf types, quantifiers"]
+    V --> C["compile to one SQL statement<br/>one relation, no join, no recursion"]
+    C --> N["compound names<br/>resolvers → SMILES"]
+    C --> S["structure predicates<br/>RDKit screen → verify → bitmap"]
+    C --> X["run on this search's own cursor"]
+    N -- "bound parameters" --> X
+    S -- "bound parameters" --> X
+    X --> O["reaction_id, or the group<br/>and measure columns"]
+```
+
+Three relations can answer a quantifier, and the compiler chooses **per quantifier**
+rather than per query — so one statement can spend the occurrence index on one clause
+and a pivot on the next:
+
+```mermaid
+flowchart TB
+    A["exists / forall over a repeated level"] --> B{"an exists whose body is one structure<br/>predicate on the element's own smiles,<br/>at most a reaction_role beside it?"}
+    B -- yes --> I["<b>occurrence index</b><br/>reaction_id IN (SELECT … FROM occurrences …)"]
+    B -- no --> P{"does the body resolve against<br/>the pivot's pruned element,<br/>and does a pivot fit?"}
+    P -- yes --> V["<b>a pivot</b><br/>EXISTS (SELECT 1 FROM pivot_… AS x0 …)"]
+    P -- no --> E["<b>the elements</b><br/>list_filter over the nested column"]
+```
+
+The three answer identically — that is what the differential tests pin — and differ only
+in what they read. Worked examples, with the route each clause takes:
+
+| query | clause | route |
+| --- | --- | --- |
+| above 350 K | `conditions.temperature.setpoint_kelvin > 350` | no quantifier: the projection |
+| pyridine as the solvent | `exists inputs.components` | occurrence index |
+| pyridine as the solvent, yield above 50% | `exists inputs.components` | occurrence index |
+| | `exists outcomes.products.measurements` | pivot |
+| every product is desired | `forall outcomes.products` | pivot — the index shows which elements match, never that all of them do |
+| pyridine **and** a boronic acid in one component | `exists inputs.components` | pivot — two structure predicates is one more than an occurrence row can carry |
+| a desired product with a yield above 50% | `exists outcomes.products`, nested `exists measurements` | both levels' pivots, joined on the ordinal prefix |
+
+Every pivot row above falls to the elements when no pivot is available — a level the
+budget refused, or one with neither an artifact nor room to build. The answer does not
+change; the query gets slower, and the log says which route it took.
+
 ## Structure search
 
 A structure predicate compiles to a bitmap test, not to chemistry. The chemistry runs
-in [`execute.Corpus`](execute.py) against the [structures artifact](../structures.py).
+in [`execute.Corpus`](execute.py) against the [structures artifact](../artifacts/structures.py).
 Substructure runs through an RDKit `SubstructLibrary` built over the corpus: a
 fingerprint **screen** — complete but not exact — over every distinct molecule in the
 corpus, then exact subgraph **verification** of the survivors. It runs on RDKit's own
@@ -117,24 +165,16 @@ that is the RDKit screen and verify, which the index does not touch: pyridine's 
 alone is about 1.4s of its 1.46s. What the index cut is the reaction lookup, from roughly
 3.5s to 0.2s.
 
-The index answers one *quantifier* at a time, not one query: an `exists` whose body asks
-for one structure and at most one role becomes `reaction_id IN (...)`, and the rest of
-the query compiles as if the index did not exist. So "reactions with yield > 50% where
-pyridine is the solvent" spends the index on its pyridine clause and answers the yield
-clause from the pivot over `outcomes.products.measurements`, in one query — and
-aggregates, orderings, limits, negations, disjunctions, and second structure predicates
-all compose the same way. A quantifier the index cannot carry — one binding another
-element field, holding no structure predicate or two, or any `forall`, which needs every
-element rather than some — falls to the pivot, and to the elements only if no pivot holds
-the level either. Either way it is one compiled query, screened
-and verified identically; the log line says whether the index took a clause. A level the
-source never recorded — most reactions have no workups and no authentic standards — is a
-level with no elements: nothing satisfies an `exists` there and nothing contradicts a
-`forall`, so "reactions **without** pyridine in the workup" includes every reaction that
-has no workup at all, whichever way the clause was answered. The index
-is built on the first query that spends it, one pass over the projections per indexed
-path, so a server that wants its first real query to be fast should issue a throwaway
-structure query at startup.
+Whichever route a clause takes, aggregates, orderings, limits, negations, disjunctions,
+and a second structure predicate compose around it, and the screening and verification
+are identical. A level the source never recorded — most reactions have no workups and no
+authentic standards — is a level with no elements: nothing satisfies an `exists` there
+and nothing contradicts a `forall`, so "reactions **without** pyridine in the workup"
+includes every reaction that has no workup at all.
+
+The index is built by the first query that spends it, one pass over the projections per
+indexed path, so a server wanting its first real query to be fast should issue a
+throwaway structure query at startup.
 
 ## Pivoted levels
 
@@ -147,21 +187,20 @@ AND …)`, and a `forall` the same with `NOT EXISTS` and the body negated.
 
 Two properties do the work. The pivot is **complete** — every element gets a row,
 including one whose fields are all NULL — which is what lets it answer `forall`, where
-the occurrence index cannot, since that one holds only elements carrying a structure.
-And struct nesting is **kept**, so `percentage.value` is `x.element.percentage.value`
-here and `e0.percentage.value` over the elements: the same path by the same spelling,
-which is what makes the two routes comparable. Removing only the repeated fields is
-where the size goes; the cost was never struct access but the reconstruction of lists of
-structs, and a scalar pulled out of a deep struct across the whole corpus is seconds.
+the occurrence index cannot, holding as it does only elements carrying a structure. And
+struct nesting is **kept**, so `percentage.value` is `x.element.percentage.value` here
+and `e0.percentage.value` over the elements: the same path by the same spelling, which is
+what makes the two routes comparable. Removing only the repeated fields is where the size
+goes; the cost was never struct access but the reconstruction of lists of structs.
 
 That also decides coverage without a list anybody maintains. A body reaching a field the
 pivot dropped fails to resolve against the pruned element type, so the quantifier falls
-back to the elements. What a pivot does carry is `structure_id`, so a structure
-predicate inside a pivoted quantifier works too, reading `structure_offset` from the
-enclosing reaction. A quantifier's path need not name a level either: descending from
-one through singular struct fields reaches one value per element rather than a list of
-its own — an authentic standard is one compound per measurement — so the level it ranges
-over is the nearest repeated ancestor, whose pivot already carries the struct.
+back to the elements. A pivot does carry `structure_id`, so a structure predicate inside
+a pivoted quantifier works too, reading `structure_offset` from the enclosing reaction.
+A quantifier's path need not name a level either: descending through singular struct
+fields reaches one value per element rather than a list of its own — an authentic
+standard is one compound per measurement — so the level it ranges over is the nearest
+repeated ancestor, whose pivot already carries the struct.
 
 The ordinals are what a flat row needs to say *which* element it was, and a **nested**
 quantifier is where they are spent: an `exists` inside a pivoted one becomes a semi-join
@@ -181,6 +220,21 @@ clauses hold of *different* elements: "a desired product with a yield above 50%"
 wrong, silently. ORD is effectively single-outcome, so dropping the *outcome* ordinal
 changes nothing at all, which is exactly why the product-level error looks correct until
 it is checked.
+
+A reaction with the shape of those 942 — one outcome, two products, and the high yield on
+the one nobody wanted — is two rows in each pivot:
+
+```text
+pivot over outcomes.products              pivot over outcomes.products.measurements
+reaction  outcome product  is_desired     reaction  outcome product  meas  type   value
+ord-wd07  1       1        true      <--  ord-wd07  1       1        1     YIELD  10
+ord-wd07  1       2        false          ord-wd07  1       2        1     YIELD  90
+          the outer clause holds here     and the inner clause holds here  -----^
+```
+
+Joined on the reaction alone — or on `(reaction, outcome)`, which over ORD is the same
+join — the desired product pairs with its sibling's 90% and the reaction answers yes.
+Joined on the whole prefix it does not: product 1's only measurement is 10%.
 
 Over the whole corpus, warm, against the same queries answered from the elements — the
 pivots read as artifacts, and the same pivots built in process:
@@ -202,9 +256,8 @@ else is 6–27× against the elements, and **a pivot read from Parquet is within
 of milliseconds of the same pivot held in memory** — which is the whole argument for
 deriving them, since the artifact costs no budget at all.
 
-Building one in process unnests the projection down to its level, and is charged against
-`pivot_budget_bytes` and evicted least-recently-used. What it costs, measured one build
-per process so eviction cannot corrupt the reading:
+Building one in process unnests the projection down to its level. What that costs,
+measured one build per process so eviction cannot corrupt the reading:
 
 | level | unnests | held | build | as an artifact |
 | --- | --- | --- | --- | --- |
@@ -225,7 +278,7 @@ where an in-memory column charges for shape: `workups` carries 40 leaves, most o
 NULL in most rows, which encode to almost nothing and occupy a full-width vector and a
 validity mask apiece. The projection itself expands the same way, 1.53 GB of Parquet to
 **18.46 GB in memory**, which is why nothing here holds it. Publishing all four levels as
-views takes 0.9s and no memory, against 32 minutes and 9.21 GiB to build them in process.
+views takes 0.9s and no memory, against 32 minutes to build them in process.
 
 That is what `scripts/derive_pivots.py` is for — one subdirectory per level, one file per
 projection within it, stamped like any other derived artifact and read by
@@ -244,16 +297,7 @@ and `check_pivots()` never triggers it: that call reaches all 39 levels, and der
 there would unnest the projection 39 times at startup for a deployment that asks about
 two.
 
-What remains is the chemistry itself, and two things cut it. Structures are deduplicated
-per dataset, so the library holds one entry per **distinct** molecule — 1,435,426 of the
-corpus's 2,016,224 rows, so 29% of the matching disappears — and maps each entry back to
-every structure ID sharing it. And a match set depends on the query molecule, the
-operation, and the threshold, so recent ones are **cached**: pyridine costs 1.05s the
-first time and 0.02s the next. A compound is keyed by what it resolved to rather than by
-its name, and by which parser reads it — the same text is one molecule as SMILES and
-another as SMARTS. A predicate asked
-again while the first pass is still running waits for that pass, so a burst of identical
-requests costs one match; unrelated searches still overlap.
+## What a projection query costs
 
 Queries the index declines read the projection, and most of what that costs is not the
 reading. A scan re-parses the footer of every file it touches, and a 442-leaf projection
@@ -272,14 +316,14 @@ projection query:
 The footers cost about **200 MB** over the whole corpus, once, and are bounded by the
 files rather than by what is asked of them — which is why they are held unconditionally
 where the gigabytes a pivot costs are weighed against a budget. With them held, a scalar
-query over the projection lands in hundredths of a second, so there is nothing left for a
-cache of the columns themselves to buy.
+query over the projection lands in hundredths of a second, which leaves a cache of the
+columns themselves nothing to buy.
 
-Pivots are held to that memory budget and evicted least-recently-used, skipping any a
-search is still reading; one too large to keep is not kept, the quantifier compiles over
-the elements, and that is remembered rather than rediscovered by building it again. Only
-builds wait on builds: a search over a level already materialized is answered while
-another is being built.
+A pivot built in process is charged against `pivot_budget_bytes` and evicted
+least-recently-used, skipping any a search is still reading; one too large to keep is not
+kept, the quantifier compiles over the elements, and that is remembered rather than
+rediscovered by building it again. Only builds wait on builds: a search over a level
+already materialized is answered while another is being built.
 
 **The budget is the cliff, and it says so.** A refused level logs a **warning** on every
 query over it, giving what it costs, what the budget is, and what changes them — so a
@@ -299,9 +343,11 @@ largest pivot, not the budget alone — `pivot_budget_bytes=0` is the one figure
 avoids the build entirely, and so the one that bounds a small machine. A deployment with
 derived artifacts spends none of it: those are views over Parquet, not tables.
 
-**Sizing a deployment.** Measured as process resident size, since that is what a memory
-limit is applied to, building each part in the order a first substructure query would,
-with `pivot_budget_bytes=0` and the pivots read as artifacts:
+## Sizing a deployment
+
+Measured as process resident size, since that is what a memory limit is applied to,
+building each part in the order a first substructure query would, with
+`pivot_budget_bytes=0` and the pivots read as artifacts:
 
 | after | resident |
 | --- | --- |
@@ -352,8 +398,7 @@ never needs to spend.
 Over the whole corpus (2,428,291 reactions, 53 files, the default budget, pivots read as
 artifacts, warm), a mixed set of queries pairing an indexed structure clause with one the
 index cannot carry. The second column refuses the index, so the pivots take every
-quantifier — which is what a corpus without an index now falls to, rather than to the
-elements:
+quantifier — which is where a corpus without an index lands:
 
 | query | index | pivots alone |
 | --- | --- | --- |
@@ -373,6 +418,18 @@ other clause is cheap — a scalar path or a substring — because there the who
 the structure clause. Where the other clause is itself a quantifier the pivot answers, the
 two routes converge.
 
+## The screen and the match set
+
+Two things cut the chemistry. Structures are deduplicated per dataset, so the library
+holds one entry per **distinct** molecule — 1,435,426 of the corpus's 2,016,224 rows, so
+29% of the matching disappears — and maps each entry back to every structure ID sharing
+it. And a match set depends on the query molecule, the operation, and the threshold, so
+recent ones are **cached**: pyridine costs 1.05s the first time and 0.02s the next. A
+compound is keyed by what it resolved to rather than by its name, and by which parser
+reads it — the same text is one molecule as SMILES and another as SMARTS. A predicate
+asked again while the first pass is still running waits for that pass, so a burst of
+identical requests costs one match; unrelated searches still overlap.
+
 The screen itself is not a lever. It is the same `PatternFingerprint` the RDKit
 PostgreSQL cartridge screens with (`rdkit.sss_fp_size`, via `makeMolSignature`), and for
 a small common query it admits most of the corpus — 80% for pyridine, of which 73% then
@@ -391,6 +448,10 @@ alternative — intersecting reaction-ID sets — over-returns by 94% on exactly
 query; see [ord-logbook#28](https://github.com/open-reaction-database/ord-logbook/pull/28),
 finding 4. Every corpus-scale figure on this page was measured against that logbook
 entry's snapshot of ORD.
+
+## Usage
+
+### Search a corpus
 
 ```python
 from ord_schema.search import execute, query
@@ -426,8 +487,6 @@ not share a layout. Structure IDs are dataset-local; the executor's relation
 carries a per-file offset column (`structure_offset`), which is why compiled SQL with a
 structure predicate runs only there — validate it against `query.executable_schema()`
 rather than the bare projection schema.
-
-## Usage
 
 ### Tell the model what it may query
 
@@ -556,9 +615,9 @@ human who is not the injection risk and whose slow query costs only their own se
 schema, so it needs no corpus. It refuses anything that is not a single `SELECT`, refuses
 `UNNEST` in a `FROM` clause, and runs on a connection with no filesystem access.
 
-It is a check on the compiler's own output, not the guard it once was — the guard is the
-grammar. It still **does not bound cost**, and says so: a caller running arbitrary SQL against
-a real corpus needs its own statement timeout, row cap, or memory limit.
+It is a check on the compiler's own output; the guard is the grammar. It **does not bound
+cost**, and says so: a caller running arbitrary SQL against a real corpus needs its own
+statement timeout, row cap, or memory limit.
 
 ## Not yet solved
 
@@ -566,3 +625,13 @@ Execution has no sandbox. `enable_external_access=false` cannot be combined with
 view — only a materialized table survives it — so running against the full corpus needs
 DuckDB's `allowed_directories` or a separate process. Compiling from an IR removes the reasons
 to fear the *query*; it does not remove the reasons to contain the *process*.
+
+**Text search is deferred, not approximated.** `contains`, `starts_with`, and `ends_with` run
+against any of the projection's 234 string leaves, and searching a short one — a `type`, a
+`vendor`, a compound's name — is in scope. Tuning for the 72 that hold free prose is not:
+nothing here is indexed, cached, or budgeted on their behalf, and a measurement on this page
+involving a substring is reported rather than optimized against. Doing it properly wants an
+inverted index over the prose columns, a different shape from a scan of a nested projection,
+and building toward that inside this design would put it further off rather than nearer.
+Compound names have a route that is not string matching anyway: a `{"compound": ...}` value
+resolves to SMILES and becomes a structure predicate.
