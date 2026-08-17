@@ -128,7 +128,7 @@ in what they read. Worked examples, with the route each clause takes:
 | pyridine as the solvent | `exists inputs.components` | occurrence index |
 | pyridine as the solvent, yield above 50% | `exists inputs.components` | occurrence index |
 | | `exists outcomes.products.measurements` | pivot |
-| every product is desired | `forall outcomes.products` | pivot — the index shows which elements match, never that all of them do |
+| solvent-free: no component is a solvent | `forall inputs.components` | pivot — the index shows which elements match, never that all of them do |
 | pyridine **and** a boronic acid in one component | `exists inputs.components` | pivot — two structure predicates is one more than an occurrence row can carry |
 | a desired product with a yield above 50% | `exists outcomes.products`, nested `exists measurements` | both levels' pivots, joined on the ordinal prefix |
 
