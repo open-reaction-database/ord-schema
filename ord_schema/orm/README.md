@@ -208,8 +208,7 @@ python scripts/add_datasets.py \
 The database password will be read from the `PGPASSWORD` environment variable if `--password` is not specified on the
 command line. To update an existing dataset in the database, use the `--overwrite` flag. The script runs both stages by
 default; `--stages` selects them independently — `--stages ingest` loads `ord.*`/`public.*` only, and `--stages derived`
-(re)computes the derived data for the already-ingested datasets matching `--pattern`. Add `--classify_reactions` to
-assign reaction class/name labels during derivation (requires the `reaction-class` extra).
+(re)computes the derived data for the already-ingested datasets matching `--pattern`.
 
 The script is a thin CLI over `ord_schema.orm.loading.load_datasets`, which runs the same staged, parallel loading and is
 the entry point for programmatic callers.

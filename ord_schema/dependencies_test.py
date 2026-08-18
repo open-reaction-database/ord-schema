@@ -45,15 +45,12 @@ _ROOTS: dict[str, tuple[str, ...]] = {
     "search": ("ord_schema.search", "ord_schema.artifacts"),
     "orm": ("ord_schema.orm",),
     "huggingface": ("ord_schema.huggingface",),
-    "reaction-class": ("ord_schema.orm.reaction_class",),
 }
 _EXTRAS: dict[str, tuple[str, ...]] = {
     "base": (),
     "search": ("search",),
     "orm": ("orm",),
     "huggingface": ("huggingface",),
-    # Reached from the ORM, so its install is the ORM's plus this one.
-    "reaction-class": ("orm", "reaction-class"),
 }
 _PROFILES = tuple(pytest.param(name, id=name) for name in _EXTRAS)
 
@@ -147,10 +144,9 @@ def _entry_points(profile: str) -> set[str]:
 def _imports(path: pathlib.Path) -> set[str]:
     """Returns the modules ``path`` requires, as written.
 
-    An import inside a ``try`` is one the module states it can do without --
-    ``ord_schema.orm.database`` reaches the classifier that way, and works when it is
-    absent -- so it is not something this module's install has to declare. The profile
-    owning the guarded module checks that one.
+    An import inside a ``try`` is one the module states it can do without, so it is not
+    something this module's install has to declare; the profile owning the guarded
+    module is where that one is checked.
     """
     tree = ast.parse(path.read_text())
     guarded = {

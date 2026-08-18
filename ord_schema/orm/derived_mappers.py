@@ -114,27 +114,3 @@ class ProductCompoundSmiles(Base):
         ),
         {"schema": "derived"},
     )
-
-
-class ReactionClasses(Base):
-    """Best-effort reaction classification, one row per classified reaction.
-
-    A row's presence marks that classification was attempted; NULL reaction_class /
-    reaction_name mean Rxn-INSIGHT could not assign a value. The post-pass classifies
-    only reactions without a row, so it is idempotent.
-    """
-
-    __tablename__ = "reaction_classes"
-    # FK to the ord.reaction UUIDv7 surrogate key (see mappers).
-    reaction_id = Column(
-        Uuid,
-        ForeignKey("ord.reaction.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    # Coarse category (e.g. "C-C Coupling").
-    reaction_class = Column(Text, index=True)
-    # Specific named reaction within the class (e.g. "Suzuki coupling with boronic
-    # acids").
-    reaction_name = Column(Text, index=True)
-
-    __table_args__ = ({"schema": "derived"},)
