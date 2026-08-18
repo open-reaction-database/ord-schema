@@ -92,6 +92,15 @@ orm = [
     # for Python < 3.14. See ord_schema.orm.mappers.
     "uuid6>=2023",
 ]
+# Optional: ord_schema.orm.reaction_class labels ingested reactions with Rxn-INSIGHT,
+# which runs a transformer per reaction and pulls torch in behind rxnmapper. The ingest
+# imports it defensively and works without it, so this is what
+# ``pip install ord-schema[reaction-class]`` -- the instruction its ImportError gives --
+# has to name.
+reaction-class = [
+    "rxn-insight>=0.1.3",
+    "rxnmapper>=0.4",
+]
 tests = [
     "ruff>=0.9.9",
     "coverage>=5.2.1",
