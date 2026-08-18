@@ -55,9 +55,11 @@ Value      = { literal: <scalar> } | { compound: <name> }
 
 Aggregate  = { group_by: [Path],
                measures: [{ fn: "count"|"count_distinct"|"sum"|"avg"|"min"|"max",
-                            path?: Path, name: string }] }
+                            path?: Path | Reduction, name: string }] }
 
-Order      = { key: string, descending?: bool }
+Reduction  = { reduce: "min"|"max"|"avg"|"sum"|"count", path: Path }
+
+Order      = { key: string | Reduction, descending?: bool }
 ```
 
 A `Path` is a dotted column path such as `conditions.temperature.setpoint_kelvin`. Inside an
@@ -76,6 +78,10 @@ is a compile error rather than a wrong answer:
 - Operators must suit the leaf type — `contains` is text-only, ordering is numeric-only.
 - `group_by` paths must be scalar, so the number of groups is bounded by the values a column
   holds rather than by an explosion over a repeated level.
+- A `Reduction` is the one place a repeated path is read without a quantifier: it reduces
+  that reaction's own elements to a single value, so `max` over `outcomes.products.measurements.percentage.value`
+  is the reaction's best yield rather than the corpus's. Its path must cross a repeated level;
+  a scalar one is refused, since it would give the same query two spellings.
 - A `{"compound": ...}` value is resolved through [`ord_schema.resolvers`](../resolvers.py) and
   **bound as a parameter**, so the model names compounds and never spells structures.
 - A `substructure`/`similarity` path must name a compound's `smiles`, inside a
@@ -131,6 +137,7 @@ in what they read. Worked examples, with the route each clause takes:
 | solvent-free: no component is a solvent | `forall inputs.components` | pivot — the index shows which elements match, never that all of them do |
 | pyridine **and** a boronic acid in one component | `exists inputs.components` | pivot — two structure predicates is one more than an occurrence row can carry |
 | a desired product with a yield above 50% | `exists outcomes.products`, nested `exists measurements` | both levels' pivots, joined on the ordinal prefix |
+| the ten highest-yielding reactions | `order_by` a `reduce` over `outcomes.products.measurements` | no quantifier: a list aggregate over the projection |
 
 Every pivot row above falls to the elements when no pivot is available — a level the
 budget refused, or one with neither an artifact nor room to build. The answer does not

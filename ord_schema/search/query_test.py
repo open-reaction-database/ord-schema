@@ -393,6 +393,154 @@ def test_rejected_before_compilation(payload):
         query.Query.model_validate(payload)
 
 
+# Reductions over a repeated level
+
+
+def test_ordering_by_a_reduction_over_a_repeated_path():
+    # A yield lives under outcomes, products, and measurements, so ordering by it needs
+    # the list reduced to the one number the reaction is judged by.
+    compiled = _compile(
+        {
+            "order_by": [
+                {
+                    "key": {
+                        "reduce": "max",
+                        "path": "outcomes.products.measurements.percentage.value",
+                    },
+                    "descending": True,
+                }
+            ],
+            "limit": 10,
+        }
+    )
+    assert "list_max(" in compiled.sql
+    assert compiled.sql.endswith("DESC LIMIT 10")
+
+
+def test_a_reduction_reaches_the_same_rows_the_elements_do():
+    # The reduction is over the reaction's own elements, so it agrees with the list the
+    # projection holds rather than with a corpus-wide aggregate.
+    compiled = _compile(
+        {
+            "order_by": [
+                {
+                    "key": {
+                        "reduce": "max",
+                        "path": "outcomes.products.measurements.percentage.value",
+                    }
+                }
+            ]
+        }
+    )
+    resolved = query.resolve("outcomes.products.measurements.percentage.value")
+    assert resolved.expression in compiled.sql
+
+
+def test_a_measure_may_reduce_a_repeated_path():
+    compiled = _compile(
+        {
+            "aggregate": {
+                "group_by": ["conditions.temperature.setpoint_kelvin"],
+                "measures": [
+                    {
+                        "fn": "avg",
+                        "path": {
+                            "reduce": "max",
+                            "path": "outcomes.products.measurements.percentage.value",
+                        },
+                        "name": "best_yield",
+                    }
+                ],
+            }
+        }
+    )
+    assert "avg(list_max(" in compiled.sql
+
+
+@pytest.mark.parametrize(
+    ("reducer", "expected"),
+    [
+        ("min", "list_min("),
+        ("max", "list_max("),
+        ("avg", "list_avg("),
+        ("sum", "list_sum("),
+        # Counting what is there means filtering the nulls a list may hold, since len()
+        # would count them.
+        ("count", "len(list_filter("),
+    ],
+)
+def test_each_reducer_compiles_to_its_list_aggregate(reducer, expected):
+    compiled = _compile(
+        {
+            "order_by": [
+                {
+                    "key": {
+                        "reduce": reducer,
+                        "path": "outcomes.products.measurements.percentage.value",
+                    }
+                }
+            ]
+        }
+    )
+    assert expected in compiled.sql
+
+
+def test_a_reduction_over_a_scalar_path_is_refused():
+    # A scalar needs no reducing, and accepting one would give the same query two
+    # spellings, one of which wraps a value in a single-element list.
+    with pytest.raises(query.QueryError, match="already scalar"):
+        _compile(
+            {
+                "order_by": [
+                    {
+                        "key": {
+                            "reduce": "max",
+                            "path": "conditions.temperature.setpoint_kelvin",
+                        }
+                    }
+                ]
+            }
+        )
+
+
+def test_an_aggregated_query_cannot_order_by_a_reduction():
+    # After grouping there is no reaction left to reduce over; the reduction belongs
+    # inside a measure, where it is one input to the aggregate.
+    with pytest.raises(query.QueryError, match="reduce inside a measure"):
+        _compile(
+            {
+                "aggregate": {"measures": [{"fn": "count", "name": "n"}]},
+                "order_by": [
+                    {
+                        "key": {
+                            "reduce": "max",
+                            "path": "outcomes.products.measurements.percentage.value",
+                        }
+                    }
+                ],
+            }
+        )
+
+
+def test_a_reduction_runs():
+    # The expression has to be DuckDB the planner accepts, not merely a string.
+    compiled = _compile(
+        {
+            "order_by": [
+                {
+                    "key": {
+                        "reduce": "max",
+                        "path": "outcomes.products.measurements.percentage.value",
+                    },
+                    "descending": True,
+                }
+            ],
+            "limit": 5,
+        }
+    )
+    assert _run(compiled) == []
+
+
 # The whole point
 
 

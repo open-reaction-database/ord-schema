@@ -458,11 +458,40 @@ Not.model_rebuild()
 Quantifier.model_rebuild()
 
 
+# DuckDB's list aggregates, which ignore the nulls a list may hold. `count` filters
+# rather than taking len(), which would count them.
+_REDUCERS = {
+    "min": "list_min({expression})",
+    "max": "list_max({expression})",
+    "avg": "list_avg({expression})",
+    "sum": "list_sum({expression})",
+    "count": "len(list_filter({expression}, value -> value IS NOT NULL))",
+}
+
+
+class Reduction(BaseModel):
+    """One value per reaction, reduced from a path that crosses a repeated level.
+
+    An ordering key and an aggregate's argument both have to be scalar, which leaves
+    "the highest-yielding reactions" unwritable: a yield lives under outcomes, products,
+    and measurements, so the path resolves to a list rather than a number. This reduces
+    that list to the one value the reaction is judged by, leaving the aggregate to
+    combine those across reactions.
+
+    Attributes:
+        reduce: How to reduce the list. ``count`` counts the values that are present.
+        path: A dotted path crossing at least one repeated level.
+    """
+
+    reduce: Literal["min", "max", "avg", "sum", "count"]
+    path: str
+
+
 class Measure(BaseModel):
     """One aggregate over the matching rows."""
 
     fn: Literal["count", "count_distinct", "sum", "avg", "min", "max"]
-    path: str | None = None
+    path: str | Reduction | None = None
     name: str
 
     @model_validator(mode="after")
@@ -488,7 +517,7 @@ class Aggregate(BaseModel):
 class Order(BaseModel):
     """How to sort the result."""
 
-    key: str
+    key: str | Reduction
     descending: bool = False
 
 
@@ -988,6 +1017,30 @@ def _scalar(path: str, schema: pa.Schema, what: str) -> str:
     return resolved.expression
 
 
+def _reduced(reduction: Reduction, schema: pa.Schema) -> str:
+    """Returns the expression reducing a repeated path to one value per reaction.
+
+    Args:
+        reduction: What to reduce, and how.
+        schema: Schema the path resolves against.
+
+    Returns:
+        A DuckDB expression yielding one scalar per reaction, NULL where the reaction
+        holds no elements under that path at all.
+
+    Raises:
+        QueryError: If the path is already scalar, which needs no reduction; accepting
+            one would give the same query two spellings.
+    """
+    resolved = resolve(reduction.path, schema=schema)
+    if not resolved.repeated:
+        raise QueryError(
+            f"{reduction.path}: {reduction.reduce} reduces a repeated level, and this "
+            f"path is already scalar; order by the path itself"
+        )
+    return _REDUCERS[reduction.reduce].format(expression=resolved.expression)
+
+
 def compile_query(
     query: Query,
     *,
@@ -1033,6 +1086,10 @@ def compile_query(
         for measure in query.aggregate.measures:
             if measure.path is None:
                 argument = "*"
+            elif isinstance(measure.path, Reduction):
+                argument = _reduced(measure.path, schema)
+                if measure.fn == "count_distinct":
+                    argument = f"DISTINCT {argument}"
             else:
                 argument = _scalar(measure.path, schema, measure.fn)
                 if measure.fn == "count_distinct":
@@ -1071,7 +1128,16 @@ def compile_query(
     if query.order_by:
         keys = []
         for order in query.order_by:
-            if orderable is None:
+            if isinstance(order.key, Reduction):
+                if orderable is not None:
+                    # After grouping there is no reaction left to reduce over: the
+                    # reduction is one input to a measure, not a key beside it.
+                    raise QueryError(
+                        "an aggregated query orders by a measure name or a group_by "
+                        "path; reduce inside a measure instead"
+                    )
+                key = _reduced(order.key, schema)
+            elif orderable is None:
                 key = _scalar(order.key, schema, "order_by")
             elif order.key in orderable:
                 key = (
