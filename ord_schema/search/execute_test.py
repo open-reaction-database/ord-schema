@@ -382,6 +382,156 @@ def test_nothing_matched_is_refused(tmp_path):
         )
 
 
+def _capped(monkeypatch, tmp_path, *caps: str, relative: str = "") -> None:
+    """Builds a cgroup v2 tree this process sits at the bottom of.
+
+    Args:
+        monkeypatch: The fixture, which points the readers at the tree.
+        tmp_path: Where to build it.
+        caps: What each level states, root first, one per level of ``relative`` plus the
+            root itself. A level with no cap given states none at all.
+        relative: The cgroup this process occupies, relative to the mount.
+    """
+    root = tmp_path / "cgroup"
+    directories = [root]
+    for part in relative.split("/") if relative else []:
+        directories.append(directories[-1] / part)
+    for directory, cap in zip(directories, caps, strict=False):
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "memory.max").write_text(cap)
+    directories[-1].mkdir(parents=True, exist_ok=True)
+
+    proc = tmp_path / "cgroup.proc"
+    proc.write_text(f"0::/{relative}\n")
+    monkeypatch.setattr(execute, "_CGROUP_V2_ROOT", root)
+    monkeypatch.setattr(execute, "_CGROUP_V1_MEMORY_ROOT", tmp_path / "absent")
+    monkeypatch.setattr(execute, "_PROC_SELF_CGROUP", proc)
+
+
+def _open(corpus_dir, **kwargs) -> execute.Corpus:
+    return execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        **kwargs,
+    )
+
+
+def test_a_memory_limit_is_given_to_duckdb(corpus_dir):
+    with _open(corpus_dir, memory_limit="512MiB") as corpus:
+        setting = corpus._connection.execute(
+            "SELECT current_setting('memory_limit')"
+        ).fetchone()
+    assert setting is not None
+    assert execute._setting_bytes(setting[0]) == 512 * 1024**2
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("512.0 MiB", 512 * 1024**2),
+        ("6.3 GiB", int(6.3 * 1024**3)),
+        ("1024 B", 1024),
+        # What the setting says when nothing bounds it.
+        ("-1", None),
+    ],
+)
+def test_a_size_setting_reads_as_bytes(value, expected):
+    assert execute._setting_bytes(value) == expected
+
+
+@pytest.mark.parametrize("cap", ["max", str(2**63 - 4096)])
+def test_an_unbounded_cgroup_is_no_cap(monkeypatch, tmp_path, cap):
+    # Both versions spell "unlimited" as something readable, so a corpus on a machine
+    # with cgroups but no limit must not warn about the room it has.
+    _capped(monkeypatch, tmp_path, cap)
+    assert execute._container_cap_bytes() is None
+
+
+def test_a_cap_above_this_process_is_found(monkeypatch, tmp_path):
+    # A container inside a slice sits several levels below the mount, and the level
+    # holding the cap is not the one it occupies: reading only the root finds nothing
+    # here, and only the leaf finds the wrong thing.
+    _capped(
+        monkeypatch,
+        tmp_path,
+        "max",
+        str(8 * 1024**3),
+        "max",
+        relative="system.slice/docker-abc.scope",
+    )
+    assert execute._container_cap_bytes() == 8 * 1024**3
+
+
+def test_the_smallest_cap_that_applies_is_the_one_that_counts(monkeypatch, tmp_path):
+    # Every level's cap binds, so the process reaches the smallest of them first --
+    # which is not always the innermost.
+    _capped(
+        monkeypatch,
+        tmp_path,
+        str(4 * 1024**3),
+        str(12 * 1024**3),
+        relative="nested",
+    )
+    assert execute._container_cap_bytes() == 4 * 1024**3
+
+
+def test_a_cgroup_line_for_another_controller_is_not_read_as_this_one(
+    monkeypatch, tmp_path
+):
+    # A v1 line names its controllers where the v2 line names none, so matching by
+    # position rather than by name would read one hierarchy's path against the other's
+    # mount.
+    root = tmp_path / "cgroup"
+    (root / "leaf").mkdir(parents=True)
+    (root / "memory.max").write_text("max")
+    (root / "leaf" / "memory.max").write_text(str(2 * 1024**3))
+    proc = tmp_path / "cgroup.proc"
+    proc.write_text("5:memory:/other\n0::/leaf\n")
+    monkeypatch.setattr(execute, "_CGROUP_V2_ROOT", root)
+    monkeypatch.setattr(execute, "_CGROUP_V1_MEMORY_ROOT", tmp_path / "absent")
+    monkeypatch.setattr(execute, "_PROC_SELF_CGROUP", proc)
+    assert execute._container_cap_bytes() == 2 * 1024**3
+
+
+def test_a_cap_leaving_the_process_nothing_is_warned_about(
+    corpus_dir, tmp_path, monkeypatch, caplog
+):
+    _capped(monkeypatch, tmp_path, str(2 * 1024**3))
+    caplog.set_level(logging.WARNING, logger="ord_schema.search.execute")
+    caplog.clear()
+    with _open(corpus_dir, memory_limit="1GiB"):
+        pass
+    assert [
+        record for record in caplog.records if "1.0 GB for everything" in record.message
+    ]
+
+
+def test_a_cap_leaving_the_process_room_is_not_warned_about(
+    corpus_dir, tmp_path, monkeypatch, caplog
+):
+    _capped(monkeypatch, tmp_path, str(12 * 1024**3))
+    caplog.set_level(logging.WARNING, logger="ord_schema.search.execute")
+    caplog.clear()
+    with _open(corpus_dir, memory_limit="1GiB"):
+        pass
+    assert not [
+        record for record in caplog.records if "for everything" in record.message
+    ]
+
+
+def test_no_cap_to_read_is_not_warned_about(corpus_dir, tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr(execute, "_CGROUP_V2_ROOT", tmp_path / "absent")
+    monkeypatch.setattr(execute, "_CGROUP_V1_MEMORY_ROOT", tmp_path / "absent")
+    monkeypatch.setattr(execute, "_PROC_SELF_CGROUP", tmp_path / "absent")
+    caplog.set_level(logging.WARNING, logger="ord_schema.search.execute")
+    caplog.clear()
+    with _open(corpus_dir, memory_limit="1GiB"):
+        pass
+    assert not [
+        record for record in caplog.records if "for everything" in record.message
+    ]
+
+
 def _copy_corpus(corpus_dir, tmp_path) -> pathlib.Path:
     """Copies the built corpus so a test can damage one artifact in isolation."""
     for name in ("projections", "structures"):

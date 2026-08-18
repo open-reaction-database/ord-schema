@@ -311,8 +311,9 @@ derived artifacts spends none of it: those are views over Parquet, not tables.
 Budget **about 8 GiB of resident memory** for a corpus serving substructure search over
 ORD: 1.1 GiB to open, 2.2 GiB for the `SubstructLibrary`, 1.19 GiB for the occurrence
 index, and DuckDB's own caches on top, which fill whatever `memory_limit` allows. `Corpus`
-sets no limit, so DuckDB takes its default share of the machine it finds. The step-by-step
-breakdown is in [the logbook entry][cache-entry], finding 16.
+takes that limit as an argument; left unset, DuckDB claims about 80% of the machine — or
+of the container's cap, which it does read. The step-by-step breakdown is in
+[the logbook entry][cache-entry], finding 16.
 
 None of that is optional for substructure search, since the screen and verify are RDKit in
 this process rather than SQL in an engine. Everything above it is latency: a container
@@ -321,7 +322,7 @@ the projection, in seconds rather than the tens of milliseconds a pivot takes. T
 no managed service to move this to — Athena and its kin can scan the Parquet, but the
 chemistry is not SQL.
 
-**The index build has a floor, and it is not a soft one.** Over ORD it wants about **5 GB**
+**The index build has a floor, and it is not a soft one.** Over ORD it wants **5–6.5 GB**
 of DuckDB memory, and below that it raises `OutOfMemoryException` rather than running
 slowly — a block it cannot pin is not one it can spill, so a `temp_directory` does not
 rescue it. Near the floor it also wants 16–25 GiB of scratch disk, which a container may
@@ -329,6 +330,14 @@ not have: a Fargate task carries 20 GB of ephemeral storage by default, and `Cor
 no `temp_directory`. Three remedies were measured and none moves the floor; a fourth,
 building per projection file, lowers it to ~2 GB and costs every unconstrained deployment
 68% more time — measured and rejected ([logbook][cache-entry], findings 16–17).
+
+**Under a container cap, state the limit rather than letting DuckDB pick it.** Its default
+is sized from the cgroup and not from the host, which is the right input, but the limit
+bounds DuckDB's buffers rather than the process: the build holds up to 2.8 GB beside them,
+and reaching the cap is a kill — neither an exception nor a log line. An 8 GiB container
+on DuckDB's own 6.3 GiB default was killed 85s in; a 12 GiB container holding DuckDB to
+`6500MiB` finished, peaking at 9.3 GB resident. `Corpus` warns at open when a cap it can
+read leaves less than 4 GB above the limit ([logbook][cache-entry], finding 19).
 
 Which is survivable but should not be discovered by a user. The index is built by the
 first query that can spend it, so a container short of the floor starts cleanly, passes
