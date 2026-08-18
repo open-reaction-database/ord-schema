@@ -53,9 +53,13 @@ Homepage = "https://github.com/Open-Reaction-Database/ord-schema"
 # Optional: the ord_schema.search subpackage holds the query grammar, its compiler, the
 # executor, and the schema description a model is given to write against. DuckDB is the
 # dialect the generated SQL is written in and the planner that checks it; parsing or
-# validating a dataset needs neither.
+# validating a dataset needs neither. It reads through ord_schema.artifacts, so this
+# group carries what those modules import too: inflection names a pivot's ordinal
+# columns, and the irregular plurals it gets right (analysis_index, datum_index,
+# reaction_metadatum_index) are part of the artifact schema.
 search = [
     "duckdb>=1.1",
+    "inflection>=0.5.1",
     "pydantic>=2",
 ]
 docs = [

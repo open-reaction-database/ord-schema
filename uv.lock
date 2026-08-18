@@ -2195,6 +2195,7 @@ orm = [
 ]
 search = [
     { name = "duckdb" },
+    { name = "inflection" },
     { name = "pydantic" },
 ]
 tests = [
@@ -2221,6 +2222,7 @@ requires-dist = [
     { name = "duckdb", marker = "extra == 'search'", specifier = ">=1.1" },
     { name = "huggingface-hub", marker = "extra == 'huggingface'", specifier = ">=0.20" },
     { name = "inflection", marker = "extra == 'orm'", specifier = ">=0.5.1" },
+    { name = "inflection", marker = "extra == 'search'", specifier = ">=0.5.1" },
     { name = "ipython", marker = "extra == 'docs'", specifier = ">=8.4.0" },
     { name = "joblib", specifier = ">=1.0.0" },
     { name = "matplotlib", marker = "extra == 'examples'", specifier = ">=3.3.4" },
