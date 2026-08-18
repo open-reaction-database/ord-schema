@@ -138,9 +138,13 @@ _PROCESS_HEADROOM_BYTES = 4 * 1024**3
 
 # Where a container states its memory cap, cgroup v2 first. Read at open rather than
 # taken as given, since DuckDB sizes its default limit from the same cap and the two
-# together are what has to fit.
-_CGROUP_V2_MEMORY_MAX = pathlib.Path("/sys/fs/cgroup/memory.max")
-_CGROUP_V1_MEMORY_LIMIT = pathlib.Path("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+# together are what has to fit. A cap can be stated at any level from the process's own
+# cgroup up to the mount root, and a container in a systemd slice sits under several, so
+# the path this process occupies is read from /proc rather than assumed to be the root,
+# and every level of it is consulted.
+_CGROUP_V2_ROOT = pathlib.Path("/sys/fs/cgroup")
+_CGROUP_V1_MEMORY_ROOT = pathlib.Path("/sys/fs/cgroup/memory")
+_PROC_SELF_CGROUP = pathlib.Path("/proc/self/cgroup")
 
 
 # What a structure predicate's answer depends on: the operation, whether the string
@@ -480,27 +484,83 @@ def _cache_footers(connection: duckdb.DuckDBPyConnection) -> None:
     connection.execute("SET GLOBAL parquet_metadata_cache=true")
 
 
-def _container_cap_bytes() -> int | None:
-    """Returns the memory this process's container may hold, in bytes.
+def _cgroup_relative_path(controller: str) -> str:
+    """Returns the cgroup this process occupies, relative to that hierarchy's mount.
+
+    Args:
+        controller: A cgroup v1 controller name, or the empty string for the v2
+            hierarchy, whose ``/proc/self/cgroup`` line names no controller.
 
     Returns:
-        The cgroup's cap, or None where there is none to read -- a machine outside a
-        container, a cgroup that states no limit, or any platform without cgroups.
-        Values at the top of the range are how both cgroup versions spell "unlimited".
+        The path with no leading slash, empty where /proc says nothing about this
+        hierarchy -- which includes every platform without cgroups.
     """
-    for path in (_CGROUP_V2_MEMORY_MAX, _CGROUP_V1_MEMORY_LIMIT):
-        try:
-            text = path.read_text().strip()
-        except OSError:
-            continue
-        if text == "max":
-            return None
-        try:
-            cap = int(text)
-        except ValueError:
-            continue
-        return None if cap >= 2**60 else cap
-    return None
+    try:
+        text = _PROC_SELF_CGROUP.read_text()
+    except OSError:
+        return ""
+    for line in text.splitlines():
+        # Lines read "hierarchy:controllers:path", with controllers empty under v2.
+        _, _, rest = line.partition(":")
+        controllers, _, path = rest.partition(":")
+        named = controllers.split(",") if controllers else []
+        matched = controller in named if named else not controller
+        if matched:
+            return path.lstrip("/")
+    return ""
+
+
+def _stated_cap_bytes(path: pathlib.Path) -> int | None:
+    """Returns the cap one cgroup file states, or None where it states none.
+
+    Args:
+        path: A ``memory.max`` or ``memory.limit_in_bytes`` file, which need not exist.
+
+    Returns:
+        The figure in bytes. None covers an unreadable file, ``max``, and the
+        top-of-range number that is how cgroup v1 spells the same thing.
+    """
+    try:
+        text = path.read_text().strip()
+    except OSError:
+        return None
+    if text == "max":
+        return None
+    try:
+        cap = int(text)
+    except ValueError:
+        return None
+    return None if cap >= 2**60 else cap
+
+
+def _container_cap_bytes() -> int | None:
+    """Returns the memory this process may hold before the kernel intervenes, in bytes.
+
+    A cap can be stated at any level between the process's own cgroup and the mount
+    root, and the one that ends the process is the smallest of them, so every level is
+    read rather than the root alone.
+
+    Returns:
+        The smallest cap that applies, or None where none does -- a machine outside a
+        container, a cgroup hierarchy that states no limit anywhere above this process,
+        or any platform without cgroups.
+    """
+    caps = []
+    for root, filename, controller in (
+        (_CGROUP_V2_ROOT, "memory.max", ""),
+        (_CGROUP_V1_MEMORY_ROOT, "memory.limit_in_bytes", "memory"),
+    ):
+        directory = root
+        directories = [root]
+        for part in pathlib.PurePosixPath(_cgroup_relative_path(controller)).parts:
+            directory = directory / part
+            directories.append(directory)
+        caps.extend(
+            cap
+            for cap in (_stated_cap_bytes(d / filename) for d in directories)
+            if cap is not None
+        )
+    return min(caps) if caps else None
 
 
 def _setting_bytes(value: str) -> int | None:
