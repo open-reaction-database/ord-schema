@@ -18,6 +18,7 @@ Nothing here reaches the network: a stub client returns canned tool calls, which
 enough to pin every behavior that is this module's own rather than the model's.
 """
 
+import dataclasses
 import json
 import types
 from typing import Any
@@ -79,6 +80,13 @@ _SOLVENT = {
 _BAD_PATH = {"op": "eq", "path": "identifiers[*].value", "value": {"literal": "x"}}
 
 
+@dataclasses.dataclass(frozen=True)
+class _Refusal:
+    """A canned ``cannot_answer`` call."""
+
+    reason: str
+
+
 class _StubClient:
     """Returns canned responses in order, and records the requests it was given.
 
@@ -105,6 +113,14 @@ class _StubClient:
         if isinstance(payload, str):
             block: TextBlock | ToolUseBlock = TextBlock(type="text", text=payload)
             stop = "end_turn"
+        elif isinstance(payload, _Refusal):
+            block = ToolUseBlock(
+                type="tool_use",
+                id="toolu_stub",
+                name="cannot_answer",
+                input={"reason": payload.reason},
+            )
+            stop = "tool_use"
         else:
             block = ToolUseBlock(
                 type="tool_use", id="toolu_stub", name="build_query", input=payload
@@ -173,16 +189,6 @@ def test_the_schema_and_the_rules_reach_the_prompt():
     system = client.requests[0]["system"][0]["text"]
     assert "reaction_role" in system
     assert "identifiers[*]" in system
-
-
-def test_the_tool_call_is_forced():
-    # Left to itself a model may answer in prose, which is not a query.
-    client = _stub({"where": _SOLVENT})
-    nl.translate("solvent reactions", client=client)
-    assert client.requests[0]["tool_choice"] == {
-        "type": "tool",
-        "name": "build_query",
-    }
 
 
 def test_a_bad_path_is_handed_back_once_and_recovered():
@@ -296,3 +302,37 @@ def test_ask_passes_the_timeout_through(corpus, monkeypatch):
     client = _stub({"where": _SOLVENT}, "Some reactions.")
     nl.ask("solvent reactions", corpus, client=client, timeout_seconds=12.5)
     assert seen == {"timeout_seconds": 12.5}
+
+
+def test_a_declined_question_is_named_as_unanswerable():
+    # Forcing build_query would leave the model no way out, and a model with no way out
+    # invents a query rather than refusing.
+    client = _stub(_Refusal("a value is a literal, never another column"))
+    with pytest.raises(nl.UnanswerableError, match="another column"):
+        nl.translate("reactions that ran longer than their workup took", client=client)
+
+
+def test_a_refusal_is_not_repaired():
+    # Nothing was wrong with the model's reasoning, so asking again only costs money.
+    client = _stub(_Refusal("the schema does not hold that"))
+    with pytest.raises(nl.UnanswerableError):
+        nl.translate("anything unanswerable", client=client)
+    assert len(client.requests) == 1
+
+
+def test_both_tools_are_offered_and_one_is_required():
+    client = _stub({"where": _SOLVENT})
+    nl.translate("solvent reactions", client=client)
+    request = client.requests[0]
+    assert [tool["name"] for tool in request["tools"]] == [
+        "build_query",
+        "cannot_answer",
+    ]
+    assert request["tool_choice"] == {"type": "any"}
+
+
+def test_declining_is_told_apart_from_failing():
+    # A caller shows these differently: one is "ask me another way", the other is a bug
+    # report, and both are NLQueryError to anything that only wants to catch one thing.
+    assert issubclass(nl.UnanswerableError, nl.NLQueryError)
+    assert not issubclass(nl.UnanswerableError, nl.MalformedQueryError)

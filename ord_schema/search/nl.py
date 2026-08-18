@@ -73,6 +73,25 @@ TOOL: ToolParam = {
     "description": "Build an ORD search query from the user's question.",
     "input_schema": query.Query.model_json_schema(),
 }
+# Forcing build_query would leave a model with no way to decline, and a model with no
+# way to decline invents a query rather than refusing. This is that way.
+REFUSAL_TOOL: ToolParam = {
+    "name": "cannot_answer",
+    "description": (
+        "Say that the question cannot be expressed in this grammar. Use it rather than "
+        "building a query that means something else."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "reason": {
+                "type": "string",
+                "description": "What the question asks for that the grammar lacks.",
+            }
+        },
+        "required": ["reason"],
+    },
+}
 _SYSTEM: list[TextBlockParam] = [
     {
         "type": "text",
@@ -100,6 +119,16 @@ class ModelRateLimitedError(NLQueryError):
 
 class MalformedQueryError(NLQueryError):
     """The model's query did not compile, and neither did its repair."""
+
+
+class UnanswerableError(NLQueryError):
+    """The question cannot be put to this grammar, and the model said so.
+
+    Distinct from a malformed query: nothing was wrong with the model's reasoning, and
+    retrying will not help. Comparing two columns is the standard case -- a value is a
+    literal or a compound, never another column -- and a layer without a way to say so
+    answers with a plausible query that means something else.
+    """
 
 
 @dataclasses.dataclass(frozen=True)
@@ -193,8 +222,10 @@ def _call(
             max_tokens=MAX_TOKENS,
             system=_SYSTEM,
             messages=messages,
-            tools=[TOOL],
-            tool_choice={"type": "tool", "name": "build_query"},
+            tools=[TOOL, REFUSAL_TOOL],
+            # "any" rather than "tool": the model must call one of them, which leaves
+            # refusing available without leaving prose available.
+            tool_choice={"type": "any"},
         )
     except anthropic.RateLimitError as error:
         raise ModelRateLimitedError(str(error)) from error
@@ -202,6 +233,11 @@ def _call(
         raise ModelUnavailableError(str(error)) from error
     for block in response.content:
         if isinstance(block, ToolUseBlock):
+            if block.name == REFUSAL_TOOL["name"]:
+                reason = "no reason given"
+                if isinstance(block.input, dict):
+                    reason = str(block.input.get("reason", reason))
+                raise UnanswerableError(reason)
             return block
     raise MalformedQueryError("the model returned no query")
 
@@ -228,6 +264,7 @@ def translate(
     Raises:
         MalformedQueryError: If the query does not compile, after the repair turn where
             one was allowed.
+        UnanswerableError: If the model says the grammar cannot express the question.
         ModelRateLimitedError: If the caller is over its rate limit.
         ModelUnavailableError: If the model cannot be reached.
     """
@@ -363,6 +400,7 @@ def ask(
 
     Raises:
         MalformedQueryError: If translation produces nothing that compiles.
+        UnanswerableError: If the grammar cannot express the question.
         ModelRateLimitedError: If the caller is over its rate limit.
         ModelUnavailableError: If the model cannot be reached.
     """

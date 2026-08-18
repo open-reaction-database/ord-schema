@@ -1,0 +1,55 @@
+[
+  {
+    "question": "which reactions use pyridine as a solvent?",
+    "why": "two conditions on one element, which a wrong translation splits in two",
+    "must_return": [
+      "ord-00533d2621284180b8d6e372c9496cb7",
+      "ord-02572d7994bc44c39cdf4b16503d331d",
+      "ord-03179abb6e0a461e9c57bc862974a3e0"
+    ],
+    "must_not_return": [
+      "ord-9c0049ffd5bd4c2597bd8dc1da4f9125",
+      "ord-c218088b16c541088a933a7606f68c4c"
+    ]
+  },
+  {
+    "question": "reactions run above 350 K",
+    "why": "a scalar comparison needing no quantifier at all",
+    "must_return": [
+      "ord-01e7218d0d9042f6bb980d3c55b949be",
+      "ord-039db69849d0448baa4933c8edcbfd3d",
+      "ord-052ce82d4b04486e8815d005d6897bba"
+    ],
+    "must_not_return": []
+  },
+  {
+    "question": "reactions where a desired product has a yield above 50%",
+    "why": "correlation: the yield has to belong to the desired product, not to whichever product happens to carry one",
+    "must_return": [
+      "ord-004a7e7ef4f248aea8ceb23af8212300",
+      "ord-01e04eeb2be04ecb80d130e0c31917fe",
+      "ord-02e987dd13d54efaac154a47fe44f7e2"
+    ],
+    "must_not_return": [
+      "ord-038119b8b4624c1a8ebfcc86cea84ff6",
+      "ord-c867f2f5ee844d8099373f8a271335f5"
+    ]
+  },
+  {
+    "question": "reactions with no solvent at all",
+    "why": "a forall, which the occurrence index cannot answer",
+    "must_return": [
+      "ord-005bd91bc77a4958a35aa743cdeadabd",
+      "ord-01123dbb1eea4f0ca582cd558fc37de7",
+      "ord-0197aeb8022e45b88d3d52d2b1539148"
+    ],
+    "must_not_return": []
+  },
+  {
+    "question": "reactions that ran longer than their workup took",
+    "why": "comparing two columns, which the grammar cannot express: a value is a literal or a compound, never another column",
+    "compiles": false,
+    "must_return": [],
+    "must_not_return": []
+  }
+]
