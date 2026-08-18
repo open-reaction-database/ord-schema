@@ -7,7 +7,7 @@ description: Load or backfill the ORD ORM Postgres database and verify it before
 
 The ORM database is populated in two stages. **ingest** writes the `ord.*` search index and the
 `public.*` payload; **derived** writes `derived.*` SMILES, the `rdkit.*` structures and their
-links, and (opt-in) reaction classes. Every pass is guarded by `NOT EXISTS`, so all of it is
+links. Every pass is guarded by `NOT EXISTS`, so all of it is
 idempotent: safe to re-run, safe to kill and resume.
 
 ## Where it runs

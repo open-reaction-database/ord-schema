@@ -113,7 +113,7 @@ def prepare_database(engine: Engine) -> bool:
     with engine.begin() as connection:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS ord"))
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS rdkit"))
-        # Derived, best-effort data that is not part of the proto (e.g. reaction class).
+        # Derived data that is not part of the proto (e.g. generated SMILES).
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS derived"))
     with engine.begin() as connection:
         # Pin the default search_path to public. The role is often named "ord", so
@@ -155,7 +155,7 @@ def prepare_database(engine: Engine) -> bool:
 def add_dataset(dataset: dataset_pb2.Dataset, session: Session) -> None:
     """Ingests a dataset, writing the ``ord.*`` search index and ``public.*`` payload.
 
-    Derived data (SMILES, RDKit links, reaction classes) is populated separately by
+    Derived data (SMILES, RDKit links) is populated separately by
     ``update_derived_data`` so ingest and derivation can run independently.
 
     Args:

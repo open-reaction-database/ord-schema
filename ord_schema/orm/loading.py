@@ -15,8 +15,8 @@
 """Staged loading of ORD datasets into the ORM database.
 
 Loading is two independent stages: *ingest* writes the ``ord.*`` search index and
-``public.*`` payload, and *derivation* writes the ``derived.*`` SMILES, RDKit links, and
-(optionally) reaction classes. Either stage can run without the other; derivation is
+``public.*`` payload, and *derivation* writes the ``derived.*`` SMILES and RDKit
+links. Either stage can run without the other; derivation is
 idempotent, so the derived-only stage backfills or recomputes derived data over already-
 ingested datasets. ``load_datasets`` orchestrates both stages over a glob of dataset
 files; the per-dataset helpers (``ingest_dataset``, ``derive_dataset``, ``add_rdkit``)
