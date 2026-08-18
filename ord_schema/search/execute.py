@@ -127,6 +127,22 @@ _CACHED_MATCHES = 16
 _PIVOT_BUDGET_BYTES = 4 * 1024**3
 
 
+# What the process holds beside DuckDB's own accounting while the occurrence index
+# builds: about 1.4 GB resident before it starts -- the interpreter, RDKit, the paired
+# footers -- and up to 2.8 GB more during it. A cgroup cap leaving less than this above
+# the memory_limit is one the kernel ends at, and a kill arrives as neither an exception
+# nor a log line. Measured in a container over the full corpus: an 8 GiB cap took
+# DuckDB's default 6.3 GiB limit and was killed 85s in, while the same build under a
+# 6.5 GiB limit and a 12 GiB cap finished, peaking at 9.3 GB resident.
+_PROCESS_HEADROOM_BYTES = 4 * 1024**3
+
+# Where a container states its memory cap, cgroup v2 first. Read at open rather than
+# taken as given, since DuckDB sizes its default limit from the same cap and the two
+# together are what has to fit.
+_CGROUP_V2_MEMORY_MAX = pathlib.Path("/sys/fs/cgroup/memory.max")
+_CGROUP_V1_MEMORY_LIMIT = pathlib.Path("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+
+
 # What a structure predicate's answer depends on: the operation, whether the string
 # is read as SMARTS or as SMILES, the string, and the similarity threshold.
 _MatchKey = tuple[str, bool, str, float | None]
@@ -464,6 +480,83 @@ def _cache_footers(connection: duckdb.DuckDBPyConnection) -> None:
     connection.execute("SET GLOBAL parquet_metadata_cache=true")
 
 
+def _container_cap_bytes() -> int | None:
+    """Returns the memory this process's container may hold, in bytes.
+
+    Returns:
+        The cgroup's cap, or None where there is none to read -- a machine outside a
+        container, a cgroup that states no limit, or any platform without cgroups.
+        Values at the top of the range are how both cgroup versions spell "unlimited".
+    """
+    for path in (_CGROUP_V2_MEMORY_MAX, _CGROUP_V1_MEMORY_LIMIT):
+        try:
+            text = path.read_text().strip()
+        except OSError:
+            continue
+        if text == "max":
+            return None
+        try:
+            cap = int(text)
+        except ValueError:
+            continue
+        return None if cap >= 2**60 else cap
+    return None
+
+
+def _setting_bytes(value: str) -> int | None:
+    """Returns a DuckDB size setting in bytes.
+
+    Args:
+        value: A setting as DuckDB prints it, e.g. ``6.3 GiB``.
+
+    Returns:
+        The figure in bytes, or None if it does not read as a size, which is what
+        ``memory_limit`` says when nothing bounds it.
+    """
+    scales = {"B": 1, "KiB": 1024, "MiB": 1024**2, "GiB": 1024**3, "TiB": 1024**4}
+    number, _, unit = value.strip().partition(" ")
+    scale = scales.get(unit)
+    if scale is None:
+        return None
+    try:
+        return int(float(number) * scale)
+    except ValueError:
+        return None
+
+
+def _warn_when_the_cap_leaves_no_headroom(
+    connection: duckdb.DuckDBPyConnection,
+) -> None:
+    """Warns when DuckDB's limit leaves the rest of the process too little to run in.
+
+    DuckDB reads the cgroup, so a container gets a limit sized to its own cap rather
+    than to the host -- but that limit bounds DuckDB's buffers, not the process, and
+    the default takes about 80% of the cap for them. What the corpus holds beside them
+    is what the kernel kills for.
+
+    Args:
+        connection: The corpus connection.
+    """
+    cap = _container_cap_bytes()
+    if cap is None:
+        return
+    setting = connection.execute("SELECT current_setting('memory_limit')").fetchone()
+    limit = _setting_bytes(setting[0]) if setting is not None else None
+    if limit is None or cap - limit >= _PROCESS_HEADROOM_BYTES:
+        return
+    logger.warning(
+        "this container may hold %s and DuckDB's memory_limit is %s, leaving %s for "
+        "everything else the process holds, which building the occurrence index has "
+        "been measured to want %s of. Reaching the cap is a kill rather than an "
+        "exception, so open the Corpus with a memory_limit that leaves that much, or "
+        "give the container more.",
+        _format_bytes(cap),
+        _format_bytes(limit),
+        _format_bytes(cap - limit),
+        _format_bytes(_PROCESS_HEADROOM_BYTES),
+    )
+
+
 def _run_with_timeout(
     cursor: duckdb.DuckDBPyConnection,
     sql: str,
@@ -543,6 +636,7 @@ class Corpus:
         pivot_budget_bytes: int | None = None,
         pivots_dir: str | None = None,
         derive_pivots: bool = False,
+        memory_limit: str | None = None,
     ) -> None:
         """Pairs the artifacts, checks their stamps, and prepares the relations.
 
@@ -588,6 +682,16 @@ class Corpus:
                 artifacts someone else derives should not start writing them because a
                 directory was mistyped, and a corpus-scale derivation belongs in
                 ``ord_schema.artifacts.scripts.derive_pivots``.
+            memory_limit: What DuckDB may hold, spelled as it spells sizes: ``6500MiB``,
+                ``8GB``. Left unset, DuckDB takes about 80% of the machine, or of the
+                container's cap, which it does read. That default suits a process that
+                is mostly DuckDB, and this one is not: RDKit, the interpreter, and the
+                index build's own allocations sit outside that accounting, and together
+                have been measured at up to 2.8 GB during a build. Exceeding a cap is a
+                kill rather than an exception, so a container wants this set low enough
+                to leave that much. Over ORD, ``6500MiB`` under a 12 GiB cap builds the
+                occurrence index, where DuckDB's own default under an 8 GiB cap is
+                killed partway.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
@@ -669,9 +773,12 @@ class Corpus:
         self._projections = [pair[0] for pair in pairs]
         self._pivot_views: dict[str, str | None] = {}
         self._views_lock = threading.Lock()
-        self._connection = duckdb.connect()
+        self._connection = duckdb.connect(
+            config={"memory_limit": memory_limit} if memory_limit is not None else {}
+        )
         try:
             _cache_footers(self._connection)
+            _warn_when_the_cap_leaves_no_headroom(self._connection)
             self._total, self._searchable = self._prepare(pairs)
         except Exception:
             # Nothing else holds the connection yet, and the caller has no object to
@@ -812,10 +919,18 @@ class Corpus:
         otherwise built by the first query that can spend it, so a corpus it refuses --
         a reaction stated twice, a structure no indexed path reaches -- fails that query
         rather than the deployment. It also has a memory floor, and meeting that one the
-        other way is worse still. Over ORD the build wants about 5 GB of DuckDB memory
-        and writes 16-25 GB of temporary files getting there; below that it raises
+        other way is worse still. Over ORD the build wants 5-6.5 GB of DuckDB memory and
+        writes 16-25 GB of temporary files getting there; below that it raises
         ``duckdb.OutOfMemoryException`` rather than running slowly, since a block it
         cannot pin is not one it can spill.
+
+        That exception is the good outcome, and under a cgroup cap it is only reached
+        with room to spare above ``memory_limit``: the build holds up to 2.8 GB outside
+        DuckDB's accounting, and reaching the cap is a kill, which arrives as neither an
+        exception nor a log line. DuckDB's default limit is about 80% of the cap, which
+        does not leave it -- an 8 GiB container is killed 85s in, where a 12 GiB one
+        holding DuckDB to 6500MiB finishes at 9.3 GB resident. ``Corpus`` warns at open
+        when a cap it can read leaves too little.
 
         Opt-in rather than done at open, because the cost is real and a corpus asked
         only for scalar or similarity queries never pays it: about a minute, and 1.19 GB
