@@ -436,6 +436,28 @@ carries a per-file offset column (`structure_offset`), which is why compiled SQL
 structure predicate runs only there — validate it against `query.executable_schema()`
 rather than the bare projection schema.
 
+### Ask in English
+
+```python
+from ord_schema.search import execute, nl
+
+corpus = execute.Corpus("projections/*/*.parquet", "structures/*/*.parquet")
+answer = nl.ask("which reactions use pyridine as a solvent?", corpus)
+print(answer.query, answer.table.num_rows, answer.text)
+```
+
+Needs the `nl` extra (`pip install "ord-schema[nl]"`) and `ANTHROPIC_API_KEY`. The model
+**cannot** be constrained to emit a valid query — the grammar is recursive, and structured
+outputs and strict tools share a validator that rejects circular references, then rejects
+what is left once the recursion is removed as too large. So a translation is checked
+rather than guaranteed: the predicate tree usually arrives JSON-encoded in a string and is
+coerced back, a query that does not compile is handed back once carrying the compiler's
+own "did you mean", and a second failure raises `MalformedQueryError`.
+
+The ~15k-token prefix — these rules plus `describe()` plus the grammar — is cached, which
+is most of what a query costs. `answer.query` is the query that ran, so a caller can show
+what was searched and offer to run it again.
+
 ### Tell the model what it may query
 
 ```python

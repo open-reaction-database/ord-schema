@@ -43,12 +43,15 @@ _ROOTS: dict[str, tuple[str, ...]] = {
     # The search subpackage reads through the artifacts, whose imports the search extra
     # therefore has to carry.
     "search": ("ord_schema.search", "ord_schema.artifacts"),
+    "nl": ("ord_schema.search.nl",),
     "orm": ("ord_schema.orm",),
     "huggingface": ("ord_schema.huggingface",),
 }
 _EXTRAS: dict[str, tuple[str, ...]] = {
     "base": (),
     "search": ("search",),
+    # The nl module reads through the search subpackage, so its install is both.
+    "nl": ("search", "nl"),
     "orm": ("orm",),
     "huggingface": ("huggingface",),
 }
