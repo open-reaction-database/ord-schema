@@ -14,8 +14,7 @@
 
 """Hash-partition predicate shared by the sharded derived passes.
 
-Kept in its own module so ``database`` and ``reaction_class`` can both use it without an
-import cycle (``database`` imports ``reaction_class``).
+Kept in its own module so any of the derived passes can use it without an import cycle.
 """
 
 

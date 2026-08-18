@@ -42,44 +42,7 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 # written.
 _COPY_TABLE_ORDER = [table.fullname for table in Base.metadata.sorted_tables]
 
-try:
-    from ord_schema.orm.reaction_class import update_reaction_classes
-except Exception as error:  # noqa: BLE001
-    # The optional 'reaction-class' extra pulls in rxn-insight -> rxnmapper/torch, which
-    # can fail to import many ways (missing package, native-library OSError). Catch all
-    # so the ORM stays usable without it; _classify_reactions re-raises with this error
-    # as the cause.
-    update_reaction_classes = None  # ty: ignore[invalid-assignment]
-    _reaction_class_import_error: Exception | None = error
-else:
-    _reaction_class_import_error = None
-
 logger = get_logger(__name__)
-
-
-def _classify_reactions(
-    dataset_id: str, session: Session, *, shard: tuple[int, int] | None = None
-) -> None:
-    """Populates reaction class/name columns, requiring the optional extra."""
-    if update_reaction_classes is None:
-        raise ImportError(
-            "Reaction classification requires the 'reaction-class' extra: "
-            "pip install ord-schema[reaction-class]"
-        ) from _reaction_class_import_error
-    update_reaction_classes(dataset_id, session, shard=shard)
-
-
-def classify_dataset(
-    dataset_id: str, session: Session, *, shard: tuple[int, int] | None = None
-) -> None:
-    """Labels reaction class/name for an already-derived dataset (classification only).
-
-    SMILES derivation is done separately (and, in the loader, sharded); this does not
-    re-derive it, so a failed SMILES shard is not silently backfilled here. ``shard``
-    (index, num_shards) restricts to one hash-partition of the dataset's reaction ids.
-    Requires the ``reaction-class`` extra.
-    """
-    _classify_reactions(dataset_id, session, shard=shard)
 
 
 def get_connection_string(
@@ -150,7 +113,7 @@ def prepare_database(engine: Engine) -> bool:
     with engine.begin() as connection:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS ord"))
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS rdkit"))
-        # Derived, best-effort data that is not part of the proto (e.g. reaction class).
+        # Derived data that is not part of the proto (e.g. generated SMILES).
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS derived"))
     with engine.begin() as connection:
         # Pin the default search_path to public. The role is often named "ord", so
@@ -192,7 +155,7 @@ def prepare_database(engine: Engine) -> bool:
 def add_dataset(dataset: dataset_pb2.Dataset, session: Session) -> None:
     """Ingests a dataset, writing the ``ord.*`` search index and ``public.*`` payload.
 
-    Derived data (SMILES, RDKit links, reaction classes) is populated separately by
+    Derived data (SMILES, RDKit links) is populated separately by
     ``update_derived_data`` so ingest and derivation can run independently.
 
     Args:
@@ -213,7 +176,6 @@ def update_derived_data(
     session: Session,
     *,
     rdkit_cartridge: bool = True,
-    classify_reactions: bool = False,
     rederive: bool = False,
 ) -> None:
     """Populates the derived tables for an already-ingested dataset.
@@ -227,8 +189,6 @@ def update_derived_data(
         dataset_id: Dataset to derive.
         session: SQLAlchemy session.
         rdkit_cartridge: Whether to populate RDKit cartridge tables and links.
-        classify_reactions: Whether to assign reaction class/name labels; requires the
-            optional ``reaction-class`` extra.
         rederive: Whether to delete existing derived rows first so they are recomputed.
     """
     update_derived_tables(dataset_id, session, rederive=rederive)
@@ -237,9 +197,6 @@ def update_derived_data(
         update_rdkit_tables(dataset_id, session)
         session.flush()
         update_rdkit_ids(dataset_id, session)
-    if classify_reactions:
-        session.flush()
-        _classify_reactions(dataset_id, session)
 
 
 def _parse_date(value: str) -> datetime.date | None:

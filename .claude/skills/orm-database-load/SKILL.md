@@ -7,7 +7,7 @@ description: Load or backfill the ORD ORM Postgres database and verify it before
 
 The ORM database is populated in two stages. **ingest** writes the `ord.*` search index and the
 `public.*` payload; **derived** writes `derived.*` SMILES, the `rdkit.*` structures and their
-links, and (opt-in) reaction classes. Every pass is guarded by `NOT EXISTS`, so all of it is
+links. Every pass is guarded by `NOT EXISTS`, so all of it is
 idempotent: safe to re-run, safe to kill and resume.
 
 ## Where it runs
@@ -53,9 +53,6 @@ python -u -m ord_schema.orm.scripts.add_datasets \
   --dsn "postgresql+psycopg://" \
   --n_jobs 16
 ```
-
-`--classify_reactions` is opt-in, needs the optional reaction-class extra, and is slow. Omit it
-unless you actually want to (re)classify.
 
 ## Backfill
 
@@ -114,9 +111,6 @@ A row whose source stops yielding a SMILES is **dropped**, not left and not set 
 present always means a SMILES was derived, so a stale value can never stay joinable, and an
 entity that derives nothing is retried by any later pass rather than sitting behind the
 `NOT EXISTS` guard.
-
-`derived.reaction_classes` is untouched, because classification is a slow opt-in pass that a
-rebuild should not silently redo.
 
 #### Size the parallelism for the largest dataset, not the corpus
 
@@ -265,5 +259,3 @@ Stop the dev VM, close any SSM tunnels, and do not leave the master password on 
   identifier is a name have no derivable SMILES and get no row. That is not data loss.
 - `rdkit.mols` is deduplicated by SMILES **string**, not by structure, so two spellings of one
   molecule become two rows. This is why the writer's RDKit version matters.
-- Reaction classification is a separate opt-in pass; a database can be complete and correct with
-  `derived.reaction_classes` nearly empty.

@@ -46,17 +46,6 @@ def test_unknown_stage_rejected():
         )
 
 
-def test_classify_reactions_requires_extra(monkeypatch):
-    """--classify_reactions exits early with a message when the extra is missing."""
-    monkeypatch.setattr(add_datasets.database, "update_reaction_classes", None)
-    with pytest.raises(SystemExit, match="reaction-class"):
-        add_datasets.main(
-            add_datasets.parse_args(
-                ["--pattern", _PBTXT_FIXTURE, "--classify_reactions"]
-            )
-        )
-
-
 @pytest.mark.parametrize(
     ("argv", "expected"),
     [

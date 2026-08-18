@@ -82,7 +82,7 @@ table.
   `public` holds API-facing data: `public.reactions` is the serialized `Reaction` proto keyed by `reaction_id`, and
   `public.datasets` holds per-dataset metadata (`md5` for change detection, `num_reactions` and `submitted_at` for
   browsing) keyed by `dataset_id`. `derived` holds search helpers computed from the index — generated SMILES and RDKit
-  links in `derived.{reaction,compound,product_compound}_smiles`, plus reaction classes. `rdkit` holds RDKit cartridge
+  links in `derived.{reaction,compound,product_compound}_smiles`. `rdkit` holds RDKit cartridge
   data (deduplicated mols/reactions and fingerprints). `from_proto` writes only `ord.*` and the `public` rows;
   `update_derived_tables` then computes the `derived` SMILES by reconstructing each message from the search index, and
   the RDKit pass populates/links the cartridge from those SMILES. The two layers store at different granularities on
@@ -165,8 +165,8 @@ These definitions must stay in sync with the `Index(...)` declarations in `deriv
 ### Add data
 
 Loading a dataset is two stages: `add_parquet_dataset`/`add_dataset` *ingest* the `ord.*` search index and
-`public.*` payload, then `update_derived_data` populates the `derived.*` SMILES, RDKit links, and (optionally)
-reaction classes. The stages are independent — derivation is idempotent, so it can be re-run to backfill or recompute
+`public.*` payload, then `update_derived_data` populates the `derived.*` SMILES and RDKit links. The stages are
+independent — derivation is idempotent, so it can be re-run to backfill or recompute
 derived data over already-ingested datasets.
 
 ```python
@@ -208,8 +208,7 @@ python scripts/add_datasets.py \
 The database password will be read from the `PGPASSWORD` environment variable if `--password` is not specified on the
 command line. To update an existing dataset in the database, use the `--overwrite` flag. The script runs both stages by
 default; `--stages` selects them independently — `--stages ingest` loads `ord.*`/`public.*` only, and `--stages derived`
-(re)computes the derived data for the already-ingested datasets matching `--pattern`. Add `--classify_reactions` to
-assign reaction class/name labels during derivation (requires the `reaction-class` extra).
+(re)computes the derived data for the already-ingested datasets matching `--pattern`.
 
 The script is a thin CLI over `ord_schema.orm.loading.load_datasets`, which runs the same staged, parallel loading and is
 the entry point for programmatic callers.

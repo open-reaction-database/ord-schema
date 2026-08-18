@@ -15,8 +15,8 @@
 """Staged loading of ORD datasets into the ORM database.
 
 Loading is two independent stages: *ingest* writes the ``ord.*`` search index and
-``public.*`` payload, and *derivation* writes the ``derived.*`` SMILES, RDKit links, and
-(optionally) reaction classes. Either stage can run without the other; derivation is
+``public.*`` payload, and *derivation* writes the ``derived.*`` SMILES and RDKit
+links. Either stage can run without the other; derivation is
 idempotent, so the derived-only stage backfills or recomputes derived data over already-
 ingested datasets. ``load_datasets`` orchestrates both stages over a glob of dataset
 files; the per-dataset helpers (``ingest_dataset``, ``derive_dataset``, ``add_rdkit``)
@@ -59,11 +59,6 @@ STAGES = ("ingest", "derived")
 # single shard.
 _DERIVE_SHARD_SIZE = 50_000
 _DERIVE_SHARD_CAP = 32
-
-# Reaction classification loads a Rxn-INSIGHT/rxnmapper transformer model per worker,
-# so its shard pool is capped well below the ingest/SMILES n_jobs to keep the models
-# within memory.
-_CLASSIFY_JOBS_CAP = 4
 
 
 def dataset_id_for_file(filename: str) -> str:
@@ -147,10 +142,8 @@ def ingest_dataset(filename: str, *, dsn: str, overwrite: bool) -> str:
     return dataset_id
 
 
-def derive_dataset(
-    dataset_id: str, *, dsn: str, classify_reactions: bool, rederive: bool = False
-) -> str:
-    """Runs the parallel-safe derived passes (SMILES + optional classification).
+def derive_dataset(dataset_id: str, *, dsn: str, rederive: bool = False) -> str:
+    """Runs the parallel-safe derived passes.
 
     The RDKit linking pass is excluded here and run serially in ``add_rdkit`` to avoid
     deadlocks. Idempotent, so it is safe to re-run over already-derived datasets.
@@ -158,7 +151,6 @@ def derive_dataset(
     Args:
         dataset_id: Dataset to derive.
         dsn: Database connection string.
-        classify_reactions: Whether to assign reaction class/name labels.
         rederive: Whether to delete existing derived rows first so they are recomputed.
 
     Returns:
@@ -172,7 +164,6 @@ def derive_dataset(
                 session,
                 # Done serially in add_rdkit() to avoid deadlocks.
                 rdkit_cartridge=False,
-                classify_reactions=classify_reactions,
                 rederive=rederive,
             )
     finally:
@@ -227,26 +218,6 @@ def _derive_smiles_shard(
                 session,
                 shard=(shard_index, num_shards),
                 rederive=rederive,
-            )
-    finally:
-        engine.dispose()
-    return item
-
-
-def _classify_shard(item: tuple[str, int, int], *, dsn: str) -> tuple[str, int, int]:
-    """Classifies one hash-partition of a dataset's reactions (SMILES already derived).
-
-    Classification only -- it does not re-derive SMILES, so a failed SMILES shard stays
-    visibly incomplete rather than being silently backfilled here. Each worker loads its
-    own Rxn-INSIGHT / rxnmapper model, so the classify pool is bounded
-    (``_CLASSIFY_JOBS_CAP``) to keep the models in memory.
-    """
-    dataset_id, shard_index, num_shards = item
-    engine = create_engine(dsn)
-    try:
-        with Session(engine) as session, session.begin():
-            database.classify_dataset(
-                dataset_id, session, shard=(shard_index, num_shards)
             )
     finally:
         engine.dispose()
@@ -477,16 +448,14 @@ def load_datasets(
     *,
     stages: Iterable[str] = STAGES,
     overwrite: bool = False,
-    classify_reactions: bool = False,
     rederive: bool = False,
     prune_rdkit: bool = False,
     n_jobs: int = 1,
-    classify_jobs: int | None = None,
 ) -> None:
     """Runs the selected stages over the datasets matching ``pattern``.
 
-    The parallel-safe work (ingest, SMILES/classification) runs in a worker pool; the
-    RDKit linking pass runs serially to avoid deadlocks. When ingest is skipped, dataset
+    The parallel-safe work (ingest, SMILES) runs in a worker pool; the RDKit linking
+    pass runs serially to avoid deadlocks. When ingest is skipped, dataset
     IDs are resolved from ``pattern`` so derivation runs over the already-ingested rows.
 
     Args:
@@ -494,8 +463,6 @@ def load_datasets(
         dsn: Database connection string.
         stages: Stages to run (any of ``STAGES``); defaults to all.
         overwrite: If True, update changed datasets during ingest.
-        classify_reactions: If True, assign reaction class/name labels during
-            derivation.
         rederive: If True, delete existing derived rows before deriving, so rows written
             by an earlier version of the derivation are recomputed rather than skipped.
             Without it the derived stage backfills gaps but never revisits a row.
@@ -504,15 +471,9 @@ def load_datasets(
             strands the old ones; this collects them. Off by default because it is
             whole-database and unsafe to run beside a concurrent load.
         n_jobs: Number of parallel workers.
-        classify_jobs: Worker count for the classification pass; each worker loads a
-            transformer model, so this is bounded separately from ``n_jobs``. Defaults
-            to ``min(n_jobs, _CLASSIFY_JOBS_CAP)``. Raise it only if the models fit in
-            memory.
 
     Raises:
         ValueError: If ``stages`` is empty or names an unknown stage.
-        ImportError: If ``classify_reactions`` is set without the ``reaction-class``
-            extra.
         RuntimeError: If any dataset failed in any stage; the inputs are the message.
     """
     stages = tuple(stages)
@@ -523,11 +484,6 @@ def load_datasets(
         )
     if not stages:
         raise ValueError(f"stages must include at least one of {list(STAGES)}")
-    if classify_reactions and database.update_reaction_classes is None:
-        raise ImportError(
-            "reaction classification requires the 'reaction-class' extra: "
-            "pip install ord-schema[reaction-class]"
-        )
     filenames = sorted(glob(pattern))
     failures: list[str] = []
 
@@ -573,34 +529,6 @@ def load_datasets(
             desc="Derive",
         )
         failures.extend(sorted({dataset_id for dataset_id, _, _ in shard_failures}))
-        if classify_reactions:
-            logger.info("Classifying reactions")
-            # Shard classification within datasets by reaction-id hash, like SMILES, but
-            # through a smaller pool: each worker loads a Rxn-INSIGHT/rxnmapper model,
-            # so running n_jobs of them would multiply the model memory. Defaults to a
-            # capped fraction of n_jobs; the caller can override via classify_jobs once
-            # they know the models fit.
-            resolved_classify_jobs = (
-                max(1, min(n_jobs, _CLASSIFY_JOBS_CAP))
-                if classify_jobs is None
-                else max(1, classify_jobs)
-            )
-            # Each shard reloads the transformer model, so sharding only pays off when
-            # the shards can run in parallel. With a single worker, keep one shard (one
-            # model load) per dataset, matching the pre-sharding behaviour.
-            if resolved_classify_jobs == 1:
-                classify_items = [(dataset_id, 0, 1) for dataset_id in dataset_ids]
-            else:
-                classify_items = _derive_shard_items(dataset_ids, dsn)
-            _, classify_failures = _run_parallel(
-                partial(_classify_shard, dsn=dsn),
-                classify_items,
-                n_jobs=resolved_classify_jobs,
-                desc="Classify",
-            )
-            failures.extend(
-                sorted({dataset_id for dataset_id, _, _ in classify_failures})
-            )
         logger.info("Adding RDKit functionality")
         # Datasets are processed serially (the rdkit.* dedup tables are shared, so
         # cross-dataset concurrency could collide on the same structure), but each
@@ -655,6 +583,6 @@ def load_datasets(
             engine.dispose()
 
     if failures:
-        # A dataset can fail in more than one pass (SMILES shards, classify, RDKit);
+        # A dataset can fail in more than one pass (SMILES shards, RDKit);
         # report each failing file/dataset once, sorted for a deterministic message.
         raise RuntimeError(sorted(set(failures)))

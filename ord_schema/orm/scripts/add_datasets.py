@@ -38,15 +38,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--stages",
         default=",".join(loading.STAGES),
         help="Comma-separated stages to run: 'ingest' (ord.*/public.*) and/or "
-        "'derived' (derived.* SMILES, RDKit links, reaction classes). Derived-only "
-        "runs over "
+        "'derived' (derived.* SMILES, RDKit links). Derived-only runs over "
         "already-ingested datasets matching --pattern.",
-    )
-    parser.add_argument(
-        "--classify_reactions",
-        action="store_true",
-        help="Assign reaction class/name labels in the derived stage "
-        "(requires the 'reaction-class' extra)",
     )
     parser.add_argument(
         "--overwrite", action="store_true", help="Update changed datasets"
@@ -76,14 +69,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--n_jobs", type=int, default=1, help="Number of parallel workers"
     )
-    parser.add_argument(
-        "--classify_jobs",
-        type=int,
-        default=None,
-        help="Worker count for the classification pass (each loads a transformer "
-        "model, so it is bounded separately from --n_jobs); defaults to a capped "
-        "fraction of --n_jobs",
-    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     return parser.parse_args(argv)
 
@@ -102,11 +87,6 @@ def main(args: argparse.Namespace) -> None:
         )
     if not stages:
         raise SystemExit(f"--stages must select at least one of {list(loading.STAGES)}")
-    if args.classify_reactions and database.update_reaction_classes is None:
-        raise SystemExit(
-            "--classify_reactions requires the 'reaction-class' extra: "
-            "pip install ord-schema[reaction-class]"
-        )
     if args.dsn:
         dsn = args.dsn
     else:
@@ -122,11 +102,9 @@ def main(args: argparse.Namespace) -> None:
         dsn,
         stages=stages,
         overwrite=args.overwrite,
-        classify_reactions=args.classify_reactions,
         rederive=args.rederive,
         prune_rdkit=args.prune_rdkit,
         n_jobs=args.n_jobs,
-        classify_jobs=args.classify_jobs,
     )
 
 
