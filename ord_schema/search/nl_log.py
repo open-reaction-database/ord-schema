@@ -136,6 +136,8 @@ class Ask:
         model: Which model translated.
         corpus_fingerprint: The corpus the query ran against, so the record stays
             reproducible without holding the rows.
+        prompt_fingerprint: Which translator wrote this, so a record from months ago
+            can be told apart from one written by today's prompt.
         outcome: One of ``OUTCOMES``.
         attempts: Every ``build_query`` call, in order. Empty where the model declined
             without writing a query, which is how "read the question and said no" is
@@ -165,6 +167,7 @@ class Ask:
     model: str
     corpus_fingerprint: str
     outcome: str
+    prompt_fingerprint: str = ""
     attempts: Sequence[Attempt] = ()
     row_count: int | None = None
     declined_reason: str | None = None
@@ -213,6 +216,7 @@ def event(ask: Ask) -> dict[str, Any]:
         "answer_text": ask.answer_text,
         "model": ask.model,
         "corpus_fingerprint": ask.corpus_fingerprint,
+        "prompt_fingerprint": ask.prompt_fingerprint,
         "usage": dataclasses.asdict(ask.usage),
         "translate_ms": ask.translate_ms,
         "search_ms": ask.search_ms,

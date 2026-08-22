@@ -432,6 +432,24 @@ def test_ask_records_the_question_and_what_it_became(corpus):
     assert event["record_id"] == answer.record_id
 
 
+def test_the_prompt_fingerprint_tracks_the_cached_prefix(monkeypatch):
+    # It answers "which translator wrote this" when an old record is compared against
+    # today's behavior, and it moves exactly when the cached prefix does -- so a run
+    # where it changes unexpectedly is a cache miss already paid for.
+    before = nl.prompt_fingerprint()
+    assert before == nl.prompt_fingerprint()
+    monkeypatch.setattr(nl, "SYSTEM_PROMPT", nl.SYSTEM_PROMPT + " and one more rule")
+    assert nl.prompt_fingerprint() != before
+
+
+def test_a_record_names_the_translator_that_wrote_it(corpus):
+    sink = _CollectingSink()
+    client = _stub({"where": _SOLVENT}, "Two reactions.")
+    nl.ask("solvent reactions", corpus, client=client, sink=sink)
+    (event,) = sink.events
+    assert event["prompt_fingerprint"] == nl.prompt_fingerprint()
+
+
 def test_what_a_question_cost_counts_every_call_it_made(corpus):
     # Three calls answer this one: a translation the compiler refuses, its repair, and
     # the sentence describing the result. A total summed from the attempts alone would

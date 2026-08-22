@@ -26,7 +26,7 @@ from typing import Any, cast
 import pytest
 from anthropic.types import ToolUseBlock
 
-from ord_schema.search import execute, nl_eval
+from ord_schema.search import execute, nl_eval, nl_log
 
 _CASE = nl_eval.EvalCase(
     question="which reactions use pyridine as a solvent?",
@@ -285,3 +285,30 @@ def test_an_expressible_question_that_does_not_compile_fails():
 def test_declining_an_expressible_question_fails():
     result = _run(_CASE, _StubClient("cannot_answer", {"reason": "gave up"}))
     assert not result.passed
+
+
+def test_a_run_records_its_cases(tmp_path):
+    # The measurement that exists today runs from a laptop, and recording it is the
+    # reason the log is a file and a bucket rather than a database behind a tunnel.
+    sink = nl_log.JsonlSink(tmp_path / "run.jsonl")
+    nl_eval.run_case(
+        _INEXPRESSIBLE,
+        cast(execute.Corpus, None),
+        client=cast(Any, _StubClient("cannot_answer", {"reason": "no comparison"})),
+        model="stub",
+        repair=False,
+        sink=sink,
+        session_id="run-1",
+    )
+    (line,) = (tmp_path / "run.jsonl").read_text(encoding="utf-8").splitlines()
+    event = json.loads(line)
+    assert event["outcome"] == nl_log.DECLINED
+    assert event["question"] == _INEXPRESSIBLE.question
+    # A run is a session, so one run's cases group the way one visitor's questions do.
+    assert event["session_id"] == "run-1"
+
+
+def test_a_run_without_a_sink_records_nothing(tmp_path):
+    result = _run(_CASE, _StubClient("build_query", _BAD_PATH))
+    assert not result.passed
+    assert not list(tmp_path.iterdir())

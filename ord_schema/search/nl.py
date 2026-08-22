@@ -35,6 +35,7 @@ natural-language layer over the search grammar".
 """
 
 import dataclasses
+import hashlib
 import json
 import os
 import time
@@ -116,6 +117,24 @@ _ANSWER_SYSTEM = (
     "You describe the result of a database query in one or two plain sentences. State "
     "only what the summary shows. Do not invent chemistry, and do not use markdown."
 )
+
+
+def prompt_fingerprint() -> str:
+    """Returns a short digest of the cached prefix.
+
+    Two things at once, which is why it is worth recording on every question. It names
+    the translator a record was written by, so a query from months ago is not read as
+    evidence about today's prompt. And because the prefix is exactly what the cache
+    keys on, the fingerprint changes when and only when a cache read would have missed
+    -- so a run where it moves unexpectedly is money already spent.
+
+    Returns:
+        Twelve hex characters over the system prompt and both tool definitions.
+    """
+    digest = hashlib.sha256(SYSTEM_PROMPT.encode())
+    for tool in (TOOL, REFUSAL_TOOL):
+        digest.update(json.dumps(tool, sort_keys=True).encode())
+    return digest.hexdigest()[:12]
 
 
 class NLQueryError(Exception):
@@ -559,7 +578,7 @@ _OUTCOMES: tuple[tuple[type[BaseException], str], ...] = (
 )
 
 
-def _outcome(error: BaseException) -> str:
+def outcome_of(error: BaseException) -> str:
     """Returns the outcome a failure is recorded as.
 
     Args:
@@ -632,6 +651,7 @@ def ask(
                 question=question,
                 model=model,
                 corpus_fingerprint=corpus.fingerprint,
+                prompt_fingerprint=prompt_fingerprint(),
                 outcome=outcome,
                 session_id=session_id,
                 record_id=record_id,
@@ -644,7 +664,7 @@ def ask(
         translated = translate(question, client=client, model=model)
     except NLQueryError as error:
         record(
-            _outcome(error),
+            outcome_of(error),
             attempts=error.attempts,
             declined_reason=(
                 str(error) if isinstance(error, UnanswerableError) else None
@@ -659,7 +679,7 @@ def ask(
         table = corpus.search(translated.query, timeout_seconds=timeout_seconds)
     except Exception as error:
         record(
-            _outcome(error),
+            outcome_of(error),
             attempts=translated.attempts,
             error=str(error),
             usage=translated.usage,
@@ -672,7 +692,7 @@ def ask(
         described = answer(question, table, client=client, model=model)
     except NLQueryError as error:
         record(
-            _outcome(error),
+            outcome_of(error),
             attempts=translated.attempts,
             row_count=table.num_rows,
             error=str(error),
