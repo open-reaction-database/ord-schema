@@ -1,0 +1,57 @@
+{
+  "corpus": "83388e9d671ca105b98331cac913cce6b304ff4a7ee6692fc7f94f0aad99d164",
+  "queries": {
+    "scalar_comparison": {
+      "rows": 211457,
+      "digest": "31745ca317bbc70fda7602a484537d7020cd2dbe02991fed5e5cb76c105c98c4"
+    },
+    "existential_quantifier": {
+      "rows": 1542319,
+      "digest": "a356a34007b1f74a30b645a03111d6747cdc0f3a9d82d029cc124115b8a76579"
+    },
+    "universal_quantifier": {
+      "rows": 885972,
+      "digest": "d3065813fe14222fca70bbba06e82ac66e708e635e0412830aa8b4995eb8ae37"
+    },
+    "correlated_conditions": {
+      "rows": 24932,
+      "digest": "a0f27c6822420132cd1bed35419f2ba67052becf75aa319ad1c7e1f35edc130d"
+    },
+    "nested_quantifiers": {
+      "rows": 22666,
+      "digest": "4b03ee2ad208710b48b02cf2e395a93311913e06516e57aeb871bd4c5eb429b0"
+    },
+    "reduction_ordering": {
+      "rows": 25,
+      "digest": "b50a316f9ed7fcbfaeb7f7bed8971afdc31144bcc2f52220264a1e6012c97d5e"
+    },
+    "aggregate_grouping": {
+      "rows": 6,
+      "digest": "c72bf61cee8eb30484583a814e816c5cb3c6775f835a3a359ab22dca5d27f84a"
+    },
+    "substructure_screen": {
+      "rows": 660671,
+      "digest": "935ad09656ce2848b65b0629b39d1a5521746e186aff7d5c29e765afb5585790"
+    },
+    "similarity_screen": {
+      "rows": 179055,
+      "digest": "ce16da3bbf515fdf0d528d6b68370a04c78ffde19f207b86130a36969b85eb4a"
+    },
+    "compound_identity": {
+      "rows": 97263,
+      "digest": "df79bca317502dd443bd8032429dcbe7fed094dc5223f0759feacd8b638257dc"
+    },
+    "parent_identity": {
+      "rows": 112322,
+      "digest": "2dda10af6f14cd8292a6e08166295d6548cfdd34cf58021f7774da094ed1ae6e"
+    },
+    "text_predicate": {
+      "rows": 3,
+      "digest": "95c2a5b94a57196b7b927ddcc1107f5a8d3131e4f6f7e244ca45b0ac347485a4"
+    },
+    "null_check": {
+      "rows": 1820984,
+      "digest": "a8e3bc8fcfa25bd76bf05ee6324c4f434652776b17db202cc41fcf93c844bc70"
+    }
+  }
+}
