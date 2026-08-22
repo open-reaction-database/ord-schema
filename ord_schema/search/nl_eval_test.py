@@ -135,9 +135,16 @@ def test_the_shipped_cases_load_and_say_why_they_exist():
     assert cases
     for case in cases:
         assert case.why
-        # A case with neither an expectation nor a refusal to make would pass whatever
-        # the model wrote.
-        assert case.must_return or case.must_not_return or not case.compiles
+
+
+def test_every_expressible_case_pins_both_sides():
+    # must_return alone is passed by a translation that drops the predicate and hands
+    # back the corpus, since everything required is trivially among everything. The
+    # counterexamples are what make an over-broad query fail.
+    for case in nl_eval.load_cases():
+        if case.compiles:
+            assert case.must_return
+            assert case.must_not_return
 
 
 def test_a_case_the_grammar_cannot_express_is_marked_as_such():

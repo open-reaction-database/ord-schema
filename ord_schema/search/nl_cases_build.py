@@ -14,11 +14,18 @@
 
 """Builds the eval cases, taking reaction IDs from a corpus rather than inventing them.
 
-Each case names a reference query -- what a correct translation looks like -- and, where
-one exists, the near-miss a model plausibly writes instead. Reactions the reference
-returns become ``must_return``. Reactions the near-miss returns *and the reference does
-not* become ``must_not_return``, and those are what make a wrong translation fail rather
-than merely differ.
+Each case names a reference query -- what a correct translation looks like -- and the
+near-miss a model plausibly writes instead. Reactions the reference returns become
+``must_return``. Reactions the near-miss returns *and the reference does not* become
+``must_not_return``, and those are what make a wrong translation fail rather than merely
+differ.
+
+Where no particular wrong query is worth naming, the near-miss is the reference's own
+complement, so the counterexamples are reactions no correct translation returns at all.
+That is the weaker guard -- it catches a translation that is too broad rather than one
+that is subtly misscoped -- but it is the guard a case without one lacks entirely: with
+an empty ``must_not_return``, a query that drops the predicate and returns the corpus
+passes on the strength of ``must_return`` alone.
 
 The counterexamples are found by asking for them -- ``near_miss AND NOT reference`` --
 rather than by differencing two capped result sets, which compares samples instead of
@@ -74,6 +81,8 @@ CASES: list[dict[str, Any]] = [
             "path": "conditions.temperature.setpoint_kelvin",
             "value": {"literal": 350},
         },
+        # No misscoping is available on a scalar comparison, so the guard is against a
+        # translation that drops it.
         "near_miss": None,
     },
     {
@@ -117,7 +126,17 @@ CASES: list[dict[str, Any]] = [
                 "value": {"literal": "SOLVENT"},
             },
         },
-        "near_miss": None,
+        # Some component is not a solvent, which almost every reaction satisfies: the
+        # quantifier a model reaches for when the question says "no".
+        "near_miss": {
+            "op": "exists",
+            "path": "inputs.components",
+            "where": {
+                "op": "ne",
+                "path": "reaction_role",
+                "value": {"literal": "SOLVENT"},
+            },
+        },
     },
 ]
 
@@ -155,28 +174,29 @@ def build(corpus: execute.Corpus, *, examples: int = 3) -> list[dict[str, Any]]:
             query.Query.model_validate({"where": case["reference"], "limit": 200})
         )
         right = sorted(rows.column("reaction_id").to_pylist())
-        wrong: list[str] = []
-        if case["near_miss"] is not None:
-            counterexamples = corpus.search(
-                query.Query.model_validate(
-                    {
-                        "where": {
-                            "op": "and",
-                            "clauses": [
-                                case["near_miss"],
-                                {"op": "not", "clause": case["reference"]},
-                            ],
-                        },
-                        "limit": 2,
-                    }
-                )
+        near_miss = case["near_miss"]
+        if near_miss is None:
+            near_miss = {"op": "not", "clause": case["reference"]}
+        counterexamples = corpus.search(
+            query.Query.model_validate(
+                {
+                    "where": {
+                        "op": "and",
+                        "clauses": [
+                            near_miss,
+                            {"op": "not", "clause": case["reference"]},
+                        ],
+                    },
+                    "limit": 2,
+                }
             )
-            wrong = sorted(counterexamples.column("reaction_id").to_pylist())
-            if not wrong:
-                raise ValueError(
-                    f"{case['question']}: the near-miss returns nothing the reference "
-                    f"excludes, so it is not a near-miss"
-                )
+        )
+        wrong = sorted(counterexamples.column("reaction_id").to_pylist())
+        if not wrong:
+            raise ValueError(
+                f"{case['question']}: the near-miss returns nothing the reference "
+                f"excludes, so it is not a near-miss"
+            )
         built.append(
             {
                 "question": case["question"],
