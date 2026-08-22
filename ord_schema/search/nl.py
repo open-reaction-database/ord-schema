@@ -21,12 +21,14 @@ removed, rejects what is left as too large. So translation is ordinary generatio
 checked afterwards: the tool schema is documentation the model mostly follows rather
 than a rule it cannot break.
 
-Three things follow, and they are the whole design. The predicate tree usually arrives
+Four things follow, and they are the whole design. The predicate tree usually arrives
 JSON-encoded inside a string, so it is coerced before validation rather than after a
 failure. The compiler's errors name the offending path and suggest a real one, so a
-query that does not compile is worth handing back exactly once. And the schema rendering
-and the grammar are ~15k tokens of prompt that never change, so they are cached, which
-is most of what a query costs.
+query that does not compile is worth handing back exactly once. A model with no way to
+decline invents a query for a question the grammar cannot express, so ``cannot_answer``
+is offered beside ``build_query``. And the schema rendering and the grammar are ~15k
+tokens of prompt that never change, so they are cached, which is most of what a query
+costs.
 
 The measurements behind those choices are in the ord-logbook entry "What constrains a
 natural-language layer over the search grammar".
@@ -80,6 +82,25 @@ TOOL: ToolParam = {
     "description": "Build an ORD search query from the user's question.",
     "input_schema": query.Query.model_json_schema(),
 }
+# Forcing build_query would leave a model with no way to decline, and a model with no
+# way to decline invents a query rather than refusing. This is that way.
+REFUSAL_TOOL: ToolParam = {
+    "name": "cannot_answer",
+    "description": (
+        "Say that the question cannot be expressed in this grammar. Use it rather than "
+        "building a query that means something else."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "reason": {
+                "type": "string",
+                "description": "What the question asks for that the grammar lacks.",
+            }
+        },
+        "required": ["reason"],
+    },
+}
 _SYSTEM: list[TextBlockParam] = [
     {
         "type": "text",
@@ -107,6 +128,33 @@ class ModelRateLimitedError(NLQueryError):
 
 class MalformedQueryError(NLQueryError):
     """The model's query did not compile, and neither did its repair."""
+
+
+class UnanswerableError(NLQueryError):
+    """The question cannot be put to this grammar, and the model said so.
+
+    Distinct from a malformed query: nothing was wrong with the model's reasoning, and
+    retrying will not help. Comparing two columns is the standard case -- a value is a
+    literal or a compound, never another column -- and a layer without a way to say so
+    answers with a plausible query that means something else.
+
+    Attributes:
+        attempted: Whether a query came first and failed to compile. A caller is served
+            either way, so this changes nothing about the answer; a measurement wants
+            it, because recognizing an inexpressible question is not the same as
+            backing into it after the compiler refused a guess.
+    """
+
+    def __init__(self, reason: str, *, attempted: bool = False) -> None:
+        """Initializes the error.
+
+        Args:
+            reason: What the question asks for that the grammar lacks, in the model's
+                own words.
+            attempted: Whether the model built a query before declining.
+        """
+        super().__init__(reason)
+        self.attempted = attempted
 
 
 @dataclasses.dataclass(frozen=True)
@@ -196,6 +244,7 @@ def _call(
         The ``tool_use`` content block.
 
     Raises:
+        UnanswerableError: If the model calls ``cannot_answer`` instead.
         ModelRateLimitedError: If the caller is over its rate limit.
         ModelUnavailableError: If the model cannot be reached.
         MalformedQueryError: If the response carries no tool call at all.
@@ -206,8 +255,10 @@ def _call(
             max_tokens=MAX_TOKENS,
             system=_SYSTEM,
             messages=messages,
-            tools=[TOOL],
-            tool_choice={"type": "tool", "name": "build_query"},
+            tools=[TOOL, REFUSAL_TOOL],
+            # "any" rather than "tool": the model must call one of them, which leaves
+            # refusing available without leaving prose available.
+            tool_choice={"type": "any"},
         )
     except anthropic.RateLimitError as error:
         raise ModelRateLimitedError(str(error)) from error
@@ -215,6 +266,11 @@ def _call(
         raise ModelUnavailableError(str(error)) from error
     for block in response.content:
         if isinstance(block, ToolUseBlock):
+            if block.name == REFUSAL_TOOL["name"]:
+                reason = "no reason given"
+                if isinstance(block.input, dict):
+                    reason = str(block.input.get("reason", reason))
+                raise UnanswerableError(reason)
             return block
     raise MalformedQueryError("the model returned no query")
 
@@ -241,6 +297,7 @@ def translate(
     Raises:
         MalformedQueryError: If the query does not compile, after the repair turn where
             one was allowed.
+        UnanswerableError: If the model says the grammar cannot express the question.
         ModelRateLimitedError: If the caller is over its rate limit.
         ModelUnavailableError: If the model cannot be reached.
     """
@@ -281,7 +338,14 @@ def translate(
             ],
         },
     ]
-    retry = _call(client, model, messages)
+    try:
+        retry = _call(client, model, messages)
+    except UnanswerableError as error:
+        # Declining on the second turn is still the right answer, and the caller gets
+        # the same one. It is worth marking because the model reached it by way of a
+        # query the compiler refused rather than by reading the question.
+        error.attempted = True
+        raise
     try:
         return _validated(retry.input)
     except (ValueError, query.QueryError) as error:
@@ -381,6 +445,7 @@ def ask(
 
     Raises:
         MalformedQueryError: If translation produces nothing that compiles.
+        UnanswerableError: If the grammar cannot express the question.
         ModelRateLimitedError: If the caller is over its rate limit.
         ModelUnavailableError: If the model cannot be reached.
         ValueError: If a compound the query names cannot be resolved.

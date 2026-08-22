@@ -1,0 +1,61 @@
+[
+  {
+    "question": "which reactions use pyridine as a solvent?",
+    "why": "two conditions on one element, which a wrong translation splits in two",
+    "must_return": [
+      "ord-00533d2621284180b8d6e372c9496cb7",
+      "ord-02572d7994bc44c39cdf4b16503d331d",
+      "ord-03dd32c613004882b1e3b3fe47dd3050"
+    ],
+    "must_not_return": [
+      "ord-ad0e6003b3be4ab6ac0a6c1f57d6ff26",
+      "ord-b9c8478b753b4132a133ace38f7e208b"
+    ]
+  },
+  {
+    "question": "reactions run above 350 K",
+    "why": "a scalar comparison needing no quantifier at all",
+    "must_return": [
+      "ord-033aa29e1ad04b23afd793e07bb736b9",
+      "ord-052ce82d4b04486e8815d005d6897bba",
+      "ord-059b90f1c17d4d8ea80dcd4f2180ecd6"
+    ],
+    "must_not_return": [
+      "ord-16f0e6904fb14454b246bf010483cd0a",
+      "ord-5e2e3b9320064ead85c4353efff3fa3c"
+    ]
+  },
+  {
+    "question": "reactions where a desired product has a yield above 50%",
+    "why": "correlation: the yield has to belong to the desired product, not to whichever product happens to carry one",
+    "must_return": [
+      "ord-01e04eeb2be04ecb80d130e0c31917fe",
+      "ord-03f66a0b86d3497eacefa167ca4e72bf",
+      "ord-0af38cbe4a794c35921300873822aa9a"
+    ],
+    "must_not_return": [
+      "ord-038119b8b4624c1a8ebfcc86cea84ff6",
+      "ord-c867f2f5ee844d8099373f8a271335f5"
+    ]
+  },
+  {
+    "question": "reactions with no solvent at all",
+    "why": "a forall, which the occurrence index cannot answer",
+    "must_return": [
+      "ord-013ee6a809ca40e98defb85b8340b509",
+      "ord-02d958141f654920b2e949cd0ccb3d2c",
+      "ord-03a8f545ec5349a9a0f578eab259ec54"
+    ],
+    "must_not_return": [
+      "ord-16f0e6904fb14454b246bf010483cd0a",
+      "ord-5e2e3b9320064ead85c4353efff3fa3c"
+    ]
+  },
+  {
+    "question": "reactions that ran longer than their workup took",
+    "why": "comparing two columns, which the grammar cannot express: a value is a literal or a compound, never another column",
+    "compiles": false,
+    "must_return": [],
+    "must_not_return": []
+  }
+]

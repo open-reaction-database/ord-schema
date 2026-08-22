@@ -459,9 +459,37 @@ rather than guaranteed: the predicate tree usually arrives JSON-encoded in a str
 coerced back, a query that does not compile is handed back once carrying the compiler's
 own "did you mean", and a second failure raises `MalformedQueryError`.
 
+The model is also given a way to decline. Forcing `build_query` would leave it no way to
+say a question cannot be put to this grammar — comparing two columns, say — and a model
+with no way to decline invents a query rather than refusing, which is the failure that
+looks most like an answer. Declining raises `UnanswerableError`, carrying the model's
+reason, and is never repaired: nothing was wrong with its reasoning.
+
 The ~15k-token prefix — these rules plus `describe()` plus the grammar — is cached, which
 is most of what a query costs. `answer.query` is the query that ran, so a caller can show
 what was searched and offer to run it again.
+
+### Measure how good a translation is
+
+```bash
+python -m ord_schema.search.nl_eval \
+    --projections 'projections/**/*.parquet' \
+    --structures 'structures/**/*.parquet' \
+    --model claude-haiku-4-5
+```
+
+A case states **reactions any correct query returns** and reactions a plausible wrong one
+returns, never the query it expects: several spellings of a question are right, and pinning
+one would fail a better translation than the one written the day the case was added. The
+`must_not_return` half is what gives a case teeth — for "pyridine as a solvent" it holds
+reactions where pyridine is a reactant and something else is the solvent, which is what
+comes back when two conditions on one component become two quantifiers.
+
+Cases carry a `why`, printed with any failure, and one is marked `compiles: false`: a
+question the grammar cannot express, which the layer has to refuse rather than answer
+approximately. Refusing *outright* is what passes it — a model that writes a query, is
+told it does not compile, and only then declines has answered the caller correctly while
+failing what the case measures. The reaction IDs come from the corpus the cases were built against.
 
 ### Tell the model what it may query
 
