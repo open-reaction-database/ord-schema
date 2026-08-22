@@ -284,12 +284,10 @@ def _index(
     """
     index: dict[str, str] = {}
     for path in sorted(glob.glob(pattern, recursive=True)):
-        with pq.ParquetFile(path) as parquet_file:
-            columns = set(parquet_file.schema_arrow.names)
         stamps = base.load_stamps(path)
         if stamps.artifact != artifact:
             raise PairingError(f"{path} is a {stamps.artifact}, not a {artifact}")
-        missing = [name for name in schema.names if name not in columns]
+        missing = base.missing_columns(path, schema)
         if missing:
             # The stamps say nothing about a file's columns, so this is the only check
             # that sees a schema change. Without it a file predating a column is read

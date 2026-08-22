@@ -78,6 +78,7 @@ def main(args: argparse.Namespace) -> None:
         args.output_dir,
         artifact=structures.ARTIFACT,
         write=structures.write_structures,
+        schema=structures.SCHEMA,
         force=args.force,
         parent_artifact=projection.ARTIFACT,
     )

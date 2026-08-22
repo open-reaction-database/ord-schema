@@ -407,3 +407,22 @@ def test_the_artifact_carries_a_hash_beside_every_readable_structure(tmp_path):
     acetate = next(row for row in rows if "[O-]" in row["smiles"])
     assert acetate["mol_hash"] == structures.mol_hash("CC(=O)O")
     assert all(row["mol_hash"] for row in rows)
+
+
+def test_an_artifact_lacking_a_column_is_not_current(tmp_path):
+    # The stamps say nothing about columns, so without the schema an artifact written
+    # before one was added skips derivation and then fails wherever it is read.
+    source = _project(tmp_path)
+    output = tmp_path / "structures.parquet"
+    structures.write_structures(source, output)
+    stamps = base.load_stamps(output)
+    assert structures.is_current(output, stamps.source_md5)
+    table = pq.read_table(output)
+    pq.write_table(
+        table.drop_columns(["mol_hash"]).replace_schema_metadata(table.schema.metadata),
+        output,
+    )
+    assert base.missing_columns(output, structures.SCHEMA) == ["mol_hash"]
+    assert not base.is_current(
+        output, structures.ARTIFACT, stamps.source_md5, structures.SCHEMA
+    )
