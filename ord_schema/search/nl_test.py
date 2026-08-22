@@ -326,6 +326,23 @@ def test_a_declined_question_is_named_as_unanswerable():
         nl.translate("reactions that ran longer than their workup took", client=client)
 
 
+def test_a_refusal_after_a_failed_query_is_marked_as_such():
+    # Declining on the repair turn still answers the caller, but the model got there by
+    # way of a query the compiler refused rather than by reading the question.
+    client = _stub({"where": _BAD_PATH}, _Refusal("no column comparison"))
+    with pytest.raises(nl.UnanswerableError) as caught:
+        nl.translate("reactions that ran longer than their workup took", client=client)
+    assert caught.value.attempted
+    assert len(client.requests) == 2
+
+
+def test_an_outright_refusal_is_not_marked_as_attempted():
+    client = _stub(_Refusal("no column comparison"))
+    with pytest.raises(nl.UnanswerableError) as caught:
+        nl.translate("anything unanswerable", client=client)
+    assert not caught.value.attempted
+
+
 def test_a_refusal_is_not_repaired():
     # Nothing was wrong with the model's reasoning, so asking again only costs money.
     client = _stub(_Refusal("the schema does not hold that"))

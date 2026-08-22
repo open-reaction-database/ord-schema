@@ -137,8 +137,10 @@ def run_case(
 
     Returns:
         The result. A case marked ``compiles: false`` passes exactly when the model
-        declines, since saying so is the right answer to what the grammar cannot
-        express.
+        declines outright, since saying so is the right answer to what the grammar
+        cannot express. Declining only after a query failed to compile does not pass:
+        the case measures whether the model reads the question, not whether it
+        eventually stops.
 
     Raises:
         ModelRateLimitedError: If the caller is over its rate limit.
@@ -151,6 +153,13 @@ def run_case(
             case.question, client=client, model=model, repair=repair
         )
     except nl.UnanswerableError as error:
+        if error.attempted:
+            # The model wrote a query for a question the grammar cannot express and
+            # only backed off once the compiler said so. The caller is served, but the
+            # case exists to measure whether the model recognizes the question.
+            return CaseResult(
+                case, passed=False, detail=f"built a query, then declined: {error}"
+            )
         return CaseResult(case, passed=not case.compiles, detail=f"declined: {error}")
     except nl.MalformedQueryError as error:
         # Never a pass, whatever the case expects. A model that built a query for an

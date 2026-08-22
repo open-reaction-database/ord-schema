@@ -137,7 +137,24 @@ class UnanswerableError(NLQueryError):
     retrying will not help. Comparing two columns is the standard case -- a value is a
     literal or a compound, never another column -- and a layer without a way to say so
     answers with a plausible query that means something else.
+
+    Attributes:
+        attempted: Whether a query came first and failed to compile. A caller is served
+            either way, so this changes nothing about the answer; a measurement wants
+            it, because recognizing an inexpressible question is not the same as
+            backing into it after the compiler refused a guess.
     """
+
+    def __init__(self, reason: str, *, attempted: bool = False) -> None:
+        """Initializes the error.
+
+        Args:
+            reason: What the question asks for that the grammar lacks, in the model's
+                own words.
+            attempted: Whether the model built a query before declining.
+        """
+        super().__init__(reason)
+        self.attempted = attempted
 
 
 @dataclasses.dataclass(frozen=True)
@@ -321,7 +338,14 @@ def translate(
             ],
         },
     ]
-    retry = _call(client, model, messages)
+    try:
+        retry = _call(client, model, messages)
+    except UnanswerableError as error:
+        # Declining on the second turn is still the right answer, and the caller gets
+        # the same one. It is worth marking because the model reached it by way of a
+        # query the compiler refused rather than by reading the question.
+        error.attempted = True
+        raise
     try:
         return _validated(retry.input)
     except (ValueError, query.QueryError) as error:

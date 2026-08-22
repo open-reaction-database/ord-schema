@@ -26,7 +26,7 @@ from typing import Any, cast
 import pytest
 from anthropic.types import ToolUseBlock
 
-from ord_schema.search import execute, nl_eval
+from ord_schema.search import execute, nl, nl_eval
 
 _CASE = nl_eval.EvalCase(
     question="which reactions use pyridine as a solvent?",
@@ -77,6 +77,35 @@ class _StubClient:
             type="tool_use", id="toolu_stub", name=self._name, input=self._payload
         )
         return types.SimpleNamespace(content=[block], stop_reason="tool_use")
+
+
+class _RaisingClient:
+    """Raises a canned error instead of answering.
+
+    Attributes:
+        messages: Itself, so ``client.messages.create`` reaches ``create``.
+    """
+
+    def __init__(self, error: Exception) -> None:
+        """Initializes the stub.
+
+        Args:
+            error: What every request raises.
+        """
+        self._error = error
+        self.messages = self
+
+    def create(self, **kwargs: Any) -> Any:
+        """Raises the canned error.
+
+        Args:
+            **kwargs: The request, which the stub ignores.
+
+        Raises:
+            Exception: Always, with whatever this stub was built around.
+        """
+        del kwargs
+        raise self._error
 
 
 def _run(case, client) -> nl_eval.CaseResult:
@@ -174,6 +203,15 @@ def test_declining_an_inexpressible_question_passes():
     )
     assert result.passed
     assert "declined" in result.detail
+
+
+def test_a_refusal_reached_only_after_a_failed_query_fails():
+    # The caller is served either way, but this case exists to measure whether the
+    # model reads the question, not whether it eventually stops.
+    error = nl.UnanswerableError("no column comparison", attempted=True)
+    result = _run(_INEXPRESSIBLE, _RaisingClient(error))
+    assert not result.passed
+    assert "built a query, then declined" in result.detail
 
 
 def test_a_query_that_does_not_compile_never_passes():

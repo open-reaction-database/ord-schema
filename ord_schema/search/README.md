@@ -487,7 +487,9 @@ comes back when two conditions on one component become two quantifiers.
 
 Cases carry a `why`, printed with any failure, and one is marked `compiles: false`: a
 question the grammar cannot express, which the layer has to refuse rather than answer
-approximately. The reaction IDs come from the corpus the cases were built against.
+approximately. Refusing *outright* is what passes it — a model that writes a query, is
+told it does not compile, and only then declines has answered the caller correctly while
+failing what the case measures. The reaction IDs come from the corpus the cases were built against.
 
 ### Tell the model what it may query
 
