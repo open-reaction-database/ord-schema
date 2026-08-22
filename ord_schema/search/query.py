@@ -1045,8 +1045,9 @@ def _reduced(reduction: Reduction, schema: pa.Schema) -> str:
         schema: Schema the path resolves against.
 
     Returns:
-        A DuckDB expression yielding one scalar per reaction, NULL where the reaction
-        holds no elements under that path at all.
+        A DuckDB expression yielding one scalar per reaction. An arithmetic reducer
+        yields NULL for a reaction holding no elements under that path; ``count``
+        yields zero there, and NULL only where the repeated level itself is absent.
 
     Raises:
         QueryError: If the path is already scalar, which needs no reduction (accepting
