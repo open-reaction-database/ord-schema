@@ -1455,7 +1455,10 @@ def parse_doi(doi: str) -> str:
         ValueError: if the DOI cannot be parsed.
     """
     # See https://www.doi.org/doi_handbook/2_Numbering.html#2.2.
-    match = re.search(r"(10\.[\d.]+/[a-zA-Z\d.-]+)", doi)
+    # Parentheses are allowed in the suffix (common in older Elsevier DOIs such as
+    # 10.1016/S0022-328X(00)99569-X). A second "/" still ends the match so
+    # URL path junk after the DOI is trimmed.
+    match = re.search(r"(10\.[\d.]+/[a-zA-Z\d.()\-]+)", doi)
     if not match:
         raise ValueError(f"could not parse DOI: {doi}")
     return match.group(1)
