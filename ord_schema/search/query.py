@@ -468,6 +468,11 @@ _REDUCERS = {
     "count": "len(list_filter({expression}, value -> value IS NOT NULL))",
 }
 
+# Reducers and aggregates that arithmetic has to carry. The grammar already holds
+# ordered comparisons to numbers, and a sum over text is a DuckDB error rather than an
+# answer, so both are refused where the query is compiled rather than where it runs.
+_ARITHMETIC = frozenset({"min", "max", "avg", "sum"})
+
 
 class Reduction(BaseModel):
     """One value per reaction, reduced from a path that crosses a repeated level.
@@ -1009,12 +1014,27 @@ def _predicate(
     return _leaf(node, resolved, compounds)
 
 
-def _scalar(path: str, schema: pa.Schema, what: str) -> str:
-    """Returns the expression for a path that has to be scalar."""
+def _scalar(path: str, schema: pa.Schema, what: str) -> _Resolved:
+    """Returns where a path that has to be scalar landed."""
     resolved = resolve(path, schema=schema)
     if resolved.repeated:
         raise QueryError(f"{path}: {what} needs a scalar column, not a repeated level")
-    return resolved.expression
+    return resolved
+
+
+def _check_numeric(path: str, leaf: pa.DataType, what: str) -> None:
+    """Raises unless a leaf holds numbers.
+
+    Args:
+        path: The path, named in the message.
+        leaf: The type that path reaches.
+        what: The reducer or aggregate asking, named in the message.
+
+    Raises:
+        QueryError: If the leaf is neither an integer nor a floating-point type.
+    """
+    if not (pa.types.is_integer(leaf) or pa.types.is_floating(leaf)):
+        raise QueryError(f"{path}: {what} needs a numeric column, not {leaf}")
 
 
 def _reduced(reduction: Reduction, schema: pa.Schema) -> str:
@@ -1029,8 +1049,9 @@ def _reduced(reduction: Reduction, schema: pa.Schema) -> str:
         holds no elements under that path at all.
 
     Raises:
-        QueryError: If the path is already scalar, which needs no reduction; accepting
-            one would give the same query two spellings.
+        QueryError: If the path is already scalar, which needs no reduction (accepting
+            one would give the same query two spellings), or if an arithmetic reducer
+            reaches a leaf that does not hold numbers.
     """
     resolved = resolve(reduction.path, schema=schema)
     if not resolved.repeated:
@@ -1038,7 +1059,36 @@ def _reduced(reduction: Reduction, schema: pa.Schema) -> str:
             f"{reduction.path}: {reduction.reduce} reduces a repeated level, and this "
             f"path is already scalar; order by the path itself"
         )
+    if reduction.reduce in _ARITHMETIC:
+        _check_numeric(reduction.path, resolved.type, reduction.reduce)
     return _REDUCERS[reduction.reduce].format(expression=resolved.expression)
+
+
+def _measure_argument(measure: Measure, schema: pa.Schema) -> str:
+    """Returns the expression a measure aggregates over.
+
+    Args:
+        measure: The measure being compiled.
+        schema: Schema its path resolves against.
+
+    Returns:
+        ``*`` for a bare count, a reduced expression where the path crosses a repeated
+        level, and the resolved column otherwise, prefixed with ``DISTINCT`` for
+        ``count_distinct``.
+
+    Raises:
+        QueryError: If the path cannot be meant as this measure's argument.
+    """
+    if measure.path is None:
+        return "*"
+    if isinstance(measure.path, Reduction):
+        argument = _reduced(measure.path, schema)
+    else:
+        resolved = _scalar(measure.path, schema, measure.fn)
+        if measure.fn in _ARITHMETIC:
+            _check_numeric(measure.path, resolved.type, measure.fn)
+        argument = resolved.expression
+    return f"DISTINCT {argument}" if measure.fn == "count_distinct" else argument
 
 
 def compile_query(
@@ -1080,20 +1130,12 @@ def compile_query(
     structures: list[StructureParameter] = []
     if query.aggregate:
         groups = [
-            _scalar(path, schema, "group_by") for path in query.aggregate.group_by
+            _scalar(path, schema, "group_by").expression
+            for path in query.aggregate.group_by
         ]
         selected = list(groups)
         for measure in query.aggregate.measures:
-            if measure.path is None:
-                argument = "*"
-            elif isinstance(measure.path, Reduction):
-                argument = _reduced(measure.path, schema)
-                if measure.fn == "count_distinct":
-                    argument = f"DISTINCT {argument}"
-            else:
-                argument = _scalar(measure.path, schema, measure.fn)
-                if measure.fn == "count_distinct":
-                    argument = f"DISTINCT {argument}"
+            argument = _measure_argument(measure, schema)
             selected.append(f"{_AGGREGATES[measure.fn]}({argument}) AS {measure.name}")
         names = {measure.name for measure in query.aggregate.measures}
         orderable = names | set(query.aggregate.group_by)
@@ -1138,10 +1180,12 @@ def compile_query(
                     )
                 key = _reduced(order.key, schema)
             elif orderable is None:
-                key = _scalar(order.key, schema, "order_by")
+                key = _scalar(order.key, schema, "order_by").expression
             elif order.key in orderable:
                 key = (
-                    order.key if order.key in names else _scalar(order.key, schema, "")
+                    order.key
+                    if order.key in names
+                    else _scalar(order.key, schema, "").expression
                 )
             else:
                 raise QueryError(

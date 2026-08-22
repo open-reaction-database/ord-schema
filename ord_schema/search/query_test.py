@@ -503,6 +503,57 @@ def test_a_reduction_over_a_scalar_path_is_refused():
         )
 
 
+@pytest.mark.parametrize("reducer", ["min", "max", "avg", "sum"])
+def test_an_arithmetic_reduction_over_text_is_refused(reducer):
+    # Summing a list of strings is a DuckDB error rather than an answer, and a query
+    # that cannot mean anything is worth refusing where it is compiled.
+    with pytest.raises(query.QueryError, match="needs a numeric column"):
+        _compile(
+            {
+                "order_by": [
+                    {
+                        "key": {
+                            "reduce": reducer,
+                            "path": "outcomes.products.identifiers.value",
+                        }
+                    }
+                ]
+            }
+        )
+
+
+def test_counting_a_repeated_text_path_is_allowed():
+    # How many identifiers a reaction's products carry is a number, whatever the
+    # identifiers themselves hold.
+    compiled = _compile(
+        {
+            "order_by": [
+                {
+                    "key": {
+                        "reduce": "count",
+                        "path": "outcomes.products.identifiers.value",
+                    }
+                }
+            ]
+        }
+    )
+    assert "len(list_filter(" in compiled.sql
+
+
+def test_an_arithmetic_measure_over_text_is_refused():
+    # The same rule reaches a measure that names a scalar column directly.
+    with pytest.raises(query.QueryError, match="needs a numeric column"):
+        _compile(
+            {
+                "aggregate": {
+                    "measures": [
+                        {"fn": "avg", "path": "reaction_id", "name": "mean_id"}
+                    ]
+                }
+            }
+        )
+
+
 def test_an_aggregated_query_cannot_order_by_a_reduction():
     # After grouping there is no reaction left to reduce over; the reduction belongs
     # inside a measure, where it is one input to the aggregate.
