@@ -45,6 +45,30 @@
       "rows": 112322,
       "digest": "2dda10af6f14cd8292a6e08166295d6548cfdd34cf58021f7774da094ed1ae6e"
     },
+    "bounded_range": {
+      "rows": 185050,
+      "digest": "7a2caf1281dac95a60fd2240b2eea78f5c6dcce4aab1fddad1223e508a9276fe"
+    },
+    "at_most": {
+      "rows": 41335,
+      "digest": "969ed2fa06bca67328bff9e5ab92f375be602f74750a63995f055039fefd1521"
+    },
+    "disjunction": {
+      "rows": 61216,
+      "digest": "86965f3796b4bf93c7ea6444010985fd277903ddea6a0ab6b959127ef4b244bd"
+    },
+    "negation": {
+      "rows": 885972,
+      "digest": "d3065813fe14222fca70bbba06e82ac66e708e635e0412830aa8b4995eb8ae37"
+    },
+    "presence": {
+      "rows": 2377486,
+      "digest": "ecfecdde1cbaf93074eccb5b82af35bb67b646e4a53c20eef9e5571b13b63f3b"
+    },
+    "text_edges": {
+      "rows": 2377486,
+      "digest": "ecfecdde1cbaf93074eccb5b82af35bb67b646e4a53c20eef9e5571b13b63f3b"
+    },
     "text_predicate": {
       "rows": 3,
       "digest": "95c2a5b94a57196b7b927ddcc1107f5a8d3131e4f6f7e244ca45b0ac347485a4"

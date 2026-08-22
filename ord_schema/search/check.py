@@ -60,6 +60,13 @@ BASELINE = pathlib.Path(__file__).parent / "corpus_baseline.json"
 # One query per thing the corpus can be asked, so a build that broke any of them shows
 # up as an answer that moved rather than as a passing check. Each says what it covers,
 # because a digest that changes is only useful if someone can tell what changed.
+#
+# Python rather than a data file, which is what the eval cases beside this module are.
+# The rule is who changes it and when: an eval case is a question somebody thought to
+# ask a model, and arrives without touching the code, so it is data. This is a checklist
+# of code paths, and an entry is owed the day an operator is added to the grammar -- in
+# that same change, by that same person. ``check_test`` holds it to that: every operator
+# the grammar can express has to appear here.
 QUERIES: list[dict[str, Any]] = [
     {
         "name": "scalar_comparison",
@@ -250,6 +257,103 @@ QUERIES: list[dict[str, Any]] = [
                     "path": "smiles",
                     "smiles": "CC(=O)O",
                 },
+            }
+        },
+    },
+    {
+        "name": "bounded_range",
+        "covers": "ge and lt, the comparisons a range is written from",
+        "query": {
+            "where": {
+                "op": "and",
+                "clauses": [
+                    {
+                        "op": "ge",
+                        "path": "conditions.temperature.setpoint_kelvin",
+                        "value": {"literal": 300},
+                    },
+                    {
+                        "op": "lt",
+                        "path": "conditions.temperature.setpoint_kelvin",
+                        "value": {"literal": 350},
+                    },
+                ],
+            }
+        },
+    },
+    {
+        "name": "at_most",
+        "covers": "le, which a bound reaches through and a range does not",
+        "query": {
+            "where": {
+                "op": "le",
+                "path": "conditions.temperature.setpoint_kelvin",
+                "value": {"literal": 273},
+            }
+        },
+    },
+    {
+        "name": "disjunction",
+        "covers": "or, whose clauses compile the same way and combine differently",
+        "query": {
+            "where": {
+                "op": "or",
+                "clauses": [
+                    {
+                        "op": "eq",
+                        "path": "conditions.stirring.type",
+                        "value": {"literal": "STIR_BAR"},
+                    },
+                    {
+                        "op": "eq",
+                        "path": "conditions.stirring.type",
+                        "value": {"literal": "OVERHEAD_MIXER"},
+                    },
+                ],
+            }
+        },
+    },
+    {
+        "name": "negation",
+        "covers": "not, which the quantifier answers a different way",
+        "query": {
+            "where": {
+                "op": "not",
+                "clause": {
+                    "op": "exists",
+                    "path": "inputs.components",
+                    "where": {
+                        "op": "eq",
+                        "path": "reaction_role",
+                        "value": {"literal": "SOLVENT"},
+                    },
+                },
+            }
+        },
+    },
+    {
+        "name": "presence",
+        "covers": "not_null, the other half of the is_null pair",
+        "query": {"where": {"op": "not_null", "path": "provenance.doi"}},
+    },
+    {
+        "name": "text_edges",
+        "covers": "starts_with and ends_with, which contains does not exercise",
+        "query": {
+            "where": {
+                "op": "or",
+                "clauses": [
+                    {
+                        "op": "starts_with",
+                        "path": "provenance.doi",
+                        "value": {"literal": "10."},
+                    },
+                    {
+                        "op": "ends_with",
+                        "path": "provenance.doi",
+                        "value": {"literal": "x"},
+                    },
+                ],
             }
         },
     },

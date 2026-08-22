@@ -21,6 +21,7 @@ them: they exist to catch what a built corpus gets wrong.
 
 import json
 import pathlib
+import typing
 
 import pyarrow.parquet as pq
 import pytest
@@ -28,7 +29,7 @@ import pytest
 from ord_schema import parquet
 from ord_schema.artifacts import projection, structures
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.search import check, execute
+from ord_schema.search import check, execute, query
 
 _ROLE = reaction_pb2.ReactionRole
 
@@ -202,3 +203,46 @@ def test_the_report_puts_failures_first():
     text = check.report(findings)
     assert text.splitlines()[0] == "1/2 checks passed"
     assert text.index("FAIL broken") < text.index("ok   fine")
+
+
+def _grammar_operators() -> set[str]:
+    """Returns every ``op`` the predicate grammar can express."""
+    members = typing.get_args(typing.get_args(query.Predicate)[0])
+    return {
+        value
+        for member in members
+        for value in typing.get_args(member.model_fields["op"].annotation)
+    }
+
+
+def _operators_used(node) -> set[str]:
+    """Returns the ``op`` values appearing anywhere in a query payload."""
+    if isinstance(node, dict):
+        used = {node["op"]} if "op" in node else set()
+        for value in node.values():
+            used |= _operators_used(value)
+        return used
+    if isinstance(node, list):
+        return {value for item in node for value in _operators_used(item)}
+    return set()
+
+
+def test_every_grammar_operator_is_covered_by_a_canonical_query():
+    # The baseline is only as good as what it asks. An operator nothing asks about can
+    # break without moving a single digest, and the day that matters is the day someone
+    # adds one and forgets this list.
+    covered = set()
+    for entry in check.QUERIES:
+        covered |= _operators_used(entry["query"])
+    assert _grammar_operators() - covered == set()
+
+
+def test_every_reducer_is_covered_by_a_canonical_query():
+    reducers = set(query._REDUCERS)
+    covered = set()
+    for entry in check.QUERIES:
+        payload = json.dumps(entry["query"])
+        covered |= {name for name in reducers if f'"reduce": "{name}"' in payload}
+    # One is enough to prove the list-aggregate path compiles and runs; the rest differ
+    # only in which DuckDB function the same expression wraps, which query_test pins.
+    assert covered
