@@ -391,6 +391,11 @@ def ask(
 ) -> Answer:
     """Answers a question against a corpus.
 
+    The model's own failures arrive as ``NLQueryError`` subclasses; the search's arrive
+    as themselves. Folding both into one taxonomy would cost a caller the distinction
+    it answers with -- an unresolvable compound is the question's fault, a corpus whose
+    artifacts disagree is the deployment's.
+
     Args:
         question: The question, in English.
         corpus: The corpus to search.
@@ -406,6 +411,10 @@ def ask(
         UnanswerableError: If the grammar cannot express the question.
         ModelRateLimitedError: If the caller is over its rate limit.
         ModelUnavailableError: If the model cannot be reached.
+        ValueError: If a compound the query names cannot be resolved.
+        TimeoutError: If the search exceeds ``timeout_seconds``.
+        QueryError: If the compiled query cannot be run against these artifacts.
+        PairingError: If the corpus and its structures do not line up.
     """
     client = client if client is not None else get_client()
     translated = translate(question, client=client, model=model)
