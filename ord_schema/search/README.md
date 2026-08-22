@@ -478,7 +478,9 @@ outputs and strict tools share a validator that rejects circular references, the
 what is left once the recursion is removed as too large. So a translation is checked
 rather than guaranteed: the predicate tree usually arrives JSON-encoded in a string and is
 coerced back, a query that does not compile is handed back once carrying the compiler's
-own "did you mean", and a second failure raises `MalformedQueryError`.
+own "did you mean", and a second failure raises `MalformedQueryError`. A query that asks
+*nothing* — no `where`, no `aggregate`, no `limit` — is handed back the same way rather
+than run: it compiles, and it answers every question with the whole corpus.
 
 The model is also given a way to decline. Forcing `build_query` would leave it no way to
 say a question cannot be put to this grammar — comparing two columns, say — and a model

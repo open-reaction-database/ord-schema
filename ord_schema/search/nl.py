@@ -222,10 +222,20 @@ def _validated(raw: Any) -> query.Query:
         The parsed query.
 
     Raises:
-        ValueError: If it does not validate against the grammar.
+        ValueError: If it does not validate against the grammar, or if it asks nothing.
         QueryError: If it validates but does not compile against the schema.
     """
     parsed = query.Query.model_validate(_coerce(raw))
+    if parsed.where is None and parsed.aggregate is None and parsed.limit is None:
+        # A query with no predicate, no aggregate, and no limit compiles and returns
+        # the whole corpus, which is never the answer to a question. It reads as a
+        # result rather than as a failure, so it is refused here where the repair turn
+        # can still ask again. A limit makes it "show me some reactions", which is a
+        # question someone does ask.
+        raise ValueError(
+            "the query asks nothing: it has no where, no aggregate, and no limit, so "
+            "it would return every reaction in the corpus"
+        )
     query.compile_query(parsed)
     return parsed
 
