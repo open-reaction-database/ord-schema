@@ -367,3 +367,25 @@ def test_declining_is_told_apart_from_failing():
     # report, and both are NLQueryError to anything that only wants to catch one thing.
     assert issubclass(nl.UnanswerableError, nl.NLQueryError)
     assert not issubclass(nl.UnanswerableError, nl.MalformedQueryError)
+
+
+def test_a_query_that_asks_nothing_is_handed_back():
+    # An empty query compiles and returns the corpus, which reads as an answer rather
+    # than as the failure it is. Opus writes one for "reactions with no solvent at
+    # all" about two times in three.
+    client = _stub({}, {"where": _SOLVENT})
+    result = nl.translate("reactions with no solvent at all", client=client)
+    assert _where(result) is not None
+    assert len(client.requests) == 2
+
+
+def test_a_query_that_asks_nothing_fails_when_repair_is_off():
+    client = _stub({})
+    with pytest.raises(nl.MalformedQueryError, match="asks nothing"):
+        nl.translate("anything", client=client, repair=False)
+
+
+def test_a_bare_limit_is_a_question_someone_asks():
+    # "Show me ten reactions" needs no predicate, and the corpus is not what comes back.
+    client = _stub({"limit": 10})
+    assert nl.translate("show me ten reactions", client=client).limit == 10
