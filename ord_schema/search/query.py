@@ -28,8 +28,10 @@ nothing here.
 Two things the compiler settles that SQL leaves to whoever writes it:
 
 * **Quantifiers are stated, never assumed.** A path crossing a repeated level is
-  refused unless an ``exists`` or ``forall`` binds it. The same intent in SQL is spelled
-  ``UNNEST``, which silently means "any" *and* multiplies the row count.
+  refused in a predicate unless an ``exists`` or ``forall`` binds it. The same intent in
+  SQL is spelled ``UNNEST``, which silently means "any" *and* multiplies the row count.
+  A ``Reduction`` is the one reading that needs no quantifier, because it names what to
+  do with the elements instead of asking which of them match.
 * **Repeated levels compile to list lambdas**, never to ``UNNEST`` in a ``FROM`` clause
   -- measured at 27-200x the cost for identical answers, and the idiom every SQL
   tutorial teaches. A compiler cannot reach for the wrong one.
@@ -458,11 +460,45 @@ Not.model_rebuild()
 Quantifier.model_rebuild()
 
 
+# DuckDB's list aggregates, which ignore the nulls a list may hold. `count` filters
+# rather than taking len(), which would count them.
+_REDUCERS = {
+    "min": "list_min({expression})",
+    "max": "list_max({expression})",
+    "avg": "list_avg({expression})",
+    "sum": "list_sum({expression})",
+    "count": "len(list_filter({expression}, value -> value IS NOT NULL))",
+}
+
+# Reducers and aggregates that arithmetic has to carry. The grammar already holds
+# ordered comparisons to numbers, and a sum over text is a DuckDB error rather than an
+# answer, so both are refused where the query is compiled rather than where it runs.
+_ARITHMETIC = frozenset({"min", "max", "avg", "sum"})
+
+
+class Reduction(BaseModel):
+    """One value per reaction, reduced from a path that crosses a repeated level.
+
+    An ordering key and an aggregate's argument both have to be scalar, which leaves
+    "the highest-yielding reactions" unwritable: a yield lives under outcomes, products,
+    and measurements, so the path resolves to a list rather than a number. This reduces
+    that list to the one value the reaction is judged by, leaving the aggregate to
+    combine those across reactions.
+
+    Attributes:
+        reduce: How to reduce the list. ``count`` counts the values that are present.
+        path: A dotted path crossing at least one repeated level.
+    """
+
+    reduce: Literal["min", "max", "avg", "sum", "count"]
+    path: str
+
+
 class Measure(BaseModel):
     """One aggregate over the matching rows."""
 
     fn: Literal["count", "count_distinct", "sum", "avg", "min", "max"]
-    path: str | None = None
+    path: str | Reduction | None = None
     name: str
 
     @model_validator(mode="after")
@@ -488,7 +524,7 @@ class Aggregate(BaseModel):
 class Order(BaseModel):
     """How to sort the result."""
 
-    key: str
+    key: str | Reduction
     descending: bool = False
 
 
@@ -980,12 +1016,82 @@ def _predicate(
     return _leaf(node, resolved, compounds)
 
 
-def _scalar(path: str, schema: pa.Schema, what: str) -> str:
-    """Returns the expression for a path that has to be scalar."""
+def _scalar(path: str, schema: pa.Schema, what: str) -> _Resolved:
+    """Returns where a path that has to be scalar landed."""
     resolved = resolve(path, schema=schema)
     if resolved.repeated:
         raise QueryError(f"{path}: {what} needs a scalar column, not a repeated level")
-    return resolved.expression
+    return resolved
+
+
+def _check_numeric(path: str, leaf: pa.DataType, what: str) -> None:
+    """Raises unless a leaf holds numbers.
+
+    Args:
+        path: The path, named in the message.
+        leaf: The type that path reaches.
+        what: The reducer or aggregate asking, named in the message.
+
+    Raises:
+        QueryError: If the leaf is neither an integer nor a floating-point type.
+    """
+    if not (pa.types.is_integer(leaf) or pa.types.is_floating(leaf)):
+        raise QueryError(f"{path}: {what} needs a numeric column, not {leaf}")
+
+
+def _reduced(reduction: Reduction, schema: pa.Schema) -> str:
+    """Returns the expression reducing a repeated path to one value per reaction.
+
+    Args:
+        reduction: What to reduce, and how.
+        schema: Schema the path resolves against.
+
+    Returns:
+        A DuckDB expression yielding one scalar per reaction. An arithmetic reducer
+        yields NULL for a reaction holding no elements under that path; ``count``
+        yields zero there, and NULL only where the repeated level itself is absent.
+
+    Raises:
+        QueryError: If the path is already scalar, which needs no reduction (accepting
+            one would give the same query two spellings), or if an arithmetic reducer
+            reaches a leaf that does not hold numbers.
+    """
+    resolved = resolve(reduction.path, schema=schema)
+    if not resolved.repeated:
+        raise QueryError(
+            f"{reduction.path}: {reduction.reduce} reduces a repeated level, and this "
+            f"path is already scalar; order by the path itself"
+        )
+    if reduction.reduce in _ARITHMETIC:
+        _check_numeric(reduction.path, resolved.type, reduction.reduce)
+    return _REDUCERS[reduction.reduce].format(expression=resolved.expression)
+
+
+def _measure_argument(measure: Measure, schema: pa.Schema) -> str:
+    """Returns the expression a measure aggregates over.
+
+    Args:
+        measure: The measure being compiled.
+        schema: Schema its path resolves against.
+
+    Returns:
+        ``*`` for a bare count, a reduced expression where the path crosses a repeated
+        level, and the resolved column otherwise, prefixed with ``DISTINCT`` for
+        ``count_distinct``.
+
+    Raises:
+        QueryError: If the path cannot be meant as this measure's argument.
+    """
+    if measure.path is None:
+        return "*"
+    if isinstance(measure.path, Reduction):
+        argument = _reduced(measure.path, schema)
+    else:
+        resolved = _scalar(measure.path, schema, measure.fn)
+        if measure.fn in _ARITHMETIC:
+            _check_numeric(measure.path, resolved.type, measure.fn)
+        argument = resolved.expression
+    return f"DISTINCT {argument}" if measure.fn == "count_distinct" else argument
 
 
 def compile_query(
@@ -1027,16 +1133,12 @@ def compile_query(
     structures: list[StructureParameter] = []
     if query.aggregate:
         groups = [
-            _scalar(path, schema, "group_by") for path in query.aggregate.group_by
+            _scalar(path, schema, "group_by").expression
+            for path in query.aggregate.group_by
         ]
         selected = list(groups)
         for measure in query.aggregate.measures:
-            if measure.path is None:
-                argument = "*"
-            else:
-                argument = _scalar(measure.path, schema, measure.fn)
-                if measure.fn == "count_distinct":
-                    argument = f"DISTINCT {argument}"
+            argument = _measure_argument(measure, schema)
             selected.append(f"{_AGGREGATES[measure.fn]}({argument}) AS {measure.name}")
         names = {measure.name for measure in query.aggregate.measures}
         orderable = names | set(query.aggregate.group_by)
@@ -1071,11 +1173,22 @@ def compile_query(
     if query.order_by:
         keys = []
         for order in query.order_by:
-            if orderable is None:
-                key = _scalar(order.key, schema, "order_by")
+            if isinstance(order.key, Reduction):
+                if orderable is not None:
+                    # After grouping there is no reaction left to reduce over: the
+                    # reduction is one input to a measure, not a key beside it.
+                    raise QueryError(
+                        "an aggregated query orders by a measure name or a group_by "
+                        "path; reduce inside a measure instead"
+                    )
+                key = _reduced(order.key, schema)
+            elif orderable is None:
+                key = _scalar(order.key, schema, "order_by").expression
             elif order.key in orderable:
                 key = (
-                    order.key if order.key in names else _scalar(order.key, schema, "")
+                    order.key
+                    if order.key in names
+                    else _scalar(order.key, schema, "").expression
                 )
             else:
                 raise QueryError(
