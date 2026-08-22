@@ -258,7 +258,9 @@ def _max_structure_id(path: str) -> int | None:
     return largest
 
 
-def _index(pattern: str, artifact: str, require_current: bool) -> dict[str, str]:
+def _index(
+    pattern: str, artifact: str, schema: pa.Schema, require_current: bool
+) -> dict[str, str]:
     """Returns the artifacts matching ``pattern``, keyed by source dataset.
 
     Keyed by the source hash rather than the filename because that is what an
@@ -269,20 +271,35 @@ def _index(pattern: str, artifact: str, require_current: bool) -> dict[str, str]
     Args:
         pattern: Glob matching the artifact files.
         artifact: Artifact name every match must hold.
+        schema: The columns this library's version of the artifact carries.
         require_current: Refuse artifacts not written by the current versions.
 
     Returns:
         A mapping from source dataset hash to path.
 
     Raises:
-        PairingError: If a match holds another artifact, is stale under
-            ``require_current``, or restates a dataset another match already did.
+        PairingError: If a match holds another artifact, lacks a column this library
+            reads, is stale under ``require_current``, or restates a dataset another
+            match already did.
     """
     index: dict[str, str] = {}
     for path in sorted(glob.glob(pattern, recursive=True)):
+        with pq.ParquetFile(path) as parquet_file:
+            columns = set(parquet_file.schema_arrow.names)
         stamps = base.load_stamps(path)
         if stamps.artifact != artifact:
             raise PairingError(f"{path} is a {stamps.artifact}, not a {artifact}")
+        missing = [name for name in schema.names if name not in columns]
+        if missing:
+            # The stamps say nothing about a file's columns, so this is the only check
+            # that sees a schema change. Without it a file predating a column is read
+            # as a corpus member and fails deep in DuckDB -- as a binder error on the
+            # query that wants the column, or, where some files have it and some do
+            # not, as a schema mismatch that takes down every structure query.
+            raise PairingError(
+                f"{path} is a {artifact} artifact without {missing}, which this "
+                "library reads; derive it again first"
+            )
         if require_current and not base.stamps_are_current(stamps, artifact):
             raise PairingError(f"{path} is stale; derive it again first")
         if stamps.source_md5 in index:
@@ -309,12 +326,16 @@ def _pair(
         One pair per source dataset, ordered by the projection's source hash.
 
     Raises:
-        PairingError: If no projection matches, or if either side states a dataset the
-            other does not, since a projection's IDs index its own partner's molecules
-            and nobody else's.
+        PairingError: If no projection matches, if either side lacks a column this
+            library reads, or if either side states a dataset the other does not, since
+            a projection's IDs index its own partner's molecules and nobody else's.
     """
-    projections = _index(projection_pattern, projection.ARTIFACT, require_current)
-    structure_files = _index(structures_pattern, structures.ARTIFACT, require_current)
+    projections = _index(
+        projection_pattern, projection.ARTIFACT, projection.SCHEMA, require_current
+    )
+    structure_files = _index(
+        structures_pattern, structures.ARTIFACT, structures.SCHEMA, require_current
+    )
     if not projections:
         raise PairingError(f"no projections matched: {projection_pattern}")
     unpaired = projections.keys() ^ structure_files.keys()
@@ -1849,7 +1870,7 @@ class Corpus:
         that hit it rather than with everyone queued behind.
 
         Args:
-            cursor: The cursor a similarity screen runs on.
+            cursor: The cursor a similarity screen or a hash match runs on.
             parameter: The predicate to evaluate.
             resolve: Maps a compound name to SMILES.
 
@@ -1857,8 +1878,9 @@ class Corpus:
             The bitmap over corpus-wide structure IDs.
 
         Raises:
-            ValueError: If the predicate names neither a pattern nor a compound, or if
-                a resolved compound's SMILES does not parse.
+            ValueError: If the predicate names neither a pattern nor a compound, if a
+                resolved compound's SMILES does not parse, or if RDKit refuses to hash
+                the query molecule of a ``same_compound`` predicate.
             PairingError: If the library does not come out one entry per distinct
                 molecule over an unbroken run of IDs.
         """

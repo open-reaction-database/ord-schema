@@ -734,7 +734,7 @@ def _structure(
 
 def _element_terms(
     node: "Quantifier",
-) -> "tuple[Substructure | Similarity, dict[str, str]] | None":
+) -> "tuple[Substructure | Similarity | SameCompound, dict[str, str]] | None":
     """Returns what an ``exists`` body asks of one element, or None if it asks more.
 
     The shape an element index can answer, stated without knowing what any index holds:
@@ -754,10 +754,10 @@ def _element_terms(
     if node.op != "exists":
         return None
     clauses = node.where.clauses if isinstance(node.where, And) else [node.where]
-    structure: Substructure | Similarity | None = None
+    structure: Substructure | Similarity | SameCompound | None = None
     fields: dict[str, str] = {}
     for clause in clauses:
-        if isinstance(clause, Substructure | Similarity):
+        if isinstance(clause, Substructure | Similarity | SameCompound):
             if structure is not None or clause.path != "smiles":
                 return None
             structure = clause

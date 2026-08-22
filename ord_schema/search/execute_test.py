@@ -18,6 +18,7 @@ import contextlib
 import logging
 import pathlib
 import re
+import shutil
 import threading
 import time
 from collections.abc import Iterator
@@ -30,7 +31,7 @@ from rdkit import Chem
 from rdkit.Chem import rdSubstructLibrary
 
 from ord_schema import parquet
-from ord_schema.artifacts import pivot, projection, structures
+from ord_schema.artifacts import base, pivot, projection, structures
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.search import execute, query
 
@@ -1262,6 +1263,11 @@ _ROUTABLE = {
     "a compound name": {
         "where": _exists(
             {"op": "substructure", "path": "smiles", "compound": "pyridine"}
+        )
+    },
+    "same compound": {
+        "where": _exists(
+            {"op": "same_compound", "path": "smiles", "smiles": "c1ccncc1"}
         )
     },
     "products rather than inputs": {
@@ -3684,3 +3690,52 @@ def test_a_compound_name_resolves_to_a_same_compound_query(drawn_two_ways):
         drawn_two_ways,
         _exists({"op": "same_compound", "path": "smiles", "compound": "acetic_acid"}),
     ) == {"ord-dd01"}
+
+
+def _without_mol_hash(corpus_dir, tmp_path, *, files: int) -> pathlib.Path:
+    """Copies a corpus and drops ``mol_hash`` from some of its structures artifacts.
+
+    The stamps are carried over untouched, which is the whole point: they say nothing
+    about a file's columns, so a file predating one still reads as current.
+
+    Args:
+        corpus_dir: The corpus to copy.
+        tmp_path: Where to put the copy.
+        files: How many structures artifacts to drop the column from.
+
+    Returns:
+        The copy's root.
+    """
+    root = tmp_path / "aged"
+    shutil.copytree(corpus_dir, root)
+    for path in sorted((root / "structures").glob("*.parquet"))[:files]:
+        table = pq.read_table(path)
+        pq.write_table(
+            table.drop_columns(["mol_hash"]).replace_schema_metadata(
+                table.schema.metadata
+            ),
+            path,
+        )
+    return root
+
+
+def test_a_structures_artifact_without_mol_hash_is_refused(corpus_dir, tmp_path):
+    # Stale is not what this is: the stamps still match, so nothing rebuilds the file
+    # and nothing else would notice until DuckDB failed to bind the column.
+    root = _without_mol_hash(corpus_dir, tmp_path, files=2)
+    assert structures.is_current(
+        next((root / "structures").glob("*.parquet")),
+        base.load_stamps(next((root / "structures").glob("*.parquet"))).source_md5,
+    )
+    with pytest.raises(execute.PairingError, match="mol_hash"):
+        _open(root)
+
+
+def test_one_aged_structures_artifact_is_refused_with_the_others_current(
+    corpus_dir, tmp_path
+):
+    # The likelier state, and the worse one: DuckDB reads a glob of mismatched schemas
+    # as an error on every structure query rather than on the one that wants the column.
+    root = _without_mol_hash(corpus_dir, tmp_path, files=1)
+    with pytest.raises(execute.PairingError, match="derive it again"):
+        _open(root)
