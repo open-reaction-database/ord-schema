@@ -144,6 +144,10 @@ def build(corpus: execute.Corpus, *, examples: int = 3) -> list[dict[str, Any]]:
 
     Returns:
         Cases ready to serialize.
+
+    Raises:
+        ValueError: If a near-miss returns nothing its reference excludes, which makes
+            it no near-miss and would leave the case with no counterexample.
     """
     built = []
     for case in CASES:

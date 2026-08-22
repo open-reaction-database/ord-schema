@@ -21,12 +21,14 @@ removed, rejects what is left as too large. So translation is ordinary generatio
 checked afterwards: the tool schema is documentation the model mostly follows rather
 than a rule it cannot break.
 
-Three things follow, and they are the whole design. The predicate tree usually arrives
+Four things follow, and they are the whole design. The predicate tree usually arrives
 JSON-encoded inside a string, so it is coerced before validation rather than after a
 failure. The compiler's errors name the offending path and suggest a real one, so a
-query that does not compile is worth handing back exactly once. And the schema rendering
-and the grammar are ~15k tokens of prompt that never change, so they are cached, which
-is most of what a query costs.
+query that does not compile is worth handing back exactly once. A model with no way to
+decline invents a query for a question the grammar cannot express, so ``cannot_answer``
+is offered beside ``build_query``. And the schema rendering and the grammar are ~15k
+tokens of prompt that never change, so they are cached, which is most of what a query
+costs.
 
 The measurements behind those choices are in the ord-logbook entry "What constrains a
 natural-language layer over the search grammar".
@@ -212,6 +214,7 @@ def _call(
         The ``tool_use`` content block.
 
     Raises:
+        UnanswerableError: If the model calls ``cannot_answer`` instead.
         ModelRateLimitedError: If the caller is over its rate limit.
         ModelUnavailableError: If the model cannot be reached.
         MalformedQueryError: If the response carries no tool call at all.

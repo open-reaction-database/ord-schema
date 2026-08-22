@@ -40,6 +40,9 @@ from ord_schema.search import execute, nl
 logger = get_logger(__name__)
 
 CASES = pathlib.Path(__file__).parent / "nl_cases.json"
+# Longer than a served query would wait, because a run is unattended and a case whose
+# translation is slow is worth a verdict rather than a stopped harness.
+DEFAULT_TIMEOUT_SECONDS = 300.0
 
 
 class EvalCase(BaseModel):
@@ -119,6 +122,7 @@ def run_case(
     client: anthropic.Anthropic,
     model: str,
     repair: bool,
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> CaseResult:
     """Translates one case, runs it, and scores what came back.
 
@@ -128,11 +132,19 @@ def run_case(
         client: Anthropic client.
         model: Which model translates.
         repair: Whether a failure gets the repair turn.
+        timeout_seconds: Bounds the search, so a case that translates into something
+            slow fails the run rather than stopping it.
 
     Returns:
         The result. A case marked ``compiles: false`` passes exactly when the model
         declines, since saying so is the right answer to what the grammar cannot
         express.
+
+    Raises:
+        ModelRateLimitedError: If the caller is over its rate limit.
+        ModelUnavailableError: If the model cannot be reached. Neither is scored as a
+            failed translation: the measurement did not happen, and calling that a
+            wrong answer would understate the model on the next run.
     """
     try:
         translated = nl.translate(
@@ -149,7 +161,7 @@ def run_case(
         return CaseResult(
             case, passed=False, detail="compiled, but the grammar cannot express this"
         )
-    table = corpus.search(translated)
+    table = corpus.search(translated, timeout_seconds=timeout_seconds)
     return score(case, table.column("reaction_id").to_pylist())
 
 
@@ -206,6 +218,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         ),
     )
     parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help="What one case's search may take before it fails",
+    )
+    parser.add_argument(
         "--require-current",
         action="store_true",
         help="Refuse artifacts not written by this version of the library",
@@ -227,6 +245,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 client=client,
                 model=args.model,
                 repair=not args.no_repair,
+                timeout_seconds=args.timeout_seconds,
             )
             for case in cases
         ]
