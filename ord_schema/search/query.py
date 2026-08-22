@@ -454,9 +454,10 @@ class SameCompound(BaseModel):
 
     An ``eq`` on a ``smiles`` compares spellings, and two drawings of one reagent are
     unequal: acetic acid and acetate, an amine and its ammonium, a 2-pyridone and its
-    2-hydroxypyridine tautomer. This compares the ``mol_hash`` the structures
-    artifact derives, which ignores protonation state and tautomer, so those match.
-    Fragments are not ignored: sodium acetate stays distinct from acetic acid.
+    2-hydroxypyridine tautomer. This compares the ``mol_hash`` the structures artifact
+    derives, which ignores protonation state, tautomer, and atom-map labels, so those
+    match. Fragments and stereochemistry are not ignored: sodium acetate stays distinct
+    from acetic acid, and enantiomers from each other.
 
     ``path`` names a compound's ``smiles``. The query is a SMILES, or a compound name
     resolved at execution; exactly one is given.

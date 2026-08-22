@@ -359,6 +359,10 @@ def test_a_stale_projection_is_refused(tmp_path):
         ("amide-imidic acid", "CC(=O)N", "CC(O)=N"),
         ("lactam-lactim", "O=c1cccc[nH]1", "Oc1ccccn1"),
         ("kekule", "C1=CC=NC=C1", "c1ccncc1"),
+        # Registration strips atom-map labels, which a bare tautomer hash keeps: the
+        # same reagent written for a mapped reaction is the same reagent.
+        ("atom maps", "[CH3:1][C:2](=[O:3])[OH:4]", "CC(=O)O"),
+        ("explicit hydrogens", "[H]OC", "CO"),
     ],
 )
 def test_one_compound_drawn_two_ways_hashes_the_same(label, left, right):
@@ -377,6 +381,9 @@ def test_one_compound_drawn_two_ways_hashes_the_same(label, left, right):
         # counterions turns NaH into hydrogen.
         ("salt", "CC(=O)O", "CC(=O)[O-].[Na+]"),
         ("cocrystal", "c1ccccc1", "c1ccccc1.Cc1ccccc1"),
+        # Stereochemistry is not a way of drawing one compound.
+        ("enantiomers", "C[C@H](N)C(=O)O", "C[C@@H](N)C(=O)O"),
+        ("isotopes", "[2H]OC", "CO"),
     ],
 )
 def test_different_compounds_hash_differently(label, left, right):

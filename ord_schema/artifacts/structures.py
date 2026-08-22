@@ -47,19 +47,24 @@ verification at all: Tanimoto is defined on the Morgan fingerprint, so the scree
 the answer, and ``morgan_popcount`` bounds it (``popcount(B)`` must lie within ``[t *
 popcount(A), popcount(A) / t]`` for Tanimoto ``>= t``).
 
-Beside the SMILES the projection derived, a row carries a ``mol_hash``: an
-identity for the molecule that ignores how it was drawn. Equality on the stored
-spelling is exact and answers the wrong question surprisingly often -- acetic acid and
-acetate, an amine and its ammonium, a 2-pyridone and its 2-hydroxypyridine tautomer are
-each one reagent written two ways, and each compares unequal. The hash is taken of the
-uncharged molecule, so protonation states collapse, and it is RDKit's het-atom tautomer
-hash, so tautomers collapse with them.
+Beside the SMILES the projection derived, a row carries a ``mol_hash``: an identity
+for the molecule that ignores how it was drawn. Equality on the stored spelling is
+exact and answers the wrong question surprisingly often -- acetic acid and acetate, an
+amine and its ammonium, a 2-pyridone and its 2-hydroxypyridine tautomer are each one
+reagent written two ways, and each compares unequal.
 
-It is a hash rather than a standardized SMILES because canonicalizing a tautomer costs
-what the corpus does not have: measured over ORD's own molecules, RDKit's tautomer
-enumerator runs at ~500 structures a second against ~19,000 for the hash, which is an
-hour against two minutes over the two million distinct structures here. The stored
-SMILES beside it is what a reader looks at; the hash is only ever compared.
+It is RDKit's registration hash, taken of the uncharged molecule. Uncharging is what
+makes the scheme insensitive to protonation as well as to tautomer: one of its layers
+is the molecular formula, and a formula states the charge. Registration is the right
+API rather than a bare tautomer hash because it normalizes what a bare hash does not --
+atom-map labels, unnecessary explicit hydrogens, enhanced stereo, S-group data -- so a
+compound written with atom maps is the same compound. It is a hash rather than a
+canonical tautomer because canonicalizing one costs what the corpus does not have:
+measured over ORD's own molecules, RDKit's tautomer enumerator runs at ~500 structures
+a second against ~2,600 for this hash, which is an hour against thirteen minutes over
+the two million distinct structures here, before the per-file parallelism the build
+already has. The stored SMILES beside it is what a reader looks at; the hash is only
+ever compared.
 
 Fragments are left alone, so sodium acetate stays distinct from acetic acid. That is a
 narrower claim than "the same reagent" on purpose -- every salt-stripping rule measured
@@ -84,7 +89,7 @@ from typing import Any
 import pyarrow as pa
 import pyarrow.parquet as pq
 from rdkit import Chem, DataStructs
-from rdkit.Chem import rdFingerprintGenerator, rdMolHash
+from rdkit.Chem import RegistrationHash, rdFingerprintGenerator
 from rdkit.Chem.MolStandardize import rdMolStandardize
 
 from ord_schema import atomic_io
@@ -305,17 +310,23 @@ def _collect(source: str | os.PathLike[str]) -> list[str]:
 # Built once: constructing an uncharger per molecule dominates the work it does, and
 # it carries no per-molecule state.
 _UNCHARGER = rdMolStandardize.Uncharger()
-# Version 2 of the het-atom tautomer hash. Version 1 leaves a keto/enol pair apart,
-# which is the tautomer a chemist is most likely to have drawn either way.
-_TAUTOMER_HASH = rdMolHash.HashFunction.HetAtomTautomerv2
+# The registration hash's tautomer-insensitive scheme drops the two layers that spell a
+# structure exactly and keeps the formula, the tautomer hash, and the S-group data.
+_SCHEME = RegistrationHash.HashScheme.TAUTOMER_INSENSITIVE_LAYERS
 
 
 def mol_hash(structure: Chem.Mol | str) -> str | None:
     """Returns an identity for a molecule that ignores tautomer and protonation state.
 
     Two drawings of one reagent hash the same: acetic acid and acetate, an amine and
-    its ammonium, a 2-pyridone and its 2-hydroxypyridine tautomer. Fragments are left
-    alone, so sodium acetate hashes differently from acetic acid.
+    its ammonium, a 2-pyridone and its 2-hydroxypyridine tautomer, a compound written
+    with atom-map labels and the same compound without them. Fragments are left alone,
+    so sodium acetate hashes differently from acetic acid, and so is stereochemistry,
+    so enantiomers stay apart.
+
+    The molecule is uncharged before it is hashed, which is what makes the scheme
+    insensitive to protonation as well: one of its layers is the molecular formula, and
+    a formula states the charge.
 
     Args:
         structure: A parsed molecule, or SMILES to read one from.
@@ -330,8 +341,16 @@ def mol_hash(structure: Chem.Mol | str) -> str | None:
     if molecule is None:
         return None
     try:
-        return rdMolHash.MolHash(_UNCHARGER.uncharge(molecule), _TAUTOMER_HASH)
-    except (Chem.AtomValenceException, Chem.KekulizeException, RuntimeError):
+        layers = RegistrationHash.GetMolLayers(
+            _UNCHARGER.uncharge(molecule), enable_tautomer_hash_v2=True
+        )
+        return RegistrationHash.GetMolHash(layers, _SCHEME)
+    except (
+        Chem.AtomValenceException,
+        Chem.KekulizeException,
+        RuntimeError,
+        ValueError,
+    ):
         return None
 
 

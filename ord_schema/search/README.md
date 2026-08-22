@@ -93,10 +93,11 @@ is a compile error rather than a wrong answer:
 - `same_compound` asks "the same compound, however either was drawn"; an `eq` on a `smiles`
   asks "the same spelling". Acetic acid and acetate, an amine and its ammonium, a 2-pyridone
   and its 2-hydroxypyridine tautomer are each one reagent written two ways, and each compares
-  unequal under `eq`. It matches on the `mol_hash` the structures artifact derives, so
-  protonation state and tautomer are ignored — and fragments are not, so sodium acetate is
-  still a different reagent from acetic acid. Prefer it to `eq` whenever the question names a
-  compound rather than a string.
+  unequal under `eq`. It matches on the `mol_hash` the structures artifact derives — RDKit's
+  registration hash of the uncharged molecule — so protonation state, tautomer, and atom-map
+  labels are ignored. Fragments and stereochemistry are not: sodium acetate is still a
+  different reagent from acetic acid, and enantiomers are still different compounds. Prefer
+  it to `eq` whenever the question names a compound rather than a string.
 - A SMARTS naming a hydrogen the corpus stores implicitly is rewritten, with a warning,
   rather than run as written: stored molecules come from SMILES, so `[H]OC` matches no
   methanol and would return empty without saying why. `MergeQueryHs` folds it to
