@@ -532,6 +532,53 @@ def test_no_cap_to_read_is_not_warned_about(corpus_dir, tmp_path, monkeypatch, c
     ]
 
 
+def test_a_resolved_name_is_compared_in_the_corpus_s_own_spelling(corpus_dir):
+    # PubChem answers with a Kekule form and the projection stores what RDKit
+    # canonicalizes, so comparing the two as strings matches nothing -- and says so by
+    # returning no rows, which is the worst way for a query to be wrong.
+    with _open(corpus_dir, resolver={"pyridine": "C1=CC=NC=C1"}.__getitem__) as corpus:
+        table = corpus.search(
+            query.Query.model_validate(
+                {
+                    "where": {
+                        "op": "exists",
+                        "path": "inputs.components",
+                        "where": {
+                            "op": "eq",
+                            "path": "smiles",
+                            "value": {"compound": "pyridine"},
+                        },
+                    }
+                }
+            )
+        )
+    assert table.num_rows > 0
+
+
+def test_a_name_resolving_to_nonsense_is_left_alone(corpus_dir):
+    # Canonicalizing cannot fix an unparseable answer, and swallowing it here would
+    # hide a resolver fault behind an empty result.
+    with _open(
+        corpus_dir, resolver={"nonsense": "not a molecule"}.__getitem__
+    ) as corpus:
+        table = corpus.search(
+            query.Query.model_validate(
+                {
+                    "where": {
+                        "op": "exists",
+                        "path": "inputs.components",
+                        "where": {
+                            "op": "eq",
+                            "path": "smiles",
+                            "value": {"compound": "nonsense"},
+                        },
+                    }
+                }
+            )
+        )
+    assert table.num_rows == 0
+
+
 def _copy_corpus(corpus_dir, tmp_path) -> pathlib.Path:
     """Copies the built corpus so a test can damage one artifact in isolation."""
     for name in ("projections", "structures"):

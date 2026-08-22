@@ -196,6 +196,27 @@ def _resolve_with_resolvers(name: str) -> str:
     return smiles
 
 
+def _canonical(smiles: str) -> str:
+    """Returns the SMILES as the corpus spells it.
+
+    A resolver answers in whatever form its service uses -- PubChem returns pyridine
+    as ``C1=CC=NC=C1`` -- while the projection stores what RDKit canonicalizes,
+    ``c1ccncc1``. Comparing the two as strings matches nothing and says so by
+    returning no rows, which is the worst way for a query to be wrong. Structure
+    predicates are unaffected: they go through RDKit rather than string equality.
+
+    Args:
+        smiles: What the resolver returned.
+
+    Returns:
+        The canonical form, or the input unchanged if RDKit cannot parse it, since a
+        name that resolves to something unparseable is the resolver's problem to report
+        and not this function's to hide.
+    """
+    molecule = Chem.MolFromSmiles(smiles)
+    return Chem.MolToSmiles(molecule) if molecule is not None else smiles
+
+
 def _sql_string(value: str) -> str:
     """Returns ``value`` as a SQL string literal, single quotes escaped."""
     escaped = value.replace("'", "''")
@@ -1922,7 +1943,7 @@ class Corpus:
 
         def resolve(name: str) -> str:
             if name not in resolved:
-                resolved[name] = self._resolver(name)
+                resolved[name] = _canonical(self._resolver(name))
             return resolved[name]
 
         with contextlib.ExitStack() as reading:
