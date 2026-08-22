@@ -22,6 +22,23 @@ import pytest
 from ord_schema.search import nl_log
 
 _QUERY = {"op": "eq", "path": "reaction_id", "value": {"literal": "ord-1"}}
+# Two predicates the grammar really produces, agreeing on no part of their shape: one
+# nests a list of clauses, the other a quantifier over a structure predicate.
+_CONJUNCTION = nl_log.Attempt(
+    translation={
+        "op": "and",
+        "clauses": [{"op": "gt", "path": "y", "value": {"literal": 1}}],
+    },
+    error=None,
+)
+_QUANTIFIER = nl_log.Attempt(
+    translation={
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {"op": "similarity", "smiles": "c1ccccc1", "threshold": 0.4},
+    },
+    error=None,
+)
 _ANSWERED = nl_log.Ask(
     question="which reactions use pyridine as a solvent?",
     model="claude-haiku-4-5",
@@ -149,6 +166,141 @@ def test_a_failing_sink_never_fails_the_question(caplog):
 
 def test_emitting_to_no_sink_at_all_is_allowed():
     assert nl_log.emit(None, _ask()) is None
+
+
+def test_reading_folds_a_thumb_and_a_label_onto_their_ask(tmp_path):
+    sink = nl_log.JsonlSink(tmp_path / "log.jsonl")
+    sink.write(nl_log.event(_ask(record_id="0f3c")))
+    sink.write(nl_log.event(_ask(record_id="7b21", outcome=nl_log.EMPTY)))
+    sink.write(nl_log.thumb("0f3c", "down", comment="wrong solvent"))
+    sink.write(nl_log.label("0f3c", "wrong", note="two quantifiers"))
+    found = nl_log.read(
+        str(tmp_path / "*.jsonl"), statement="SELECT record_id FROM log"
+    ).fetchall()
+    # Two asks in, two rows out: a thumb and a label fold onto an ask rather than
+    # arriving as rows of their own.
+    assert {row[0] for row in found} == {"0f3c", "7b21"}
+    verdicts = nl_log.read(
+        str(tmp_path / "*.jsonl"),
+        statement="SELECT thumb, verdict FROM log WHERE record_id = '0f3c'",
+    ).fetchall()
+    assert verdicts == [("down", "wrong")]
+
+
+def test_reading_derives_the_translation_and_whether_a_repair_fired(tmp_path):
+    # Neither is stored, so a reader that cannot produce them makes the log unusable
+    # for the question it exists to answer.
+    sink = nl_log.JsonlSink(tmp_path / "log.jsonl")
+    sink.write(
+        nl_log.event(
+            _ask(
+                record_id="0f3c",
+                attempts=(
+                    nl_log.Attempt(translation={"op": "bad"}, error="no such path"),
+                    nl_log.Attempt(translation=_QUERY, error=None),
+                ),
+            )
+        )
+    )
+    sink.write(nl_log.event(_ask(record_id="7b21")))
+    rows = nl_log.read(
+        str(tmp_path / "*.jsonl"),
+        statement="SELECT record_id, repaired, translation FROM log ORDER BY record_id",
+    ).fetchall()
+    assert [(row[0], row[1]) for row in rows] == [("0f3c", True), ("7b21", False)]
+    assert json.loads(rows[0][2]) == _QUERY
+
+
+def test_a_translation_that_never_compiled_reads_as_no_translation(tmp_path):
+    sink = nl_log.JsonlSink(tmp_path / "log.jsonl")
+    sink.write(
+        nl_log.event(
+            _ask(
+                outcome=nl_log.MALFORMED,
+                attempts=(
+                    nl_log.Attempt(translation={"op": "bad"}, error="no such path"),
+                ),
+            )
+        )
+    )
+    ((translation,),) = nl_log.read(
+        str(tmp_path / "*.jsonl"), statement="SELECT translation FROM log"
+    ).fetchall()
+    assert translation is None
+
+
+def test_compaction_leaves_a_month_readable_the_same_way(tmp_path):
+    # Two months whose queries have different shapes must still read as one table,
+    # which is what the string payload buys and what a struct would lose.
+    sink = nl_log.JsonlSink(tmp_path / "log.jsonl")
+    sink.write(nl_log.event(_ask(record_id="0f3c")))
+    sink.write(
+        nl_log.event(
+            _ask(
+                record_id="7b21",
+                attempts=(
+                    nl_log.Attempt(
+                        translation={"op": "exists", "where": {"op": "not_null"}},
+                        error=None,
+                    ),
+                ),
+            )
+        )
+    )
+    compacted = tmp_path / "2026-08.parquet"
+    nl_log.compact(str(tmp_path / "*.jsonl"), compacted)
+    rows = nl_log.read(
+        str(compacted),
+        statement="SELECT record_id, translation FROM log ORDER BY record_id",
+    ).fetchall()
+    assert [row[0] for row in rows] == ["0f3c", "7b21"]
+    assert json.loads(rows[1][1])["where"] == {"op": "not_null"}
+
+
+def _month(tmp_path, name, attempt, record_id):
+    """Writes one record, compacts it as a month of its own, and returns the file."""
+    directory = tmp_path / name
+    nl_log.JsonlSink(directory / "log.jsonl").write(
+        nl_log.event(_ask(record_id=record_id, attempts=(attempt,)))
+    )
+    compacted = tmp_path / f"{name}.parquet"
+    nl_log.compact(str(directory / "*.jsonl"), compacted)
+    return compacted
+
+
+def test_two_compacted_months_read_as_one_table(tmp_path):
+    # Each month's Parquet bakes in a schema, and these two predicates share no shape
+    # -- one nests a list of clauses, the other a quantifier over a structure
+    # predicate. As strings the two months reconcile by construction, so every field of
+    # both is reachable. Stored as structs it depends on what DuckDB can coerce, which
+    # is measured rather than guessed: see the ord-logbook entry's probe for shapes
+    # where the read either loses a field or refuses.
+    july = _month(tmp_path, "2026-07", _CONJUNCTION, "0f3c")
+    august = _month(tmp_path, "2026-08", _QUANTIFIER, "7b21")
+    rows = nl_log.read(
+        str(july),
+        str(august),
+        statement="SELECT record_id, translation FROM log ORDER BY record_id",
+    ).fetchall()
+    assert [row[0] for row in rows] == ["0f3c", "7b21"]
+    assert json.loads(rows[0][1])["clauses"][0]["path"] == "y"
+    assert json.loads(rows[1][1])["where"]["threshold"] == 0.4
+
+
+def test_a_compacted_month_and_a_loose_day_read_as_one_table(tmp_path):
+    # Compaction has to be able to arrive late, so a reader that could see only one
+    # format would force a migration the day it did.
+    compacted = _month(tmp_path, "2026-07", _CONJUNCTION, "0f3c")
+    nl_log.JsonlSink(tmp_path / "today" / "log.jsonl").write(
+        nl_log.event(_ask(record_id="7b21", attempts=(_QUANTIFIER,)))
+    )
+    rows = nl_log.read(
+        str(compacted),
+        str(tmp_path / "today" / "*.jsonl"),
+        statement="SELECT record_id, translation FROM log ORDER BY record_id",
+    ).fetchall()
+    assert [row[0] for row in rows] == ["0f3c", "7b21"]
+    assert json.loads(rows[1][1])["where"]["threshold"] == 0.4
 
 
 @pytest.fixture(name="fake_store")

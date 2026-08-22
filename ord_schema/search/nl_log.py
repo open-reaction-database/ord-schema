@@ -26,12 +26,14 @@ label contradicts a thumb.
 
 A record is a *typed envelope around an opaque payload*. Identifiers, outcome, usage,
 timings, and fingerprints are fields; the question, the translations, and the compiler's
-errors are strings. The payload has to stay a string because a model-authored ``Query``
-is recursive and differently shaped record to record: compacting a month of them into
-Parquet makes DuckDB infer a struct from whichever shapes that month held, and a
-cross-month read then takes the first file's struct, so a later month's rows still count
-in every aggregate while the field that made them worth recording is unreachable. The
-measurement is in the ord-logbook entry "Where the question log lives".
+errors are strings. The payload stays a string because a model-authored ``Query`` is
+recursive and differently shaped record to record, so compacting a month of them into
+Parquet would leave DuckDB to infer a struct from whichever shapes that month happened
+to hold. Whether two such months then read back together depends on what it can coerce:
+measured cases lose a field silently -- the rows still count in every aggregate while
+the part worth recording is unreachable -- or refuse the read outright. As strings the
+months reconcile by construction, and no inference is involved. The measurements are in
+the ord-logbook entry "Where the question log lives".
 
 Results are not recorded. A translation and a corpus fingerprint reproduce them, and a
 question that returned a hundred thousand reactions should not cost a hundred thousand
@@ -47,6 +49,8 @@ import uuid
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any, Protocol
+
+import duckdb
 
 from ord_schema.logging import get_logger
 
@@ -326,3 +330,188 @@ def emit(sink: Sink | None, ask: Ask) -> None:
         sink.write(event(ask))
     except Exception as error:  # noqa: BLE001
         logger.warning("dropping a question log record: %s", error)
+
+
+def thumb(
+    record_id: str,
+    value: str,
+    *,
+    comment: str | None = None,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """Returns a reader's verdict on an answer.
+
+    Args:
+        record_id: The ask this judges.
+        value: ``"up"`` or ``"down"``.
+        comment: Whatever the reader wanted to add.
+        session_id: The visit it came from.
+
+    Returns:
+        A JSON-ready thumb event.
+    """
+    return {
+        "event": "thumb",
+        "record_id": record_id,
+        "session_id": session_id,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "value": value,
+        "comment": comment,
+    }
+
+
+def label(
+    record_id: str,
+    verdict: str,
+    *,
+    reference: Mapping[str, Any] | None = None,
+    note: str | None = None,
+    promoted: bool = False,
+) -> dict[str, Any]:
+    """Returns a maintainer's verdict on a translation.
+
+    Args:
+        record_id: The ask this judges.
+        verdict: ``"correct"``, ``"wrong"``, or ``"unclear"``.
+        reference: A query that answers the question, where the translation did not.
+            This is what an eval case needs and what a thumb cannot supply.
+        note: Why.
+        promoted: Whether this became an eval case.
+
+    Returns:
+        A JSON-ready label event.
+    """
+    return {
+        "event": "label",
+        "record_id": record_id,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "verdict": verdict,
+        "reference": (
+            None if reference is None else json.dumps(reference, sort_keys=True)
+        ),
+        "note": note,
+        "promoted": promoted,
+    }
+
+
+# One ask per row, with the later events folded onto it and the fields the record does
+# not store derived here. A thumb or a label can be left more than once and the last one
+# stands, which is why these aggregate rather than join.
+#
+# The empty row carrying no rows is what lets this bind against a log nobody has left
+# feedback on yet: the columns a thumb and a label contribute do not exist until one has
+# been written, and a reader that only works once someone has replied is no reader.
+_SKELETON = """
+SELECT
+    NULL::VARCHAR AS event,
+    NULL::VARCHAR AS record_id,
+    NULL::VARCHAR AS value,
+    NULL::VARCHAR AS comment,
+    NULL::VARCHAR AS verdict,
+    NULL::VARCHAR AS reference,
+    NULL::VARCHAR AS note,
+    NULL::BOOLEAN AS promoted
+WHERE FALSE
+"""
+
+_LOG = """
+WITH events AS ({sources}
+UNION ALL BY NAME
+{skeleton}),
+asks AS (SELECT * FROM events WHERE event = 'ask'),
+verdicts AS (
+    SELECT
+        record_id,
+        max(value) FILTER (event = 'thumb') AS thumb_value,
+        max(comment) FILTER (event = 'thumb') AS thumb_note,
+        max(verdict) FILTER (event = 'label') AS label_verdict,
+        max(reference) FILTER (event = 'label') AS label_reference,
+        max(note) FILTER (event = 'label') AS label_note,
+        bool_or(promoted) FILTER (event = 'label') AS label_promoted
+    FROM events
+    WHERE event IN ('thumb', 'label')
+    GROUP BY record_id
+)
+SELECT
+    asks.* EXCLUDE (event, value, comment, verdict, reference, note, promoted),
+    len(asks.attempts) > 1 AS repaired,
+    list_last(
+        list_transform(
+            list_filter(asks.attempts, attempt -> attempt.error IS NULL),
+            attempt -> attempt.translation
+        )
+    ) AS translation,
+    verdicts.thumb_value AS thumb,
+    verdicts.thumb_note AS thumb_comment,
+    verdicts.label_verdict AS verdict,
+    verdicts.label_reference AS reference,
+    verdicts.label_note AS note,
+    coalesce(verdicts.label_promoted, FALSE) AS promoted
+FROM asks LEFT JOIN verdicts USING (record_id)
+"""
+
+
+def _literal(value: str) -> str:
+    """Returns ``value`` as a SQL string literal, single quotes escaped."""
+    escaped = value.replace("'", "''")
+    return f"'{escaped}'"
+
+
+def _source(pattern: str) -> str:
+    """Returns the reader clause for one glob, chosen by what the glob names."""
+    reader = "read_parquet" if pattern.endswith(".parquet") else "read_json_auto"
+    # S608: the reader is one of two constants and the path is quoted as a literal.
+    return f"SELECT * FROM {reader}({_literal(pattern)}, union_by_name=true)"  # noqa: S608
+
+
+def read(
+    *sources: str,
+    statement: str = "SELECT * FROM log",
+    connection: duckdb.DuckDBPyConnection | None = None,
+) -> duckdb.DuckDBPyRelation:
+    """Returns the log as one relation, thumbs and labels folded onto their asks.
+
+    Args:
+        *sources: Globs of JSON or Parquet, mixed freely, so a compacted month and the
+            days written since read as one table.
+        statement: SQL over the ``log`` view this defines.
+        connection: DuckDB connection; an in-process one is opened if omitted.
+
+    Returns:
+        One row per question, carrying ``translation`` and ``repaired`` derived from
+        the attempts, and whatever verdicts were left on it.
+    """
+    connection = connection if connection is not None else duckdb.connect()
+    union = "\nUNION ALL BY NAME\n".join(_source(pattern) for pattern in sources)
+    connection.execute(
+        "CREATE OR REPLACE TEMP VIEW log AS "
+        + _LOG.format(sources=union, skeleton=_SKELETON)
+    )
+    return connection.sql(statement)
+
+
+def compact(pattern: str, output: str | os.PathLike[str]) -> int:
+    """Rewrites a stretch of the log into one Parquet file.
+
+    One object per question keeps writing simple and reading slow: a year of them is
+    tens of thousands of files to open. Folding a month into one is what keeps the log
+    queryable, and it is safe only because the payload is a string -- nested
+    translations would give each month its own inferred struct, and a field of one
+    month would then be unreachable from a read spanning both.
+
+    Args:
+        pattern: Glob of the JSON objects to fold.
+        output: Parquet file to write.
+
+    Returns:
+        How many events were written.
+    """
+    connection = duckdb.connect()
+    # S608: a quoted literal around this module's own reader clause.
+    connection.execute(
+        f"COPY ({_source(pattern)}) TO {_literal(str(output))} (FORMAT parquet)"
+    )
+    row = connection.execute(
+        f"SELECT count(*) FROM read_parquet({_literal(str(output))})"  # noqa: S608
+    ).fetchone()
+    return 0 if row is None else int(row[0])
