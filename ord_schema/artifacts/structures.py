@@ -70,10 +70,10 @@ Fragments are left alone, so sodium acetate stays distinct from acetic acid. The
 question that counts a reagent and the salt it was sold as as one is a different one,
 and it gets its own column: a ``parent_hash``, the same hash taken of the molecule with
 its recognized counterions removed. Two columns rather than one choice between them,
-because either answer is wrong for the other question -- potassium and caesium carbonate
-are one reagent to a query about carbonate and two to a query about the caesium -- and a
+because either answer is wrong for the other question -- sodium and potassium carbonate
+are one reagent to a query about carbonate and two to a query about the sodium -- and a
 corpus-wide column is the wrong place to guess which was meant. See ``salt_parent`` for
-where stripping stops.
+which counterions are recognized and where stripping stops.
 
 The hash is RDKit's and moves with it, which is why ``base`` stamps the RDKit version
 and ``is_current`` refuses an artifact built by another one. Without that stamp an
@@ -346,6 +346,17 @@ def salt_parent(molecule: Chem.Mol) -> Chem.Mol:
     triethylamine, so a reagent recorded with a spectator counterion and the same
     reagent recorded without one come out the same.
 
+    "Recognized" is RDKit's own list and no wider: the halides, lithium, sodium,
+    potassium, calcium and magnesium, and the usual acid counterions -- nitrate,
+    sulfate, phosphate, hexafluorophosphate, mesylate, tosylate, acetate,
+    trifluoroacetate, oxalate, tartrate, fumarate and maleate. A counterion off that
+    list is not a counterion here: cesium carbonate keeps its cesium and so does not
+    share a parent with the potassium carbonate that loses its potassium. Widening the
+    list is not obviously right -- the metals a corpus of reactions carries beside an
+    anion are mostly reagents rather than spectators, and 1,500 of this corpus's
+    multi-fragment structures hold iron, zinc, copper, silver or aluminium -- so the
+    list stays RDKit's, and the RDKit version the artifact stamps says which one.
+
     Stripping stops where the molecule *is* the salt: nothing is removed unless what
     survives still holds carbon, which leaves sodium hydride whole rather than turning
     it into hydrogen, and palladium acetate whole rather than into palladium. That rule
@@ -377,10 +388,18 @@ def parent_hash(structure: Chem.Mol | str) -> str | None:
         structure: A parsed molecule, or SMILES to read one from.
 
     Returns:
-        The hash, or None where RDKit cannot read or hash the structure.
+        The hash, or None where RDKit cannot read, strip, or hash the structure, which
+        leaves the column null rather than storing a value the query side would not
+        reproduce.
     """
     molecule = _molecule(structure)
-    return None if molecule is None else mol_hash(salt_parent(molecule))
+    if molecule is None:
+        return None
+    try:
+        parent = salt_parent(molecule)
+    except (Chem.AtomValenceException, Chem.KekulizeException, RuntimeError):
+        return None
+    return mol_hash(parent)
 
 
 def mol_hash(structure: Chem.Mol | str) -> str | None:

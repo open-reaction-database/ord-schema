@@ -105,9 +105,11 @@ is a compile error rather than a wrong answer:
   triethylamine. A bare compound name is `same_compound`. Stripping stops where the molecule *is* the salt —
   what survives must still hold carbon — so sodium hydride does not match hydrogen and
   palladium acetate does not match acetic acid. It is looser on purpose and that is
-  sometimes wrong: potassium and caesium carbonate share a parent, which is right for
-  "reactions using carbonate" and wrong for a question about the caesium. Ask
-  `same_compound` for that one.
+  sometimes wrong: sodium and potassium carbonate share a parent, which is right for
+  "reactions using carbonate" and wrong for a question about the sodium. Ask
+  `same_compound` for that one. Only the counterions RDKit recognizes are set aside — the
+  halides, Li/Na/K/Ca/Mg, and the usual acid counterions — so a salt of anything else,
+  cesium carbonate among them, is left whole and matches only itself.
 - A SMARTS naming a hydrogen the corpus stores implicitly is rewritten, with a warning,
   rather than run as written: stored molecules come from SMILES, so `[H]OC` matches no
   methanol and would return empty without saying why. `MergeQueryHs` folds it to

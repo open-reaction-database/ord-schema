@@ -443,6 +443,7 @@ def test_an_artifact_lacking_a_column_is_not_current(tmp_path):
             "[K+].[K+].[O-]C([O-])=O",
             "[Na+].[Na+].[O-]C([O-])=O",
         ),
+        ("an acid counterion", "CCN.Cc1ccc(S(=O)(=O)O)cc1", "CCN"),
     ],
 )
 def test_a_reagent_and_its_salt_share_a_parent(label, left, right):
@@ -464,6 +465,14 @@ def test_a_reagent_and_its_salt_share_a_parent(label, left, right):
         ),
         ("inorganic salts of different metals", "[Na+].[Cl-]", "[K+].[Cl-]"),
         ("a cocrystal is not its component", "c1ccccc1.Cc1ccccc1", "c1ccccc1"),
+        # Cesium is not on RDKit's counterion list, so cesium carbonate keeps it and
+        # does not reach the potassium carbonate that loses its potassium. The rule is
+        # the list's, and this pins what the list actually covers.
+        (
+            "a counterion RDKit does not recognize",
+            "[Cs+].[Cs+].[O-]C([O-])=O",
+            "[K+].[K+].[O-]C([O-])=O",
+        ),
     ],
 )
 def test_reagents_with_different_parents_stay_apart(label, left, right):

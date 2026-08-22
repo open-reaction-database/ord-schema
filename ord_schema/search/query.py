@@ -508,10 +508,14 @@ class SameParent(BaseModel):
     whole, so sodium hydride does not match hydrogen and palladium acetate does not
     match acetic acid.
 
-    It is the looser question of the two, and the looseness is the point: potassium and
-    caesium carbonate share a parent and match here, which is right for "which
-    reactions used carbonate" and wrong for a question about the caesium. Ask
+    It is the looser question of the two, and the looseness is the point: sodium and
+    potassium carbonate share a parent and match here, which is right for "which
+    reactions used carbonate" and wrong for a question about the sodium. Ask
     ``same_compound`` for that one.
+
+    Only the counterions RDKit recognizes are set aside -- the halides, lithium,
+    sodium, potassium, calcium, magnesium, and the usual acid counterions. A salt of
+    something else, cesium carbonate among them, is left whole and matches only itself.
 
     ``path`` names a compound's ``smiles``. The query is a SMILES, or a compound name
     resolved at execution; exactly one is given.

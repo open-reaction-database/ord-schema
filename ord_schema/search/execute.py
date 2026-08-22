@@ -1889,7 +1889,7 @@ class Corpus:
         Raises:
             ValueError: If the predicate names neither a pattern nor a compound, if a
                 resolved compound's SMILES does not parse, or if RDKit refuses to hash
-                the query molecule of a ``same_compound`` predicate.
+                the query molecule of a predicate that matches on a hash.
             PairingError: If the library does not come out one entry per distinct
                 molecule over an unbroken run of IDs.
         """
