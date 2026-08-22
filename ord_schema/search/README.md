@@ -469,6 +469,54 @@ The ~15k-token prefix — these rules plus `describe()` plus the grammar — is 
 is most of what a query costs. `answer.query` is the query that ran, so a caller can show
 what was searched and offer to run it again.
 
+### Keep the questions
+
+```python
+from ord_schema.search import nl, nl_log
+
+sink = nl_log.JsonlSink("nl-log/today.jsonl")          # or S3Sink(boto3.client("s3"), bucket=...)
+answer = nl.ask(question, corpus, sink=sink, session_id=session_id)
+...
+sink.write(nl_log.thumb(answer.record_id, "down", comment="wrong solvent"))
+```
+
+The questions people ask are the only material that can refine a translator, so they are
+recorded rather than discarded. The log is an **append-only stream of events**, not a
+table: an `ask` written by the library, a `thumb` a reader leaves, and a `label` a
+maintainer applies all share a `record_id`, because they are three assertions by three
+parties at three times and one mutable row would lose which was which.
+
+Every ending is recorded, not only the one where everything worked. `outcome` is
+`answered`, `empty`, `declined`, `malformed`, or the rest of the error taxonomy — and the
+first three self-label: a question that translated and matched nothing, or that the model
+declined, is a failure that needs no human to recognize it. Grouped by `session_id`, a
+rephrasing reads as the reader's own correction of the question before it.
+
+Results are **not** stored; `translation` plus `corpus_fingerprint` reproduce them.
+`prompt_fingerprint` names the translator that wrote a record, and moves exactly when the
+cached prefix does.
+
+A record is a typed envelope around an opaque payload: identifiers, outcome, usage, and
+timings are fields, while the question, the translations, and the compiler's errors are
+strings. The payload stays a string because a model-authored `Query` is recursive and
+differently shaped record to record, so compacting a month of them would leave DuckDB
+inferring a struct from whichever shapes that month held — and whether two such months
+read back together depends on what it can coerce. As strings they reconcile by
+construction.
+
+Read it with `nl_log.read()`, which folds the verdicts onto their asks and derives
+`translation` and `repaired` from the attempts:
+
+```python
+nl_log.read("nl-log/2026-08.parquet", "nl-log/dt=*/*.json",
+            statement="SELECT question, outcome, usage.input FROM log WHERE thumb = 'down'")
+```
+
+JSON and Parquet mix freely, so `nl_log.compact()` can fold a stretch into one file
+whenever volume asks for it rather than as a migration. Writes are best-effort: an
+unreachable bucket costs the record, never the answer. The eval harness records too —
+`nl_eval --log run.jsonl` — which is why the log has to be writable from a laptop.
+
 ### Measure how good a translation is
 
 ```bash
