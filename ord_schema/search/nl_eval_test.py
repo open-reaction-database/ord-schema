@@ -14,9 +14,9 @@
 
 """Tests for ord_schema.search.nl_eval.
 
-These cover the scoring, and the outcomes ``run_case`` maps a translation onto, with a
-stub client standing in for the model. Measuring against a real model and a real corpus
-is a command rather than a test.
+These cover the scoring, the shipped cases, and the outcomes ``run_case`` maps a
+translation onto, with a stub client standing in for the model. Measuring against a real
+model and a real corpus is a command rather than a test.
 """
 
 import json
@@ -26,13 +26,12 @@ from typing import Any, cast
 import pytest
 from anthropic.types import ToolUseBlock
 
-from ord_schema.search import execute, nl, nl_eval
+from ord_schema.search import execute, nl, nl_eval, query
 
 _CASE = nl_eval.EvalCase(
     question="which reactions use pyridine as a solvent?",
     why="two conditions on one element, which a wrong translation splits in two",
-    must_return=["ord-aa", "ord-bb"],
-    must_not_return=["ord-zz"],
+    reference={"op": "not_null", "path": "reaction_id"},
 )
 _INEXPRESSIBLE = nl_eval.EvalCase(
     question="reactions where the temperature exceeds the pressure",
@@ -127,36 +126,51 @@ def _run(case, client) -> nl_eval.CaseResult:
     )
 
 
-def test_a_query_returning_what_it_must_passes():
-    assert nl_eval.score(_CASE, ["ord-aa", "ord-bb", "ord-cc"]).passed
+# Scoring
 
 
-def test_a_query_missing_a_required_reaction_fails():
-    result = nl_eval.score(_CASE, ["ord-aa"])
+def test_the_same_reactions_in_another_order_pass():
+    # Several queries are right, and they need not return the same rows in the same
+    # order; the set is what a case holds a translation to.
+    assert nl_eval.score(_CASE, ["ord-bb", "ord-aa"], ["ord-aa", "ord-bb"]).passed
+
+
+def test_a_translation_that_missed_reactions_fails():
+    result = nl_eval.score(_CASE, ["ord-aa"], ["ord-aa", "ord-bb"])
     assert not result.passed
+    assert "missed 1" in result.detail
     assert "ord-bb" in result.detail
 
 
-def test_a_query_returning_a_forbidden_reaction_fails():
-    # The near-miss reaction is the whole point: a translation that finds pyridine in
-    # one component and a solvent in another is wrong rather than differently spelled.
-    result = nl_eval.score(_CASE, ["ord-aa", "ord-bb", "ord-zz"])
+def test_a_translation_that_returned_too_many_fails():
+    # The over-broad translation, which a case pinning only required reactions passes:
+    # everything required is trivially among everything.
+    result = nl_eval.score(_CASE, ["ord-aa", "ord-zz"], ["ord-aa"])
     assert not result.passed
+    assert "wrongly returned 1" in result.detail
     assert "ord-zz" in result.detail
 
 
-def test_scoring_does_not_care_about_order_or_extras():
-    # Several queries are right, and they need not return the same rows in the same
-    # order; only the reactions named either way are pinned.
-    assert nl_eval.score(_CASE, ["ord-cc", "ord-bb", "ord-dd", "ord-aa"]).passed
+def test_a_failure_names_both_directions_at_once():
+    result = nl_eval.score(_CASE, ["ord-zz"], ["ord-aa"])
+    assert "missed 1" in result.detail
+    assert "wrongly returned 1" in result.detail
+
+
+def test_a_long_difference_is_summarized_rather_than_listed():
+    result = nl_eval.score(_CASE, [], [f"ord-{index:02d}" for index in range(50)])
+    assert "and 47 more" in result.detail
 
 
 def test_the_report_names_the_question_and_why_the_case_exists():
-    failure = nl_eval.score(_CASE, [])
+    failure = nl_eval.score(_CASE, [], ["ord-aa"])
     text = nl_eval.report([failure])
     assert "0/1 passed" in text
     assert _CASE.question in text
     assert "splits in two" in text
+
+
+# The shipped cases
 
 
 def test_the_shipped_cases_load_and_say_why_they_exist():
@@ -166,19 +180,44 @@ def test_the_shipped_cases_load_and_say_why_they_exist():
         assert case.why
 
 
-def test_every_expressible_case_pins_both_sides():
-    # must_return alone is passed by a translation that drops the predicate and hands
-    # back the corpus, since everything required is trivially among everything. The
-    # counterexamples are what make an over-broad query fail.
+def test_every_shipped_reference_compiles():
+    # A hand-written reference is as able to name a path the schema lacks as a model
+    # is, and a case that cannot run is worse than no case.
     for case in nl_eval.load_cases():
-        if case.compiles:
-            assert case.must_return
-            assert case.must_not_return
+        if case.reference is not None:
+            query.compile_query(query.Query.model_validate({"where": case.reference}))
 
 
 def test_a_case_the_grammar_cannot_express_is_marked_as_such():
-    cases = nl_eval.load_cases()
-    assert any(not case.compiles for case in cases)
+    assert any(not case.compiles for case in nl_eval.load_cases())
+
+
+def test_a_case_needs_a_reason_to_exist():
+    with pytest.raises(ValueError, match="why"):
+        nl_eval.EvalCase.model_validate(
+            {"question": "anything?", "reference": {"op": "not_null", "path": "x"}}
+        )
+
+
+def test_a_case_that_compiles_needs_a_reference():
+    # Without one there is nothing to compare a translation against, so the case would
+    # pass whatever the model wrote.
+    with pytest.raises(ValueError, match="needs a reference"):
+        nl_eval.EvalCase.model_validate(
+            {"question": "anything?", "why": "a placeholder"}
+        )
+
+
+def test_an_inexpressible_case_cannot_carry_a_reference():
+    with pytest.raises(ValueError, match="no answer to reference"):
+        nl_eval.EvalCase.model_validate(
+            {
+                "question": "anything?",
+                "why": "a placeholder",
+                "compiles": False,
+                "reference": {"op": "not_null", "path": "reaction_id"},
+            }
+        )
 
 
 def test_load_cases_reads_the_file_it_is_given(tmp_path):
@@ -192,9 +231,7 @@ def test_load_cases_reads_the_file_it_is_given(tmp_path):
     assert nl_eval.load_cases(path)[0].question == "anything?"
 
 
-def test_a_case_needs_a_reason_to_exist():
-    with pytest.raises(ValueError, match="why"):
-        nl_eval.EvalCase.model_validate({"question": "anything?"})
+# How a translation can land
 
 
 def test_declining_an_inexpressible_question_passes():
@@ -203,15 +240,6 @@ def test_declining_an_inexpressible_question_passes():
     )
     assert result.passed
     assert "declined" in result.detail
-
-
-def test_a_refusal_reached_only_after_a_failed_query_fails():
-    # The caller is served either way, but this case exists to measure whether the
-    # model reads the question, not whether it eventually stops.
-    error = nl.UnanswerableError("no column comparison", attempted=True)
-    result = _run(_INEXPRESSIBLE, _RaisingClient(error))
-    assert not result.passed
-    assert "built a query, then declined" in result.detail
 
 
 def test_a_query_that_does_not_compile_never_passes():
@@ -223,11 +251,18 @@ def test_a_query_that_does_not_compile_never_passes():
     assert "did not compile" in result.detail
 
 
-def test_an_expressible_question_that_does_not_compile_fails():
-    result = _run(_CASE, _StubClient("build_query", _BAD_PATH))
+def test_a_refusal_reached_only_after_a_failed_query_fails():
+    # The caller is served either way, but this case exists to measure whether the
+    # model reads the question, not whether it eventually stops.
+    error = nl.UnanswerableError("no column comparison", attempted=True)
+    result = _run(_INEXPRESSIBLE, _RaisingClient(error))
     assert not result.passed
+    assert "built a query, then declined" in result.detail
+
+
+def test_an_expressible_question_that_does_not_compile_fails():
+    assert not _run(_CASE, _StubClient("build_query", _BAD_PATH)).passed
 
 
 def test_declining_an_expressible_question_fails():
-    result = _run(_CASE, _StubClient("cannot_answer", {"reason": "gave up"}))
-    assert not result.passed
+    assert not _run(_CASE, _StubClient("cannot_answer", {"reason": "gave up"})).passed

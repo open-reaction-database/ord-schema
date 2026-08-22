@@ -478,18 +478,24 @@ python -m ord_schema.search.nl_eval \
     --model claude-haiku-4-5
 ```
 
-A case states **reactions any correct query returns** and reactions a plausible wrong one
-returns, never the query it expects: several spellings of a question are right, and pinning
-one would fail a better translation than the one written the day the case was added. The
-`must_not_return` half is what gives a case teeth — for "pyridine as a solvent" it holds
-reactions where pyridine is a reactant and something else is the solvent, which is what
-comes back when two conditions on one component become two quantifiers.
+A case states the question and **one query that answers it**. Both run against whatever
+corpus you point the command at, and the reactions have to match as sets. That is not the
+same as pinning the query: several spellings are right, and pinning one would fail a better
+translation than the one written the day the case was added. `forall(components, role != SOLVENT)`
+and `not exists(components, role == SOLVENT)` share no structure at all and return the same
+885,972 reactions, so the reactions are what a case can fairly hold a model to and the query
+is not.
+
+Comparing sets catches both directions, which is what makes a case hard to pass by accident:
+a translation that misscopes two conditions into two quantifiers returns reactions the
+reference does not, and one that drops a condition entirely returns the corpus. A case
+carries no reaction IDs, so nothing in it goes stale when the corpus is rebuilt.
 
 Cases carry a `why`, printed with any failure, and one is marked `compiles: false`: a
 question the grammar cannot express, which the layer has to refuse rather than answer
-approximately. Refusing *outright* is what passes it — a model that writes a query, is
-told it does not compile, and only then declines has answered the caller correctly while
-failing what the case measures. The reaction IDs come from the corpus the cases were built against.
+approximately, and which therefore has no reference. Refusing *outright* is what passes it —
+a model that writes a query, is told it does not compile, and only then declines has answered
+the caller correctly while failing what the case measures.
 
 ### Tell the model what it may query
 
