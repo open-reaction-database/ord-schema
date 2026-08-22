@@ -23,7 +23,10 @@ reactions, so the set is what a case can fairly hold a model to.
 
 Both queries run against whatever corpus the command is pointed at, so a case carries
 no reaction IDs and nothing in it goes stale when the corpus is rebuilt. The reference
-names structures outright rather than by compound, so scoring reaches no resolver.
+names structures outright rather than by compound, so scoring reaches no resolver, and
+it asks for a compound the way the prompt tells a model to -- with ``same_compound``
+rather than an equality on a spelling, which would fail a translation for following its
+instructions.
 
 Running the cases costs money and reaches the network, so the suite covers the
 scoring and the outcomes ``run_case`` maps a translation onto, with the model stubbed.

@@ -16,11 +16,9 @@
             }
           },
           {
-            "op": "eq",
+            "op": "same_compound",
             "path": "smiles",
-            "value": {
-              "literal": "c1ccncc1"
-            }
+            "smiles": "c1ccncc1"
           }
         ]
       }
