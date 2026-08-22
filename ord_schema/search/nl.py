@@ -36,6 +36,7 @@ natural-language layer over the search grammar".
 
 import dataclasses
 import json
+import os
 from importlib import resources
 from typing import Any
 
@@ -58,6 +59,12 @@ logger = get_logger(__name__)
 # repair turn is what closes much of the gap. Every entry point takes a model, because
 # which one is worth its price is a question for an eval set rather than for this line.
 DEFAULT_MODEL = "claude-haiku-4-5"
+# Read in preference to ANTHROPIC_API_KEY, which a shell holds for whatever else the
+# person at it is doing. A key that answers corpus questions is a deployment's, billed
+# to whoever runs the corpus, and naming it apart keeps a general-purpose key from
+# quietly paying for a search -- and this one from reaching everything that reads the
+# standard name. The SDK's own lookup still applies where this is unset.
+API_KEY_VARIABLE = "ORD_ANTHROPIC_API_KEY"
 MAX_TOKENS = 2048
 ANSWER_MAX_TOKENS = 512
 
@@ -152,8 +159,14 @@ class Answer:
 
 
 def get_client() -> anthropic.Anthropic:
-    """Returns a client reading its credentials from the environment."""
-    return anthropic.Anthropic()
+    """Returns a client reading its credentials from the environment.
+
+    Returns:
+        A client authenticated with ``ORD_ANTHROPIC_API_KEY`` where the environment
+        sets it, and with whatever the SDK finds otherwise.
+    """
+    key = os.environ.get(API_KEY_VARIABLE)
+    return anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
 
 
 def _coerce(value: Any) -> Any:
