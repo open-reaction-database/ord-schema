@@ -449,6 +449,30 @@ class Similarity(BaseModel):
         return self
 
 
+def _check_molecule_query(node: "SameCompound | SameParent") -> None:
+    """Raises unless a node names exactly one query molecule RDKit can read.
+
+    Args:
+        node: The predicate to check.
+
+    Raises:
+        ValueError: If it names both a SMILES and a compound or neither, if the
+            compound name is not an identifier, or if the SMILES does not parse or
+            holds no atoms. An empty molecule hashes to something no real structure
+            carries: a guaranteed-empty answer that still costs a pass over the corpus.
+    """
+    if (node.smiles is None) == (node.compound is None):
+        raise ValueError("a compound query is a smiles or a compound, not both")
+    if node.compound is not None and not _NAME.match(node.compound):
+        raise ValueError(f"compound name is not an identifier: {node.compound!r}")
+    if node.smiles is not None:
+        molecule = Chem.MolFromSmiles(node.smiles)
+        if molecule is None:
+            raise ValueError(f"SMILES does not parse: {node.smiles!r}")
+        if not molecule.GetNumAtoms():
+            raise ValueError(f"SMILES has no atoms: {node.smiles!r}")
+
+
 class SameCompound(BaseModel):
     """The element's structure is the same compound, however either was drawn.
 
@@ -470,21 +494,43 @@ class SameCompound(BaseModel):
 
     @model_validator(mode="after")
     def _check(self) -> "SameCompound":
-        if (self.smiles is None) == (self.compound is None):
-            raise ValueError("a compound query is a smiles or a compound, not both")
-        if self.compound is not None and not _NAME.match(self.compound):
-            raise ValueError(f"compound name is not an identifier: {self.compound!r}")
-        if self.smiles is not None:
-            molecule = Chem.MolFromSmiles(self.smiles)
-            if molecule is None:
-                raise ValueError(f"SMILES does not parse: {self.smiles!r}")
-            if not molecule.GetNumAtoms():
-                # It hashes to the empty molecule's hash, which nothing in a corpus of
-                # real structures carries: a guaranteed-empty answer that still costs a
-                # pass over every structure.
-                raise ValueError(f"SMILES has no atoms: {self.smiles!r}")
+        _check_molecule_query(self)
         return self
 
+
+class SameParent(BaseModel):
+    """The element's structure is the same compound once counterions are set aside.
+
+    What ``same_compound`` ignores, this ignores too, and the salt a reagent was sold
+    as besides: sodium acetate matches acetic acid, and triethylamine hydrochloride
+    matches triethylamine. Reagents whose parents differ still differ, so sodium
+    carbonate does not match sodium acetate; reagents that *are* the salt are left
+    whole, so sodium hydride does not match hydrogen and palladium acetate does not
+    match acetic acid.
+
+    It is the looser question of the two, and the looseness is the point: potassium and
+    caesium carbonate share a parent and match here, which is right for "which
+    reactions used carbonate" and wrong for a question about the caesium. Ask
+    ``same_compound`` for that one.
+
+    ``path`` names a compound's ``smiles``. The query is a SMILES, or a compound name
+    resolved at execution; exactly one is given.
+    """
+
+    op: Literal["same_parent"]
+    path: str
+    smiles: str | None = None
+    compound: str | None = None
+
+    @model_validator(mode="after")
+    def _check(self) -> "SameParent":
+        _check_molecule_query(self)
+        return self
+
+
+# The predicates the executor answers by evaluating chemistry outside the query and
+# binding the match set as a bitmap over structure IDs; see ``_structure``.
+StructurePredicate = Substructure | Similarity | SameCompound | SameParent
 
 Predicate = Annotated[
     And
@@ -495,7 +541,8 @@ Predicate = Annotated[
     | NullCheck
     | Substructure
     | Similarity
-    | SameCompound,
+    | SameCompound
+    | SameParent,
     Field(discriminator="op"),
 ]
 
@@ -643,7 +690,7 @@ def _leaf(node: Any, resolved: _Resolved, compounds: list[str]) -> str:
 
 
 def _structure_parameter(
-    node: "Substructure | Similarity | SameCompound",
+    node: "StructurePredicate",
     structures: list[StructureParameter],
 ) -> str:
     """Returns the parameter name for a structure predicate, reusing an equal one.
@@ -680,7 +727,7 @@ def _structure_parameter(
 
 
 def _structure(
-    node: "Substructure | Similarity | SameCompound",
+    node: "StructurePredicate",
     scope: str | None,
     schema: Any,
     structures: list[StructureParameter],
@@ -734,7 +781,7 @@ def _structure(
 
 def _element_terms(
     node: "Quantifier",
-) -> "tuple[Substructure | Similarity | SameCompound, dict[str, str]] | None":
+) -> "tuple[StructurePredicate, dict[str, str]] | None":
     """Returns what an ``exists`` body asks of one element, or None if it asks more.
 
     The shape an element index can answer, stated without knowing what any index holds:
@@ -754,10 +801,10 @@ def _element_terms(
     if node.op != "exists":
         return None
     clauses = node.where.clauses if isinstance(node.where, And) else [node.where]
-    structure: Substructure | Similarity | SameCompound | None = None
+    structure: StructurePredicate | None = None
     fields: dict[str, str] = {}
     for clause in clauses:
-        if isinstance(clause, Substructure | Similarity | SameCompound):
+        if isinstance(clause, StructurePredicate):
             if structure is not None or clause.path != "smiles":
                 return None
             structure = clause
@@ -1051,7 +1098,7 @@ def _predicate(
         return f"(NOT {inner})"
     if isinstance(node, Quantifier):
         return _quantifier(node, scope, schema, compounds, structures, depth, routing)
-    if isinstance(node, Substructure | Similarity | SameCompound):
+    if isinstance(node, StructurePredicate):
         return _structure(node, scope, schema, structures)
     resolved = resolve(node.path, schema=schema, root=scope)
     if resolved.repeated:

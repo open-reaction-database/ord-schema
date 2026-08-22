@@ -162,6 +162,7 @@ def test_an_unparseable_structure_keeps_its_row_with_null_columns():
     assert row["smiles"] == "not-a-smiles"
     for column in (
         "mol_hash",
+        "parent_hash",
         "pattern_fp",
         "morgan_fp",
         "morgan_popcount",
@@ -298,6 +299,7 @@ def test_an_unparseable_structure_survives_the_write_path(tmp_path):
     assert bad["structure_id"] == ids["c1ccccc1"]
     for column in (
         "mol_hash",
+        "parent_hash",
         "pattern_fp",
         "morgan_fp",
         "morgan_popcount",
@@ -426,3 +428,60 @@ def test_an_artifact_lacking_a_column_is_not_current(tmp_path):
     assert not base.is_current(
         output, structures.ARTIFACT, stamps.source_md5, structures.SCHEMA
     )
+
+
+@pytest.mark.parametrize(
+    ("label", "left", "right"),
+    [
+        ("sodium salt", "CC(=O)[O-].[Na+]", "CC(=O)O"),
+        ("hydrochloride", "CCN(CC)CC.Cl", "CCN(CC)CC"),
+        ("trifluoroacetate", "CC(C)N(CC)C(C)C.OC(=O)C(F)(F)F", "CC(C)N(CC)C(C)C"),
+        # Two carbonates are one reagent to a question about carbonate, which is what
+        # this operator is for; ask mol_hash to tell them apart.
+        (
+            "two counterions of one parent",
+            "[K+].[K+].[O-]C([O-])=O",
+            "[Na+].[Na+].[O-]C([O-])=O",
+        ),
+    ],
+)
+def test_a_reagent_and_its_salt_share_a_parent(label, left, right):
+    del label
+    assert structures.parent_hash(left) == structures.parent_hash(right)
+
+
+@pytest.mark.parametrize(
+    ("label", "left", "right"),
+    [
+        ("different parents", "CC(=O)[O-].[Na+]", "[Na+].[Na+].[O-]C([O-])=O"),
+        # Stripping stops where the molecule is the salt: what survives has to hold
+        # carbon, so these keep every fragment they were recorded with.
+        ("a hydride is not hydrogen", "[Na+].[H-]", "[HH]"),
+        (
+            "a metal acetate is not acetic acid",
+            "CC(=O)[O-].CC(=O)[O-].[Pd+2]",
+            "CC(=O)O",
+        ),
+        ("inorganic salts of different metals", "[Na+].[Cl-]", "[K+].[Cl-]"),
+        ("a cocrystal is not its component", "c1ccccc1.Cc1ccccc1", "c1ccccc1"),
+    ],
+)
+def test_reagents_with_different_parents_stay_apart(label, left, right):
+    del label
+    assert structures.parent_hash(left) != structures.parent_hash(right)
+
+
+def test_a_molecule_with_no_counterion_is_its_own_parent():
+    assert structures.parent_hash("c1ccncc1") == structures.mol_hash("c1ccncc1")
+
+
+def test_the_artifact_carries_a_parent_hash_beside_the_compound_hash(tmp_path):
+    source = _project(tmp_path, [_reaction(input_smiles="CC(=O)[O-].[Na+]")])
+    output = tmp_path / "structures.parquet"
+    structures.write_structures(source, output)
+    rows = pq.read_table(output).to_pylist()
+    salt = next(row for row in rows if "Na" in row["smiles"])
+    # The salt keeps its own spelling and its own compound hash, and answers for the
+    # parent only through the column that asks about parents.
+    assert salt["parent_hash"] == structures.parent_hash("CC(=O)O")
+    assert salt["mol_hash"] != structures.mol_hash("CC(=O)O")

@@ -169,6 +169,14 @@ def _reads_as_smarts(parameter: query.StructureParameter) -> bool:
     return parameter.pattern is not None and parameter.op == "substructure"
 
 
+# The predicates the artifact answers with one equality: the column each compares, and
+# the function that puts a query molecule into that column's terms.
+_HASH_MATCHES: dict[str, tuple[str, Callable[[Chem.Mol], str | None]]] = {
+    "same_compound": ("mol_hash", structures.mol_hash),
+    "same_parent": ("parent_hash", structures.parent_hash),
+}
+
+
 class PairingError(ValueError):
     """The projections and structures artifacts do not form a consistent corpus."""
 
@@ -1405,21 +1413,21 @@ class Corpus:
         ).fetchall()
         return [row[0] for row in rows]
 
-    def _same_compound_ids(
+    def _hashed_ids(
         self,
         cursor: duckdb.DuckDBPyConnection,
         parameter: query.StructureParameter,
         resolve: Callable[[str], str],
     ) -> list[int]:
-        """Matches on the compound hash; returns global IDs.
+        """Matches on one of the artifact's hash columns; returns global IDs.
 
-        The artifact already holds every structure's hash, so the whole answer is one
+        The artifact already holds every structure's hashes, so the whole answer is one
         equality against a column -- no screen, no verification, and no chemistry
         beyond hashing the query molecule the way the artifact hashed its own.
 
         Args:
             cursor: The cursor the match runs on.
-            parameter: The predicate to match.
+            parameter: The predicate to match, whose ``op`` chooses the column.
             resolve: Maps a compound name to SMILES.
 
         Returns:
@@ -1430,15 +1438,18 @@ class Corpus:
                 refuses to hash the query molecule -- either leaves the question
                 unaskable rather than quietly unanswerable.
         """
+        column, hasher = _HASH_MATCHES[parameter.op]
         molecule = self._query_molecule(parameter, resolve)
-        hashed = structures.mol_hash(molecule)
+        hashed = hasher(molecule)
         if hashed is None:
             raise ValueError(
                 f"could not hash the query molecule for {parameter.name!r}; the corpus "
                 "compares compounds by hash, so there is nothing to compare it to"
             )
+        # S608: the column comes from this module's own table, keyed by an op the
+        # grammar holds to a Literal; the molecule reaches the query as a parameter.
         rows = cursor.execute(
-            "SELECT global_id FROM corpus_structures WHERE mol_hash = $h",
+            f"SELECT global_id FROM corpus_structures WHERE {column} = $h",  # noqa: S608
             {"h": hashed},
         ).fetchall()
         return [row[0] for row in rows]
@@ -1916,8 +1927,8 @@ class Corpus:
         try:
             if parameter.op == "substructure":
                 matched = self._substructure_ids(parameter, resolve)
-            elif parameter.op == "same_compound":
-                matched = self._same_compound_ids(cursor, parameter, resolve)
+            elif parameter.op in _HASH_MATCHES:
+                matched = self._hashed_ids(cursor, parameter, resolve)
             else:
                 matched = self._similarity_ids(cursor, parameter, resolve)
             logger.info(

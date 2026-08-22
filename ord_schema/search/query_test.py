@@ -1217,3 +1217,79 @@ def test_same_compound_needs_a_compound_smiles_column():
                 }
             }
         )
+
+
+def test_same_parent_compiles_to_a_bitmap_test():
+    compiled = _compile(
+        {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {
+                    "op": "same_parent",
+                    "path": "smiles",
+                    "smiles": "CC(=O)O",
+                },
+            }
+        }
+    )
+    assert "get_bit" in compiled.sql
+    assert [(p.op, p.pattern) for p in compiled.structures] == [
+        ("same_parent", "CC(=O)O")
+    ]
+
+
+def test_the_two_compound_operators_bind_separate_parameters():
+    # They ask different questions of the same molecule, so one bitmap cannot serve
+    # both however alike the predicates look.
+    compiled = _compile(
+        {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {
+                    "op": "and",
+                    "clauses": [
+                        {"op": "same_compound", "path": "smiles", "smiles": "CC(=O)O"},
+                        {"op": "same_parent", "path": "smiles", "smiles": "CC(=O)O"},
+                    ],
+                },
+            }
+        }
+    )
+    assert [p.op for p in compiled.structures] == ["same_compound", "same_parent"]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"op": "same_parent", "path": "smiles"},
+        {
+            "op": "same_parent",
+            "path": "smiles",
+            "smiles": "CC(=O)O",
+            "compound": "pyridine",
+        },
+        {"op": "same_parent", "path": "smiles", "smiles": "not a molecule"},
+        {"op": "same_parent", "path": "smiles", "smiles": ""},
+        {"op": "same_parent", "path": "smiles", "compound": "not an identifier"},
+    ],
+)
+def test_a_malformed_same_parent_is_refused_before_compilation(payload):
+    with pytest.raises(ValidationError):
+        query.Query.model_validate(
+            {"where": {"op": "exists", "path": "inputs.components", "where": payload}}
+        )
+
+
+def test_same_parent_needs_a_compound_smiles_column():
+    with pytest.raises(query.QueryError, match="applies to a compound"):
+        _compile(
+            {
+                "where": {
+                    "op": "same_parent",
+                    "path": "reaction_id",
+                    "smiles": "CC(=O)O",
+                }
+            }
+        )
