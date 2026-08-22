@@ -14,11 +14,19 @@
 
 """Scoring translations by the reactions they return.
 
-A case does not state the query it expects, because several spellings of a question are
-right and pinning one would fail a better translation than the one written the day the
-case was added. It states reactions any correct query returns, and reactions a plausible
-wrong one returns -- usually the near-miss where two conditions on the same element
-become two quantifiers, which matches a solvent here and a reactant there.
+A case states the question and one query that answers it. Scoring compares the
+reactions a translation returns against the reactions that reference returns, and they
+have to be the same set. That is not the same as pinning the query: several spellings of
+a question are right and pinning one would fail a better translation than the one
+written the day the case was added, but every right spelling answers with the same
+reactions, so the set is what a case can fairly hold a model to.
+
+Both queries run against whatever corpus the command is pointed at, so a case carries
+no reaction IDs and nothing in it goes stale when the corpus is rebuilt. The reference
+names structures outright rather than by compound, so scoring reaches no resolver, and
+it asks for a compound the way the prompt tells a model to -- with ``same_compound``
+rather than an equality on a spelling, which would fail a translation for following its
+instructions.
 
 Running the cases costs money and reaches the network, so the suite covers the
 scoring and the outcomes ``run_case`` maps a translation onto, with the model stubbed.
@@ -30,12 +38,13 @@ import dataclasses
 import json
 import pathlib
 from collections.abc import Sequence
+from typing import Any
 
 import anthropic
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, model_validator
 
 from ord_schema.logging import get_logger
-from ord_schema.search import execute, nl
+from ord_schema.search import execute, nl, query
 
 logger = get_logger(__name__)
 
@@ -51,18 +60,27 @@ class EvalCase(BaseModel):
     Attributes:
         question: The question, in English.
         why: What this case is here to catch, for whoever reads a failure.
+        reference: One query that answers the question, whose reactions a translation's
+            have to match. Not what a translation has to produce -- several spellings
+            are right -- but the definition of which reactions the right ones return.
         compiles: Whether the question should translate at all. False marks one the
-            grammar cannot express, which the layer must refuse rather than fudge.
-        must_return: Reaction IDs any correct query returns.
-        must_not_return: Reaction IDs a plausible wrong query returns and a correct one
-            does not.
+            grammar cannot express, which the layer must refuse rather than fudge, and
+            which therefore has no reference.
     """
 
     question: str
     why: str
+    reference: dict[str, Any] | None = None
     compiles: bool = True
-    must_return: list[str] = Field(default_factory=list)
-    must_not_return: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _expressible_cases_have_a_reference(self) -> "EvalCase":
+        if self.compiles == (self.reference is None):
+            raise ValueError(
+                f"{self.question}: a case the grammar can express needs a reference "
+                "query, and one it cannot express has no answer to reference"
+            )
+        return self
 
 
 @dataclasses.dataclass(frozen=True)
@@ -93,26 +111,40 @@ def load_cases(path: pathlib.Path = CASES) -> list[EvalCase]:
         return [EvalCase.model_validate(entry) for entry in json.load(handle)]
 
 
-def score(case: EvalCase, returned: Sequence[str]) -> CaseResult:
-    """Returns whether the reactions a query returned satisfy a case.
+def _sample(reaction_ids: set[str], limit: int = 3) -> str:
+    """Returns a few IDs and a count, for a failure someone has to read."""
+    shown = ", ".join(sorted(reaction_ids)[:limit])
+    rest = len(reaction_ids) - limit
+    return f"{shown} and {rest} more" if rest > 0 else shown
+
+
+def score(
+    case: EvalCase, returned: Sequence[str], expected: Sequence[str]
+) -> CaseResult:
+    """Returns whether a translation answered with the reactions the reference does.
 
     Args:
         case: The case.
         returned: Reaction IDs the translated query returned.
+        expected: Reaction IDs the case's reference query returned.
 
     Returns:
-        The result, naming what was missing or wrongly present.
+        The result, naming what the translation missed and what it added. Both
+        directions matter: a query that is too narrow misses reactions, and one that
+        drops a condition adds them.
     """
-    found = set(returned)
-    missing = [value for value in case.must_return if value not in found]
-    forbidden = [value for value in case.must_not_return if value in found]
-    if missing:
-        return CaseResult(case, passed=False, detail=f"must_return absent: {missing}")
-    if forbidden:
+    found, right = set(returned), set(expected)
+    missing, extra = right - found, found - right
+    if missing or extra:
+        parts = []
+        if missing:
+            parts.append(f"missed {len(missing)} ({_sample(missing)})")
+        if extra:
+            parts.append(f"wrongly returned {len(extra)} ({_sample(extra)})")
         return CaseResult(
-            case, passed=False, detail=f"must_not_return present: {forbidden}"
+            case, passed=False, detail=f"{len(right)} expected; " + ", ".join(parts)
         )
-    return CaseResult(case, passed=True, detail=f"{len(found)} reactions")
+    return CaseResult(case, passed=True, detail=f"{len(right)} reactions")
 
 
 def run_case(
@@ -170,8 +202,17 @@ def run_case(
         return CaseResult(
             case, passed=False, detail="compiled, but the grammar cannot express this"
         )
+    assert case.reference is not None  # A case that compiles carries one.
+    expected = corpus.search(
+        query.Query.model_validate({"where": case.reference}),
+        timeout_seconds=timeout_seconds,
+    )
     table = corpus.search(translated, timeout_seconds=timeout_seconds)
-    return score(case, table.column("reaction_id").to_pylist())
+    return score(
+        case,
+        table.column("reaction_id").to_pylist(),
+        expected.column("reaction_id").to_pylist(),
+    )
 
 
 def report(results: Sequence[CaseResult]) -> str:
