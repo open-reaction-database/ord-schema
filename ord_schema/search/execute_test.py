@@ -1270,6 +1270,9 @@ _ROUTABLE = {
             {"op": "same_compound", "path": "smiles", "smiles": "c1ccncc1"}
         )
     },
+    "same parent": {
+        "where": _exists({"op": "same_parent", "path": "smiles", "smiles": "c1ccncc1"})
+    },
     "products rather than inputs": {
         "where": {
             "op": "exists",
@@ -3680,6 +3683,25 @@ def test_same_compound_does_not_match_a_different_molecule(drawn_two_ways):
         _search(
             drawn_two_ways,
             _exists({"op": "same_compound", "path": "smiles", "smiles": "c1ccccc1"}),
+        )
+        == set()
+    )
+
+
+def test_same_parent_reaches_the_salt_that_same_compound_does_not(drawn_two_ways):
+    # dd03 is sodium acetate. It is a different reagent from acetic acid and the same
+    # parent, which is the whole difference between the two operators.
+    assert _search(
+        drawn_two_ways,
+        _exists({"op": "same_parent", "path": "smiles", "smiles": "CC(=O)O"}),
+    ) == {"ord-dd01", "ord-dd03"}
+
+
+def test_same_parent_still_does_not_match_a_different_compound(drawn_two_ways):
+    assert (
+        _search(
+            drawn_two_ways,
+            _exists({"op": "same_parent", "path": "smiles", "smiles": "c1ccccc1"}),
         )
         == set()
     )

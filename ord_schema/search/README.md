@@ -51,6 +51,7 @@ Predicate  = { op: "and" | "or", clauses: [Predicate] }
            | { op: "similarity", path: Path, smiles?: string, compound?: <name>,
                threshold: float }
            | { op: "same_compound", path: Path, smiles?: string, compound?: <name> }
+           | { op: "same_parent", path: Path, smiles?: string, compound?: <name> }
 
 Value      = { literal: <scalar> } | { compound: <name> }
 
@@ -88,8 +89,8 @@ is a compile error rather than a wrong answer:
   query is compiled rather than left to fail where it runs.
 - A `{"compound": ...}` value is resolved through [`ord_schema.resolvers`](../resolvers.py) and
   **bound as a parameter**, so the model names compounds and never spells structures.
-- A `substructure`/`similarity`/`same_compound` path must name a compound's `smiles`,
-  inside a quantifier like any other element predicate.
+- A `substructure`/`similarity`/`same_compound`/`same_parent` path must name a compound's
+  `smiles`, inside a quantifier like any other element predicate.
 - `same_compound` asks "the same compound, however either was drawn"; an `eq` on a `smiles`
   asks "the same spelling". Acetic acid and acetate, an amine and its ammonium, a 2-pyridone
   and its 2-hydroxypyridine tautomer are each one reagent written two ways, and each compares
@@ -98,6 +99,17 @@ is a compile error rather than a wrong answer:
   labels are ignored. Fragments and stereochemistry are not: sodium acetate is still a
   different reagent from acetic acid, and enantiomers are still different compounds. Prefer
   it to `eq` whenever the question names a compound rather than a string.
+- `same_parent` is the looser question, and the one to reach for only when a question says
+  it does not care which salt: what `same_compound` ignores, plus the counterions a reagent
+  was sold as, so sodium acetate matches acetic acid and triethylamine hydrochloride matches
+  triethylamine. A bare compound name is `same_compound`. Stripping stops where the molecule *is* the salt —
+  what survives must still hold carbon — so sodium hydride does not match hydrogen and
+  palladium acetate does not match acetic acid. It is looser on purpose and that is
+  sometimes wrong: sodium and potassium carbonate share a parent, which is right for
+  "reactions using carbonate" and wrong for a question about the sodium. Ask
+  `same_compound` for that one. Only the counterions RDKit recognizes are set aside — the
+  halides, Li/Na/K/Ca/Mg, and the usual acid counterions — so a salt of anything else,
+  cesium carbonate among them, is left whole and matches only itself.
 - A SMARTS naming a hydrogen the corpus stores implicitly is rewritten, with a warning,
   rather than run as written: stored molecules come from SMILES, so `[H]OC` matches no
   methanol and would return empty without saying why. `MergeQueryHs` folds it to

@@ -40,6 +40,11 @@ Rules that keep a query answerable:
   spellings, so it misses the same reagent recorded as another protonation state or
   tautomer — acetate where the question said acetic acid. Use `eq` on a `smiles` only when
   the user gives you an exact string and wants exactly it.
+- `same_compound` is the default for a named compound: a bare name means that compound,
+  not a family. Reach for `same_parent` only where the question says it does not care
+  which salt — "any form of triethylamine", "triethylamine or its hydrochloride". Asking
+  for pyridine as a solvent is `same_compound`, because pyridinium chloride is not what
+  anyone means by pyridine.
 - To rank or aggregate by a value under a repeated level, reduce it:
   `{"reduce": "max", "path": "outcomes.products.measurements.percentage.value"}` is a
   reaction's best yield. A plain path there is refused.
