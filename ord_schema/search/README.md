@@ -82,6 +82,9 @@ is a compile error rather than a wrong answer:
   that reaction's own elements to a single value, so `max` over `outcomes.products.measurements.percentage.value`
   is the reaction's best yield rather than the corpus's. Its path must cross a repeated level;
   a scalar one is refused, since it would give the same query two spellings.
+- `min`, `max`, `avg`, and `sum` need a numeric column, whether they reduce a repeated path
+  or aggregate a scalar one; `count` takes any. Arithmetic over text is refused where the
+  query is compiled rather than left to fail where it runs.
 - A `{"compound": ...}` value is resolved through [`ord_schema.resolvers`](../resolvers.py) and
   **bound as a parameter**, so the model names compounds and never spells structures.
 - A `substructure`/`similarity` path must name a compound's `smiles`, inside a
