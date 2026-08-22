@@ -14,15 +14,19 @@
 
 """Tests for ord_schema.search.nl_eval.
 
-The scoring is what these cover. Running a case reaches a model and a corpus, which is a
-command rather than a test.
+These cover the scoring, and the outcomes ``run_case`` maps a translation onto, with a
+stub client standing in for the model. Measuring against a real model and a real corpus
+is a command rather than a test.
 """
 
 import json
+import types
+from typing import Any, cast
 
 import pytest
+from anthropic.types import ToolUseBlock
 
-from ord_schema.search import nl_eval
+from ord_schema.search import execute, nl_eval
 
 _CASE = nl_eval.EvalCase(
     question="which reactions use pyridine as a solvent?",
@@ -30,6 +34,68 @@ _CASE = nl_eval.EvalCase(
     must_return=["ord-aa", "ord-bb"],
     must_not_return=["ord-zz"],
 )
+_INEXPRESSIBLE = nl_eval.EvalCase(
+    question="reactions where the temperature exceeds the pressure",
+    why="comparing two columns, which the grammar cannot say",
+    compiles=False,
+)
+# The syntax a model invents when it wants "any identifier"; the compiler refuses it.
+_BAD_PATH = {
+    "where": {"op": "eq", "path": "identifiers[*].value", "value": {"literal": "x"}}
+}
+
+
+class _StubClient:
+    """Returns one canned tool call, standing in for the model.
+
+    Attributes:
+        messages: Itself, so ``client.messages.create`` reaches ``create``.
+    """
+
+    def __init__(self, name: str, payload: dict) -> None:
+        """Initializes the stub.
+
+        Args:
+            name: Which tool the canned response calls.
+            payload: The tool call's input.
+        """
+        self._name = name
+        self._payload = payload
+        self.messages = self
+
+    def create(self, **kwargs: Any) -> Any:
+        """Returns the canned response.
+
+        Args:
+            **kwargs: The request, which the stub ignores.
+
+        Returns:
+            A response carrying one ``tool_use`` block.
+        """
+        del kwargs
+        block = ToolUseBlock(
+            type="tool_use", id="toolu_stub", name=self._name, input=self._payload
+        )
+        return types.SimpleNamespace(content=[block], stop_reason="tool_use")
+
+
+def _run(case, client) -> nl_eval.CaseResult:
+    """Runs a case whose translation fails before any corpus is reached.
+
+    Args:
+        case: The case to run.
+        client: The stub standing in for the model.
+
+    Returns:
+        What ``run_case`` decided.
+    """
+    return nl_eval.run_case(
+        case,
+        cast(execute.Corpus, None),
+        client=cast(Any, client),
+        model="stub",
+        repair=False,
+    )
 
 
 def test_a_query_returning_what_it_must_passes():
@@ -93,3 +159,30 @@ def test_load_cases_reads_the_file_it_is_given(tmp_path):
 def test_a_case_needs_a_reason_to_exist():
     with pytest.raises(ValueError, match="why"):
         nl_eval.EvalCase.model_validate({"question": "anything?"})
+
+
+def test_declining_an_inexpressible_question_passes():
+    result = _run(
+        _INEXPRESSIBLE, _StubClient("cannot_answer", {"reason": "no column comparison"})
+    )
+    assert result.passed
+    assert "declined" in result.detail
+
+
+def test_a_query_that_does_not_compile_never_passes():
+    # The layer's answer to an inexpressible question is cannot_answer. A build_query
+    # call that happens not to compile reached the same verdict by the wrong road, and
+    # scoring it as a refusal would hide the day the model starts answering instead.
+    result = _run(_INEXPRESSIBLE, _StubClient("build_query", _BAD_PATH))
+    assert not result.passed
+    assert "did not compile" in result.detail
+
+
+def test_an_expressible_question_that_does_not_compile_fails():
+    result = _run(_CASE, _StubClient("build_query", _BAD_PATH))
+    assert not result.passed
+
+
+def test_declining_an_expressible_question_fails():
+    result = _run(_CASE, _StubClient("cannot_answer", {"reason": "gave up"}))
+    assert not result.passed

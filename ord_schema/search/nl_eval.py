@@ -20,8 +20,9 @@ case was added. It states reactions any correct query returns, and reactions a p
 wrong one returns -- usually the near-miss where two conditions on the same element
 become two quantifiers, which matches a solvent here and a reactant there.
 
-Running the cases costs money and reaches the network, so nothing in the suite calls
-``run_case``. The suite covers the scoring; the measurement is a command.
+Running the cases costs money and reaches the network, so the suite covers the
+scoring and the outcomes ``run_case`` maps a translation onto, with the model stubbed.
+The measurement itself is a command.
 """
 
 import argparse
@@ -129,8 +130,9 @@ def run_case(
         repair: Whether a failure gets the repair turn.
 
     Returns:
-        The result. A case marked ``compiles: false`` passes exactly when translation
-        fails, since refusing what the grammar cannot express is the right answer.
+        The result. A case marked ``compiles: false`` passes exactly when the model
+        declines, since saying so is the right answer to what the grammar cannot
+        express.
     """
     try:
         translated = nl.translate(
@@ -139,9 +141,10 @@ def run_case(
     except nl.UnanswerableError as error:
         return CaseResult(case, passed=not case.compiles, detail=f"declined: {error}")
     except nl.MalformedQueryError as error:
-        return CaseResult(
-            case, passed=not case.compiles, detail=f"did not compile: {error}"
-        )
+        # Never a pass, whatever the case expects. A model that built a query for an
+        # inexpressible question reached the right verdict by the wrong road, and
+        # counting that as a refusal would hide the day it starts answering instead.
+        return CaseResult(case, passed=False, detail=f"did not compile: {error}")
     if not case.compiles:
         return CaseResult(
             case, passed=False, detail="compiled, but the grammar cannot express this"
