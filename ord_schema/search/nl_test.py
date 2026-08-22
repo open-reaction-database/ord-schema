@@ -137,6 +137,20 @@ def _status_error(status_code: int) -> anthropic.APIStatusError:
     return anthropic.InternalServerError("boom", response=response, body=None)
 
 
+def test_the_client_prefers_the_dedicated_key(monkeypatch):
+    # A shell holding ANTHROPIC_API_KEY for whatever else its owner is doing must not
+    # end up paying for a corpus search.
+    monkeypatch.setenv(nl.API_KEY_VARIABLE, "sk-ord")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-general")
+    assert nl.get_client().api_key == "sk-ord"
+
+
+def test_the_client_falls_back_to_the_sdk_lookup(monkeypatch):
+    monkeypatch.delenv(nl.API_KEY_VARIABLE, raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-general")
+    assert nl.get_client().api_key == "sk-general"
+
+
 def test_the_errors_share_one_base():
     # A caller catches the base and still tells a rate limit from a query that could
     # not be built; ord-interface maps these onto status codes.

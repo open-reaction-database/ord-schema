@@ -449,7 +449,9 @@ answer = nl.ask("which reactions use pyridine as a solvent?", corpus)
 print(answer.query, answer.table.num_rows, answer.text)
 ```
 
-Needs the `nl` extra (`pip install "ord-schema[nl]"`) and `ANTHROPIC_API_KEY`. The model
+Needs the `nl` extra (`pip install "ord-schema[nl]"`) and a key in
+`ORD_ANTHROPIC_API_KEY`, which is read in preference to `ANTHROPIC_API_KEY` so a key held
+for general use does not quietly pay for a corpus search. The model
 **cannot** be constrained to emit a valid query — the grammar is recursive, and structured
 outputs and strict tools share a validator that rejects circular references, then rejects
 what is left once the recursion is removed as too large. So a translation is checked
