@@ -1386,6 +1386,44 @@ class Corpus:
         ).fetchall()
         return [row[0] for row in rows]
 
+    def _same_compound_ids(
+        self,
+        cursor: duckdb.DuckDBPyConnection,
+        parameter: query.StructureParameter,
+        resolve: Callable[[str], str],
+    ) -> list[int]:
+        """Matches on the compound hash; returns global IDs.
+
+        The artifact already holds every structure's hash, so the whole answer is one
+        equality against a column -- no screen, no verification, and no chemistry
+        beyond hashing the query molecule the way the artifact hashed its own.
+
+        Args:
+            cursor: The cursor the match runs on.
+            parameter: The predicate to match.
+            resolve: Maps a compound name to SMILES.
+
+        Returns:
+            The corpus-wide structure IDs sharing the query molecule's hash.
+
+        Raises:
+            ValueError: If a resolved compound's SMILES does not parse, or if RDKit
+                refuses to hash the query molecule -- either leaves the question
+                unaskable rather than quietly unanswerable.
+        """
+        molecule = self._query_molecule(parameter, resolve)
+        hashed = structures.mol_hash(molecule)
+        if hashed is None:
+            raise ValueError(
+                f"could not hash the query molecule for {parameter.name!r}; the corpus "
+                "compares compounds by hash, so there is nothing to compare it to"
+            )
+        rows = cursor.execute(
+            "SELECT global_id FROM corpus_structures WHERE mol_hash = $h",
+            {"h": hashed},
+        ).fetchall()
+        return [row[0] for row in rows]
+
     def _bitmap(self, matched: Sequence[int]) -> str:
         """Returns the match set as a bitmap over the corpus-wide ID space."""
         bits = bytearray(b"0" * max(self._total, 1))
@@ -1858,6 +1896,8 @@ class Corpus:
         try:
             if parameter.op == "substructure":
                 matched = self._substructure_ids(parameter, resolve)
+            elif parameter.op == "same_compound":
+                matched = self._same_compound_ids(cursor, parameter, resolve)
             else:
                 matched = self._similarity_ids(cursor, parameter, resolve)
             logger.info(
