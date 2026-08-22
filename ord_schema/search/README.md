@@ -99,9 +99,10 @@ is a compile error rather than a wrong answer:
   labels are ignored. Fragments and stereochemistry are not: sodium acetate is still a
   different reagent from acetic acid, and enantiomers are still different compounds. Prefer
   it to `eq` whenever the question names a compound rather than a string.
-- `same_parent` is the looser question: what `same_compound` ignores, plus the counterions
-  a reagent was sold as, so sodium acetate matches acetic acid and triethylamine
-  hydrochloride matches triethylamine. Stripping stops where the molecule *is* the salt —
+- `same_parent` is the looser question, and the one to reach for only when a question says
+  it does not care which salt: what `same_compound` ignores, plus the counterions a reagent
+  was sold as, so sodium acetate matches acetic acid and triethylamine hydrochloride matches
+  triethylamine. A bare compound name is `same_compound`. Stripping stops where the molecule *is* the salt —
   what survives must still hold carbon — so sodium hydride does not match hydrogen and
   palladium acetate does not match acetic acid. It is looser on purpose and that is
   sometimes wrong: potassium and caesium carbonate share a parent, which is right for
