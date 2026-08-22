@@ -50,6 +50,7 @@ Predicate  = { op: "and" | "or", clauses: [Predicate] }
            | { op: "substructure", path: Path, smarts?: string, compound?: <name> }
            | { op: "similarity", path: Path, smiles?: string, compound?: <name>,
                threshold: float }
+           | { op: "same_compound", path: Path, smiles?: string, compound?: <name> }
 
 Value      = { literal: <scalar> } | { compound: <name> }
 
@@ -87,8 +88,16 @@ is a compile error rather than a wrong answer:
   query is compiled rather than left to fail where it runs.
 - A `{"compound": ...}` value is resolved through [`ord_schema.resolvers`](../resolvers.py) and
   **bound as a parameter**, so the model names compounds and never spells structures.
-- A `substructure`/`similarity` path must name a compound's `smiles`, inside a
-  quantifier like any other element predicate.
+- A `substructure`/`similarity`/`same_compound` path must name a compound's `smiles`,
+  inside a quantifier like any other element predicate.
+- `same_compound` asks "the same compound, however either was drawn"; an `eq` on a `smiles`
+  asks "the same spelling". Acetic acid and acetate, an amine and its ammonium, a 2-pyridone
+  and its 2-hydroxypyridine tautomer are each one reagent written two ways, and each compares
+  unequal under `eq`. It matches on the `mol_hash` the structures artifact derives — RDKit's
+  registration hash of the uncharged molecule — so protonation state, tautomer, and atom-map
+  labels are ignored. Fragments and stereochemistry are not: sodium acetate is still a
+  different reagent from acetic acid, and enantiomers are still different compounds. Prefer
+  it to `eq` whenever the question names a compound rather than a string.
 - A SMARTS naming a hydrogen the corpus stores implicitly is rewritten, with a warning,
   rather than run as written: stored molecules come from SMILES, so `[H]OC` matches no
   methanol and would return empty without saying why. `MergeQueryHs` folds it to

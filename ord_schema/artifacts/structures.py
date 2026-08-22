@@ -47,6 +47,36 @@ verification at all: Tanimoto is defined on the Morgan fingerprint, so the scree
 the answer, and ``morgan_popcount`` bounds it (``popcount(B)`` must lie within ``[t *
 popcount(A), popcount(A) / t]`` for Tanimoto ``>= t``).
 
+Beside the SMILES the projection derived, a row carries a ``mol_hash``: an identity
+for the molecule that ignores how it was drawn. Equality on the stored spelling is
+exact and answers the wrong question surprisingly often -- acetic acid and acetate, an
+amine and its ammonium, a 2-pyridone and its 2-hydroxypyridine tautomer are each one
+reagent written two ways, and each compares unequal.
+
+It is RDKit's registration hash, taken of the uncharged molecule. Uncharging is what
+makes the scheme insensitive to protonation as well as to tautomer: one of its layers
+is the molecular formula, and a formula states the charge. Registration is the right
+API rather than a bare tautomer hash because it normalizes what a bare hash does not --
+atom-map labels, unnecessary explicit hydrogens, enhanced stereo, S-group data -- so a
+compound written with atom maps is the same compound. It is a hash rather than a
+canonical tautomer because canonicalizing one costs what the corpus does not have:
+measured over ORD's own molecules, RDKit's tautomer enumerator runs at ~500 structures
+a second against ~2,600 for this hash, which is an hour against thirteen minutes over
+the two million distinct structures here, before the per-file parallelism the build
+already has. The stored SMILES beside it is what a reader looks at; the hash is only
+ever compared.
+
+Fragments are left alone, so sodium acetate stays distinct from acetic acid. That is a
+narrower claim than "the same reagent" on purpose -- every salt-stripping rule measured
+here trades one class of wrong answer for another, turning Pd(OAc)2 into acetic acid or
+NaH into hydrogen -- and a corpus-wide column is the wrong place to guess. Salt
+insensitivity is a second question and would be a second column.
+
+The hash is RDKit's and moves with it, which is why ``base`` stamps the RDKit version
+and ``is_current`` refuses an artifact built by another one. Without that stamp an
+RDKit upgrade would silently change what a stored column means while every query kept
+running.
+
 A structure whose SMILES RDKit cannot parse keeps its row -- the ID space must stay
 dense -- with every derived column null. It can never match a structure query, and the
 count of such rows is logged per dataset.
@@ -59,7 +89,8 @@ from typing import Any
 import pyarrow as pa
 import pyarrow.parquet as pq
 from rdkit import Chem, DataStructs
-from rdkit.Chem import rdFingerprintGenerator
+from rdkit.Chem import RegistrationHash, rdFingerprintGenerator
+from rdkit.Chem.MolStandardize import rdMolStandardize
 
 from ord_schema import atomic_io
 from ord_schema.artifacts import base, projection
@@ -106,6 +137,9 @@ SCHEMA = pa.schema(
         # carries one, and rows here are numbered 0..n-1 in the same first-seen order.
         pa.field("structure_id", pa.uint32(), nullable=False),
         pa.field("smiles", pa.string(), nullable=False),
+        # What an equality compares when the question is "the same compound" rather
+        # than "the same drawing of one"; see the module docstring.
+        pa.field("mol_hash", pa.string()),
         pa.field(
             "pattern_fp",
             pa.binary(),
@@ -273,6 +307,53 @@ def _collect(source: str | os.PathLike[str]) -> list[str]:
     return [smiles_by_id[structure_id] for structure_id in range(len(smiles_by_id))]
 
 
+# Built once: constructing an uncharger per molecule dominates the work it does, and
+# it carries no per-molecule state.
+_UNCHARGER = rdMolStandardize.Uncharger()
+# The registration hash's tautomer-insensitive scheme drops the two layers that spell a
+# structure exactly and keeps the formula, the tautomer hash, and the S-group data.
+_SCHEME = RegistrationHash.HashScheme.TAUTOMER_INSENSITIVE_LAYERS
+
+
+def mol_hash(structure: Chem.Mol | str) -> str | None:
+    """Returns an identity for a molecule that ignores tautomer and protonation state.
+
+    Two drawings of one reagent hash the same: acetic acid and acetate, an amine and
+    its ammonium, a 2-pyridone and its 2-hydroxypyridine tautomer, a compound written
+    with atom-map labels and the same compound without them. Fragments are left alone,
+    so sodium acetate hashes differently from acetic acid, and so is stereochemistry,
+    so enantiomers stay apart.
+
+    The molecule is uncharged before it is hashed, which is what makes the scheme
+    insensitive to protonation as well: one of its layers is the molecular formula, and
+    a formula states the charge.
+
+    Args:
+        structure: A parsed molecule, or SMILES to read one from.
+
+    Returns:
+        The hash, or None where RDKit cannot read or hash the structure, which leaves
+        the column null rather than storing a value the query side would not reproduce.
+    """
+    molecule = (
+        Chem.MolFromSmiles(structure) if isinstance(structure, str) else structure
+    )
+    if molecule is None:
+        return None
+    try:
+        layers = RegistrationHash.GetMolLayers(
+            _UNCHARGER.uncharge(molecule), enable_tautomer_hash_v2=True
+        )
+        return RegistrationHash.GetMolHash(layers, _SCHEME)
+    except (
+        Chem.AtomValenceException,
+        Chem.KekulizeException,
+        RuntimeError,
+        ValueError,
+    ):
+        return None
+
+
 def _row(structure_id: int, smiles: str) -> dict[str, Any]:
     """Featurizes one structure into a row matching ``SCHEMA``.
 
@@ -287,6 +368,7 @@ def _row(structure_id: int, smiles: str) -> dict[str, Any]:
     row: dict[str, Any] = {
         "structure_id": structure_id,
         "smiles": smiles,
+        "mol_hash": None,
         "pattern_fp": None,
         "morgan_fp": None,
         "morgan_popcount": None,
@@ -295,6 +377,7 @@ def _row(structure_id: int, smiles: str) -> dict[str, Any]:
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return row
+    row["mol_hash"] = mol_hash(mol)
     morgan = morgan_fingerprint(mol)
     row["pattern_fp"] = DataStructs.BitVectToBinaryText(
         Chem.PatternFingerprint(mol, fpSize=PATTERN_FP_SIZE)
