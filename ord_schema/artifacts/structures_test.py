@@ -160,7 +160,13 @@ def test_an_unparseable_structure_keeps_its_row_with_null_columns():
     row = structures._row(7, "not-a-smiles")
     assert row["structure_id"] == 7
     assert row["smiles"] == "not-a-smiles"
-    for column in ("pattern_fp", "morgan_fp", "morgan_popcount", "mol_binary"):
+    for column in (
+        "mol_hash",
+        "pattern_fp",
+        "morgan_fp",
+        "morgan_popcount",
+        "mol_binary",
+    ):
         assert row[column] is None, column
 
 
@@ -290,7 +296,13 @@ def test_an_unparseable_structure_survives_the_write_path(tmp_path):
     rows = pq.read_table(output).to_pylist()
     bad = next(r for r in rows if r["smiles"] == "not-a-smiles")
     assert bad["structure_id"] == ids["c1ccccc1"]
-    for column in ("pattern_fp", "morgan_fp", "morgan_popcount", "mol_binary"):
+    for column in (
+        "mol_hash",
+        "pattern_fp",
+        "morgan_fp",
+        "morgan_popcount",
+        "mol_binary",
+    ):
         assert bad[column] is None, column
     good = next(r for r in rows if r["smiles"] != "not-a-smiles")
     assert good["mol_binary"] is not None
@@ -336,3 +348,81 @@ def test_a_stale_projection_is_refused(tmp_path):
     pq.write_table(pa.Table.from_pylist([], schema=schema), path)
     with pytest.raises(ValueError, match="stale"):
         structures.write_structures(path, tmp_path / "structures.parquet")
+
+
+@pytest.mark.parametrize(
+    ("label", "left", "right"),
+    [
+        ("protonation", "CC(=O)O", "CC(=O)[O-]"),
+        ("ammonium", "CCN", "CC[NH3+]"),
+        ("keto-enol", "CC(=O)C", "CC(O)=C"),
+        ("amide-imidic acid", "CC(=O)N", "CC(O)=N"),
+        ("lactam-lactim", "O=c1cccc[nH]1", "Oc1ccccn1"),
+        ("kekule", "C1=CC=NC=C1", "c1ccncc1"),
+        # Registration strips atom-map labels, which a bare tautomer hash keeps: the
+        # same reagent written for a mapped reaction is the same reagent.
+        ("atom maps", "[CH3:1][C:2](=[O:3])[OH:4]", "CC(=O)O"),
+        ("explicit hydrogens", "[H]OC", "CO"),
+    ],
+)
+def test_one_compound_drawn_two_ways_hashes_the_same(label, left, right):
+    del label
+    assert structures.mol_hash(left) == structures.mol_hash(right)
+
+
+@pytest.mark.parametrize(
+    ("label", "left", "right"),
+    [
+        ("different molecules", "CCO", "CC(=O)O"),
+        ("different heteroatom", "c1ccncc1", "c1ccccc1"),
+        # A salt is a different reagent rather than a different drawing of one, and
+        # every rule that collapses the two mangles something else: keeping the largest
+        # fragment turns Pd(OAc)2 into acetic acid, and stripping recognized
+        # counterions turns NaH into hydrogen.
+        ("salt", "CC(=O)O", "CC(=O)[O-].[Na+]"),
+        ("cocrystal", "c1ccccc1", "c1ccccc1.Cc1ccccc1"),
+        # Stereochemistry is not a way of drawing one compound.
+        ("enantiomers", "C[C@H](N)C(=O)O", "C[C@@H](N)C(=O)O"),
+        ("isotopes", "[2H]OC", "CO"),
+    ],
+)
+def test_different_compounds_hash_differently(label, left, right):
+    del label
+    assert structures.mol_hash(left) != structures.mol_hash(right)
+
+
+def test_an_unhashable_smiles_is_none_rather_than_a_guess():
+    # A column holding a spelling the query side would not reproduce is worse than a
+    # null one, which simply never matches.
+    assert structures.mol_hash("not a molecule") is None
+
+
+def test_the_artifact_carries_a_hash_beside_every_readable_structure(tmp_path):
+    source = _project(tmp_path, [_reaction(input_smiles="CC(=O)[O-]")])
+    output = tmp_path / "structures.parquet"
+    structures.write_structures(source, output)
+    rows = pq.read_table(output).to_pylist()
+    # The acetate is stored as drawn and hashes to what acetic acid hashes to, which is
+    # the whole point: the corpus keeps its own spelling and still answers for it.
+    acetate = next(row for row in rows if "[O-]" in row["smiles"])
+    assert acetate["mol_hash"] == structures.mol_hash("CC(=O)O")
+    assert all(row["mol_hash"] for row in rows)
+
+
+def test_an_artifact_lacking_a_column_is_not_current(tmp_path):
+    # The stamps say nothing about columns, so without the schema an artifact written
+    # before one was added skips derivation and then fails wherever it is read.
+    source = _project(tmp_path)
+    output = tmp_path / "structures.parquet"
+    structures.write_structures(source, output)
+    stamps = base.load_stamps(output)
+    assert structures.is_current(output, stamps.source_md5)
+    table = pq.read_table(output)
+    pq.write_table(
+        table.drop_columns(["mol_hash"]).replace_schema_metadata(table.schema.metadata),
+        output,
+    )
+    assert base.missing_columns(output, structures.SCHEMA) == ["mol_hash"]
+    assert not base.is_current(
+        output, structures.ARTIFACT, stamps.source_md5, structures.SCHEMA
+    )

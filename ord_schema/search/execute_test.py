@@ -18,6 +18,7 @@ import contextlib
 import logging
 import pathlib
 import re
+import shutil
 import threading
 import time
 from collections.abc import Iterator
@@ -30,7 +31,7 @@ from rdkit import Chem
 from rdkit.Chem import rdSubstructLibrary
 
 from ord_schema import parquet
-from ord_schema.artifacts import pivot, projection, structures
+from ord_schema.artifacts import base, pivot, projection, structures
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.search import execute, query
 
@@ -1262,6 +1263,11 @@ _ROUTABLE = {
     "a compound name": {
         "where": _exists(
             {"op": "substructure", "path": "smiles", "compound": "pyridine"}
+        )
+    },
+    "same compound": {
+        "where": _exists(
+            {"op": "same_compound", "path": "smiles", "smiles": "c1ccncc1"}
         )
     },
     "products rather than inputs": {
@@ -3595,3 +3601,141 @@ def test_a_nested_correlation_binds_the_measurement_to_its_own_product(wide_corp
     )
     # ord-wd07 keeps both in one outcome, so only the product ordinal separates them.
     assert found == {"ord-wd02"}
+
+
+@pytest.fixture(scope="module")
+def drawn_two_ways(tmp_path_factory) -> Iterator[execute.Corpus]:
+    """A corpus storing acetate, an enol, and a salt, none spelled the query's way."""
+    acetate = reaction_pb2.Reaction(reaction_id="ord-dd01")
+    _component(acetate.inputs["in"], "CC(=O)[O-]", _ROLE.REAGENT)
+    enol = reaction_pb2.Reaction(reaction_id="ord-dd02")
+    _component(enol.inputs["in"], "CC(O)=C", _ROLE.REACTANT)
+    salt = reaction_pb2.Reaction(reaction_id="ord-dd03")
+    _component(salt.inputs["in"], "CC(=O)[O-].[Na+]", _ROLE.REAGENT)
+    other = reaction_pb2.Reaction(reaction_id="ord-dd04")
+    _component(other.inputs["in"], "CCO", _ROLE.SOLVENT)
+    root = tmp_path_factory.mktemp("drawn")
+    source = root / "data" / "ord_dataset-dd.parquet"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-dd",
+            name="test",
+            description="test",
+            reactions=[acetate, enol, salt, other],
+        ),
+        str(source),
+    )
+    projected = root / "projections" / source.name
+    projected.parent.mkdir(parents=True, exist_ok=True)
+    projection.write_projection(source, projected)
+    structured = root / "structures" / source.name
+    structured.parent.mkdir(parents=True, exist_ok=True)
+    structures.write_structures(projected, structured)
+    with execute.Corpus(
+        str(projected),
+        str(structured),
+        resolver={"acetic_acid": "CC(=O)O"}.__getitem__,
+    ) as value:
+        yield value
+
+
+def test_same_compound_matches_another_protonation_state(drawn_two_ways):
+    # The corpus stores the acetate; an eq on the spelling answers nothing and says so
+    # by returning no rows, which is the worst way for a query to be wrong.
+    assert (
+        _search(
+            drawn_two_ways,
+            _exists(
+                {"op": "eq", "path": "smiles", "value": {"literal": "CC(=O)O"}},
+            ),
+        )
+        == set()
+    )
+    assert _search(
+        drawn_two_ways,
+        _exists({"op": "same_compound", "path": "smiles", "smiles": "CC(=O)O"}),
+    ) == {"ord-dd01"}
+
+
+def test_same_compound_matches_another_tautomer(drawn_two_ways):
+    assert _search(
+        drawn_two_ways,
+        _exists({"op": "same_compound", "path": "smiles", "smiles": "CC(=O)C"}),
+    ) == {"ord-dd02"}
+
+
+def test_same_compound_does_not_reach_a_salt(drawn_two_ways):
+    # Sodium acetate is a different reagent from acetic acid rather than a different
+    # drawing of it, and dd03 is the reaction that would come back if it were not.
+    matched = _search(
+        drawn_two_ways,
+        _exists({"op": "same_compound", "path": "smiles", "smiles": "CC(=O)O"}),
+    )
+    assert "ord-dd03" not in matched
+
+
+def test_same_compound_does_not_match_a_different_molecule(drawn_two_ways):
+    assert (
+        _search(
+            drawn_two_ways,
+            _exists({"op": "same_compound", "path": "smiles", "smiles": "c1ccccc1"}),
+        )
+        == set()
+    )
+
+
+def test_a_compound_name_resolves_to_a_same_compound_query(drawn_two_ways):
+    assert _search(
+        drawn_two_ways,
+        _exists({"op": "same_compound", "path": "smiles", "compound": "acetic_acid"}),
+    ) == {"ord-dd01"}
+
+
+def _without_mol_hash(corpus_dir, tmp_path, *, files: int) -> pathlib.Path:
+    """Copies a corpus and drops ``mol_hash`` from some of its structures artifacts.
+
+    The stamps are carried over untouched, which is the whole point: they say nothing
+    about a file's columns, so a file predating one still reads as current.
+
+    Args:
+        corpus_dir: The corpus to copy.
+        tmp_path: Where to put the copy.
+        files: How many structures artifacts to drop the column from.
+
+    Returns:
+        The copy's root.
+    """
+    root = tmp_path / "aged"
+    shutil.copytree(corpus_dir, root)
+    for path in sorted((root / "structures").glob("*.parquet"))[:files]:
+        table = pq.read_table(path)
+        pq.write_table(
+            table.drop_columns(["mol_hash"]).replace_schema_metadata(
+                table.schema.metadata
+            ),
+            path,
+        )
+    return root
+
+
+def test_a_structures_artifact_without_mol_hash_is_refused(corpus_dir, tmp_path):
+    # Stale is not what this is: the stamps still match, so nothing rebuilds the file
+    # and nothing else would notice until DuckDB failed to bind the column.
+    root = _without_mol_hash(corpus_dir, tmp_path, files=2)
+    assert structures.is_current(
+        next((root / "structures").glob("*.parquet")),
+        base.load_stamps(next((root / "structures").glob("*.parquet"))).source_md5,
+    )
+    with pytest.raises(execute.PairingError, match="mol_hash"):
+        _open(root)
+
+
+def test_one_aged_structures_artifact_is_refused_with_the_others_current(
+    corpus_dir, tmp_path
+):
+    # The likelier state, and the worse one: DuckDB reads a glob of mismatched schemas
+    # as an error on every structure query rather than on the one that wants the column.
+    root = _without_mol_hash(corpus_dir, tmp_path, files=1)
+    with pytest.raises(execute.PairingError, match="derive it again"):
+        _open(root)

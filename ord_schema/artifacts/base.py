@@ -209,7 +209,35 @@ def load_stamps(path: str | os.PathLike[str]) -> Stamps:
     )
 
 
-def is_current(path: str | os.PathLike[str], artifact: str, source_md5: str) -> bool:
+def missing_columns(path: str | os.PathLike[str], schema: pa.Schema) -> list[str]:
+    """Returns the columns ``schema`` declares that ``path`` does not carry.
+
+    Stamps say nothing about a file's columns, so this is what sees a column added to
+    an artifact's definition: a file written before it stamps exactly as a file written
+    after it, and the difference shows up only in the schema.
+
+    Args:
+        path: Path to check. Need not exist.
+        schema: The columns this library's version of the artifact carries.
+
+    Returns:
+        The declared names the file lacks, in declaration order. A file that cannot be
+        read at all lacks all of them.
+    """
+    try:
+        with pq.ParquetFile(path) as parquet_file:
+            names = set(parquet_file.schema_arrow.names)
+    except (OSError, ValueError, pa.ArrowInvalid):
+        return list(schema.names)
+    return [name for name in schema.names if name not in names]
+
+
+def is_current(
+    path: str | os.PathLike[str],
+    artifact: str,
+    source_md5: str,
+    schema: pa.Schema | None = None,
+) -> bool:
     """Returns whether ``path`` holds ``artifact`` derived from ``source_md5`` by us.
 
     All of the source content, the library version, the artifact version, and the RDKit
@@ -220,6 +248,9 @@ def is_current(path: str | os.PathLike[str], artifact: str, source_md5: str) -> 
         path: Path to check. Need not exist.
         artifact: Artifact name the file is expected to hold.
         source_md5: Hash the file is expected to restate.
+        schema: The columns the artifact carries, when the caller has them. Given, a
+            file lacking one is not current, which is what makes a column added
+            without a version bump derive again instead of being skipped.
 
     Returns:
         Whether the file is one this library would write today.
@@ -229,6 +260,8 @@ def is_current(path: str | os.PathLike[str], artifact: str, source_md5: str) -> 
     except (OSError, ValueError):
         # Broad on purpose: every way of failing to read stamps -- absent, truncated,
         # not Parquet at all -- answers "derive it again", which is safe.
+        return False
+    if schema is not None and missing_columns(path, schema):
         return False
     return value.source_md5 == source_md5 and stamps_are_current(value, artifact)
 
@@ -441,6 +474,7 @@ def derive_tree(
     *,
     artifact: str,
     write: ArtifactWriter,
+    schema: pa.Schema | None = None,
     force: bool = False,
     parent_artifact: str | None = None,
 ) -> tuple[int, int, int]:
@@ -457,6 +491,8 @@ def derive_tree(
         artifact: Artifact name, used for the staleness check and the footer stamp.
         write: Writer taking ``(parent, output, source_md5=..., source_dataset_id=...)``
             and returning rows.
+        schema: The columns ``write`` produces, when the caller has them. Given, an
+            artifact lacking one is derived again rather than skipped.
         force: Rewrite artifacts that are already current.
         parent_artifact: Artifact the parents hold, for a derivation that reads another
             artifact rather than a source dataset. None means the parents are source
@@ -508,7 +544,7 @@ def derive_tree(
         source_md5, source_dataset_id = _parent_provenance(
             source, parent_artifact, parent_stamps[source]
         )
-        if not force and is_current(destination, artifact, source_md5):
+        if not force and is_current(destination, artifact, source_md5, schema):
             logger.info("%s is current; skipping", destination)
             skipped += 1
             continue

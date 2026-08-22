@@ -1137,3 +1137,83 @@ def test_a_singular_struct_routes_to_its_ancestor_level_s_pivot():
     )
     assert "FROM pivot_outcomes_products_measurements AS x0" in sql
     assert "x0.element.authentic_standard.smiles" in sql
+
+
+# Comparing compounds rather than spellings
+
+
+def test_same_compound_compiles_to_a_bitmap_test():
+    compiled = _compile(
+        {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {
+                    "op": "same_compound",
+                    "path": "smiles",
+                    "smiles": "CC(=O)O",
+                },
+            }
+        }
+    )
+    assert "get_bit" in compiled.sql
+    assert [(p.op, p.pattern) for p in compiled.structures] == [
+        ("same_compound", "CC(=O)O")
+    ]
+
+
+def test_same_compound_by_name_is_bound_rather_than_spelled():
+    compiled = _compile(
+        {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {
+                    "op": "same_compound",
+                    "path": "smiles",
+                    "compound": "pyridine",
+                },
+            }
+        }
+    )
+    assert [(p.op, p.compound) for p in compiled.structures] == [
+        ("same_compound", "pyridine")
+    ]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        # Neither a smiles nor a compound, or both at once.
+        {"op": "same_compound", "path": "smiles"},
+        {
+            "op": "same_compound",
+            "path": "smiles",
+            "smiles": "CC(=O)O",
+            "compound": "pyridine",
+        },
+        {"op": "same_compound", "path": "smiles", "smiles": "not a molecule"},
+        # An empty molecule matches nothing and still costs a pass over the corpus.
+        {"op": "same_compound", "path": "smiles", "smiles": ""},
+        {"op": "same_compound", "path": "smiles", "compound": "not an identifier"},
+    ],
+)
+def test_a_malformed_same_compound_is_refused_before_compilation(payload):
+    with pytest.raises(ValidationError):
+        query.Query.model_validate(
+            {"where": {"op": "exists", "path": "inputs.components", "where": payload}}
+        )
+
+
+def test_same_compound_needs_a_compound_smiles_column():
+    # The hash lives beside a structure, and reaction_id has none.
+    with pytest.raises(query.QueryError, match="applies to a compound"):
+        _compile(
+            {
+                "where": {
+                    "op": "same_compound",
+                    "path": "reaction_id",
+                    "smiles": "CC(=O)O",
+                }
+            }
+        )

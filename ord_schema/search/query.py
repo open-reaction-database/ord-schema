@@ -449,8 +449,53 @@ class Similarity(BaseModel):
         return self
 
 
+class SameCompound(BaseModel):
+    """The element's structure is the same compound, however either was drawn.
+
+    An ``eq`` on a ``smiles`` compares spellings, and two drawings of one reagent are
+    unequal: acetic acid and acetate, an amine and its ammonium, a 2-pyridone and its
+    2-hydroxypyridine tautomer. This compares the ``mol_hash`` the structures artifact
+    derives, which ignores protonation state, tautomer, and atom-map labels, so those
+    match. Fragments and stereochemistry are not ignored: sodium acetate stays distinct
+    from acetic acid, and enantiomers from each other.
+
+    ``path`` names a compound's ``smiles``. The query is a SMILES, or a compound name
+    resolved at execution; exactly one is given.
+    """
+
+    op: Literal["same_compound"]
+    path: str
+    smiles: str | None = None
+    compound: str | None = None
+
+    @model_validator(mode="after")
+    def _check(self) -> "SameCompound":
+        if (self.smiles is None) == (self.compound is None):
+            raise ValueError("a compound query is a smiles or a compound, not both")
+        if self.compound is not None and not _NAME.match(self.compound):
+            raise ValueError(f"compound name is not an identifier: {self.compound!r}")
+        if self.smiles is not None:
+            molecule = Chem.MolFromSmiles(self.smiles)
+            if molecule is None:
+                raise ValueError(f"SMILES does not parse: {self.smiles!r}")
+            if not molecule.GetNumAtoms():
+                # It hashes to the empty molecule's hash, which nothing in a corpus of
+                # real structures carries: a guaranteed-empty answer that still costs a
+                # pass over every structure.
+                raise ValueError(f"SMILES has no atoms: {self.smiles!r}")
+        return self
+
+
 Predicate = Annotated[
-    And | Or | Not | Quantifier | Comparison | NullCheck | Substructure | Similarity,
+    And
+    | Or
+    | Not
+    | Quantifier
+    | Comparison
+    | NullCheck
+    | Substructure
+    | Similarity
+    | SameCompound,
     Field(discriminator="op"),
 ]
 
@@ -598,7 +643,8 @@ def _leaf(node: Any, resolved: _Resolved, compounds: list[str]) -> str:
 
 
 def _structure_parameter(
-    node: "Substructure | Similarity", structures: list[StructureParameter]
+    node: "Substructure | Similarity | SameCompound",
+    structures: list[StructureParameter],
 ) -> str:
     """Returns the parameter name for a structure predicate, reusing an equal one.
 
@@ -634,7 +680,7 @@ def _structure_parameter(
 
 
 def _structure(
-    node: "Substructure | Similarity",
+    node: "Substructure | Similarity | SameCompound",
     scope: str | None,
     schema: Any,
     structures: list[StructureParameter],
@@ -688,7 +734,7 @@ def _structure(
 
 def _element_terms(
     node: "Quantifier",
-) -> "tuple[Substructure | Similarity, dict[str, str]] | None":
+) -> "tuple[Substructure | Similarity | SameCompound, dict[str, str]] | None":
     """Returns what an ``exists`` body asks of one element, or None if it asks more.
 
     The shape an element index can answer, stated without knowing what any index holds:
@@ -708,10 +754,10 @@ def _element_terms(
     if node.op != "exists":
         return None
     clauses = node.where.clauses if isinstance(node.where, And) else [node.where]
-    structure: Substructure | Similarity | None = None
+    structure: Substructure | Similarity | SameCompound | None = None
     fields: dict[str, str] = {}
     for clause in clauses:
-        if isinstance(clause, Substructure | Similarity):
+        if isinstance(clause, Substructure | Similarity | SameCompound):
             if structure is not None or clause.path != "smiles":
                 return None
             structure = clause
@@ -1005,7 +1051,7 @@ def _predicate(
         return f"(NOT {inner})"
     if isinstance(node, Quantifier):
         return _quantifier(node, scope, schema, compounds, structures, depth, routing)
-    if isinstance(node, Substructure | Similarity):
+    if isinstance(node, Substructure | Similarity | SameCompound):
         return _structure(node, scope, schema, structures)
     resolved = resolve(node.path, schema=schema, root=scope)
     if resolved.repeated:

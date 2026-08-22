@@ -71,6 +71,7 @@ def main(args: argparse.Namespace) -> None:
         args.output_dir,
         artifact=projection.ARTIFACT,
         write=projection.write_projection,
+        schema=projection.SCHEMA,
         force=args.force,
     )
     if not written and not skipped:

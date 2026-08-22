@@ -36,6 +36,10 @@ Rules that keep a query answerable:
 - Name compounds rather than spelling structures: `{"compound": "pyridine"}` resolves to
   SMILES. Reach for `substructure` with a SMARTS only when the user describes a pattern
   or a scaffold rather than a molecule.
+- Ask for a compound with `same_compound`, not with `eq` on a `smiles`. An `eq` compares
+  spellings, so it misses the same reagent recorded as another protonation state or
+  tautomer — acetate where the question said acetic acid. Use `eq` on a `smiles` only when
+  the user gives you an exact string and wants exactly it.
 - To rank or aggregate by a value under a repeated level, reduce it:
   `{"reduce": "max", "path": "outcomes.products.measurements.percentage.value"}` is a
   reaction's best yield. A plain path there is refused.

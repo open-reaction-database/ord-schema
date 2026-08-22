@@ -258,7 +258,9 @@ def _max_structure_id(path: str) -> int | None:
     return largest
 
 
-def _index(pattern: str, artifact: str, require_current: bool) -> dict[str, str]:
+def _index(
+    pattern: str, artifact: str, schema: pa.Schema, require_current: bool
+) -> dict[str, str]:
     """Returns the artifacts matching ``pattern``, keyed by source dataset.
 
     Keyed by the source hash rather than the filename because that is what an
@@ -269,20 +271,33 @@ def _index(pattern: str, artifact: str, require_current: bool) -> dict[str, str]
     Args:
         pattern: Glob matching the artifact files.
         artifact: Artifact name every match must hold.
+        schema: The columns this library's version of the artifact carries.
         require_current: Refuse artifacts not written by the current versions.
 
     Returns:
         A mapping from source dataset hash to path.
 
     Raises:
-        PairingError: If a match holds another artifact, is stale under
-            ``require_current``, or restates a dataset another match already did.
+        PairingError: If a match holds another artifact, lacks a column this library
+            reads, is stale under ``require_current``, or restates a dataset another
+            match already did.
     """
     index: dict[str, str] = {}
     for path in sorted(glob.glob(pattern, recursive=True)):
         stamps = base.load_stamps(path)
         if stamps.artifact != artifact:
             raise PairingError(f"{path} is a {stamps.artifact}, not a {artifact}")
+        missing = base.missing_columns(path, schema)
+        if missing:
+            # The stamps say nothing about a file's columns, so this is the only check
+            # that sees a schema change. Without it a file predating a column is read
+            # as a corpus member and fails deep in DuckDB -- as a binder error on the
+            # query that wants the column, or, where some files have it and some do
+            # not, as a schema mismatch that takes down every structure query.
+            raise PairingError(
+                f"{path} is a {artifact} artifact without {missing}, which this "
+                "library reads; derive it again first"
+            )
         if require_current and not base.stamps_are_current(stamps, artifact):
             raise PairingError(f"{path} is stale; derive it again first")
         if stamps.source_md5 in index:
@@ -309,12 +324,16 @@ def _pair(
         One pair per source dataset, ordered by the projection's source hash.
 
     Raises:
-        PairingError: If no projection matches, or if either side states a dataset the
-            other does not, since a projection's IDs index its own partner's molecules
-            and nobody else's.
+        PairingError: If no projection matches, if either side lacks a column this
+            library reads, or if either side states a dataset the other does not, since
+            a projection's IDs index its own partner's molecules and nobody else's.
     """
-    projections = _index(projection_pattern, projection.ARTIFACT, require_current)
-    structure_files = _index(structures_pattern, structures.ARTIFACT, require_current)
+    projections = _index(
+        projection_pattern, projection.ARTIFACT, projection.SCHEMA, require_current
+    )
+    structure_files = _index(
+        structures_pattern, structures.ARTIFACT, structures.SCHEMA, require_current
+    )
     if not projections:
         raise PairingError(f"no projections matched: {projection_pattern}")
     unpaired = projections.keys() ^ structure_files.keys()
@@ -1386,6 +1405,44 @@ class Corpus:
         ).fetchall()
         return [row[0] for row in rows]
 
+    def _same_compound_ids(
+        self,
+        cursor: duckdb.DuckDBPyConnection,
+        parameter: query.StructureParameter,
+        resolve: Callable[[str], str],
+    ) -> list[int]:
+        """Matches on the compound hash; returns global IDs.
+
+        The artifact already holds every structure's hash, so the whole answer is one
+        equality against a column -- no screen, no verification, and no chemistry
+        beyond hashing the query molecule the way the artifact hashed its own.
+
+        Args:
+            cursor: The cursor the match runs on.
+            parameter: The predicate to match.
+            resolve: Maps a compound name to SMILES.
+
+        Returns:
+            The corpus-wide structure IDs sharing the query molecule's hash.
+
+        Raises:
+            ValueError: If a resolved compound's SMILES does not parse, or if RDKit
+                refuses to hash the query molecule -- either leaves the question
+                unaskable rather than quietly unanswerable.
+        """
+        molecule = self._query_molecule(parameter, resolve)
+        hashed = structures.mol_hash(molecule)
+        if hashed is None:
+            raise ValueError(
+                f"could not hash the query molecule for {parameter.name!r}; the corpus "
+                "compares compounds by hash, so there is nothing to compare it to"
+            )
+        rows = cursor.execute(
+            "SELECT global_id FROM corpus_structures WHERE mol_hash = $h",
+            {"h": hashed},
+        ).fetchall()
+        return [row[0] for row in rows]
+
     def _bitmap(self, matched: Sequence[int]) -> str:
         """Returns the match set as a bitmap over the corpus-wide ID space."""
         bits = bytearray(b"0" * max(self._total, 1))
@@ -1811,7 +1868,7 @@ class Corpus:
         that hit it rather than with everyone queued behind.
 
         Args:
-            cursor: The cursor a similarity screen runs on.
+            cursor: The cursor a similarity screen or a hash match runs on.
             parameter: The predicate to evaluate.
             resolve: Maps a compound name to SMILES.
 
@@ -1819,8 +1876,9 @@ class Corpus:
             The bitmap over corpus-wide structure IDs.
 
         Raises:
-            ValueError: If the predicate names neither a pattern nor a compound, or if
-                a resolved compound's SMILES does not parse.
+            ValueError: If the predicate names neither a pattern nor a compound, if a
+                resolved compound's SMILES does not parse, or if RDKit refuses to hash
+                the query molecule of a ``same_compound`` predicate.
             PairingError: If the library does not come out one entry per distinct
                 molecule over an unbroken run of IDs.
         """
@@ -1858,6 +1916,8 @@ class Corpus:
         try:
             if parameter.op == "substructure":
                 matched = self._substructure_ids(parameter, resolve)
+            elif parameter.op == "same_compound":
+                matched = self._same_compound_ids(cursor, parameter, resolve)
             else:
                 matched = self._similarity_ids(cursor, parameter, resolve)
             logger.info(
