@@ -84,6 +84,7 @@ import contextlib
 import dataclasses
 import functools
 import glob
+import hashlib
 import math
 import pathlib
 import threading
@@ -293,6 +294,28 @@ def _index(pattern: str, artifact: str, require_current: bool) -> dict[str, str]
             )
         index[stamps.source_md5] = path
     return index
+
+
+def _fingerprint(projections: Iterable[str]) -> str:
+    """Returns a short digest naming the artifacts a corpus opened.
+
+    Args:
+        projections: Paths to the projection artifacts, in any order.
+
+    Returns:
+        Sixteen hex characters over each artifact's stamps, sorted so the same corpus
+        opened through a different glob digests the same. The whole stamp goes in
+        rather than the source hash alone, because two corpora built from identical
+        sources by different library versions can answer the same query differently.
+    """
+    digest = hashlib.sha256()
+    # Sorted as text rather than as tuples: a stamp field is optional, and comparing
+    # None against a string to order two artifacts raises.
+    for stamps in sorted(
+        repr(dataclasses.astuple(base.load_stamps(path))) for path in projections
+    ):
+        digest.update(stamps.encode())
+    return digest.hexdigest()[:16]
 
 
 def _pair(
@@ -852,6 +875,7 @@ class Corpus:
         # The projections a pivot artifact has to have been derived from, and the views
         # already published over the artifacts that were; see _pivot_view.
         self._projections = [pair[0] for pair in pairs]
+        self._fingerprint = _fingerprint(self._projections)
         self._pivot_views: dict[str, str | None] = {}
         self._views_lock = threading.Lock()
         self._connection = duckdb.connect(
@@ -949,6 +973,17 @@ class Corpus:
                 "to their offsets; a path did not survive read_parquet"
             )
         return total, searchable
+
+    @property
+    def fingerprint(self) -> str:
+        """Returns a short digest naming the artifacts this corpus opened.
+
+        A question log records this beside the query rather than the rows the query
+        returned, so an old record stays reproducible: the same query against the same
+        fingerprint answers the same way, and a different fingerprint says why it does
+        not.
+        """
+        return self._fingerprint
 
     def check_pivots(self) -> dict[str, int]:
         """Publishes every pivot artifact this corpus can read, and returns the counts.

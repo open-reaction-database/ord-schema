@@ -3595,3 +3595,21 @@ def test_a_nested_correlation_binds_the_measurement_to_its_own_product(wide_corp
     )
     # ord-wd07 keeps both in one outcome, so only the product ordinal separates them.
     assert found == {"ord-wd02"}
+
+
+def test_a_corpus_fingerprint_names_the_artifacts_it_opened(corpus_dir):
+    # The fingerprint travels in a question log so an old record can be reproduced, so
+    # it has to be the same for two openings of one corpus and different for a corpus
+    # holding different artifacts.
+    both = str(corpus_dir / "projections" / "*.parquet")
+    one = str(corpus_dir / "projections" / "ord_dataset-aa.parquet")
+    structures_glob = str(corpus_dir / "structures" / "*.parquet")
+    with (
+        execute.Corpus(both, structures_glob) as first,
+        execute.Corpus(both, structures_glob) as second,
+        execute.Corpus(
+            one, str(corpus_dir / "structures" / "ord_dataset-aa.parquet")
+        ) as subset,
+    ):
+        assert first.fingerprint == second.fingerprint
+        assert first.fingerprint != subset.fingerprint
