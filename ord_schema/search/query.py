@@ -28,8 +28,10 @@ nothing here.
 Two things the compiler settles that SQL leaves to whoever writes it:
 
 * **Quantifiers are stated, never assumed.** A path crossing a repeated level is
-  refused unless an ``exists`` or ``forall`` binds it. The same intent in SQL is spelled
-  ``UNNEST``, which silently means "any" *and* multiplies the row count.
+  refused in a predicate unless an ``exists`` or ``forall`` binds it. The same intent in
+  SQL is spelled ``UNNEST``, which silently means "any" *and* multiplies the row count.
+  A ``Reduction`` is the one reading that needs no quantifier, because it names what to
+  do with the elements instead of asking which of them match.
 * **Repeated levels compile to list lambdas**, never to ``UNNEST`` in a ``FROM`` clause
   -- measured at 27-200x the cost for identical answers, and the idiom every SQL
   tutorial teaches. A compiler cannot reach for the wrong one.
