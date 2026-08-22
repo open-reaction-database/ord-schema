@@ -170,7 +170,7 @@ def run_case(
         return CaseResult(
             case, passed=False, detail="compiled, but the grammar cannot express this"
         )
-    table = corpus.search(translated, timeout_seconds=timeout_seconds)
+    table = corpus.search(translated.query, timeout_seconds=timeout_seconds)
     return score(case, table.column("reaction_id").to_pylist())
 
 

@@ -32,7 +32,7 @@ from anthropic.types import TextBlock, ToolUseBlock
 from ord_schema import parquet
 from ord_schema.artifacts import projection, structures
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.search import execute, nl
+from ord_schema.search import execute, nl, nl_log
 
 
 @pytest.fixture(scope="module")
@@ -138,10 +138,15 @@ def _stub(*responses) -> Any:
     return _StubClient(*responses)
 
 
-def _where(result) -> Any:
-    """Returns a translated query's predicate, which a caller has to have."""
-    assert result.where is not None
-    return result.where
+def _predicate(translated) -> Any:
+    """Returns a query's predicate, which a caller has to have."""
+    assert translated.where is not None
+    return translated.where
+
+
+def _where(translation) -> Any:
+    """Returns a translation's predicate."""
+    return _predicate(translation.query)
 
 
 def _status_error(status_code: int) -> anthropic.APIStatusError:
@@ -284,9 +289,9 @@ def test_the_summary_says_how_much_it_left_out():
 def test_the_answer_call_sees_the_summary_and_not_the_rows():
     table = pa.table({"reaction_id": [str(value) for value in range(100_000)]})
     client = _stub("A hundred thousand reactions.")
-    text = nl.answer("how many?", table, client=client)
+    described = nl.answer("how many?", table, client=client)
     sent = client.requests[0]["messages"][0]["content"]
-    assert text == "A hundred thousand reactions."
+    assert described.text == "A hundred thousand reactions."
     assert "100000 rows" in sent
     # Only the first few rows travel; a row from the middle would mean the table did.
     assert '"reaction_id": "50000"' not in sent
@@ -297,7 +302,7 @@ def test_ask_returns_the_query_it_ran(corpus):
     client = _stub({"where": _SOLVENT}, "Two reactions, both with pyridine.")
     answer = nl.ask("solvent reactions", corpus, client=client)
     assert answer.question == "solvent reactions"
-    assert _where(answer.query).op == "exists"
+    assert _predicate(answer.query).op == "exists"
     assert answer.table.num_rows == corpus.search(answer.query).num_rows
     assert answer.text == "Two reactions, both with pyridine."
 
@@ -367,3 +372,118 @@ def test_declining_is_told_apart_from_failing():
     # report, and both are NLQueryError to anything that only wants to catch one thing.
     assert issubclass(nl.UnanswerableError, nl.NLQueryError)
     assert not issubclass(nl.UnanswerableError, nl.MalformedQueryError)
+
+
+class _CollectingSink:
+    """Keeps every record written to it, so a test can read what was logged."""
+
+    def __init__(self):
+        self.events: list[dict] = []
+
+    def write(self, event):
+        self.events.append(event)
+
+
+def test_a_translation_carries_what_it_cost():
+    # translate dropped response.usage, which left the cost of a question unobservable
+    # and the cheap-model-plus-repair question unanswerable.
+    client = _stub({"where": _SOLVENT})
+    translation = nl.translate("solvent reactions", client=client)
+    assert _where(translation).op == "exists"
+    assert len(translation.attempts) == 1
+    assert translation.attempts[0].usage.input == 1
+    assert translation.attempts[0].error is None
+
+
+def test_a_repaired_translation_keeps_the_query_the_compiler_refused():
+    # The rejected query and the error rejecting it are what prompt work runs on.
+    client = _stub({"where": _BAD_PATH}, {"where": _SOLVENT})
+    translation = nl.translate("solvent reactions", client=client)
+    assert len(translation.attempts) == 2
+    assert translation.attempts[0].translation == {"where": _BAD_PATH}
+    assert "identifiers" in str(translation.attempts[0].error)
+    assert translation.attempts[1].error is None
+
+
+def test_a_malformed_failure_reports_the_attempts_it_paid_for():
+    # An exception carries no return value, so without this the two turns a failed
+    # translation burned would go unrecorded -- and failures are the records worth
+    # having.
+    client = _stub({"where": _BAD_PATH}, {"where": _BAD_PATH})
+    with pytest.raises(nl.MalformedQueryError) as caught:
+        nl.translate("solvent reactions", client=client)
+    assert len(caught.value.attempts) == 2
+    assert all(attempt.error for attempt in caught.value.attempts)
+
+
+def test_ask_records_the_question_and_what_it_became(corpus):
+    sink = _CollectingSink()
+    client = _stub({"where": _SOLVENT}, "Two reactions, both with pyridine.")
+    answer = nl.ask(
+        "solvent reactions", corpus, client=client, sink=sink, session_id="a91b"
+    )
+    (event,) = sink.events
+    assert event["question"] == "solvent reactions"
+    assert event["outcome"] == nl_log.ANSWERED
+    assert event["session_id"] == "a91b"
+    assert event["corpus_fingerprint"] == corpus.fingerprint
+    assert event["row_count"] == answer.table.num_rows
+    # The caller needs the identifier back, or a thumb has nothing to reference.
+    assert event["record_id"] == answer.record_id
+
+
+def test_what_a_question_cost_counts_every_call_it_made(corpus):
+    # Three calls answer this one: a translation the compiler refuses, its repair, and
+    # the sentence describing the result. A total summed from the attempts alone would
+    # miss the third, and a decline would go unpriced entirely.
+    sink = _CollectingSink()
+    client = _stub({"where": _BAD_PATH}, {"where": _SOLVENT}, "Two reactions.")
+    nl.ask("solvent reactions", corpus, client=client, sink=sink)
+    (event,) = sink.events
+    assert len(event["attempts"]) == 2
+    assert event["usage"]["input"] == 3
+
+
+def test_a_declined_question_is_priced_even_though_it_built_nothing(corpus):
+    sink = _CollectingSink()
+    client = _stub(_Refusal("values are literals, never other columns"))
+    with pytest.raises(nl.UnanswerableError):
+        nl.ask("compare two columns", corpus, client=client, sink=sink)
+    (event,) = sink.events
+    assert event["attempts"] == []
+    assert event["usage"]["input"] == 1
+
+
+def test_a_question_that_matched_nothing_is_recorded_as_empty(corpus):
+    sink = _CollectingSink()
+    where = {"op": "eq", "path": "reaction_id", "value": {"literal": "ord-nope"}}
+    client = _stub({"where": where}, "No reactions matched.")
+    nl.ask("reactions that do not exist", corpus, client=client, sink=sink)
+    (event,) = sink.events
+    assert event["outcome"] == nl_log.EMPTY
+    assert event["row_count"] == 0
+
+
+def test_a_failed_ask_is_still_recorded(corpus):
+    # The failures are the records worth having, so the emit cannot sit on the path
+    # that only runs when everything worked.
+    sink = _CollectingSink()
+    client = _stub({"where": _BAD_PATH}, {"where": _BAD_PATH})
+    with pytest.raises(nl.MalformedQueryError):
+        nl.ask("solvent reactions", corpus, client=client, sink=sink)
+    (event,) = sink.events
+    assert event["outcome"] == nl_log.MALFORMED
+    assert len(event["attempts"]) == 2
+    assert event["row_count"] is None
+
+
+def test_a_declined_question_records_whether_a_query_came_first(corpus):
+    sink = _CollectingSink()
+    client = _stub(_Refusal("values are literals, never other columns"))
+    with pytest.raises(nl.UnanswerableError):
+        nl.ask("compare two columns", corpus, client=client, sink=sink)
+    (event,) = sink.events
+    assert event["outcome"] == nl_log.DECLINED
+    assert event["declined_reason"] == "values are literals, never other columns"
+    # No attempt: the model read the question rather than backing off after a refusal.
+    assert event["attempts"] == []

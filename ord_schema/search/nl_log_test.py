@@ -46,9 +46,9 @@ def test_a_translation_is_written_as_a_string_not_a_struct():
     assert json.loads(translation) == _QUERY
 
 
-def test_usage_totals_the_repair_turn_onto_the_first_try():
-    # What a question cost is both turns, which is the number deciding whether a cheap
-    # model plus a repair is worth its accuracy.
+def test_each_turn_is_priced_on_its_own_attempt():
+    # Per-attempt usage is what prices the repair turn separately from the first try,
+    # which is the open question about choosing a cheap model and repairing it.
     event = nl_log.event(
         _ask(
             attempts=(
@@ -65,18 +65,12 @@ def test_usage_totals_the_repair_turn_onto_the_first_try():
             )
         )
     )
-    assert event["usage"] == {
-        "input": 1101,
-        "output": 474,
-        "cache_read": 30208,
-        "cache_creation": 0,
-    }
+    assert [attempt["usage"]["input"] for attempt in event["attempts"]] == [412, 689]
 
 
-def test_the_prose_call_counts_toward_what_the_question_cost():
-    # Two model calls answer a question: the translation and the sentence describing
-    # the result. The total is what the question cost, and it is the one number here
-    # that the attempts alone cannot give.
+def test_the_total_is_recorded_rather_than_summed_from_the_attempts():
+    # A turn can spend tokens without producing an attempt -- declining costs a call,
+    # and so does writing the sentence -- so the total is stated, not derived.
     event = nl_log.event(
         _ask(
             attempts=(
@@ -84,7 +78,7 @@ def test_the_prose_call_counts_toward_what_the_question_cost():
                     translation=_QUERY, error=None, usage=nl_log.Usage(input=10)
                 ),
             ),
-            answer_usage=nl_log.Usage(input=4, output=30),
+            usage=nl_log.Usage(input=14, output=30),
         )
     )
     assert event["usage"]["input"] == 14

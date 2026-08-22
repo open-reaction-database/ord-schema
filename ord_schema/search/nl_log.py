@@ -140,9 +140,10 @@ class Ask:
         declined_reason: What the model said the grammar lacks.
         error: The failure, where one ended the ask.
         answer_text: The prose the reader saw, which is what a thumb is a verdict on.
-        answer_usage: What writing that sentence cost. Kept apart from the attempts so
-            translation can be priced on its own, and summed into the record's total so
-            what the question cost is one field.
+        usage: What the whole question cost, every model call included. Supplied
+            rather than summed from ``attempts``, because a turn can spend tokens
+            without producing an attempt: declining costs a call, and so does writing
+            the sentence describing the result.
         translate_ms: Wall time turning the question into a query.
         search_ms: Wall time running it, or None where it never ran.
         answer_ms: Wall time writing the prose, or None where none was written. Each
@@ -165,7 +166,7 @@ class Ask:
     declined_reason: str | None = None
     error: str | None = None
     answer_text: str | None = None
-    answer_usage: Usage = dataclasses.field(default_factory=Usage)
+    usage: Usage = dataclasses.field(default_factory=Usage)
     translate_ms: float | None = None
     search_ms: float | None = None
     answer_ms: float | None = None
@@ -208,9 +209,7 @@ def event(ask: Ask) -> dict[str, Any]:
         "answer_text": ask.answer_text,
         "model": ask.model,
         "corpus_fingerprint": ask.corpus_fingerprint,
-        "usage": dataclasses.asdict(
-            sum((attempt.usage for attempt in ask.attempts), ask.answer_usage)
-        ),
+        "usage": dataclasses.asdict(ask.usage),
         "translate_ms": ask.translate_ms,
         "search_ms": ask.search_ms,
         "answer_ms": ask.answer_ms,

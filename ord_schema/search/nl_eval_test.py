@@ -26,7 +26,7 @@ from typing import Any, cast
 import pytest
 from anthropic.types import ToolUseBlock
 
-from ord_schema.search import execute, nl, nl_eval
+from ord_schema.search import execute, nl_eval
 
 _CASE = nl_eval.EvalCase(
     question="which reactions use pyridine as a solvent?",
@@ -76,7 +76,15 @@ class _StubClient:
         block = ToolUseBlock(
             type="tool_use", id="toolu_stub", name=self._name, input=self._payload
         )
-        return types.SimpleNamespace(content=[block], stop_reason="tool_use")
+        usage = types.SimpleNamespace(
+            input_tokens=1,
+            output_tokens=1,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=0,
+        )
+        return types.SimpleNamespace(
+            content=[block], usage=usage, stop_reason="tool_use"
+        )
 
 
 class _RaisingClient:
@@ -108,12 +116,52 @@ class _RaisingClient:
         raise self._error
 
 
-def _run(case, client) -> nl_eval.CaseResult:
+class _SequenceClient:
+    """Answers each call with the next canned tool call, for a repair turn.
+
+    Attributes:
+        messages: Itself, so ``client.messages.create`` reaches ``create``.
+    """
+
+    def __init__(self, *calls: tuple[str, dict]) -> None:
+        """Initializes the stub.
+
+        Args:
+            *calls: ``(tool name, input)`` pairs, returned in order.
+        """
+        self._calls = list(calls)
+        self.messages = self
+
+    def create(self, **kwargs: Any) -> Any:
+        """Returns the next canned response.
+
+        Args:
+            **kwargs: The request, which the stub ignores.
+
+        Returns:
+            A response carrying one ``tool_use`` block.
+        """
+        del kwargs
+        name, payload = self._calls.pop(0)
+        block = ToolUseBlock(type="tool_use", id="toolu_stub", name=name, input=payload)
+        usage = types.SimpleNamespace(
+            input_tokens=1,
+            output_tokens=1,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=0,
+        )
+        return types.SimpleNamespace(
+            content=[block], usage=usage, stop_reason="tool_use"
+        )
+
+
+def _run(case, client, *, repair: bool = False) -> nl_eval.CaseResult:
     """Runs a case whose translation fails before any corpus is reached.
 
     Args:
         case: The case to run.
         client: The stub standing in for the model.
+        repair: Whether a failed query gets handed back once.
 
     Returns:
         What ``run_case`` decided.
@@ -123,7 +171,7 @@ def _run(case, client) -> nl_eval.CaseResult:
         cast(execute.Corpus, None),
         client=cast(Any, client),
         model="stub",
-        repair=False,
+        repair=repair,
     )
 
 
@@ -208,8 +256,14 @@ def test_declining_an_inexpressible_question_passes():
 def test_a_refusal_reached_only_after_a_failed_query_fails():
     # The caller is served either way, but this case exists to measure whether the
     # model reads the question, not whether it eventually stops.
-    error = nl.UnanswerableError("no column comparison", attempted=True)
-    result = _run(_INEXPRESSIBLE, _RaisingClient(error))
+    # The model builds a query, the compiler refuses it, and only on the repair turn
+    # does the model decline. What marks that is the attempt translate recorded before
+    # the refusal, so the sequence has to be run rather than an error handed in.
+    client = _SequenceClient(
+        ("build_query", _BAD_PATH),
+        ("cannot_answer", {"reason": "no column comparison"}),
+    )
+    result = _run(_INEXPRESSIBLE, client, repair=True)
     assert not result.passed
     assert "built a query, then declined" in result.detail
 
