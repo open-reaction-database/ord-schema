@@ -700,6 +700,18 @@ def check_coverage(corpus: execute.Corpus, *, timeout_seconds: float) -> list[Fi
         return found
 
     total = count("reactions", None)
+    if not total:
+        # Every check below this reports a share of nothing, and every check above it
+        # passed by having nothing to disagree about. A corpus nobody can query is not
+        # a corpus that passed: say so rather than divide by it.
+        counts.append(
+            Finding(
+                "the corpus holds reactions",
+                passed=False,
+                detail="no reactions, so every other check passed vacuously",
+            )
+        )
+        return counts
 
     def share(label: str, where: dict[str, Any]) -> None:
         found = count(label, where)

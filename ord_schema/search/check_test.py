@@ -246,3 +246,42 @@ def test_every_reducer_is_covered_by_a_canonical_query():
     # One is enough to prove the list-aggregate path compiles and runs; the rest differ
     # only in which DuckDB function the same expression wraps, which query_test pins.
     assert covered
+
+
+@pytest.fixture(scope="module")
+def empty_corpus(corpus_root, tmp_path_factory):
+    """A corpus whose projections hold no rows.
+
+    Built by emptying a real one rather than by deriving an empty dataset, which
+    ``save_dataset`` refuses. Unreachable through the deriving path today, which is the
+    point: the coverage counts are a division, and the day a corpus can be empty is not
+    the day to discover that.
+    """
+    root = tmp_path_factory.mktemp("empty")
+    for kind in ("projections", "structures"):
+        (root / kind).mkdir()
+        for path in sorted((corpus_root / kind).glob("*.parquet")):
+            table = pq.read_table(path)
+            pq.write_table(
+                table.slice(0, 0).replace_schema_metadata(table.schema.metadata),
+                root / kind / path.name,
+            )
+    with execute.Corpus(
+        str(root / "projections" / "*.parquet"),
+        str(root / "structures" / "*.parquet"),
+        pivot_budget_bytes=0,
+    ) as corpus:
+        yield corpus
+
+
+def test_an_empty_corpus_fails_rather_than_dividing_by_nothing(empty_corpus):
+    findings = check.check_coverage(empty_corpus, timeout_seconds=60)
+    assert "the corpus holds reactions" in _failures(findings)
+
+
+def test_an_empty_corpus_says_why_its_other_checks_are_worthless(empty_corpus):
+    # A run that reports "everything passed" over an empty corpus is the worst outcome
+    # available: it looks like the answer someone wanted.
+    findings = check.check_coverage(empty_corpus, timeout_seconds=60)
+    failure = next(f for f in findings if not f.passed)
+    assert "vacuously" in failure.detail
