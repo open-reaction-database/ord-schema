@@ -15,6 +15,7 @@
 """Tests for ord_schema.search.execute."""
 
 import contextlib
+import dataclasses
 import logging
 import pathlib
 import re
@@ -3761,3 +3762,76 @@ def test_one_aged_structures_artifact_is_refused_with_the_others_current(
     root = _without_mol_hash(corpus_dir, tmp_path, files=1)
     with pytest.raises(execute.PairingError, match="derive it again"):
         _open(root)
+
+
+def test_a_corpus_reads_each_artifacts_stamps_once(corpus_dir, monkeypatch):
+    # Pairing opens a footer per artifact to verify it, and the fingerprint is taken
+    # from those stamps. Reading them a second time costs 0.65 seconds on the real
+    # corpus for values already in hand.
+    opened: list[str] = []
+    real = base.load_stamps
+
+    def counting(path):
+        opened.append(str(path))
+        return real(path)
+
+    monkeypatch.setattr(base, "load_stamps", counting)
+    projections = str(corpus_dir / "projections" / "*.parquet")
+    structures_glob = str(corpus_dir / "structures" / "*.parquet")
+    with execute.Corpus(projections, structures_glob) as value:
+        assert value.fingerprint
+        assert value.fingerprint  # A second read opens nothing either.
+    assert len(opened) == len(set(opened))
+
+
+def test_a_corpus_fingerprint_names_the_artifacts_it_opened(corpus_dir):
+    # The fingerprint travels in a question log so an old record can be reproduced, so
+    # it has to be the same for two openings of one corpus and different for a corpus
+    # holding different artifacts.
+    both = str(corpus_dir / "projections" / "*.parquet")
+    one = str(corpus_dir / "projections" / "ord_dataset-aa.parquet")
+    structures_glob = str(corpus_dir / "structures" / "*.parquet")
+    with (
+        execute.Corpus(both, structures_glob) as first,
+        execute.Corpus(both, structures_glob) as second,
+        execute.Corpus(
+            one, str(corpus_dir / "structures" / "ord_dataset-aa.parquet")
+        ) as subset,
+    ):
+        assert first.fingerprint == second.fingerprint
+        assert first.fingerprint != subset.fingerprint
+
+
+def test_a_corpus_fingerprint_moves_when_only_the_structures_are_rebuilt(
+    corpus_dir, tmp_path
+):
+    # Structures answer every structure predicate and are derived separately from the
+    # projections they pair with, so a corpus can be rebuilt with its projections
+    # untouched and still answer differently. A fingerprint blind to them says two
+    # corpora agree when they do not, and a question log promising to reproduce an old
+    # query from one would quietly be wrong. The stamp changed here is one currency
+    # does not check, so the pair still opens.
+    root = tmp_path / "restructured"
+    shutil.copytree(corpus_dir, root)
+    for path in (root / "structures").glob("*.parquet"):
+        table = pq.read_table(path)
+        stamps = base.load_stamps(path)
+        pq.write_table(
+            table.replace_schema_metadata(
+                base.to_metadata(
+                    dataclasses.replace(stamps, source_dataset_id="ord_dataset-other")
+                )
+            ),
+            path,
+        )
+    with (
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+        ) as before,
+        execute.Corpus(
+            str(root / "projections" / "*.parquet"),
+            str(root / "structures" / "*.parquet"),
+        ) as after,
+    ):
+        assert before.fingerprint != after.fingerprint

@@ -492,6 +492,86 @@ The ~15k-token prefix — these rules plus `describe()` plus the grammar — is 
 is most of what a query costs. `answer.query` is the query that ran, so a caller can show
 what was searched and offer to run it again.
 
+### Keep the questions
+
+```python
+from ord_schema.search import nl, nl_log
+
+sink = nl_log.JsonlSink("nl-log/today.jsonl")          # or S3Sink(boto3.client("s3"), bucket=...)
+answer = nl.ask(question, corpus, sink=sink, session_id=session_id)
+...
+nl_log.write(sink, nl_log.thumb(answer.record_id, "down", comment="wrong solvent"))
+```
+
+Recording is off until a caller opts in. `ask()` without a `sink` records nothing, and
+nothing here builds an `S3Sink` -- a deployment hands one its own client and bucket, so
+no bucket name lives in this package. `nl_log.write()` is the single path each event
+takes, so an unreachable sink costs the record rather than the answer whether the event
+is the ask this package writes or the thumb a caller builds.
+
+The questions people ask are the only material that can refine a translator, so they are
+recorded rather than discarded. The log is an **append-only stream of events**, not a
+table: an `ask` written by the library, a `thumb` a reader leaves, and a `label` a
+maintainer applies all share a `record_id`, because they are three assertions by three
+parties at three times and one mutable row would lose which was which. Each carries its
+own `event_id` as well, which is what an object store keys on — a key built from the
+shared `record_id` would have the thumb overwrite the question it judges.
+
+Every ending is recorded, not only the one where everything worked. `nl_log.Outcome` is
+`ANSWERED`, `EMPTY`, `DECLINED`, `MALFORMED`, or the rest of the error taxonomy — and the
+first three self-label: a question that translated and matched nothing, or that the model
+declined, is a failure that needs no human to recognize it. Grouped by `session_id`, a
+rephrasing reads as the reader's own correction of the question before it. The caller
+mints that identifier and decides what it spans.
+
+`source` names the surface a question arrived from — `web`, `eval`, `api`. One prefix
+holds all of them, and nothing else in a record separates a person rephrasing from a
+harness working through a case file.
+
+Results are **not** stored; `translation` plus `corpus_fingerprint` reproduce them.
+`prompt_fingerprint` names the translator that wrote a record, and moves exactly when the
+cached prefix does.
+
+A record is a typed envelope around an opaque payload: identifiers, outcome, usage, and
+timings are fields, while the question and the whole `attempts` list — not only the query
+inside it — are strings. They stay strings because a `Query` is recursive and differently
+shaped record to record, and because a month in which everything compiled writes
+`"error": null` throughout and infers that field as JSON where a month holding one
+rejection infers it as text. Either way DuckDB would be inferring a struct from whichever
+shapes a month happened to hold, and whether two months read back together would depend
+on what it can coerce. As strings they reconcile by construction.
+
+Identifiers are minted as hex rather than as dashed UUIDs for the same reason: a source
+whose `session_id`s are all dashed UUIDs infers `UUID` and one holding opaque tokens
+infers `VARCHAR`, and a read spanning both would refuse to union them. `read()` casts
+them anyway, which is what covers a client that minted its own.
+
+Read it with `nl_log.read()`, which folds the verdicts onto their asks and derives
+`translation` and `repaired` from the attempts:
+
+```python
+nl_log.read("nl-log/parquet/*.parquet", "nl-log/raw/dt=*/*.json",
+            statement="SELECT question, outcome, usage.input FROM log WHERE thumb = 'down'")
+```
+
+JSON and Parquet mix freely, so `nl_log.compact()` can fold a stretch into one file
+whenever volume asks for it rather than as a migration. It leaves what it folded in
+place, and `read()` counts an event once however many sources carry it, so a compacted
+month and the raw days inside it can be read together until whoever owns the prefix
+decides the days can go. `compact(redact=True)`, off by default, empties every
+free-text column — the question, the answer, the thumb's comment, the label's note —
+rather than dropping them, so a file written either way keeps one schema and a query
+spanning both binds.
+
+A thumb and a label are spelled from `nl_log.Thumb` and `nl_log.Verdict` rather than
+free strings: the log is append-only, so a verdict typed `"Down"` can be superseded but
+never corrected, and it is invisible to the query above.
+
+Writes are best-effort: an unreachable bucket costs the record, never the answer, and so
+does an artifact that has gone unreadable when the record's fingerprint is taken. The
+eval harness records too — `nl_eval --log run.jsonl` — which is why the log has to be
+writable from a laptop.
+
 ### Measure how good a translation is
 
 ```bash

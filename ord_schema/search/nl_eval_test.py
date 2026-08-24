@@ -23,10 +23,11 @@ import json
 import types
 from typing import Any, cast
 
+import pyarrow as pa
 import pytest
 from anthropic.types import ToolUseBlock
 
-from ord_schema.search import execute, nl, nl_eval, query
+from ord_schema.search import execute, nl_eval, nl_log, query
 
 _CASE = nl_eval.EvalCase(
     question="which reactions use pyridine as a solvent?",
@@ -75,54 +76,73 @@ class _StubClient:
         block = ToolUseBlock(
             type="tool_use", id="toolu_stub", name=self._name, input=self._payload
         )
-        return types.SimpleNamespace(content=[block], stop_reason="tool_use")
+        usage = types.SimpleNamespace(
+            input_tokens=1,
+            output_tokens=1,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=0,
+        )
+        return types.SimpleNamespace(
+            content=[block], usage=usage, stop_reason="tool_use"
+        )
 
 
-class _RaisingClient:
-    """Raises a canned error instead of answering.
+class _SequenceClient:
+    """Answers each call with the next canned tool call, for a repair turn.
 
     Attributes:
         messages: Itself, so ``client.messages.create`` reaches ``create``.
     """
 
-    def __init__(self, error: Exception) -> None:
+    def __init__(self, *calls: tuple[str, dict]) -> None:
         """Initializes the stub.
 
         Args:
-            error: What every request raises.
+            *calls: ``(tool name, input)`` pairs, returned in order.
         """
-        self._error = error
+        self._calls = list(calls)
         self.messages = self
 
     def create(self, **kwargs: Any) -> Any:
-        """Raises the canned error.
+        """Returns the next canned response.
 
         Args:
             **kwargs: The request, which the stub ignores.
 
-        Raises:
-            Exception: Always, with whatever this stub was built around.
+        Returns:
+            A response carrying one ``tool_use`` block.
         """
         del kwargs
-        raise self._error
+        name, payload = self._calls.pop(0)
+        block = ToolUseBlock(type="tool_use", id="toolu_stub", name=name, input=payload)
+        usage = types.SimpleNamespace(
+            input_tokens=1,
+            output_tokens=1,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=0,
+        )
+        return types.SimpleNamespace(
+            content=[block], usage=usage, stop_reason="tool_use"
+        )
 
 
-def _run(case, client) -> nl_eval.CaseResult:
+def _run(case, client, *, repair: bool = False) -> nl_eval.CaseResult:
     """Runs a case whose translation fails before any corpus is reached.
 
     Args:
         case: The case to run.
         client: The stub standing in for the model.
+        repair: Whether a failed query gets handed back once.
 
     Returns:
         What ``run_case`` decided.
     """
     return nl_eval.run_case(
         case,
-        cast(execute.Corpus, None),
+        cast(execute.Corpus, _StubCorpus()),
         client=cast(Any, client),
         model="stub",
-        repair=False,
+        repair=repair,
     )
 
 
@@ -254,8 +274,13 @@ def test_a_query_that_does_not_compile_never_passes():
 def test_a_refusal_reached_only_after_a_failed_query_fails():
     # The caller is served either way, but this case exists to measure whether the
     # model reads the question, not whether it eventually stops.
-    error = nl.UnanswerableError("no column comparison", attempted=True)
-    result = _run(_INEXPRESSIBLE, _RaisingClient(error))
+    # What marks it is the attempt translate recorded before the refusal, so the two
+    # turns have to be run rather than an error handed in.
+    client = _SequenceClient(
+        ("build_query", _BAD_PATH),
+        ("cannot_answer", {"reason": "no column comparison"}),
+    )
+    result = _run(_INEXPRESSIBLE, client, repair=True)
     assert not result.passed
     assert "built a query, then declined" in result.detail
 
@@ -266,3 +291,119 @@ def test_an_expressible_question_that_does_not_compile_fails():
 
 def test_declining_an_expressible_question_fails():
     assert not _run(_CASE, _StubClient("cannot_answer", {"reason": "gave up"})).passed
+
+
+def test_a_run_records_its_cases(tmp_path):
+    # The measurement that exists today runs from a laptop, and recording it is the
+    # reason the log is a file and a bucket rather than a database behind a tunnel.
+    sink = nl_log.JsonlSink(tmp_path / "run.jsonl")
+    nl_eval.run_case(
+        _INEXPRESSIBLE,
+        cast(execute.Corpus, _StubCorpus()),
+        client=cast(Any, _StubClient("cannot_answer", {"reason": "no comparison"})),
+        model="stub",
+        repair=False,
+        sink=sink,
+        session_id="run-1",
+    )
+    (line,) = (tmp_path / "run.jsonl").read_text(encoding="utf-8").splitlines()
+    event = json.loads(line)
+    assert event["outcome"] == nl_log.Outcome.DECLINED
+    assert event["question"] == _INEXPRESSIBLE.question
+    # A run is a session, so one run's cases group the way one visitor's questions do.
+    assert event["session_id"] == "run-1"
+
+
+class _StubCorpus:
+    """Answers every query with one reaction, standing in for a real corpus.
+
+    Attributes:
+        fingerprint: What a record names the corpus by.
+    """
+
+    fingerprint = "stubcorpus"
+
+    def search(self, translated: Any, **kwargs: Any) -> pa.Table:
+        """Returns the canned result.
+
+        Args:
+            translated: The query, which the stub ignores.
+            **kwargs: Bounds the stub ignores.
+
+        Returns:
+            A one-row table.
+        """
+        del translated, kwargs
+        return pa.table({"reaction_id": ["ord-aa"]})
+
+
+class _FailingCorpus(_StubCorpus):
+    """Refuses every query the way a resolver refuses an unobtainable compound."""
+
+    def search(self, translated: Any, **kwargs: Any) -> pa.Table:
+        """Raises.
+
+        Args:
+            translated: The query, which the stub ignores.
+            **kwargs: Bounds the stub ignores.
+
+        Raises:
+            ValueError: Always.
+        """
+        del translated, kwargs
+        raise ValueError("cannot resolve 'unobtainium'")
+
+
+def test_a_case_whose_search_fails_costs_that_case_and_not_the_run(tmp_path):
+    # main runs the cases in a comprehension, so an exception escaping run_case costs
+    # every other case's result along with this one.
+    sink = nl_log.JsonlSink(tmp_path / "run.jsonl")
+    result = nl_eval.run_case(
+        _INEXPRESSIBLE,
+        cast(execute.Corpus, _FailingCorpus()),
+        client=cast(
+            Any,
+            _StubClient("build_query", {"where": {"op": "not_null", "path": "smiles"}}),
+        ),
+        model="stub",
+        repair=False,
+        sink=sink,
+    )
+    assert not result.passed
+    assert "unobtainium" in result.detail
+    (line,) = (tmp_path / "run.jsonl").read_text(encoding="utf-8").splitlines()
+    assert json.loads(line)["outcome"] == nl_log.Outcome.UNRESOLVED_COMPOUND
+
+
+def test_a_query_built_for_an_inexpressible_question_is_recorded(tmp_path):
+    # The case fails, but the record is the point: a model answering a question the
+    # grammar supposedly cannot express means either the model is wrong or the case
+    # is, and the query it wrote is the evidence for deciding which.
+    sink = nl_log.JsonlSink(tmp_path / "run.jsonl")
+    result = nl_eval.run_case(
+        _INEXPRESSIBLE,
+        cast(execute.Corpus, _StubCorpus()),
+        client=cast(
+            Any,
+            _StubClient("build_query", {"where": {"op": "not_null", "path": "smiles"}}),
+        ),
+        model="stub",
+        repair=False,
+        sink=sink,
+    )
+    assert not result.passed
+    assert "cannot express" in result.detail
+    (line,) = (tmp_path / "run.jsonl").read_text(encoding="utf-8").splitlines()
+    event = json.loads(line)
+    assert event["outcome"] == nl_log.Outcome.ANSWERED
+    (attempt,) = json.loads(event["attempts"])
+    assert json.loads(attempt["translation"])["where"]["op"] == "not_null"
+    # A case file marched through end to end is not evidence about what people ask, and
+    # it lands in the same place as the questions that are.
+    assert event["source"] == "eval"
+
+
+def test_a_run_without_a_sink_records_nothing(tmp_path):
+    result = _run(_CASE, _StubClient("build_query", _BAD_PATH))
+    assert not result.passed
+    assert not list(tmp_path.iterdir())
