@@ -37,14 +37,16 @@ import argparse
 import dataclasses
 import json
 import pathlib
+import uuid
 from collections.abc import Sequence
 from typing import Any
 
 import anthropic
+import pyarrow as pa
 from pydantic import BaseModel, model_validator
 
 from ord_schema.logging import get_logger
-from ord_schema.search import execute, nl, query
+from ord_schema.search import execute, nl, nl_log, query
 
 logger = get_logger(__name__)
 
@@ -52,6 +54,10 @@ CASES = pathlib.Path(__file__).parent / "nl_cases.json"
 # Longer than a served query would wait, because a run is unattended and a case whose
 # translation is slow is worth a verdict rather than a stopped harness.
 DEFAULT_TIMEOUT_SECONDS = 300.0
+# What a record written by a run is marked with. A case file marched through end to end
+# is not evidence about what people ask, and the two are indistinguishable in the log
+# without this.
+SOURCE = "eval"
 
 
 class EvalCase(BaseModel):
@@ -147,6 +153,43 @@ def score(
     return CaseResult(case, passed=True, detail=f"{len(right)} reactions")
 
 
+def _score_against_reference(
+    case: EvalCase,
+    corpus: execute.Corpus,
+    table: pa.Table,
+    *,
+    timeout_seconds: float,
+) -> CaseResult:
+    """Returns how the translated query's rows compare with the reference query's.
+
+    Args:
+        case: The case, which carries the reference.
+        corpus: The corpus to run the reference against.
+        table: What the model's query returned.
+        timeout_seconds: Bounds the reference search.
+
+    Returns:
+        The result. A reference query that will not run fails its own case rather than
+        the run: that is the case file being wrong, and the other cases still have
+        something to say.
+    """
+    assert case.reference is not None  # A case that compiles carries one.
+    try:
+        expected = corpus.search(
+            query.Query.model_validate({"where": case.reference}),
+            timeout_seconds=timeout_seconds,
+        )
+    except Exception as error:  # noqa: BLE001
+        return CaseResult(
+            case, passed=False, detail=f"the reference query failed: {error}"
+        )
+    return score(
+        case,
+        table.column("reaction_id").to_pylist(),
+        expected.column("reaction_id").to_pylist(),
+    )
+
+
 def run_case(
     case: EvalCase,
     corpus: execute.Corpus,
@@ -155,6 +198,8 @@ def run_case(
     model: str,
     repair: bool,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    sink: nl_log.Sink | None = None,
+    session_id: str | None = None,
 ) -> CaseResult:
     """Translates one case, runs it, and scores what came back.
 
@@ -166,6 +211,10 @@ def run_case(
         repair: Whether a failure gets the repair turn.
         timeout_seconds: Bounds the search, so a case that translates into something
             slow fails the run rather than stopping it.
+        sink: Where each case's record goes; nothing is recorded if omitted. A run is
+            worth recording for the same reason a served question is: a real question
+            against a real model, priced and timed.
+        session_id: Groups this run's cases, the way a visit groups a reader's.
 
     Returns:
         The result. A case marked ``compiles: false`` passes exactly when the model
@@ -178,13 +227,43 @@ def run_case(
         ModelRateLimitedError: If the caller is over its rate limit.
         ModelUnavailableError: If the model cannot be reached. Neither is scored as a
             failed translation: the measurement did not happen, and calling that a
-            wrong answer would understate the model on the next run.
+            wrong answer would understate the model on the next run. Everything else --
+            a query that names an unresolvable compound, a search past its timeout, a
+            reference query the case file got wrong -- fails its own case and lets the
+            rest of the run finish.
     """
+
+    def record(outcome: nl_log.Outcome, **fields: Any) -> None:
+        """Writes one record for this case."""
+        nl_log.emit(
+            sink,
+            nl_log.Ask(
+                question=case.question,
+                model=model,
+                corpus_fingerprint=corpus.fingerprint,
+                prompt_fingerprint=nl.prompt_fingerprint(),
+                outcome=outcome,
+                source=SOURCE,
+                session_id=session_id,
+                **fields,
+            ),
+        )
+
+    # A rate limit or an unreachable model is deliberately not recorded: the
+    # measurement did not happen, and a record of it would read as a translation that
+    # went wrong.
     try:
         translated = nl.translate(
             case.question, client=client, model=model, repair=repair
         )
     except nl.UnanswerableError as error:
+        record(
+            nl_log.Outcome.DECLINED,
+            attempts=error.attempts,
+            declined_reason=str(error),
+            usage=error.usage,
+            translate_ms=error.elapsed_ms,
+        )
         if error.attempted:
             # The model wrote a query for a question the grammar cannot express and
             # only backed off once the compiler said so. The caller is served, but the
@@ -194,24 +273,47 @@ def run_case(
             )
         return CaseResult(case, passed=not case.compiles, detail=f"declined: {error}")
     except nl.MalformedQueryError as error:
+        record(
+            nl_log.Outcome.MALFORMED,
+            attempts=error.attempts,
+            error=str(error),
+            usage=error.usage,
+            translate_ms=error.elapsed_ms,
+        )
         # Never a pass, whatever the case expects. A model that built a query for an
         # inexpressible question reached the right verdict by the wrong road, and
         # counting that as a refusal would hide the day it starts answering instead.
         return CaseResult(case, passed=False, detail=f"did not compile: {error}")
+    try:
+        table = corpus.search(translated.query, timeout_seconds=timeout_seconds)
+    except Exception as error:  # noqa: BLE001
+        # One case whose query names an unresolvable compound, or runs past the
+        # timeout, is one failed case. Letting it out of here would abort the run and
+        # cost every other case's result along with it.
+        record(
+            nl.outcome_of(error),
+            attempts=translated.attempts,
+            error=str(error),
+            usage=translated.usage,
+            translate_ms=translated.elapsed_ms,
+        )
+        return CaseResult(case, passed=False, detail=f"the search failed: {error}")
+    record(
+        nl_log.Outcome.ANSWERED if table.num_rows else nl_log.Outcome.EMPTY,
+        attempts=translated.attempts,
+        row_count=table.num_rows,
+        usage=translated.usage,
+        translate_ms=translated.elapsed_ms,
+    )
     if not case.compiles:
+        # Recorded before the verdict, because a model answering a question the
+        # grammar supposedly cannot express is the most interesting thing in a run:
+        # either the model is wrong, or the case is, and the query is the evidence.
         return CaseResult(
             case, passed=False, detail="compiled, but the grammar cannot express this"
         )
-    assert case.reference is not None  # A case that compiles carries one.
-    expected = corpus.search(
-        query.Query.model_validate({"where": case.reference}),
-        timeout_seconds=timeout_seconds,
-    )
-    table = corpus.search(translated, timeout_seconds=timeout_seconds)
-    return score(
-        case,
-        table.column("reaction_id").to_pylist(),
-        expected.column("reaction_id").to_pylist(),
+    return _score_against_reference(
+        case, corpus, table, timeout_seconds=timeout_seconds
     )
 
 
@@ -278,9 +380,20 @@ def main(argv: Sequence[str] | None = None) -> None:
         action="store_true",
         help="Refuse artifacts not written by this version of the library",
     )
+    parser.add_argument(
+        "--log",
+        default=None,
+        help=(
+            "Append a record per case to this JSONL file, so a run's questions, "
+            "queries, and token cost outlive the printed report"
+        ),
+    )
     args = parser.parse_args(argv)
     cases = load_cases(args.cases)
     client = nl.get_client()
+    sink = None if args.log is None else nl_log.JsonlSink(args.log)
+    # One run is one session, so its cases group the way a reader's questions do.
+    session_id = str(uuid.uuid4())
     with execute.Corpus(
         args.projections,
         args.structures,
@@ -296,6 +409,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                 model=args.model,
                 repair=not args.no_repair,
                 timeout_seconds=args.timeout_seconds,
+                sink=sink,
+                session_id=session_id,
             )
             for case in cases
         ]

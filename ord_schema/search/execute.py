@@ -84,6 +84,7 @@ import contextlib
 import dataclasses
 import functools
 import glob
+import hashlib
 import math
 import pathlib
 import threading
@@ -225,7 +226,7 @@ def _canonical(smiles: str) -> str:
     return Chem.MolToSmiles(molecule) if molecule is not None else smiles
 
 
-def _sql_string(value: str) -> str:
+def sql_string(value: str) -> str:
     """Returns ``value`` as a SQL string literal, single quotes escaped."""
     escaped = value.replace("'", "''")
     return f"'{escaped}'"
@@ -233,7 +234,7 @@ def _sql_string(value: str) -> str:
 
 def _sql_strings(values: Iterable[str]) -> str:
     """Returns ``values`` as a SQL list literal, single quotes escaped."""
-    return "[" + ", ".join(_sql_string(value) for value in values) + "]"
+    return "[" + ", ".join(sql_string(value) for value in values) + "]"
 
 
 def _max_structure_id(path: str) -> int | None:
@@ -268,7 +269,7 @@ def _max_structure_id(path: str) -> int | None:
 
 def _index(
     pattern: str, artifact: str, schema: pa.Schema, require_current: bool
-) -> dict[str, str]:
+) -> dict[str, tuple[str, base.Stamps]]:
     """Returns the artifacts matching ``pattern``, keyed by source dataset.
 
     Keyed by the source hash rather than the filename because that is what an
@@ -283,14 +284,16 @@ def _index(
         require_current: Refuse artifacts not written by the current versions.
 
     Returns:
-        A mapping from source dataset hash to path.
+        A mapping from source dataset hash to the path and the stamps read off it. The
+        stamps come back rather than being dropped because reading them opens a footer,
+        and the corpus fingerprint wants exactly the same ones.
 
     Raises:
         PairingError: If a match holds another artifact, lacks a column this library
             reads, is stale under ``require_current``, or restates a dataset another
             match already did.
     """
-    index: dict[str, str] = {}
+    index: dict[str, tuple[str, base.Stamps]] = {}
     for path in sorted(glob.glob(pattern, recursive=True)):
         stamps = base.load_stamps(path)
         if stamps.artifact != artifact:
@@ -310,17 +313,40 @@ def _index(
             raise PairingError(f"{path} is stale; derive it again first")
         if stamps.source_md5 in index:
             raise PairingError(
-                f"{path} and {index[stamps.source_md5]} are both {artifact} "
+                f"{path} and {index[stamps.source_md5][0]} are both {artifact} "
                 "artifacts of the same source dataset; which one answers a query "
                 "would be arbitrary"
             )
-        index[stamps.source_md5] = path
+        index[stamps.source_md5] = (path, stamps)
     return index
+
+
+def _fingerprint(stamps: Iterable[base.Stamps]) -> str:
+    """Returns a short digest naming the artifacts a corpus opened.
+
+    Args:
+        stamps: The stamps of every artifact in the corpus, in any order. Both halves
+            of each pair belong here: the structures artifact answers every structure
+            predicate and is derived separately, so a corpus whose structures were
+            rebuilt can answer differently with its projections untouched.
+
+    Returns:
+        Sixteen hex characters, sorted so the same corpus opened through a different
+        glob digests the same. The whole stamp goes in rather than the source hash
+        alone, because two artifacts built from identical sources by different library
+        versions can disagree too.
+    """
+    digest = hashlib.sha256()
+    # Sorted as text rather than as tuples: a stamp field is optional, and comparing
+    # None against a string to order two artifacts raises.
+    for value in sorted(repr(dataclasses.astuple(one)) for one in stamps):
+        digest.update(value.encode())
+    return digest.hexdigest()[:16]
 
 
 def _pair(
     projection_pattern: str, structures_pattern: str, require_current: bool
-) -> list[tuple[str, str]]:
+) -> tuple[list[tuple[str, str]], str]:
     """Returns (projection, structures) path pairs, verified by their stamps.
 
     Args:
@@ -329,7 +355,8 @@ def _pair(
         require_current: Refuse artifacts not written by the current versions.
 
     Returns:
-        One pair per source dataset, ordered by the projection's source hash.
+        One pair per source dataset, ordered by the projection's source hash, and the
+        fingerprint over the stamps this already read to verify them.
 
     Raises:
         PairingError: If no projection matches, if either side lacks a column this
@@ -346,12 +373,20 @@ def _pair(
         raise PairingError(f"no projections matched: {projection_pattern}")
     unpaired = projections.keys() ^ structure_files.keys()
     if unpaired:
-        orphans = sorted((projections | structure_files)[key] for key in unpaired)
+        orphans = sorted((projections | structure_files)[key][0] for key in unpaired)
         raise PairingError(
             "projections and structures artifacts do not pair up; these have no "
             f"counterpart derived from the same source dataset: {orphans}"
         )
-    return [(projections[key], structure_files[key]) for key in sorted(projections)]
+    pairs = [
+        (projections[key][0], structure_files[key][0]) for key in sorted(projections)
+    ]
+    fingerprint = _fingerprint(
+        stamps
+        for index in (projections, structure_files)
+        for _, stamps in index.values()
+    )
+    return pairs, fingerprint
 
 
 # A structure that did not parse still gets a library entry, so every structure ID
@@ -446,12 +481,12 @@ def _index_condition(
     if path not in INDEXED_PATHS or set(fields) - {_INDEXED_FIELD}:
         return None
     conditions = [
-        f"occurrence.path = {_sql_string(path)}",
+        f"occurrence.path = {sql_string(path)}",
         f"get_bit(CAST(${allocate()} AS BITSTRING), occurrence.global_id::INTEGER) = 1",
     ]
     role = fields.get(_INDEXED_FIELD)
     if role is not None:
-        conditions.append(f"occurrence.{_INDEXED_FIELD} = {_sql_string(role)}")
+        conditions.append(f"occurrence.{_INDEXED_FIELD} = {sql_string(role)}")
     # S608: every fragment is a schema-derived path, a compiler-issued parameter
     # name, or an escaped literal. The inner relation is aliased so that the outer
     # reaction_id and the inner one cannot be confused for each other.
@@ -868,7 +903,9 @@ class Corpus:
                 "derive_pivots was set without a pivots_dir, so there is nowhere to "
                 "write what it would derive"
             )
-        pairs = _pair(projection_pattern, structures_pattern, require_current)
+        pairs, self._fingerprint = _pair(
+            projection_pattern, structures_pattern, require_current
+        )
         self._pivots_dir = pivots_dir
         self._derive_pivots = derive_pivots
         self._require_current = require_current
@@ -976,6 +1013,17 @@ class Corpus:
                 "to their offsets; a path did not survive read_parquet"
             )
         return total, searchable
+
+    @property
+    def fingerprint(self) -> str:
+        """Returns a short digest naming the artifacts this corpus opened.
+
+        A question log records this beside the query rather than the rows the query
+        returned, so an old record stays reproducible: the same query against the same
+        fingerprint answers the same way, and a different fingerprint says why it does
+        not.
+        """
+        return self._fingerprint
 
     def check_pivots(self) -> dict[str, int]:
         """Publishes every pivot artifact this corpus can read, and returns the counts.
@@ -1267,7 +1315,7 @@ class Corpus:
             # offset comes from the row's own file, which the reactions view carries.
             selects = "\nUNION ALL\n".join(
                 f"""
-                SELECT reaction_id, {_sql_string(path)} AS path,
+                SELECT reaction_id, {sql_string(path)} AS path,
                        (element.structure_id + {query.STRUCTURE_OFFSET})::UINTEGER
                            AS global_id,
                        element.{_INDEXED_FIELD} AS {_INDEXED_FIELD}
