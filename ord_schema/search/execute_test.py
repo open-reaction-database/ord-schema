@@ -3264,6 +3264,22 @@ def test_requiring_pivots_without_a_directory_says_so(wide_root):
         )
 
 
+def test_requiring_pivots_and_budgeting_for_one_is_refused(wide_root, tmp_path):
+    # Requiring every level leaves nothing to build, so a budget beside it is money set
+    # aside for something that cannot happen -- more likely a misunderstanding of one
+    # of the two than a deliberate pairing.
+    pivots = _write_pivots(wide_root, ("outcomes.products",), into=tmp_path / "pivots")
+    with pytest.raises(ValueError, match="pass one or the other"):
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+            require_pivots=True,
+            pivot_budget_bytes=0,
+        )
+
+
 def test_requiring_pivots_opens_a_corpus_holding_every_level(wide_root, tmp_path):
     # Its own directory: this is the one tree holding every level, and the tests below
     # are about what happens when a level is missing from the shared one.

@@ -821,7 +821,9 @@ class Corpus:
                 level, rather than building the missing ones in memory on the query
                 that first wants one. Needs a ``pivots_dir``. What it costs is a footer
                 read per artifact at startup; what it buys is that no query pays for an
-                unnest nobody meant to run.
+                unnest nobody meant to run. It leaves ``pivot_budget_bytes`` with
+                nothing to govern -- every level is read rather than built -- so the two
+                together are a contradiction rather than a belt and braces.
             derive_pivots: Write the artifact for a level that has none, rather than
                 building the level in memory. Needs a writable ``pivots_dir``. The pass
                 costs what building in memory costs, and once, since the next process
@@ -846,7 +848,9 @@ class Corpus:
             PairingError: If either pattern matches nothing, a file on one side has no
                 partner on the other, a pair's stamps disagree about the source
                 dataset, or -- with ``require_current`` -- any artifact is stale.
-            ValueError: If ``pivot_budget_bytes`` is negative, which no amount of
+            ValueError: If ``require_pivots`` is set beside a ``pivot_budget_bytes``,
+                which budgets for a build it rules out. If ``pivot_budget_bytes`` is
+                negative, which no amount of
                 memory is; zero is allowed, and materializes nothing; or if
                 ``derive_pivots`` or ``require_pivots`` is set without a
                 ``pivots_dir``.
@@ -857,17 +861,31 @@ class Corpus:
                 f"pivot_budget_bytes is {pivot_budget_bytes}, which is not an amount "
                 "of memory; pass zero to materialize nothing"
             )
+        if require_pivots and pivot_budget_bytes is not None:
+            raise ValueError(
+                "require_pivots leaves no pivot to build in memory, so a "
+                "pivot_budget_bytes beside it budgets for something that cannot "
+                "happen; pass one or the other"
+            )
+        # Zero where every level is read: nothing reaches the builder to be budgeted.
         self._pivot_budget = (
-            pivot_budget_bytes
-            if pivot_budget_bytes is not None
-            else _PIVOT_BUDGET_BYTES
+            0
+            if require_pivots
+            else (
+                pivot_budget_bytes
+                if pivot_budget_bytes is not None
+                else _PIVOT_BUDGET_BYTES
+            )
         )
         # Said at open because the alternative is saying it nowhere: a process killed
         # for holding too much leaves no log of its own, and what it thought it was
         # allowed to hold is the first thing worth knowing afterwards.
-        logger.info(
-            "pivots built in process may hold %s", _format_bytes(self._pivot_budget)
-        )
+        if require_pivots:
+            logger.info("every pivot is read from %s, and none is built", pivots_dir)
+        else:
+            logger.info(
+                "pivots built in process may hold %s", _format_bytes(self._pivot_budget)
+            )
         self._threads = threads
         # Built on first substructure query; see _library. The library holds one entry
         # per distinct molecule, and _members with _starts map an entry back to the
