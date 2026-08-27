@@ -67,8 +67,8 @@ export namespace ord {
      * the collisions protobuf's enum scoping would otherwise produce. Nesting keeps
      * values unqualified, so CUSTOM and UNSPECIFIED are spelled the same in every
      * enum that has them: one shared check reads 'type' and 'details' off any
-     * message carrying them, and text format and the projection store value names,
-     * so that spelling is what a pbtxt shows and what a query compares against.
+     * message carrying them, and text format and the projection store value names
+     * rather than numbers.
      */
     class Reaction implements IReaction {
 
