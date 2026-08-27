@@ -380,12 +380,15 @@ class FileIdentity(NamedTuple):
     """What tells one version of a file from another, without reading it.
 
     Attributes:
+        device: The filesystem the file sits on, which is what makes the inode mean
+            anything: inode numbers are unique per device, not across them.
         inode: The file's inode, which an atomic replacement changes; atomic_io writes
             a sibling and renames over the destination, so every publication is one.
         size: Size in bytes.
         modified: Modification time in nanoseconds.
     """
 
+    device: int
     inode: int
     size: int
     modified: int
@@ -398,33 +401,33 @@ def file_identity(source: str | os.PathLike[str]) -> FileIdentity:
         source: Path to the file.
 
     Returns:
-        Its inode, size, and modification time.
+        Its device, inode, size, and modification time.
 
     Raises:
         OSError: If ``source`` cannot be stat'ed.
     """
     status = pathlib.Path(source).stat()
-    return FileIdentity(status.st_ino, status.st_size, status.st_mtime_ns)
+    return FileIdentity(
+        status.st_dev, status.st_ino, status.st_size, status.st_mtime_ns
+    )
 
 
 @dataclasses.dataclass(frozen=True)
 class Counts(Mapping[str, int]):
     """How many elements a projection records at each of several levels.
 
-    Carries the identity of the file the counts were read from, which is what lets the
-    build that unnests check that it is unnesting what was counted. A count of zero is
-    the answer nothing downstream can contradict -- it skips the unnest, so the check
-    against the rows produced has nothing to disagree with -- and an empty pivot does
-    not merely lose the matches an ``exists`` would find, it makes every ``forall``
-    over the level vacuously true of every reaction in the corpus.
+    A read-only mapping of level to count, carrying the identity of the file they were
+    read from -- which is what lets the build that unnests check that it is unnesting
+    what was counted. A count of zero is the answer nothing downstream can contradict:
+    it skips the unnest, so the check against the rows produced has nothing to disagree
+    with, and the empty pivot that follows costs what this module's docstring describes.
 
     Handed out whole rather than as a number the caller pairs up itself, because a
     caller holding a bare count and a bare identity can pass an honest count of one
-    level against an honest identity of the file, for a different level entirely.
-
-    A mapping of level to count, taken as read-only through a proxy: one build shares
-    a projection's counts across every level it derives, so a caller writing through
-    one level's handle would be answering for the rest of the run.
+    level against an honest identity of the file, for a different level entirely. Held
+    behind a proxy for the same reason one step on: a build shares a projection's counts
+    across every level it derives, so a write through one level's handle would be
+    answering for the rest of the run.
 
     Attributes:
         identity: The file the counts were read from, as it stood across the read.
@@ -460,6 +463,40 @@ class Counts(Mapping[str, int]):
     def __len__(self) -> int:
         """Returns how many levels these counts cover."""
         return len(self.at)
+
+    def __hash__(self) -> int:
+        """Returns a hash over the file and the counts, which do not change.
+
+        Defined because a frozen dataclass advertises hashability, and the generated
+        one reaches the mapping and raises for it -- naming the mapping's type rather
+        than this one, to a caller who asked about this one.
+        """
+        return hash((self.identity, tuple(self.at.items())))
+
+
+def artifact_paths(
+    pivots_dir: str | os.PathLike[str], level_path: str
+) -> list[pathlib.Path]:
+    """Returns the artifacts a reader finds for one level, in a stable order.
+
+    The one definition of what a level's artifacts are. A build that judges its own
+    output by a wider rule than a reader applies calls a tree healthy that no query can
+    read: the level then has no artifacts as far as the corpus is concerned, and every
+    quantifier over it falls back to unnesting the projection, or is refused.
+
+    Recursive, because a pivot tree mirrors the projections it was derived from: a
+    sharded corpus puts them under ``<level>/<shard>/`` rather than directly under the
+    level. Named rather than stamped, so listing a level costs no reads -- and so a
+    build writing anything else has written something nothing here will find.
+
+    Args:
+        pivots_dir: The directory the levels sit under.
+        level_path: The level, as the query grammar names it.
+
+    Returns:
+        The paths, sorted. Empty if the level has no directory at all.
+    """
+    return sorted(pathlib.Path(pivots_dir).joinpath(level_path).rglob("*.parquet"))
 
 
 def _check_projection(source: str | os.PathLike[str]) -> base.Stamps:

@@ -38,16 +38,20 @@ artifact version are skipped, so re-running is cheap; --force rewrites them anyw
 
 A match that is not a projection -- a source dataset, or an artifact from an earlier
 run -- is ignored rather than derived from, so --output_dir may sit inside a recursive
-pattern's reach. These are errors: an --output_dir that would write over any input, a
-match that cannot be read as Parquet at all, a level the schema does not have or that
+pattern's reach. These are errors: an --output_dir that would write over any input, an
+input that cannot be read as Parquet at all, a level the schema does not have or that
 is named twice, a projection that changed while the run was deriving from it or whose
-count and unnest disagreed, and a run that finds no projections at all.
+count and unnest disagreed, a run that finds no projections at all, and a level whose
+artifacts cannot be found once it has derived them.
 
 Every run reports, per level, how many of the artifacts on disk hold no rows, and warns
 when all of them do. That is ordinary for a level nothing in the corpus records, and it
 is also what a wrong count looks like, which nothing downstream can tell apart. Counted
 from the artifacts rather than from what the run wrote, so a re-run that skips
-everything reports the same thing as the run that built them.
+everything reports the same thing as the run that built them, over exactly the files a
+corpus reads. A file found there that is not this level's pivot -- unreadable,
+unstamped, or another level's -- is reported and left out of the tally rather than
+ending the run, since the output tree is not this script's to police.
 """
 
 import argparse
@@ -156,44 +160,49 @@ def _counts(
     return pivot.count_levels(source, level_paths)
 
 
-def _empty_artifacts(directory: pathlib.Path, level_path: str) -> tuple[int, list[str]]:
-    """Returns the pivots for ``level_path`` beneath ``directory``, and the empty ones.
+def _empty_artifacts(
+    pivots_dir: str, level_path: str
+) -> tuple[int, list[str], list[str]]:
+    """Counts a level's artifacts, and says which hold no rows and which were skipped.
 
-    Read from the Parquet footers rather than tallied as the run writes, so the answer
-    covers the artifacts this run skipped as already current and is the same on a
-    re-run as on the run that built them.
+    Taken over exactly the files ``pivot.artifact_paths`` lists, which is what a corpus
+    reads: a report over any other set describes a tree nobody queries. Their rows are
+    read from the Parquet footers rather than tallied as the run writes, so the answer
+    covers the artifacts this run skipped as already current, and a re-run says what the
+    run that built them said.
 
-    Identified by the level stamped in the footer rather than by their name: an
-    artifact is named for the projection it came from, whatever suffix that carried, so
-    a pattern matching one spelling would find none of them and report a level as empty
-    that is not. The same read passes over a file that is not a pivot of this level at
-    all -- something else left in the tree, or an artifact of another level.
+    A file the reader would pick up that is not this level's pivot is skipped rather
+    than counted -- an artifact of another level, or something left in the tree by hand
+    -- and so is one that cannot be read at all, which is what a run killed between
+    writing an artifact and publishing it leaves behind.
 
     Args:
-        directory: The level's directory beneath the output directory.
+        pivots_dir: The directory the levels sit under.
         level_path: The level whose artifacts to look for.
 
     Returns:
-        How many pivots of ``level_path`` are there, and the paths of those holding no
-        rows -- named, because the run that can still say which projection is empty is
-        the run that writes it, and every run after this one skips it as current.
+        How many pivots of ``level_path`` there are, the paths of those holding no rows,
+        and the paths skipped -- each named rather than tallied, since a count alone
+        sends whoever reads it looking through the whole tree.
     """
-    found, empty = 0, []
-    for path in sorted(directory.rglob("*")):
-        if not path.is_file():
-            continue
+    found, empty, skipped = 0, [], []
+    for path in pivot.artifact_paths(pivots_dir, level_path):
         try:
             metadata = pq.read_metadata(path)
-        except (OSError, pa.ArrowInvalid):
-            logger.warning("%s is not readable as Parquet", path)
+        except (OSError, pa.ArrowInvalid, pa.ArrowNotImplementedError):
+            skipped.append(f"{path} cannot be read as Parquet")
             continue
         stamped = (metadata.metadata or {}).get(pivot.META_PIVOT_PATH.encode())
-        if stamped is None or stamped.decode() != level_path:
+        if stamped is None:
+            skipped.append(f"{path} carries no pivot level")
+            continue
+        if stamped.decode() != level_path:
+            skipped.append(f"{path} holds {stamped.decode()}")
             continue
         found += 1
         if metadata.num_rows == 0:
             empty.append(str(path))
-    return found, empty
+    return found, empty, skipped
 
 
 def main(args: argparse.Namespace) -> None:
@@ -206,10 +215,12 @@ def main(args: argparse.Namespace) -> None:
     Raises:
         ValueError: If a requested level is not one the projection schema has or is
             named twice; if a projection changed while it was being derived, or its
-            count and its unnest disagreed; or if the pattern matched no projections --
+            count and its unnest disagreed; if the pattern matched no projections --
             which usually means it was aimed at the source tree, or at an output tree,
-            rather than at the projections. Silence there would let a pipeline step
-            downstream proceed as though the artifacts had been built.
+            rather than at the projections; or if a level's artifacts cannot be found
+            after the run derived them, which means they were written somewhere no
+            reader looks. Silence in any of those would let a pipeline step downstream
+            proceed as though the artifacts had been built.
     """
     levels = pivot.check_levels(args.levels)
     for level_path in levels:
@@ -237,7 +248,7 @@ def main(args: argparse.Namespace) -> None:
                 f"no pivots derived for {level_path}: none of the {ignored} matches "
                 f"for {args.input_pattern!r} are projections"
             )
-        artifacts, empty = _empty_artifacts(directory, level_path)
+        artifacts, empty, unread = _empty_artifacts(args.output_dir, level_path)
         logger.info(
             "%s: %d written, %d already current, %d of %d artifacts empty",
             level_path,
@@ -248,16 +259,24 @@ def main(args: argparse.Namespace) -> None:
         )
         for path in empty:
             logger.info("%s: no elements at %s", path, level_path)
+        for reason in unread:
+            logger.warning("%s: not counted at %s", reason, level_path)
         if not artifacts:
-            # The run derived something, so its artifacts are somewhere; not finding
-            # them means this is measuring the wrong tree. Raised rather than left to
-            # the test below, which no artifacts would satisfy vacuously -- announcing
-            # that a level nothing could be found for is empty everywhere, which is the
-            # one thing this whole report exists to say and would here be saying it
-            # about a scan that failed.
+            # The run derived something, so a reader that finds none of it is not
+            # reading where the run wrote -- a level directory holding artifacts named
+            # in some other way, which is a tree no query can use. Raised rather than
+            # left to the test below, which no artifacts would satisfy vacuously,
+            # announcing a level nothing could be found for as empty everywhere: the
+            # one thing this report exists to say, said about the search rather than
+            # about the corpus.
             raise ValueError(
                 f"{directory} holds no pivot artifacts for {level_path}, though "
                 f"{written} were written and {skipped} were already current"
+                + (
+                    f"; {len(unread)} files were not counted: {unread}"
+                    if unread
+                    else ""
+                )
             )
         if len(empty) == artifacts:
             # Ordinary for a level nothing in this corpus records, and identical on

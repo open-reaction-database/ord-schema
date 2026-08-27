@@ -18,7 +18,10 @@ Artifact behavior is covered in ord_schema.artifacts.pivot_test; these cover the
 the per-level layout a Corpus reads, which matches count as sources, the skip-if-current
 shortcut, how an unknown level is refused, that a projection rewritten under a running
 process is counted again, that each level is written the count taken for it rather than
-another level's, and that a level empty in every artifact says so and keeps saying so.
+another level's, that a level empty in every artifact says so and keeps saying so, that
+what is counted is what a reader reads -- and nothing else in the tree -- and that an
+artifact short a column is derived again rather than left current, from here and from a
+Corpus.
 """
 
 import logging
@@ -189,7 +192,7 @@ def test_a_level_empty_in_only_some_artifacts_is_not_reported(tmp_path, caplog):
         for message in messages
     )
     # Named, not just counted: the projection that came out empty is what an operator
-    # would go and look at, and this run is the last one that can say which it was.
+    # would go and look at, and a count alone sends them through the whole tree.
     named = [
         message for message in messages if "no elements at observations" in message
     ]
@@ -200,14 +203,18 @@ def test_a_level_empty_in_only_some_artifacts_is_not_reported(tmp_path, caplog):
 
 def test_files_that_are_not_this_level_s_pivots_are_not_counted(projected, caplog):
     # The tally decides whether a level is reported as empty, so anything it miscounts
-    # either invents that report or suppresses it. All three of these turn up in a real
-    # tree: atomic_io writes its temp as a sibling inside the level's own directory, so
-    # a run killed mid-write leaves one behind, and an output directory is a place
-    # people put things.
+    # either invents that report or suppresses it. All of these turn up in a real tree:
+    # atomic_io writes its temp as a sibling inside the level's own directory, so a run
+    # killed mid-write leaves one behind, and an output directory is a place people put
+    # things.
     _run(projected, "--levels", "workups", "outcomes.products")
     beside = projected / "pivots" / "workups" / "aa"
-    # Sorts before bb's artifact, so a scan that gave up on it would stop short.
+    # A leaked temp is not named like an artifact, so no reader sees it and neither
+    # does the tally -- which matters because this one holds rows, and counting it
+    # would say the level has something no query can reach.
     (beside / "ord_dataset-aa.parquet.q7x1.tmp").write_bytes(b"")
+    # These three a reader would pick up, and each is not this level's pivot.
+    (beside / "corrupt.parquet").write_bytes(b"")
     pq.write_table(pa.table({"x": [1]}), beside / "unstamped.parquet")
     shutil.copy(
         projected / "pivots" / "outcomes.products" / "aa" / "ord_dataset-aa.parquet",
@@ -220,10 +227,39 @@ def test_files_that_are_not_this_level_s_pivots_are_not_counted(projected, caplo
         "workups: 0 written, 2 already current, 0 of 2 artifacts empty" in message
         for message in messages
     )
-    # The unreadable file is called out, and nothing calls the level empty.
     warnings = _warnings(caplog)
-    assert len(warnings) == 1
-    assert "q7x1.tmp is not readable as Parquet" in warnings[0]
+    assert sorted(warning.split("/")[-1] for warning in warnings) == [
+        "another-level.parquet holds outcomes.products: not counted at workups",
+        "corrupt.parquet cannot be read as Parquet: not counted at workups",
+        "unstamped.parquet carries no pivot level: not counted at workups",
+    ]
+
+
+def test_a_level_whose_artifacts_a_reader_cannot_find_is_an_error(tmp_path):
+    # A tree derived from projections a reader's glob does not match is written where
+    # nothing looks: derive_tree reports every artifact current, and every quantifier
+    # over the level falls back to unnesting the projection, forever.
+    for shard in ("aa", "bb"):
+        directory = tmp_path / "data" / shard
+        directory.mkdir(parents=True, exist_ok=True)
+        parquet.save_dataset(
+            _dataset(f"ord_dataset-{shard}"),
+            str(directory / f"ord_dataset-{shard}.parquet"),
+        )
+    _reproject(tmp_path)
+    for projection_path in (tmp_path / "projections").rglob("*.parquet"):
+        projection_path.replace(projection_path.with_suffix(".pq"))
+    with pytest.raises(ValueError, match="holds no pivot artifacts for workups"):
+        derive_pivots.main(
+            derive_pivots.parse_args(
+                [
+                    f"--input_pattern={tmp_path / 'projections' / '*' / '*.pq'}",
+                    f"--output_dir={tmp_path / 'pivots'}",
+                    "--levels",
+                    "workups",
+                ]
+            )
+        )
 
 
 def test_a_level_empty_in_every_artifact_is_reported_again_on_a_re_run(
@@ -260,7 +296,8 @@ def test_a_rewritten_projection_is_counted_again(projected):
     # levels of one run. A process that outlives a projection must not pivot the new
     # content against the old count: counting the workups this dataset does not yet
     # have would answer zero, skip the unnest, and publish an empty artifact stamped
-    # current -- which every later run skips and every quantifier reads as no matches.
+    # current -- which every later run skips, and which answers no exists and
+    # every forall.
     without = _dataset("ord_dataset-aa")
     del without.reactions[0].workups[:]
     parquet.save_dataset(
@@ -337,9 +374,9 @@ def test_a_corpus_reads_the_tree_this_script_writes(projected, caplog):
 def _drop_column(path: pathlib.Path, column: str) -> None:
     """Rewrites the artifact at ``path`` without ``column``, keeping its footer.
 
-    Stands in for an artifact written before the schema carried that column: the stamps
-    are what a run reads to decide the file is current, and they say nothing about its
-    columns.
+    Stands in for an artifact written before the schema carried that column, by a
+    library version that would not have bumped for it: the stamps are what a run reads
+    to decide the file is current, and they say nothing about its columns.
 
     Args:
         path: The artifact to rewrite.
@@ -353,10 +390,11 @@ def _drop_column(path: pathlib.Path, column: str) -> None:
 
 def test_an_artifact_missing_an_ordinal_is_derived_again(projected):
     # A repeated level added above this one gives it another ordinal, and the artifacts
-    # written before that carry stamps indistinguishable from the ones written after --
-    # so the columns are the only difference, and without declaring them the short
-    # artifact is current forever. A query still answers off it, which is why this
-    # asserts on the file rather than on a result.
+    # written before it carry stamps a later run cannot tell apart, absent a version
+    # bump -- so the columns are the only difference, and without declaring them the
+    # short artifact is current forever. An uncorrelated query still answers off it,
+    # and only a correlation joining on the missing ordinal fails, so this asserts on
+    # the file rather than on a result.
     _run(projected, "--levels", "outcomes.products")
     written = (
         projected / "pivots" / "outcomes.products" / "aa" / "ord_dataset-aa.parquet"

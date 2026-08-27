@@ -474,7 +474,7 @@ def test_each_part_of_a_file_identity_catches_a_replacement_the_others_miss(tmp_
 
 def _miscounted(counts: pivot.Counts, level_path: str, value: int) -> pivot.Counts:
     """Returns ``counts`` with ``level_path`` answered wrongly, everything else kept."""
-    return pivot.Counts(counts.identity, dict(counts.at) | {level_path: value})
+    return pivot.Counts(counts.identity, dict(counts) | {level_path: value})
 
 
 @pytest.mark.parametrize("wrong", [99, 1])
@@ -716,6 +716,17 @@ def _write_through(mapping, key, value) -> None:
         value: The value to assign.
     """
     mapping[key] = value
+
+
+def test_counts_can_be_hashed(populated):
+    # A frozen dataclass advertises hashability, and the generated hash would reach the
+    # mapping and raise -- naming the mapping's type, to a caller who asked about this
+    # one. The near miss is next door: the memo keyed on a file identity needs one.
+    counts = pivot.count_levels(populated, ["workups", "outcomes.products"])
+    assert hash(counts) == hash(
+        pivot.count_levels(populated, ["workups", "outcomes.products"])
+    )
+    assert len({counts, counts}) == 1
 
 
 def test_counts_cannot_be_written_through(populated):
