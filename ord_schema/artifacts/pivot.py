@@ -371,6 +371,32 @@ def pivot_path(path: str | os.PathLike[str]) -> str | None:
     return value.decode() if value is not None else None
 
 
+def count_expression(level: RepeatedLevel) -> str:
+    """Returns SQL counting the elements a projection records at ``level``.
+
+    Reads list offsets rather than element bodies: ``len`` needs to know how long a
+    list is, not what is in it, so this touches a fraction of what unnesting the level
+    would. Most levels of this schema are never recorded, and discovering that by
+    unnesting costs a full pass over every ancestor.
+
+    Args:
+        level: The level to count.
+
+    Returns:
+        A scalar expression over the reactions relation, zero where nothing is
+        recorded. Flattened at each step, so the count is of elements rather than of
+        the lists holding them.
+    """
+    expression = level.steps[0].expression(None)
+    for depth, step in enumerate(level.steps[1:], start=1):
+        element = f"e{depth}"
+        expression = (
+            f"flatten(list_transform({expression}, "
+            f"{element} -> {step.expression(element)}))"
+        )
+    return f"coalesce(sum(len({expression})), 0)"
+
+
 def write_pivot(
     source: str | os.PathLike[str],
     output: str | os.PathLike[str],
@@ -444,6 +470,20 @@ def write_pivot(
         # Through the relational API rather than a path interpolated into SQL, which a
         # filename holding a quote would otherwise close.
         connection.read_parquet(str(pathlib.Path(source))).create_view("reactions")
+        # S608: the expression is this module's own walk of the projection schema.
+        counted = connection.execute(
+            f"SELECT {count_expression(level)} FROM reactions"  # noqa: S608
+        ).fetchone()
+        if counted is not None and not counted[0]:
+            # Counting read the offsets; unnesting would have walked every ancestor of
+            # a level this projection never records, to arrive at the same nothing.
+            with (
+                atomic_io.atomic_path(output) as temp_path,
+                pq.ParquetWriter(temp_path, target, compression=compression),
+            ):
+                pass
+            logger.info("%s: no elements at %s", source, level_path)
+            return 0
         result = connection.execute(select(level, "reactions"))
         with (
             atomic_io.atomic_path(output) as temp_path,

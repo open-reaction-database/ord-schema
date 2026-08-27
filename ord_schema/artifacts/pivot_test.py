@@ -14,8 +14,10 @@
 
 """Tests for ord_schema.artifacts.pivot."""
 
+import logging
 import pathlib
 
+import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
@@ -207,6 +209,39 @@ def test_a_level_with_no_elements_still_writes_a_readable_file(projected, tmp_pa
     assert pivot.write_pivot(projected, output, level_path="workups") == 0
     assert pq.read_table(output).num_rows == 0
     assert pivot.pivot_path(output) == "workups"
+
+
+def test_a_level_with_no_elements_is_never_unnested(projected, tmp_path, caplog):
+    # The saving: discovering that a level holds nothing by unnesting it costs a full
+    # pass over every ancestor, and most levels of this schema hold nothing.
+    with caplog.at_level(logging.INFO, logger="ord_schema.artifacts.pivot"):
+        assert (
+            pivot.write_pivot(projected, tmp_path / "w.parquet", level_path="workups")
+            == 0
+        )
+    assert any("no elements at workups" in record.message for record in caplog.records)
+
+
+@pytest.mark.parametrize("level_path", sorted(pivot.LEVELS))
+def test_counting_a_level_agrees_with_unnesting_it(projected, tmp_path, level_path):
+    # The count decides whether the unnest runs at all, so a count that disagreed with
+    # it would write an empty artifact over a level that holds rows.
+    connection = duckdb.connect()
+    try:
+        connection.read_parquet(str(projected)).create_view("reactions")
+        # S608: the expression comes from the module's own walk of the schema.
+        row = connection.execute(
+            f"SELECT {pivot.count_expression(pivot.LEVELS[level_path])} "  # noqa: S608
+            "FROM reactions"
+        ).fetchone()
+        assert row is not None
+        counted = row[0]
+    finally:
+        connection.close()
+    written = pivot.write_pivot(
+        projected, tmp_path / "level.parquet", level_path=level_path
+    )
+    assert counted == written
 
 
 def test_a_path_that_is_not_a_level_is_refused(projected, tmp_path):
