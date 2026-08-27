@@ -23,7 +23,9 @@ another level's, and that a level empty in every artifact says so and keeps sayi
 
 import logging
 import pathlib
+import shutil
 
+import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
@@ -180,11 +182,48 @@ def test_a_level_empty_in_only_some_artifacts_is_not_reported(tmp_path, caplog):
     ]
     assert sorted(rows) == [0, 1], "the shards must differ for this to prove anything"
     assert not _warnings(caplog)
+    messages = [record.getMessage() for record in caplog.records]
     # The tally an operator reads, with the two numbers distinct so their order shows.
     assert any(
-        "observations: 2 written, 0 already current, 1 of 2 artifacts empty" in record
-        for record in [r.getMessage() for r in caplog.records]
+        "observations: 2 written, 0 already current, 1 of 2 artifacts empty" in message
+        for message in messages
     )
+    # Named, not just counted: the projection that came out empty is what an operator
+    # would go and look at, and this run is the last one that can say which it was.
+    named = [
+        message for message in messages if "no elements at observations" in message
+    ]
+    assert len(named) == 1
+    assert "bb" in named[0]
+    assert "aa" not in named[0]
+
+
+def test_files_that_are_not_this_level_s_pivots_are_not_counted(projected, caplog):
+    # The tally decides whether a level is reported as empty, so anything it miscounts
+    # either invents that report or suppresses it. All three of these turn up in a real
+    # tree: atomic_io writes its temp as a sibling inside the level's own directory, so
+    # a run killed mid-write leaves one behind, and an output directory is a place
+    # people put things.
+    _run(projected, "--levels", "workups", "outcomes.products")
+    beside = projected / "pivots" / "workups" / "aa"
+    # Sorts before bb's artifact, so a scan that gave up on it would stop short.
+    (beside / "ord_dataset-aa.parquet.q7x1.tmp").write_bytes(b"")
+    pq.write_table(pa.table({"x": [1]}), beside / "unstamped.parquet")
+    shutil.copy(
+        projected / "pivots" / "outcomes.products" / "aa" / "ord_dataset-aa.parquet",
+        beside / "another-level.parquet",
+    )
+    with caplog.at_level(logging.INFO):
+        _run(projected, "--levels", "workups")
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(
+        "workups: 0 written, 2 already current, 0 of 2 artifacts empty" in message
+        for message in messages
+    )
+    # The unreadable file is called out, and nothing calls the level empty.
+    warnings = _warnings(caplog)
+    assert len(warnings) == 1
+    assert "q7x1.tmp is not readable as Parquet" in warnings[0]
 
 
 def test_a_level_empty_in_every_artifact_is_reported_again_on_a_re_run(
@@ -293,3 +332,90 @@ def test_a_corpus_reads_the_tree_this_script_writes(projected, caplog):
     messages = [record.message for record in caplog.records]
     assert any("read 2 pivot artifacts for workups" in message for message in messages)
     assert not any("building the pivot" in message for message in messages)
+
+
+def _drop_column(path: pathlib.Path, column: str) -> None:
+    """Rewrites the artifact at ``path`` without ``column``, keeping its footer.
+
+    Stands in for an artifact written before the schema carried that column: the stamps
+    are what a run reads to decide the file is current, and they say nothing about its
+    columns.
+
+    Args:
+        path: The artifact to rewrite.
+        column: The column to drop.
+    """
+    table = pq.read_table(path)
+    metadata = table.schema.metadata
+    table = table.drop_columns([column])
+    pq.write_table(table.replace_schema_metadata(metadata), path)
+
+
+def test_an_artifact_missing_an_ordinal_is_derived_again(projected):
+    # A repeated level added above this one gives it another ordinal, and the artifacts
+    # written before that carry stamps indistinguishable from the ones written after --
+    # so the columns are the only difference, and without declaring them the short
+    # artifact is current forever. A query still answers off it, which is why this
+    # asserts on the file rather than on a result.
+    _run(projected, "--levels", "outcomes.products")
+    written = (
+        projected / "pivots" / "outcomes.products" / "aa" / "ord_dataset-aa.parquet"
+    )
+    _drop_column(written, "product_index")
+    assert "product_index" not in pq.read_schema(written).names
+    _run(projected, "--levels", "outcomes.products")
+    assert "product_index" in pq.read_schema(written).names
+
+
+def test_a_corpus_deriving_pivots_also_derives_an_artifact_missing_an_ordinal(
+    projected,
+):
+    # The script and the Corpus write into one tree, so they have to agree on which
+    # artifacts are current; one of them accepting a column-short artifact the other
+    # rebuilds would leave the answer to whichever ran last.
+    derive_structures.main(
+        derive_structures.parse_args(
+            [
+                f"--input_pattern={projected / 'projections' / '*' / '*.parquet'}",
+                f"--output_dir={projected / 'structures'}",
+            ]
+        )
+    )
+    _run(projected, "--levels", "workups")
+    written = projected / "pivots" / "workups" / "aa" / "ord_dataset-aa.parquet"
+    _drop_column(written, "workup_index")
+    with execute.Corpus(
+        str(projected / "projections" / "*" / "*.parquet"),
+        str(projected / "structures" / "*" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(projected / "pivots"),
+        derive_pivots=True,
+    ) as corpus:
+        corpus.search(
+            query.Query.model_validate(
+                {
+                    "where": {
+                        "op": "exists",
+                        "path": "workups",
+                        "where": {
+                            "op": "eq",
+                            "path": "type",
+                            "value": {"literal": "EXTRACTION"},
+                        },
+                    }
+                }
+            )
+        )
+    assert "workup_index" in pq.read_schema(written).names
+
+
+def test_a_level_whose_artifacts_cannot_be_found_is_an_error(projected, monkeypatch):
+    # Without this, no artifacts found means none of them hold rows, and the run
+    # announces that the level is empty everywhere -- the report this exists to make,
+    # made about a scan that failed rather than about the corpus.
+    def unreadable(path):
+        raise pa.ArrowInvalid(f"{path} is not Parquet")
+
+    monkeypatch.setattr(derive_pivots.pq, "read_metadata", unreadable)
+    with pytest.raises(ValueError, match="holds no pivot artifacts for workups"):
+        _run(projected, "--levels", "workups")

@@ -249,9 +249,12 @@ def main(args: argparse.Namespace) -> None:
         for path in empty:
             logger.info("%s: no elements at %s", path, level_path)
         if not artifacts:
-            # The run derived something, so its artifacts are somewhere; not being able
-            # to find them means this is measuring the wrong tree, and every judgment
-            # below rests on having found them.
+            # The run derived something, so its artifacts are somewhere; not finding
+            # them means this is measuring the wrong tree. Raised rather than left to
+            # the test below, which no artifacts would satisfy vacuously -- announcing
+            # that a level nothing could be found for is empty everywhere, which is the
+            # one thing this whole report exists to say and would here be saying it
+            # about a scan that failed.
             raise ValueError(
                 f"{directory} holds no pivot artifacts for {level_path}, though "
                 f"{written} were written and {skipped} were already current"

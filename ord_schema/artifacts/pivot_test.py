@@ -432,8 +432,9 @@ def test_counting_many_levels_answers_each_one_for_itself(populated):
         "inputs.components.analyses.data",
     ]
     counted = pivot.count_levels(populated, wanted)
-    assert len(set(counted.at.values())) == len(wanted), counted
-    assert counted.at == {path: _unnested(populated, path) for path in wanted}
+    assert len(counted) == len(wanted)
+    assert len(set(counted.values())) == len(wanted), counted
+    assert dict(counted) == {path: _unnested(populated, path) for path in wanted}
 
 
 def test_each_part_of_a_file_identity_catches_a_replacement_the_others_miss(tmp_path):
@@ -704,3 +705,25 @@ def test_reach_declines_a_path_leaving_the_pruned_element():
 def test_reach_declines_a_path_with_no_repeated_ancestor():
     assert pivot.reach("conditions.temperature") is None
     assert pivot.reach("reaction_id") is None
+
+
+def _write_through(mapping, key, value) -> None:
+    """Assigns into ``mapping``, for a mapping that is not supposed to allow it.
+
+    Args:
+        mapping: The mapping to write into.
+        key: The key to assign.
+        value: The value to assign.
+    """
+    mapping[key] = value
+
+
+def test_counts_cannot_be_written_through(populated):
+    # One build shares a projection's counts across every level it derives, so a write
+    # through any level's handle would be answering for the rest of the run.
+    counts = pivot.count_levels(populated, ["workups"])
+    with pytest.raises(TypeError):
+        # Through an unannotated helper: a subscript here is refused statically too,
+        # and what this asserts is that it is refused at runtime.
+        _write_through(counts.at, "workups", 99)
+    assert counts["workups"] == _unnested(populated, "workups")
