@@ -65,7 +65,7 @@ jobs:
           uv run ruff check .
           uv run ruff format --check .
       # ty: ord_schema only. Under examples/ we ship notebooks (no .py); those are exercised in
-      # test_notebooks (treon), not static type-checking here.
+      # test_notebooks (nbval), not static type-checking here.
       - name: Run ty
         run: |
           uv run ty check ord_schema

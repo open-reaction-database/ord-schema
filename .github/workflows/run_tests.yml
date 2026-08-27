@@ -126,30 +126,35 @@ jobs:
       - name: Install ord_schema
         run: uv sync --extra examples --extra tests --locked
       # Both runs are serial: loading TensorFlow in several kernels at once OOMs the runner.
+      # --nbval-cell-timeout matches the unlimited timeout the notebooks were executed
+      # under before; Granda_Perera trains for 300 epochs on a CPU-only runner and can
+      # exceed nbval's 2000-second default.
       #
-      # Strict first, on the notebooks whose every output reproduces exactly. Executing a
-      # notebook proves its code runs; comparing the output proves the file a reader sees
-      # still says what the code produces. A stored output that has gone stale is a lie in
-      # the most-read documentation the project has, and nothing else checks it.
+      # Executing a notebook proves its code runs; comparing its stored output proves the
+      # file a reader sees still says what the code produces. A stored output that has
+      # gone stale is a lie in the most-read documentation the project has. Only the
+      # notebooks whose every output reproduces on another machine can be held to the
+      # second standard.
       - name: Test notebooks (compare stored output)
         run: >
-          uv run pytest --nbval --nbval-current-env -vv -ra
+          uv run pytest --nbval --nbval-current-env --nbval-cell-timeout=-1 -vv -ra
           --nbval-sanitize-with examples/nbval_sanitize.cfg
           examples/submissions/2_Nielsen_Deoxyfluorination_Screen/example_nielsen.ipynb
           examples/submissions/3_Liu_Copper_OrgSyn/example_liu.ipynb
           examples/submissions/9_Ahneman_Science_CN_Coupling/example_Ahenman.ipynb
-          examples/tools/set_dative_bonds/set_dative_bonds.ipynb
-      # The rest print figures, timestamps, and object addresses, none of which reproduce.
-      # They are executed only, which is what the whole suite did before. Moving one here
-      # to the strict list is a matter of sanitizing or marking those cells.
+      # The rest draw figures or train models, and neither an SVG nor a fitted network
+      # reproduces off the machine that made it, so their outputs are not comparable and
+      # nbval only skips PNG and JPEG. They are executed and nothing more. Runs even when
+      # the strict step failed: a cosmetic output diff must not cost these notebooks their
+      # execution coverage.
       - name: Test notebooks (execution only)
+        if: ${{ !cancelled() }}
         run: >
-          uv run pytest --nbval-lax --nbval-current-env -vv -ra examples
-          --nbval-sanitize-with examples/nbval_sanitize.cfg
+          uv run pytest --nbval-lax --nbval-current-env --nbval-cell-timeout=-1 -vv -ra
+          examples
           --ignore=examples/submissions/2_Nielsen_Deoxyfluorination_Screen/example_nielsen.ipynb
           --ignore=examples/submissions/3_Liu_Copper_OrgSyn/example_liu.ipynb
           --ignore=examples/submissions/9_Ahneman_Science_CN_Coupling/example_Ahenman.ipynb
-          --ignore=examples/tools/set_dative_bonds/set_dative_bonds.ipynb
 
   test_proto_wrappers:
     runs-on: ubuntu-latest

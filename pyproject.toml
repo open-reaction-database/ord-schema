@@ -110,6 +110,10 @@ tests = [
     # Notebooks run under pytest, and nbval can compare each cell's output against the
     # one stored in the file rather than only checking that the cell does not raise.
     "nbval>=0.11",
+    # Comparing stored output means a contributor who changes what a notebook prints has
+    # to regenerate it; `jupyter nbconvert --to notebook --execute --inplace` is the
+    # command CONTRIBUTING.md points at, and nbval does not pull it in.
+    "nbconvert>=7.0",
     # The suite exercises the optional-feature modules, so collecting it needs
     # their extras. Self-reference rather than duplicate the dependencies.
     "ord-schema[search,nl,huggingface,orm]",
