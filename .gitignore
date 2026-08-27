@@ -33,3 +33,11 @@ node_modules/
 *_PLAN.md
 # Sphinx reads only .rst, so Markdown under docs/ is a working draft, not a page.
 docs/*.md
+
+# Files the example notebooks write as they run. They are results of executing the
+# examples, not inputs to them, and nothing in the tree reads them back; committing
+# them only means they drift silently against whatever toolchain last ran.
+examples/submissions/3_Liu_Copper_OrgSyn/example_liu.pb
+examples/submissions/3_Liu_Copper_OrgSyn/example_liu.pbtxt
+examples/applications/Perera_Science_Granda_Nature_Suzuki/*.pb.gz
+examples/applications/Perera_Science_Granda_Nature_Suzuki/saved_model.keras
