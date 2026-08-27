@@ -14,7 +14,6 @@
 
 """Tests for ord_schema.artifacts.pivot."""
 
-import logging
 import pathlib
 
 import duckdb
@@ -164,6 +163,87 @@ def projected(tmp_path_factory) -> pathlib.Path:
     return output
 
 
+def _fill_compound(compound) -> None:
+    """Populates every repeated level a compound carries."""
+    compound.identifiers.add(type=reaction_pb2.CompoundIdentifier.NAME, value="ethanol")
+    compound.preparations.add(type=reaction_pb2.CompoundPreparation.DRIED)
+    compound.features["feature"].string_value = "recorded"
+    analysis = compound.analyses["analysis"]
+    analysis.type = reaction_pb2.Analysis.LC
+    analysis.data["datum"].string_value = "recorded"
+
+
+def _fill_input(reaction_input) -> None:
+    """Populates a reaction input, its components, and their levels."""
+    _fill_compound(reaction_input.components.add())
+    reaction_input.crude_components.add(reaction_id="ord-pvfull", includes_workup=True)
+
+
+@pytest.fixture(scope="module")
+def populated(tmp_path_factory) -> pathlib.Path:
+    """A projection recording at least one element at every repeated level.
+
+    The count decides whether a level is unnested at all, so a wrong count is only
+    catchable where the level holds something: against a projection recording nothing
+    below the second level, a count that answered zero for everything deeper would
+    agree with the unnest on every level there is.
+    """
+    root = tmp_path_factory.mktemp("pivot_full")
+    reaction = reaction_pb2.Reaction(reaction_id="ord-pvfull")
+    reaction.identifiers.add(
+        type=reaction_pb2.ReactionIdentifier.REACTION_TYPE, value="oxidation"
+    )
+    _fill_input(reaction.inputs["first"])
+    reaction.setup.vessel.attachments.add(type=reaction_pb2.VesselAttachment.SEPTUM)
+    reaction.setup.vessel.preparations.add(
+        type=reaction_pb2.VesselPreparation.OVEN_DRIED
+    )
+    reaction.setup.automation_code["code"].string_value = "recorded"
+    reaction.conditions.temperature.measurements.add(
+        type=reaction_pb2.TemperatureConditions.TemperatureMeasurement.THERMOCOUPLE_INTERNAL
+    )
+    reaction.conditions.pressure.measurements.add(
+        type=reaction_pb2.PressureConditions.PressureMeasurement.PRESSURE_TRANSDUCER
+    )
+    reaction.conditions.electrochemistry.measurements.add(
+        current={"value": 1.0, "units": "AMPERE"}
+    )
+    reaction.observations.add(comment="recorded")
+    workup = reaction.workups.add(type=reaction_pb2.ReactionWorkup.EXTRACTION)
+    _fill_input(workup.input)
+    workup.temperature.measurements.add(
+        type=reaction_pb2.TemperatureConditions.TemperatureMeasurement.THERMOCOUPLE_INTERNAL
+    )
+    outcome = reaction.outcomes.add()
+    outcome_analysis = outcome.analyses["analysis"]
+    outcome_analysis.type = reaction_pb2.Analysis.LC
+    outcome_analysis.data["datum"].string_value = "recorded"
+    product = outcome.products.add(is_desired_product=True)
+    product.identifiers.add(
+        type=reaction_pb2.CompoundIdentifier.NAME, value="acetaldehyde"
+    )
+    product.features["feature"].string_value = "recorded"
+    measurement = product.measurements.add(
+        type=reaction_pb2.ProductMeasurement.YIELD, analysis_key="analysis"
+    )
+    _fill_compound(measurement.authentic_standard)
+    reaction.provenance.record_modified.add(details="recorded")
+    reaction.provenance.reaction_metadata["note"].string_value = "recorded"
+    source = root / "ord_dataset-pvfull.parquet"
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-pvfull",
+            name="test",
+            description="test",
+            reactions=[reaction],
+        ),
+        str(source),
+    )
+    output = root / "projection.parquet"
+    projection.write_projection(source, output)
+    return output
+
+
 def test_a_written_pivot_carries_its_rows_and_its_ordinals(projected, tmp_path):
     output = tmp_path / "products.parquet"
     written = pivot.write_pivot(projected, output, level_path="outcomes.products")
@@ -211,37 +291,49 @@ def test_a_level_with_no_elements_still_writes_a_readable_file(projected, tmp_pa
     assert pivot.pivot_path(output) == "workups"
 
 
-def test_a_level_with_no_elements_is_never_unnested(projected, tmp_path, caplog):
+def test_a_level_with_no_elements_is_never_unnested(projected, tmp_path, monkeypatch):
     # The saving: discovering that a level holds nothing by unnesting it costs a full
     # pass over every ancestor, and most levels of this schema hold nothing.
-    with caplog.at_level(logging.INFO, logger="ord_schema.artifacts.pivot"):
-        assert (
-            pivot.write_pivot(projected, tmp_path / "w.parquet", level_path="workups")
-            == 0
-        )
-    assert any("no elements at workups" in record.message for record in caplog.records)
+    def refuse(*args: object, **kwargs: object) -> str:
+        raise AssertionError("the level was unnested")
+
+    monkeypatch.setattr(pivot, "select", refuse)
+    output = tmp_path / "workups.parquet"
+    assert pivot.write_pivot(projected, output, level_path="workups") == 0
+    assert pq.read_table(output).num_rows == 0
 
 
 @pytest.mark.parametrize("level_path", sorted(pivot.LEVELS))
-def test_counting_a_level_agrees_with_unnesting_it(projected, tmp_path, level_path):
-    # The count decides whether the unnest runs at all, so a count that disagreed with
-    # it would write an empty artifact over a level that holds rows.
+def test_counting_a_level_agrees_with_unnesting_it(populated, level_path):
+    # Compared against the unnest itself, never against write_pivot: its row count is
+    # zero *because* the count said zero, so those two agree however wrong the count
+    # is. A count wrongly zero publishes an empty artifact over a level that holds
+    # rows, and every quantifier over it then reads as no matches.
+    counted = pivot.count_levels(populated, [level_path])[level_path]
     connection = duckdb.connect()
     try:
-        connection.read_parquet(str(projected)).create_view("reactions")
-        # S608: the expression comes from the module's own walk of the schema.
-        row = connection.execute(
-            f"SELECT {pivot.count_expression(pivot.LEVELS[level_path])} "  # noqa: S608
-            "FROM reactions"
-        ).fetchone()
-        assert row is not None
-        counted = row[0]
+        connection.read_parquet(str(populated)).create_view("reactions")
+        unnested = (
+            connection.execute(pivot.select(pivot.LEVELS[level_path], "reactions"))
+            .to_arrow_table()
+            .num_rows
+        )
     finally:
         connection.close()
-    written = pivot.write_pivot(
-        projected, tmp_path / "level.parquet", level_path=level_path
-    )
-    assert counted == written
+    assert counted == unnested
+
+
+def test_a_count_that_disagrees_with_the_unnest_is_refused(populated, tmp_path):
+    # The count that runs the unnest is checked against what the unnest produced. A
+    # count wrongly zero is a different failure, caught by the agreement test above,
+    # since the unnest it skips has nothing to disagree with.
+    with pytest.raises(ValueError, match="disagree"):
+        pivot.write_pivot(
+            populated,
+            tmp_path / "products.parquet",
+            level_path="outcomes.products",
+            element_count=99,
+        )
 
 
 def test_a_path_that_is_not_a_level_is_refused(projected, tmp_path):

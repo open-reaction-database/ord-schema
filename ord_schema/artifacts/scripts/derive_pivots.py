@@ -46,6 +46,7 @@ run that finds no projections at all.
 import argparse
 import functools
 import pathlib
+from collections.abc import Callable, Sequence
 
 from ord_schema.artifacts import base, pivot, projection
 from ord_schema.logging import get_logger
@@ -78,6 +79,61 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _write_counted(
+    source: pathlib.Path,
+    output: pathlib.Path,
+    /,
+    *,
+    level_path: str,
+    counts: Callable[[pathlib.Path], dict[str, int]],
+    source_md5: str,
+    source_dataset_id: str | None,
+) -> int:
+    """Writes one level's artifact, told how many elements it holds.
+
+    Args:
+        source: The projection to pivot.
+        output: Where the artifact goes.
+        level_path: The level to pivot.
+        counts: Answers how many elements a projection holds at every level being
+            derived, reading it once however many levels ask.
+        source_md5: Hash of the source dataset to stamp.
+        source_dataset_id: Source dataset ID to stamp.
+
+    Returns:
+        The number of rows written.
+    """
+    return pivot.write_pivot(
+        source,
+        output,
+        level_path=level_path,
+        element_count=counts(source)[level_path],
+        source_md5=source_md5,
+        source_dataset_id=source_dataset_id,
+    )
+
+
+def _counter(level_paths: Sequence[str]) -> Callable[[pathlib.Path], dict[str, int]]:
+    """Returns a per-projection count of every level, read once per file.
+
+    Args:
+        level_paths: The levels being derived.
+
+    Returns:
+        A callable taking a projection and returning its count per level. The levels
+        share ancestors, so counting them together reads the projection once where a
+        count per level reads it once per level.
+    """
+    counted: dict[pathlib.Path, dict[str, int]] = {}
+
+    def counts(source: pathlib.Path) -> dict[str, int]:
+        if source not in counted:
+            counted[source] = pivot.count_levels(source, level_paths)
+        return counted[source]
+
+    return counts
+
+
 def main(args: argparse.Namespace) -> None:
     """Derives a pivot artifact per level for every projection matching the pattern.
 
@@ -98,12 +154,15 @@ def main(args: argparse.Namespace) -> None:
             f"not repeated levels of the projection schema: {unknown}; "
             f"known levels are {sorted(pivot.LEVELS)}"
         )
+    counts = _counter(args.levels)
     for level_path in args.levels:
         written, skipped, ignored = base.derive_tree(
             args.input_pattern,
             str(pathlib.Path(args.output_dir) / level_path),
             artifact=pivot.ARTIFACT,
-            write=functools.partial(pivot.write_pivot, level_path=level_path),
+            write=functools.partial(
+                _write_counted, level_path=level_path, counts=counts
+            ),
             force=args.force,
             parent_artifact=projection.ARTIFACT,
         )
