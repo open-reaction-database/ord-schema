@@ -472,6 +472,49 @@ def test_each_part_of_a_file_identity_catches_a_replacement_the_others_miss(tmp_
     assert retimed != resized
 
 
+def test_two_files_alike_but_for_their_filesystem_are_told_apart(tmp_path, monkeypatch):
+    # Inode numbers are unique per filesystem, not across them, so without the device
+    # two projections on different mounts can agree on all three of the rest -- and a
+    # memo keyed on the identity would answer one with the other's counts. Staged
+    # through stat, since a second filesystem is not a thing a test can mount.
+    path = tmp_path / "file"
+    path.write_bytes(b"first")
+    here = pivot.file_identity(path)
+
+    class _Elsewhere:
+        """The same file as stat would report it from another filesystem."""
+
+        st_dev = here.device + 1
+        st_ino = here.inode
+        st_size = here.size
+        st_mtime_ns = here.modified
+
+    monkeypatch.setattr(pathlib.Path, "stat", lambda self, **kwargs: _Elsewhere())
+    there = pivot.file_identity(path)
+    assert (there.inode, there.size, there.modified) == (
+        here.inode,
+        here.size,
+        here.modified,
+    )
+    assert there != here
+
+
+def test_artifact_paths_are_sorted(tmp_path):
+    # The order artifacts are read in is the order a view holds their rows, and the
+    # order a report names them. rglob answers in directory order, which is whatever
+    # the filesystem last did.
+    directory = tmp_path / "workups"
+    for shard in ("cc", "aa", "bb"):
+        (directory / shard).mkdir(parents=True)
+        (directory / shard / f"ord_dataset-{shard}.parquet").write_bytes(b"")
+    found = pivot.artifact_paths(tmp_path, "workups")
+    assert [path.parent.name for path in found] == ["aa", "bb", "cc"]
+
+
+def test_artifact_paths_finds_nothing_where_there_is_no_level(tmp_path):
+    assert pivot.artifact_paths(tmp_path, "workups") == []
+
+
 def _miscounted(counts: pivot.Counts, level_path: str, value: int) -> pivot.Counts:
     """Returns ``counts`` with ``level_path`` answered wrongly, everything else kept."""
     return pivot.Counts(counts.identity, dict(counts) | {level_path: value})
@@ -738,3 +781,15 @@ def test_counts_cannot_be_written_through(populated):
         # and what this asserts is that it is refused at runtime.
         _write_through(counts.at, "workups", 99)
     assert counts["workups"] == _unnested(populated, "workups")
+
+
+def test_counts_do_not_alias_the_mapping_they_were_built_from(populated):
+    # A proxy over the caller's own dict refuses writes through the handle and none
+    # through the dict, which is the half that matters: one build shares a projection's
+    # counts across every level it derives, and the hash would move under them too.
+    mutable = {"workups": 7}
+    counts = pivot.Counts(pivot.file_identity(populated), mutable)
+    before = hash(counts)
+    mutable["workups"] = 99
+    assert counts["workups"] == 7
+    assert hash(counts) == before

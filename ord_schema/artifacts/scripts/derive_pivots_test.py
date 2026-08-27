@@ -142,6 +142,11 @@ def test_each_level_is_written_its_own_count(projected):
             assert pq.read_table(written).num_rows == rows, level
 
 
+def _messages(caplog) -> list[str]:
+    """Returns every message recorded so far, formatted."""
+    return [record.getMessage() for record in caplog.records]
+
+
 def _warnings(caplog) -> list[str]:
     """Returns the WARNING messages recorded so far."""
     return [
@@ -154,12 +159,16 @@ def test_a_level_empty_in_every_artifact_is_reported(projected, caplog):
     # whose count came back wrong. Nothing else in the chain aggregates rows across a
     # tree, so without this an empty artifact is published, stamped current, and never
     # looked at again.
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.INFO):
         # The empty level named second, and derived after a level whose artifacts are
         # already on disk: named first it is also levels[0] and the only level in the
         # tree, so a report that ignored level_path, or that scanned the whole output
         # directory rather than this level's, would read the same.
         _run(projected, "--levels", "workups", "observations")
+    # The premise above, asserted rather than assumed: workups really was derived
+    # first, so its artifacts were on disk while observations was being measured.
+    reports = [m for m in _messages(caplog) if "artifacts empty" in m]
+    assert [m.split(":")[0] for m in reports] == ["workups", "observations"]
     warnings = _warnings(caplog)
     assert any("observations: every artifact is empty" in m for m in warnings)
     assert not any("workups" in m for m in warnings)
@@ -455,5 +464,11 @@ def test_a_level_whose_artifacts_cannot_be_found_is_an_error(projected, monkeypa
         raise pa.ArrowInvalid(f"{path} is not Parquet")
 
     monkeypatch.setattr(derive_pivots.pq, "read_metadata", unreadable)
-    with pytest.raises(ValueError, match="holds no pivot artifacts for workups"):
+    # Naming what it could not read is the difference between an actionable error and
+    # "2 were written and a reader found none of them".
+    with pytest.raises(
+        ValueError,
+        match=r"holds no pivot artifacts for workups.*"
+        r"2 files were not counted.*ord_dataset-aa\.parquet cannot be read",
+    ):
         _run(projected, "--levels", "workups")
