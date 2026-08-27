@@ -22,7 +22,7 @@ import re
 import shutil
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 
 import duckdb
 import pyarrow as pa
@@ -3155,14 +3155,27 @@ def test_a_pivot_holds_every_element_including_an_empty_one(wide_corpus):
     assert absent == (0,)
 
 
-def _write_pivots(root: pathlib.Path, levels: tuple[str, ...]) -> pathlib.Path:
+def _write_pivots(
+    root: pathlib.Path,
+    levels: Sequence[str],
+    into: pathlib.Path | None = None,
+) -> pathlib.Path:
     """Derives pivot artifacts for ``levels`` from every projection under ``root``.
 
     Written under ``<level>/<shard>/`` rather than directly under the level, because
     that is where ``derive_pivots`` puts them: it mirrors the projections' own layout,
     and a helper that flattened it would test a tree nothing produces.
+
+    Args:
+        root: Holds the projections to derive from.
+        levels: Which repeated levels to write.
+        into: Where to write, defaulting to ``<root>/pivots``. A test wanting a tree
+            nothing else sees passes its own, since ``root`` is shared by the module.
+
+    Returns:
+        The directory written into.
     """
-    pivots = root / "pivots"
+    pivots = into if into is not None else root / "pivots"
     for level in levels:
         for projected in sorted((root / "projections").glob("*.parquet")):
             shard = pivots / level / projected.stem[-2:]
@@ -3225,6 +3238,60 @@ def test_a_pivot_artifact_is_read_rather_than_built(wide_root, caplog):
     messages = [record.message for record in caplog.records]
     assert any("read 1 pivot artifacts" in message for message in messages)
     assert not any("building the pivot" in message for message in messages)
+
+
+def test_requiring_pivots_refuses_a_level_with_no_artifacts(wide_root):
+    # The silent case: a missing level is otherwise unnested in process on the query
+    # that first wants it, minutes charged to whoever asked with no error anywhere.
+    pivots = _write_pivots(wide_root, ("outcomes.products",))
+    with pytest.raises(execute.PairingError, match="holds no pivot artifacts"):
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+            require_pivots=True,
+        )
+
+
+def test_requiring_pivots_without_a_directory_says_so(wide_root):
+    with pytest.raises(ValueError, match="nowhere to look"):
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            require_pivots=True,
+        )
+
+
+def test_requiring_pivots_and_budgeting_for_one_is_refused(wide_root, tmp_path):
+    # Requiring every level leaves nothing to build, so a budget beside it is money set
+    # aside for something that cannot happen -- more likely a misunderstanding of one
+    # of the two than a deliberate pairing.
+    pivots = _write_pivots(wide_root, ("outcomes.products",), into=tmp_path / "pivots")
+    with pytest.raises(ValueError, match="pass one or the other"):
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+            require_pivots=True,
+            pivot_budget_bytes=0,
+        )
+
+
+def test_requiring_pivots_opens_a_corpus_holding_every_level(wide_root, tmp_path):
+    # Its own directory: this is the one tree holding every level, and the tests below
+    # are about what happens when a level is missing from the shared one.
+    pivots = _write_pivots(wide_root, sorted(pivot.LEVELS), into=tmp_path / "pivots")
+    with execute.Corpus(
+        str(wide_root / "projections" / "*.parquet"),
+        str(wide_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots),
+        require_pivots=True,
+    ) as corpus:
+        assert _search(corpus, _white("exists"))
 
 
 def test_a_level_without_artifacts_is_still_built(wide_root, caplog):
