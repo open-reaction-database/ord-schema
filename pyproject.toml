@@ -42,7 +42,9 @@ dependencies = [
     "protobuf>=4.22.3,<6",
     "pyarrow>=14",
     "python-dateutil>=1.10.0",
-    "rdkit>=2021.9.5",
+    # 2025.03.1 introduced Chem.ValenceType and deprecated Atom.GetExplicitValence;
+    # set_dative_bonds calls the replacement.
+    "rdkit>=2025.03.1",
     "tqdm>=4.61.2",
 ]
 
