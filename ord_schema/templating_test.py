@@ -199,3 +199,32 @@ def test_missing_values(tmp_path):
     del reaction2.inputs["one"].components[0]  # No indentifiers.
     reaction2.inputs["two"].components[0].amount.mass.value = 1.5
     assert dataset == expected_dataset
+
+
+def test_example_submission_is_current():
+    """The checked-in Nielsen example still templates and validates.
+
+    Nothing else reads ``examples/submissions``, so its template drifted several
+    schema generations behind before anyone noticed: a reaction identifier typed
+    ``NAME``, quantities set directly on ``Compound`` rather than through ``amount``,
+    ``Vessel.type`` and ``StirringConditions`` as nested messages, a singular
+    ``workup``, and products carrying ``compound_yield`` instead of ``measurements``.
+    Templating it here fails the moment the schema moves out from under it again.
+    """
+    example = (
+        pathlib.Path(__file__).resolve().parents[1]
+        / "examples"
+        / "submissions"
+        / "2_Nielsen_Deoxyfluorination_Screen"
+    )
+    dataset = templating.generate_dataset(
+        name="Deoxyfluorination screen",
+        description="Reactions from Figure 1 of DOI: 10.1021/jacs.8b01523",
+        template_string=(example / "reaction.pbtxt").read_text(),
+        df=pd.read_csv(example / "nielsen_fig1.csv"),
+        validate=True,
+    )
+    expected = text_format.Parse(
+        (example / "nielsen_fig1_dataset.pbtxt").read_text(), dataset_pb2.Dataset()
+    )
+    assert dataset == expected
