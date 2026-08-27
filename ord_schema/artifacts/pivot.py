@@ -39,13 +39,16 @@ its own, and hoisted it would collide with the row's.
 
 A pivot is unfiltered -- every element gets a row, including one whose fields are all
 NULL. That completeness is what lets it answer ``forall``, which an index holding only
-the elements that match something never can.
+the elements that match something never can -- and what makes an empty one dangerous
+rather than merely useless, since ``forall`` over it is then vacuously true of every
+reaction in the corpus. See ``Counts``.
 """
 
 import dataclasses
 import os
 import pathlib
-from collections.abc import Iterable, Mapping, Sequence
+import types
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from typing import NamedTuple
 
 import duckdb
@@ -63,7 +66,7 @@ logger = get_logger(__name__)
 # holds. One artifact name covers every level, because they are one kind of thing
 # derived one way; the path is what tells them apart.
 ARTIFACT = "pivot"
-_META_PIVOT_PATH = "ord.pivot_path"
+META_PIVOT_PATH = "ord.pivot_path"
 
 # The column the element's own fields sit under, and the row's join key.
 ELEMENT = "element"
@@ -369,7 +372,7 @@ def pivot_path(path: str | os.PathLike[str]) -> str | None:
         pivot artifact.
     """
     metadata = pq.read_schema(path).metadata or {}
-    value = metadata.get(_META_PIVOT_PATH.encode())
+    value = metadata.get(META_PIVOT_PATH.encode())
     return value.decode() if value is not None else None
 
 
@@ -405,7 +408,7 @@ def file_identity(source: str | os.PathLike[str]) -> FileIdentity:
 
 
 @dataclasses.dataclass(frozen=True)
-class Counts:
+class Counts(Mapping[str, int]):
     """How many elements a projection records at each of several levels.
 
     Carries the identity of the file the counts were read from, which is what lets the
@@ -419,6 +422,10 @@ class Counts:
     caller holding a bare count and a bare identity can pass an honest count of one
     level against an honest identity of the file, for a different level entirely.
 
+    A mapping of level to count, taken as read-only through a proxy: one build shares
+    a projection's counts across every level it derives, so a caller writing through
+    one level's handle would be answering for the rest of the run.
+
     Attributes:
         identity: The file the counts were read from, as it stood across the read.
         at: The count per level, in the order asked.
@@ -426,6 +433,10 @@ class Counts:
 
     identity: FileIdentity
     at: Mapping[str, int]
+
+    def __post_init__(self) -> None:
+        """Replaces ``at`` with a read-only view of a copy of what was passed."""
+        object.__setattr__(self, "at", types.MappingProxyType(dict(self.at)))
 
     def __getitem__(self, level_path: str) -> int:
         """Returns the count at ``level_path``.
@@ -441,6 +452,14 @@ class Counts:
                 answer about some other level.
         """
         return self.at[level_path]
+
+    def __iter__(self) -> Iterator[str]:
+        """Yields the levels these counts cover, in the order asked."""
+        return iter(self.at)
+
+    def __len__(self) -> int:
+        """Returns how many levels these counts cover."""
+        return len(self.at)
 
 
 def _check_projection(source: str | os.PathLike[str]) -> base.Stamps:
@@ -543,7 +562,10 @@ def count_expression(level: RepeatedLevel) -> str:
 
 
 def _count_view(
-    connection: duckdb.DuckDBPyConnection, view: str, level_paths: Sequence[str]
+    connection: duckdb.DuckDBPyConnection,
+    view: str,
+    level_paths: Sequence[str],
+    source: str | os.PathLike[str],
 ) -> dict[str, int]:
     """Returns the element count per level over an already-created view.
 
@@ -551,6 +573,7 @@ def _count_view(
         connection: Connection holding the view.
         view: Relation holding the reactions.
         level_paths: The levels to count; checked by the caller.
+        source: The file behind the view, for anything this has to say about it.
 
     Returns:
         The count per level, in the order asked.
@@ -570,7 +593,7 @@ def _count_view(
             # Every aggregate is wrapped in coalesce, so this is unreachable by the
             # expressions this module builds. Named rather than left to int(), whose
             # TypeError says nothing about which file or which level produced it.
-            raise ValueError(f"counting {level_path} over {view} yielded no answer")
+            raise ValueError(f"{source}: counting {level_path} yielded no answer")
         # Exact: every term is a list length, so the sum types as an integer and
         # nothing here arrives fractional to be floored.
         counted[level_path] = int(value)
@@ -605,7 +628,7 @@ def count_levels(source: str | os.PathLike[str], level_paths: Iterable[str]) -> 
     connection = duckdb.connect()
     try:
         connection.read_parquet(str(pathlib.Path(source))).create_view("reactions")
-        counted = _count_view(connection, "reactions", wanted)
+        counted = _count_view(connection, "reactions", wanted, source)
     finally:
         connection.close()
     if file_identity(source) != before:
@@ -667,7 +690,7 @@ def write_pivot(
             such repeated level, if ``source`` has changed since it was counted, or if
             the element count and the unnest disagree.
         KeyError: If ``counts`` does not cover ``level_path``.
-        OSError: If ``source`` cannot be stat'ed.
+        OSError: If ``counts`` is given and ``source`` cannot be stat'ed.
     """
     level = LEVELS.get(level_path)
     if level is None:
@@ -690,7 +713,7 @@ def write_pivot(
     if source_dataset_id is None:
         source_dataset_id = parent.source_dataset_id
     stamps = base.current_stamps(ARTIFACT, source_dataset_id, source_md5)
-    metadata = base.to_metadata(stamps) | {_META_PIVOT_PATH: level_path}
+    metadata = base.to_metadata(stamps) | {META_PIVOT_PATH: level_path}
     target = schema(level).with_metadata(metadata)
     connection = duckdb.connect()
     written = 0
@@ -700,7 +723,7 @@ def write_pivot(
         # the unnest, which read the same nested column.
         connection.read_parquet(str(pathlib.Path(source))).create_view("reactions")
         if element_count is None:
-            element_count = _count_view(connection, "reactions", [level_path])[
+            element_count = _count_view(connection, "reactions", [level_path], source)[
                 level_path
             ]
         with (
@@ -730,18 +753,19 @@ def write_pivot(
                 # Raised inside the atomic write, so the rejected artifact is removed
                 # rather than published: one that reached the destination would be
                 # stamped current, skipped by every later run, and read as the truth
-                # about the level ever after -- where an empty pivot does not merely
-                # lose the matches an exists would have found, it makes every forall
-                # over the level vacuously true for every reaction in the corpus.
+                # about the level ever after, with the consequences this module's
+                # docstring gives.
                 #
                 # This catches any nonzero count the unnest disagrees with, in either
-                # direction. Zero escapes it, having skipped the unnest that would
-                # have contradicted it: what stands in its place is that the count
-                # came from Counts, which names the level it answers for and the file
-                # it was read from. A count that is wrong over the right file is
-                # outside both -- that one is held by the tests comparing the count
-                # against the unnest at every level, and by a level that comes out
-                # empty across a whole tree saying so.
+                # direction. Zero escapes it, having skipped the unnest that would have
+                # contradicted it, and what stands in its place depends on where the
+                # count came from: one taken here read the same view in the same
+                # connection the unnest would have, with no window between them at all,
+                # while one that came in through Counts names the level it answers for
+                # and the file it was read from. A count that is simply wrong over the
+                # right file is outside both -- that one is held by the tests comparing
+                # the count against the unnest at every level, and by a level that
+                # comes out empty across a whole tree saying so.
                 raise ValueError(
                     f"{source}: counted {element_count} elements at {level_path} and "
                     f"unnested {written}; the count and the pivot disagree"

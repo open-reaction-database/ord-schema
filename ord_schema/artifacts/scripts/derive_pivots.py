@@ -54,6 +54,7 @@ import argparse
 import functools
 import pathlib
 
+import pyarrow as pa
 import pyarrow.parquet as pq
 
 from ord_schema.artifacts import base, pivot, projection
@@ -155,22 +156,44 @@ def _counts(
     return pivot.count_levels(source, level_paths)
 
 
-def _rows_on_disk(directory: pathlib.Path) -> tuple[int, int]:
-    """Returns how many artifacts sit beneath ``directory`` and how many are empty.
+def _empty_artifacts(directory: pathlib.Path, level_path: str) -> tuple[int, list[str]]:
+    """Returns the pivots for ``level_path`` beneath ``directory``, and the empty ones.
 
     Read from the Parquet footers rather than tallied as the run writes, so the answer
     covers the artifacts this run skipped as already current and is the same on a
     re-run as on the run that built them.
 
+    Identified by the level stamped in the footer rather than by their name: an
+    artifact is named for the projection it came from, whatever suffix that carried, so
+    a pattern matching one spelling would find none of them and report a level as empty
+    that is not. The same read passes over a file that is not a pivot of this level at
+    all -- something else left in the tree, or an artifact of another level.
+
     Args:
         directory: The level's directory beneath the output directory.
+        level_path: The level whose artifacts to look for.
 
     Returns:
-        The number of artifacts and the number of them holding no rows.
+        How many pivots of ``level_path`` are there, and the paths of those holding no
+        rows -- named, because the run that can still say which projection is empty is
+        the run that writes it, and every run after this one skips it as current.
     """
-    artifacts = sorted(directory.rglob("*.parquet"))
-    empty = sum(1 for path in artifacts if pq.read_metadata(path).num_rows == 0)
-    return len(artifacts), empty
+    found, empty = 0, []
+    for path in sorted(directory.rglob("*")):
+        if not path.is_file():
+            continue
+        try:
+            metadata = pq.read_metadata(path)
+        except (OSError, pa.ArrowInvalid):
+            logger.warning("%s is not readable as Parquet", path)
+            continue
+        stamped = (metadata.metadata or {}).get(pivot.META_PIVOT_PATH.encode())
+        if stamped is None or stamped.decode() != level_path:
+            continue
+        found += 1
+        if metadata.num_rows == 0:
+            empty.append(str(path))
+    return found, empty
 
 
 def main(args: argparse.Namespace) -> None:
@@ -200,6 +223,12 @@ def main(args: argparse.Namespace) -> None:
                 level_path=level_path,
                 level_paths=tuple(levels),
             ),
+            # Reaches the ordinals, which are top-level columns: a repeated level added
+            # to the schema above this one gives every level beneath it another one,
+            # and the artifacts carrying the old set are derived again rather than
+            # stamping as current. What it does not reach is the element struct, which
+            # is one column however its fields change; that is what a version is for.
+            schema=pivot.schema(pivot.LEVELS[level_path]),
             force=args.force,
             parent_artifact=projection.ARTIFACT,
         )
@@ -208,16 +237,26 @@ def main(args: argparse.Namespace) -> None:
                 f"no pivots derived for {level_path}: none of the {ignored} matches "
                 f"for {args.input_pattern!r} are projections"
             )
-        artifacts, empty = _rows_on_disk(directory)
+        artifacts, empty = _empty_artifacts(directory, level_path)
         logger.info(
-            "%s: %d written, %d already current, %d of %d empty",
+            "%s: %d written, %d already current, %d of %d artifacts empty",
             level_path,
             written,
             skipped,
-            empty,
+            len(empty),
             artifacts,
         )
-        if empty == artifacts:
+        for path in empty:
+            logger.info("%s: no elements at %s", path, level_path)
+        if not artifacts:
+            # The run derived something, so its artifacts are somewhere; not being able
+            # to find them means this is measuring the wrong tree, and every judgment
+            # below rests on having found them.
+            raise ValueError(
+                f"{directory} holds no pivot artifacts for {level_path}, though "
+                f"{written} were written and {skipped} were already current"
+            )
+        if len(empty) == artifacts:
             # Ordinary for a level nothing in this corpus records, and identical on
             # disk to a level whose count came back wrong: an empty artifact is stamped
             # current like any other, so no later run revisits it and no reader tells

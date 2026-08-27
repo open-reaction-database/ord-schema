@@ -150,7 +150,11 @@ def test_a_level_empty_in_every_artifact_is_reported(projected, caplog):
     # tree, so without this an empty artifact is published, stamped current, and never
     # looked at again.
     with caplog.at_level(logging.WARNING):
-        _run(projected, "--levels", "observations", "workups")
+        # The empty level named second, and derived after a level whose artifacts are
+        # already on disk: named first it is also levels[0] and the only level in the
+        # tree, so a report that ignored level_path, or that scanned the whole output
+        # directory rather than this level's, would read the same.
+        _run(projected, "--levels", "workups", "observations")
     warnings = _warnings(caplog)
     assert any("observations: every artifact is empty" in m for m in warnings)
     assert not any("workups" in m for m in warnings)
@@ -168,7 +172,7 @@ def test_a_level_empty_in_only_some_artifacts_is_not_reported(tmp_path, caplog):
             str(directory / f"ord_dataset-{shard}.parquet"),
         )
     _reproject(tmp_path)
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.INFO):
         _run(tmp_path, "--levels", "observations")
     rows = [
         pq.read_metadata(path).num_rows
@@ -176,6 +180,11 @@ def test_a_level_empty_in_only_some_artifacts_is_not_reported(tmp_path, caplog):
     ]
     assert sorted(rows) == [0, 1], "the shards must differ for this to prove anything"
     assert not _warnings(caplog)
+    # The tally an operator reads, with the two numbers distinct so their order shows.
+    assert any(
+        "observations: 2 written, 0 already current, 1 of 2 artifacts empty" in record
+        for record in [r.getMessage() for r in caplog.records]
+    )
 
 
 def test_a_level_empty_in_every_artifact_is_reported_again_on_a_re_run(

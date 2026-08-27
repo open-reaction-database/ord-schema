@@ -167,7 +167,11 @@ def projected(tmp_path_factory) -> pathlib.Path:
 
 
 def _fill_compound(compound) -> None:
-    """Populates every repeated level a compound carries, several elements per list."""
+    """Populates every repeated level a compound carries, several elements per list.
+
+    Args:
+        compound: The compound to fill.
+    """
     for name in ("ethanol", "ethyl alcohol"):
         compound.identifiers.add(type=reaction_pb2.CompoundIdentifier.NAME, value=name)
     compound.preparations.add(type=reaction_pb2.CompoundPreparation.DRIED)
@@ -194,13 +198,16 @@ def _fill_input(reaction_input, components: int) -> None:
     reaction_input.crude_components.add(reaction_id="ord-pvfull", includes_workup=True)
 
 
-def _second_reaction():
+def _second_reaction() -> reaction_pb2.Reaction:
     """A second reaction recording something at every repeated level.
 
     What separates a total from a per-row maximum, or from the first row's count, is a
     second row recording something at the same level -- not two rows recording
     different numbers, since (1, 1) already sums to more than either. Every level this
     fills is one where taking a maximum falls short.
+
+    Returns:
+        The reaction.
     """
     reaction = reaction_pb2.Reaction(reaction_id="ord-pvsecond")
     reaction.identifiers.add(
@@ -469,19 +476,23 @@ def _miscounted(counts: pivot.Counts, level_path: str, value: int) -> pivot.Coun
     return pivot.Counts(counts.identity, dict(counts.at) | {level_path: value})
 
 
-def test_a_count_that_disagrees_with_the_unnest_is_refused(populated, tmp_path):
-    # A nonzero count is checked against what the unnest produced, in either direction.
-    # A count of zero skips the unnest and has nothing to disagree with; what holds
-    # that case is that the count came from Counts, which names the file it was read
-    # from and the level it answers for -- the two tests below.
+@pytest.mark.parametrize("wrong", [99, 1])
+def test_a_count_that_disagrees_with_the_unnest_is_refused(populated, tmp_path, wrong):
+    # Wrong high and wrong low, since a check comparing one way would let the other
+    # publish a short artifact. A count of zero skips the unnest and has nothing to
+    # disagree with; what holds that case is that the count came from Counts, which
+    # names the file it was read from and the level it answers for --
+    # test_a_count_of_the_bytes_that_are_gone_is_refused and
+    # test_a_count_of_another_level_is_not_an_answer_for_this_one.
     output = tmp_path / "products.parquet"
     counts = pivot.count_levels(populated, ["outcomes.products"])
+    assert counts["outcomes.products"] not in (1, 99), "the miscount must be a miscount"
     with pytest.raises(ValueError, match="disagree"):
         pivot.write_pivot(
             populated,
             output,
             level_path="outcomes.products",
-            counts=_miscounted(counts, "outcomes.products", 99),
+            counts=_miscounted(counts, "outcomes.products", wrong),
         )
     # Nothing published: an artifact that reached the destination would be stamped
     # current, skipped by every later run, and read as the truth about the level.
@@ -499,8 +510,14 @@ def test_a_count_of_the_bytes_that_are_gone_is_refused(populated, tmp_path):
     counts = pivot.count_levels(source, ["outcomes.products"])
     assert counts["outcomes.products"] > 0
     stale = _miscounted(counts, "outcomes.products", 0)
-    # Rewritten in place, at the path already counted.
-    shutil.copy(populated, source)
+    # Republished the way atomic_io does it, a sibling renamed over the destination,
+    # with the timestamp put back the way restoring a backup would: a new inode is the
+    # only thing separating the two, which is the component a same-path rewrite would
+    # otherwise never exercise.
+    replacement = tmp_path / "replacement.parquet"
+    shutil.copy(populated, replacement)
+    os.utime(replacement, ns=(counts.identity.modified, counts.identity.modified))
+    replacement.replace(source)
     output = tmp_path / "products.parquet"
     with pytest.raises(ValueError, match="has changed since it was counted"):
         pivot.write_pivot(source, output, level_path="outcomes.products", counts=stale)
@@ -525,14 +542,20 @@ def test_a_projection_replaced_while_it_is_counted_is_refused(
     populated, tmp_path, monkeypatch
 ):
     # The counts would describe neither version. Caught by the identity being taken on
-    # both sides of the read rather than only before it.
+    # both sides of the read rather than only before it. Republished as atomic_io does
+    # it, timestamp restored, so a new inode is the only difference and no one
+    # component of the identity can carry this on its own.
     source = tmp_path / "projection.parquet"
     shutil.copy(populated, source)
+    before = pivot.file_identity(source)
     original = pivot._count_view
 
     def replace_then_count(*args, **kwargs):
         result = original(*args, **kwargs)
-        shutil.copy(populated, source)
+        replacement = tmp_path / "replacement.parquet"
+        shutil.copy(populated, replacement)
+        os.utime(replacement, ns=(before.modified, before.modified))
+        replacement.replace(source)
         return result
 
     monkeypatch.setattr(pivot, "_count_view", replace_then_count)
