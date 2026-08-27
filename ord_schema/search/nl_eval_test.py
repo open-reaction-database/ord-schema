@@ -205,7 +205,7 @@ def test_every_shipped_reference_compiles():
     # is, and a case that cannot run is worse than no case.
     for case in nl_eval.load_cases():
         if case.reference is not None:
-            query.compile_query(query.Query.model_validate({"where": case.reference}))
+            query.compile_query(query.Query.model_validate(case.reference))
 
 
 def test_a_case_the_grammar_cannot_express_is_marked_as_such():
