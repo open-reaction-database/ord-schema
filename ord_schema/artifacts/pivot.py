@@ -45,6 +45,7 @@ reaction in the corpus. See ``Counts``.
 """
 
 import dataclasses
+import glob
 import os
 import pathlib
 import types
@@ -471,7 +472,7 @@ class Counts(Mapping[str, int]):
         one reaches the mapping and raises for it -- naming the mapping's type rather
         than this one, to a caller who asked about this one.
         """
-        return hash((self.identity, tuple(self.at.items())))
+        return hash((self.identity, frozenset(self.at.items())))
 
 
 def artifact_paths(
@@ -489,6 +490,12 @@ def artifact_paths(
     level. Named rather than stamped, so listing a level costs no reads -- and so a
     build writing anything else has written something nothing here will find.
 
+    Through ``glob``, which descends a symlinked shard directory and passes over a
+    file whose name begins with a dot. Both matter: a deployment is free to put a shard
+    on other storage and link it into place, and the tree may sit on a filesystem whose
+    tools leave dotted siblings of their own. It is also how the projections and
+    structures beside these are found, so one corpus cannot read part of itself.
+
     Args:
         pivots_dir: The directory the levels sit under.
         level_path: The level, as the query grammar names it.
@@ -496,7 +503,11 @@ def artifact_paths(
     Returns:
         The paths, sorted. Empty if the level has no directory at all.
     """
-    return sorted(pathlib.Path(pivots_dir).joinpath(level_path).rglob("*.parquet"))
+    directory = pathlib.Path(pivots_dir) / level_path
+    return sorted(
+        pathlib.Path(found)
+        for found in glob.glob(f"{directory}/**/*.parquet", recursive=True)
+    )
 
 
 def _check_projection(source: str | os.PathLike[str]) -> base.Stamps:
@@ -576,7 +587,7 @@ def _count_within(steps: Sequence[Step], source: str | None, depth: int = 0) -> 
     return f"coalesce(list_sum(list_transform({reached}, {element} -> {inner})), 0)"
 
 
-def count_expression(level: RepeatedLevel) -> str:
+def _count_expression(level: RepeatedLevel) -> str:
     """Returns SQL counting the elements a projection records at ``level``.
 
     Cheaper than unnesting the level, because it does not cross-join a row against its
@@ -617,7 +628,7 @@ def _count_view(
     """
     if not level_paths:
         return {}
-    counts = ", ".join(count_expression(LEVELS[path]) for path in level_paths)
+    counts = ", ".join(_count_expression(LEVELS[path]) for path in level_paths)
     # S608: every fragment is this module's own walk of the projection schema, and the
     # view is this module's own name for the relation it just created.
     row = connection.execute(f"SELECT {counts} FROM {view}").fetchone()  # noqa: S608

@@ -244,6 +244,21 @@ def test_files_that_are_not_this_level_s_pivots_are_not_counted(projected, caplo
     ]
 
 
+def test_a_shard_a_reader_cannot_descend_is_an_error(projected, tmp_path):
+    # A shard directory symlinked onto other storage is written straight through and
+    # then has to be listed back through the link. Half a level going missing while the
+    # run reports success is the shape that has no other alarm: the denominator shrinks
+    # to match, so the level reads as complete.
+    _run(projected, "--levels", "workups")
+    shard = projected / "pivots" / "workups" / "bb"
+    elsewhere = tmp_path / "elsewhere"
+    shard.rename(elsewhere)
+    shard.symlink_to(elsewhere, target_is_directory=True)
+    assert len(pivot.artifact_paths(projected / "pivots", "workups")) == 2
+    # Nothing is rewritten, so a run that could not descend would find one of two.
+    _run(projected, "--levels", "workups")
+
+
 def test_a_level_whose_artifacts_a_reader_cannot_find_is_an_error(tmp_path):
     # A tree derived from projections a reader's glob does not match is written where
     # nothing looks: derive_tree reports every artifact current, and every quantifier
@@ -258,7 +273,7 @@ def test_a_level_whose_artifacts_a_reader_cannot_find_is_an_error(tmp_path):
     _reproject(tmp_path)
     for projection_path in (tmp_path / "projections").rglob("*.parquet"):
         projection_path.replace(projection_path.with_suffix(".pq"))
-    with pytest.raises(ValueError, match="holds no pivot artifacts for workups"):
+    with pytest.raises(ValueError, match="holds 0 pivot artifacts for workups"):
         derive_pivots.main(
             derive_pivots.parse_args(
                 [
@@ -468,7 +483,7 @@ def test_a_level_whose_artifacts_cannot_be_found_is_an_error(projected, monkeypa
     # "2 were written and a reader found none of them".
     with pytest.raises(
         ValueError,
-        match=r"holds no pivot artifacts for workups.*"
-        r"2 files were not counted.*ord_dataset-aa\.parquet cannot be read",
+        match=r"holds 0 pivot artifacts for workups.*"
+        r"2 not counted.*ord_dataset-aa\.parquet cannot be read",
     ):
         _run(projected, "--levels", "workups")

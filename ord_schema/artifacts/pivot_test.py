@@ -761,20 +761,25 @@ def _write_through(mapping, key, value) -> None:
     mapping[key] = value
 
 
-def test_counts_can_be_hashed(populated):
+def test_counts_of_the_same_levels_hash_alike_whatever_order_they_were_asked_in(
+    populated,
+):
     # A frozen dataclass advertises hashability, and the generated hash would reach the
-    # mapping and raise -- naming the mapping's type, to a caller who asked about this
-    # one. The near miss is next door: the memo keyed on a file identity needs one.
-    counts = pivot.count_levels(populated, ["workups", "outcomes.products"])
-    assert hash(counts) == hash(
-        pivot.count_levels(populated, ["workups", "outcomes.products"])
-    )
-    assert len({counts, counts}) == 1
+    # mapping and raise. Equality does not depend on the order the levels were asked
+    # in, so a hash that did would put equal values in different buckets.
+    wanted = ["workups", "outcomes.products"]
+    counts = pivot.count_levels(populated, wanted)
+    reversed_counts = pivot.count_levels(populated, list(reversed(wanted)))
+    assert counts == reversed_counts
+    assert hash(counts) == hash(reversed_counts)
+    assert len({counts, reversed_counts}) == 1
 
 
-def test_counts_cannot_be_written_through(populated):
+def test_counts_own_their_mapping(populated):
     # One build shares a projection's counts across every level it derives, so a write
-    # through any level's handle would be answering for the rest of the run.
+    # that landed would answer for the rest of the run -- and move the hash under
+    # anything holding one. Refused through the handle, and not reachable through the
+    # mapping the Counts was built from, which a proxy alone would leave open.
     counts = pivot.count_levels(populated, ["workups"])
     with pytest.raises(TypeError):
         # Through an unannotated helper: a subscript here is refused statically too,
@@ -782,14 +787,9 @@ def test_counts_cannot_be_written_through(populated):
         _write_through(counts.at, "workups", 99)
     assert counts["workups"] == _unnested(populated, "workups")
 
-
-def test_counts_do_not_alias_the_mapping_they_were_built_from(populated):
-    # A proxy over the caller's own dict refuses writes through the handle and none
-    # through the dict, which is the half that matters: one build shares a projection's
-    # counts across every level it derives, and the hash would move under them too.
     mutable = {"workups": 7}
-    counts = pivot.Counts(pivot.file_identity(populated), mutable)
-    before = hash(counts)
+    built = pivot.Counts(pivot.file_identity(populated), mutable)
+    before = hash(built)
     mutable["workups"] = 99
-    assert counts["workups"] == 7
-    assert hash(counts) == before
+    assert built["workups"] == 7
+    assert hash(built) == before

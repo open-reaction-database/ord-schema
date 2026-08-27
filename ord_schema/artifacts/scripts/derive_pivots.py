@@ -173,8 +173,9 @@ def _empty_artifacts(
 
     A file the reader would pick up that is not this level's pivot is skipped rather
     than counted -- an artifact of another level, or something left in the tree by hand
-    -- and so is one that cannot be read at all, which is what a run killed between
-    writing an artifact and publishing it leaves behind.
+    -- and so is one that cannot be read at all, a truncated copy or a bad block. A run
+    killed mid-write is not among them: atomic_io names its temp for the destination
+    with a .tmp suffix, which neither this nor a reader ever lists.
 
     Args:
         pivots_dir: The directory the levels sit under.
@@ -257,26 +258,30 @@ def main(args: argparse.Namespace) -> None:
             len(empty),
             artifacts,
         )
-        for path in empty:
-            logger.info("%s: no elements at %s", path, level_path)
+        if len(empty) < artifacts:
+            # Named one by one where only some are empty, which is the shape that needs
+            # looking at. Where all of them are the warning below says so once, and a
+            # line per artifact would bury it on a corpus whose levels are mostly empty.
+            for path in empty:
+                logger.info("%s: no elements at %s", path, level_path)
         for reason in unread:
             logger.warning("%s: not counted at %s", reason, level_path)
-        if not artifacts:
-            # The run derived something, so a reader that finds none of it is not
-            # reading where the run wrote -- a level directory holding artifacts named
-            # in some other way, which is a tree no query can use. Raised rather than
-            # left to the test below, which no artifacts would satisfy vacuously,
-            # announcing a level nothing could be found for as empty everywhere: the
-            # one thing this report exists to say, said about the search rather than
-            # about the corpus.
+        if artifacts < written + skipped:
+            # Every artifact this run wrote or found current, and a reader cannot list
+            # them all -- so some of them went somewhere nothing looks, and the tree is
+            # not the one a query will read. Orphans left by a larger earlier run push
+            # this the other way and cannot raise it.
+            #
+            # Raised rather than reported, because the denominator below shrinks to
+            # match whatever was found: a level half of which is invisible reports the
+            # visible half as the whole, and a level entirely invisible reports zero of
+            # zero, which reads as every artifact being empty. That is the one thing
+            # this report exists to say, said about the search rather than the corpus.
             raise ValueError(
-                f"{directory} holds no pivot artifacts for {level_path}, though "
-                f"{written} were written and {skipped} were already current"
-                + (
-                    f"; {len(unread)} files were not counted: {unread}"
-                    if unread
-                    else ""
-                )
+                f"{directory} holds {artifacts} pivot artifacts for {level_path}, "
+                f"fewer than the {written + skipped} this run wrote or found current; "
+                "the rest are where no reader looks"
+                + (f" ({len(unread)} not counted: {unread})" if unread else "")
             )
         if len(empty) == artifacts:
             # Ordinary for a level nothing in this corpus records, and identical on
