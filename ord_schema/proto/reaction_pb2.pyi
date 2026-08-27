@@ -845,14 +845,14 @@ class ElectrochemistryConditions(_message.Message):
         __slots__ = ["type", "details"]
         class ElectrochemistryCellType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
             __slots__ = []
-            UNSPECIFIED: _ClassVar[ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType]
-            CUSTOM: _ClassVar[ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType]
-            DIVIDED_CELL: _ClassVar[ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType]
-            UNDIVIDED_CELL: _ClassVar[ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType]
-        UNSPECIFIED: ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType
-        CUSTOM: ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType
-        DIVIDED_CELL: ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType
-        UNDIVIDED_CELL: ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType
+            ELECTROCHEMISTRY_CELL_TYPE_UNSPECIFIED: _ClassVar[ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType]
+            ELECTROCHEMISTRY_CELL_TYPE_CUSTOM: _ClassVar[ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType]
+            ELECTROCHEMISTRY_CELL_TYPE_DIVIDED_CELL: _ClassVar[ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType]
+            ELECTROCHEMISTRY_CELL_TYPE_UNDIVIDED_CELL: _ClassVar[ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType]
+        ELECTROCHEMISTRY_CELL_TYPE_UNSPECIFIED: ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType
+        ELECTROCHEMISTRY_CELL_TYPE_CUSTOM: ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType
+        ELECTROCHEMISTRY_CELL_TYPE_DIVIDED_CELL: ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType
+        ELECTROCHEMISTRY_CELL_TYPE_UNDIVIDED_CELL: ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType
         TYPE_FIELD_NUMBER: _ClassVar[int]
         DETAILS_FIELD_NUMBER: _ClassVar[int]
         type: ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType

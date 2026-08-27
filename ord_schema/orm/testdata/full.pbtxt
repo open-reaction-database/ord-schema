@@ -263,7 +263,7 @@ reactions {
         units: MILLIMETER
       }
       cell {
-        type: DIVIDED_CELL
+        type: ELECTROCHEMISTRY_CELL_TYPE_DIVIDED_CELL
         details: "72"
       }
     }

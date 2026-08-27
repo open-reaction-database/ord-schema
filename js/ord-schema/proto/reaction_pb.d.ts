@@ -1,5 +1,5 @@
 /**
- * Copyright 2024 Open Reaction Database Project Authors
+ * Copyright 2026 Open Reaction Database Project Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1560,10 +1560,10 @@ export namespace ElectrochemistryConditions {
     }
 
     export interface ElectrochemistryCellTypeMap {
-      UNSPECIFIED: 0;
-      CUSTOM: 1;
-      DIVIDED_CELL: 2;
-      UNDIVIDED_CELL: 3;
+      ELECTROCHEMISTRY_CELL_TYPE_UNSPECIFIED: 0;
+      ELECTROCHEMISTRY_CELL_TYPE_CUSTOM: 1;
+      ELECTROCHEMISTRY_CELL_TYPE_DIVIDED_CELL: 2;
+      ELECTROCHEMISTRY_CELL_TYPE_UNDIVIDED_CELL: 3;
     }
 
     export const ElectrochemistryCellType: ElectrochemistryCellTypeMap;

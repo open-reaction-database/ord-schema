@@ -1,5 +1,5 @@
 /**
- * Copyright 2025 Open Reaction Database Project Authors
+ * Copyright 2026 Open Reaction Database Project Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12014,19 +12014,19 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                     break;
-                case "UNSPECIFIED":
+                case "ELECTROCHEMISTRY_CELL_TYPE_UNSPECIFIED":
                 case 0:
                     message.type = 0;
                     break;
-                case "CUSTOM":
+                case "ELECTROCHEMISTRY_CELL_TYPE_CUSTOM":
                 case 1:
                     message.type = 1;
                     break;
-                case "DIVIDED_CELL":
+                case "ELECTROCHEMISTRY_CELL_TYPE_DIVIDED_CELL":
                 case 2:
                     message.type = 2;
                     break;
-                case "UNDIVIDED_CELL":
+                case "ELECTROCHEMISTRY_CELL_TYPE_UNDIVIDED_CELL":
                 case 3:
                     message.type = 3;
                     break;
@@ -12050,7 +12050,7 @@ export const ord = $root.ord = (() => {
                     options = {};
                 let object = {};
                 if (options.defaults) {
-                    object.type = options.enums === String ? "UNSPECIFIED" : 0;
+                    object.type = options.enums === String ? "ELECTROCHEMISTRY_CELL_TYPE_UNSPECIFIED" : 0;
                     object.details = "";
                 }
                 if (message.type != null && message.hasOwnProperty("type"))
@@ -12090,17 +12090,17 @@ export const ord = $root.ord = (() => {
              * ElectrochemistryCellType enum.
              * @name ord.ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType
              * @enum {number}
-             * @property {number} UNSPECIFIED=0 UNSPECIFIED value
-             * @property {number} CUSTOM=1 CUSTOM value
-             * @property {number} DIVIDED_CELL=2 DIVIDED_CELL value
-             * @property {number} UNDIVIDED_CELL=3 UNDIVIDED_CELL value
+             * @property {number} ELECTROCHEMISTRY_CELL_TYPE_UNSPECIFIED=0 ELECTROCHEMISTRY_CELL_TYPE_UNSPECIFIED value
+             * @property {number} ELECTROCHEMISTRY_CELL_TYPE_CUSTOM=1 ELECTROCHEMISTRY_CELL_TYPE_CUSTOM value
+             * @property {number} ELECTROCHEMISTRY_CELL_TYPE_DIVIDED_CELL=2 ELECTROCHEMISTRY_CELL_TYPE_DIVIDED_CELL value
+             * @property {number} ELECTROCHEMISTRY_CELL_TYPE_UNDIVIDED_CELL=3 ELECTROCHEMISTRY_CELL_TYPE_UNDIVIDED_CELL value
              */
             ElectrochemistryCell.ElectrochemistryCellType = (function() {
                 const valuesById = {}, values = Object.create(valuesById);
-                values[valuesById[0] = "UNSPECIFIED"] = 0;
-                values[valuesById[1] = "CUSTOM"] = 1;
-                values[valuesById[2] = "DIVIDED_CELL"] = 2;
-                values[valuesById[3] = "UNDIVIDED_CELL"] = 3;
+                values[valuesById[0] = "ELECTROCHEMISTRY_CELL_TYPE_UNSPECIFIED"] = 0;
+                values[valuesById[1] = "ELECTROCHEMISTRY_CELL_TYPE_CUSTOM"] = 1;
+                values[valuesById[2] = "ELECTROCHEMISTRY_CELL_TYPE_DIVIDED_CELL"] = 2;
+                values[valuesById[3] = "ELECTROCHEMISTRY_CELL_TYPE_UNDIVIDED_CELL"] = 3;
                 return values;
             })();
 

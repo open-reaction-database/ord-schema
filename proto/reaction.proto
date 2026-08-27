@@ -716,10 +716,10 @@ message ElectrochemistryConditions {
   repeated ElectrochemistryMeasurement measurements = 8;
   message ElectrochemistryCell {
     enum ElectrochemistryCellType {
-      UNSPECIFIED = 0;
-      CUSTOM = 1;
-      DIVIDED_CELL = 2;
-      UNDIVIDED_CELL = 3;
+      ELECTROCHEMISTRY_CELL_TYPE_UNSPECIFIED = 0;
+      ELECTROCHEMISTRY_CELL_TYPE_CUSTOM = 1;
+      ELECTROCHEMISTRY_CELL_TYPE_DIVIDED_CELL = 2;
+      ELECTROCHEMISTRY_CELL_TYPE_UNDIVIDED_CELL = 3;
     }
     ElectrochemistryCellType type = 1;
     // Include electrochemistry reaction-ware specifications, e.g., home-made
