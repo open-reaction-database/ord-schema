@@ -164,7 +164,7 @@ def projected(tmp_path_factory) -> pathlib.Path:
 
 
 def _fill_compound(compound) -> None:
-    """Populates every repeated level a compound carries, more than one deep."""
+    """Populates every repeated level a compound carries, several elements per list."""
     for name in ("ethanol", "ethyl alcohol"):
         compound.identifiers.add(type=reaction_pb2.CompoundIdentifier.NAME, value=name)
     compound.preparations.add(type=reaction_pb2.CompoundPreparation.DRIED)
@@ -190,17 +190,66 @@ def _fill_input(reaction_input, components: int) -> None:
     reaction_input.crude_components.add(reaction_id="ord-pvfull", includes_workup=True)
 
 
+def _second_reaction():
+    """A reaction recording fewer elements than the first, at the levels that nest.
+
+    A count that took the largest row, or the first, instead of the total agrees with
+    the unnest at every level where one row holds everything. Two rows recording
+    *different* numbers is what separates a sum from a maximum.
+    """
+    reaction = reaction_pb2.Reaction(reaction_id="ord-pvsecond")
+    reaction.identifiers.add(
+        type=reaction_pb2.ReactionIdentifier.REACTION_TYPE, value="reduction"
+    )
+    _fill_input(reaction.inputs["only"], components=1)
+    reaction.setup.vessel.attachments.add(type=reaction_pb2.VesselAttachment.CAP)
+    reaction.setup.vessel.preparations.add(type=reaction_pb2.VesselPreparation.PURGED)
+    reaction.setup.automation_code["other"].string_value = "recorded"
+    reaction.conditions.temperature.measurements.add(
+        type=reaction_pb2.TemperatureConditions.TemperatureMeasurement.THERMOCOUPLE_EXTERNAL
+    )
+    reaction.conditions.pressure.measurements.add(
+        type=reaction_pb2.PressureConditions.PressureMeasurement.CUSTOM,
+        details="recorded",
+    )
+    reaction.conditions.electrochemistry.measurements.add(
+        current={"value": 2.0, "units": "AMPERE"}
+    )
+    reaction.observations.add(comment="also recorded")
+    workup = reaction.workups.add(type=reaction_pb2.ReactionWorkup.FILTRATION)
+    _fill_input(workup.input, components=1)
+    workup.temperature.measurements.add(
+        type=reaction_pb2.TemperatureConditions.TemperatureMeasurement.THERMOCOUPLE_EXTERNAL
+    )
+    outcome = reaction.outcomes.add()
+    outcome_analysis = outcome.analyses["other"]
+    outcome_analysis.type = reaction_pb2.Analysis.GC
+    outcome_analysis.data["datum"].string_value = "recorded"
+    product = outcome.products.add(is_desired_product=True)
+    product.identifiers.add(type=reaction_pb2.CompoundIdentifier.NAME, value="ethanol")
+    product.features["only"].string_value = "recorded"
+    measurement = product.measurements.add(type=reaction_pb2.ProductMeasurement.YIELD)
+    _fill_compound(measurement.authentic_standard)
+    reaction.provenance.record_modified.add(details="also recorded")
+    reaction.provenance.reaction_metadata["other"].string_value = "recorded"
+    return reaction
+
+
 @pytest.fixture(scope="module")
 def populated(tmp_path_factory) -> pathlib.Path:
-    """A projection recording elements at every repeated level, several per parent.
+    """A projection recording elements at every repeated level, over three reactions.
 
     The count decides whether a level is unnested at all, so a wrong count is only
     catchable where the level holds something: against a projection recording nothing
     below the second level, a count that answered zero for everything deeper would
     agree with the unnest on every level there is.
 
-    More than one element per parent, because a count of the lists and a count of the
-    elements inside them are the same number when every list holds one.
+    Three shapes, because three different wrong counts each agree with the unnest on a
+    projection missing one of them. More than one element per parent at the levels that
+    nest, or counting the lists and counting the elements inside them come to the same
+    number. Two rows recording different totals, or a sum and a maximum do. One row
+    recording nothing, so every level is also counted over a chain that is NULL rather
+    than empty.
     """
     root = tmp_path_factory.mktemp("pivot_full")
     reaction = reaction_pb2.Reaction(reaction_id="ord-pvfull")
@@ -254,10 +303,11 @@ def populated(tmp_path_factory) -> pathlib.Path:
             dataset_id="ord_dataset-pvfull",
             name="test",
             description="test",
-            # A reaction recording nothing alongside it, so every level is counted over
-            # a row whose whole chain is NULL: the sum skips those and the traversal
-            # coalesces them, and the two agree only if both do it at every depth.
-            reactions=[reaction, reaction_pb2.Reaction(reaction_id="ord-pvempty")],
+            reactions=[
+                reaction,
+                _second_reaction(),
+                reaction_pb2.Reaction(reaction_id="ord-pvempty"),
+            ],
         ),
         str(source),
     )
@@ -315,7 +365,10 @@ def test_a_level_with_no_elements_still_writes_a_readable_file(projected, tmp_pa
 
 def test_a_level_with_no_elements_is_never_unnested(projected, tmp_path, monkeypatch):
     # The saving: discovering that a level holds nothing by unnesting it costs a full
-    # pass over every ancestor, and most levels of this schema hold nothing.
+    # pass over every ancestor, and this projection records nothing at most levels.
+    # Patched by name, which is the only way to assert that work did *not* happen --
+    # and which stops holding the moment select is called any way but through the
+    # module global.
     def refuse(*args: object, **kwargs: object) -> str:
         raise AssertionError("the level was unnested")
 
@@ -325,38 +378,120 @@ def test_a_level_with_no_elements_is_never_unnested(projected, tmp_path, monkeyp
     assert pq.read_table(output).num_rows == 0
 
 
-@pytest.mark.parametrize("level_path", sorted(pivot.LEVELS))
-def test_counting_a_level_agrees_with_unnesting_it(populated, level_path):
-    # Compared against the unnest itself, never against write_pivot: its row count is
-    # zero *because* the count said zero, so those two agree however wrong the count
-    # is. A count wrongly zero publishes an empty artifact over a level that holds
-    # rows, and every quantifier over it then reads as no matches.
-    counted = pivot.count_levels(populated, [level_path])[level_path]
+def _unnested(source: pathlib.Path, level_path: str) -> int:
+    """Returns the rows unnesting ``level_path`` out of ``source`` produces."""
     connection = duckdb.connect()
     try:
-        connection.read_parquet(str(populated)).create_view("reactions")
-        unnested = (
+        connection.read_parquet(str(source)).create_view("reactions")
+        return (
             connection.execute(pivot.select(pivot.LEVELS[level_path], "reactions"))
             .to_arrow_table()
             .num_rows
         )
     finally:
         connection.close()
-    assert counted == unnested
+
+
+@pytest.mark.parametrize("level_path", sorted(pivot.LEVELS))
+def test_counting_a_level_agrees_with_unnesting_it(populated, level_path):
+    # Compared against the unnest itself, never against write_pivot: its row count is
+    # zero *because* the count said zero, so those two agree however wrong the count
+    # is. A count wrongly zero publishes an empty artifact over a level that holds
+    # rows, and every forall over it is then vacuously true of the whole corpus.
+    counted = pivot.count_levels(populated, [level_path])[level_path]
+    # LEVELS is walked from the schema, so a repeated field added upstream joins this
+    # parametrize on its own -- and would be compared against an unnest of the nothing
+    # the fixture records for it, which proves nothing. Whoever adds the field is the
+    # one who has to populate it.
+    assert counted > 0, f"{level_path} is unpopulated; the comparison proves nothing"
+    assert counted == _unnested(populated, level_path)
+
+
+def test_counting_many_levels_answers_each_one_for_itself(populated):
+    # The aggregates come back as one row and are paired with the levels by position,
+    # so a query built in one order and read in another answers every level with some
+    # other level's count. Levels whose counts are pairwise distinct, or a permutation
+    # would be the identity and there would be nothing here to fail.
+    wanted = [
+        "workups",
+        "inputs.components",
+        "inputs.components.analyses",
+        "inputs.components.analyses.data",
+    ]
+    counted = pivot.count_levels(populated, wanted)
+    assert len(set(counted.values())) == len(wanted), counted
+    assert counted == {path: _unnested(populated, path) for path in wanted}
 
 
 def test_a_count_that_disagrees_with_the_unnest_is_refused(populated, tmp_path):
-    # The count that runs the unnest is checked against what the unnest produced. A
-    # count wrongly zero is a different failure, caught by the agreement test above,
-    # since the unnest it skips has nothing to disagree with.
+    # A nonzero count is checked against what the unnest produced, in either direction.
+    # A count of zero skips the unnest and has nothing to disagree with; counted_over
+    # is what holds that case, in the test below.
     output = tmp_path / "products.parquet"
     with pytest.raises(ValueError, match="disagree"):
         pivot.write_pivot(
-            populated, output, level_path="outcomes.products", element_count=99
+            populated,
+            output,
+            level_path="outcomes.products",
+            element_count=99,
+            counted_over=pivot.file_identity(populated),
         )
     # Nothing published: an artifact that reached the destination would be stamped
     # current, skipped by every later run, and read as the truth about the level.
     assert not output.exists()
+
+
+def test_a_count_taken_over_other_bytes_is_refused(populated, projected, tmp_path):
+    # The case the agreement check cannot reach. Zero is the count that skips the
+    # unnest, so nothing downstream contradicts it and the empty artifact is published
+    # stamped current -- which is why the identity is checked before the count is
+    # believed, rather than the rows checked after.
+    output = tmp_path / "products.parquet"
+    with pytest.raises(ValueError, match="has changed since it was counted"):
+        pivot.write_pivot(
+            populated,
+            output,
+            level_path="outcomes.products",
+            element_count=0,
+            counted_over=pivot.file_identity(projected),
+        )
+    assert not output.exists()
+
+
+def test_a_count_without_what_it_was_counted_over_is_refused(populated, tmp_path):
+    with pytest.raises(ValueError, match="go together"):
+        pivot.write_pivot(
+            populated,
+            tmp_path / "products.parquet",
+            level_path="outcomes.products",
+            element_count=5,
+        )
+    with pytest.raises(ValueError, match="go together"):
+        pivot.write_pivot(
+            populated,
+            tmp_path / "products.parquet",
+            level_path="outcomes.products",
+            counted_over=pivot.file_identity(populated),
+        )
+
+
+def test_a_pivot_larger_than_one_batch_counts_every_batch(populated, tmp_path):
+    # The rows are accumulated across batches and then checked against the count, so a
+    # writer that streams more than one batch is the only shape where the accumulation
+    # can be wrong. Compared against the file, not against the counter it returns.
+    output = tmp_path / "data.parquet"
+    level_path = "inputs.components.analyses.data"
+    counted = pivot.count_levels(populated, [level_path])[level_path]
+    written = pivot.write_pivot(
+        populated,
+        output,
+        level_path=level_path,
+        row_group_size=7,
+        element_count=counted,
+        counted_over=pivot.file_identity(populated),
+    )
+    assert written > 7, "one batch would not exercise the accumulation"
+    assert pq.read_table(output).num_rows == written
 
 
 def test_a_rejected_pivot_leaves_an_existing_artifact_alone(populated, tmp_path):
@@ -369,7 +504,11 @@ def test_a_rejected_pivot_leaves_an_existing_artifact_alone(populated, tmp_path)
     good = pq.read_table(output)
     with pytest.raises(ValueError, match="disagree"):
         pivot.write_pivot(
-            populated, output, level_path="outcomes.products", element_count=99
+            populated,
+            output,
+            level_path="outcomes.products",
+            element_count=99,
+            counted_over=pivot.file_identity(populated),
         )
     assert pq.read_table(output).equals(good)
     assert pivot.pivot_path(output) == "workups"
@@ -382,12 +521,31 @@ def test_counting_a_level_twice_is_refused(populated):
         pivot.count_levels(populated, ["workups", "workups"])
 
 
+def test_counting_a_stale_projection_is_refused(populated, tmp_path, monkeypatch):
+    # An artifact derived from a stale projection inherits the dataset hash and so
+    # claims a provenance it does not have; nothing would mark it stale again.
+    monkeypatch.setattr(base, "ARTIFACT_VERSION", f"{base.ARTIFACT_VERSION}-later")
+    with pytest.raises(ValueError, match="stale projection"):
+        pivot.count_levels(populated, ["workups"])
+    with pytest.raises(ValueError, match="stale projection"):
+        pivot.write_pivot(populated, tmp_path / "workups.parquet", level_path="workups")
+
+
+def test_counting_another_kind_of_artifact_is_refused(populated, tmp_path):
+    # Distinct from a file carrying no stamps at all, which load_stamps refuses one
+    # line earlier; this is the branch that reads the stamps and finds the wrong kind.
+    other = tmp_path / "a-pivot.parquet"
+    pivot.write_pivot(populated, other, level_path="workups")
+    with pytest.raises(ValueError, match="is a pivot, not a projection"):
+        pivot.count_levels(other, ["workups"])
+
+
 def test_counting_something_that_is_not_a_projection_is_refused(tmp_path):
     # Otherwise the failure is a DuckDB binder error naming a view the caller never
     # created, for a file it should have been told is the wrong kind.
     other = tmp_path / "not-a-projection.parquet"
     pq.write_table(pa.table({"x": [1]}), other)
-    with pytest.raises(ValueError, match=r"not a derived artifact|not a projection"):
+    with pytest.raises(ValueError, match="not a derived artifact"):
         pivot.count_levels(other, ["workups"])
 
 

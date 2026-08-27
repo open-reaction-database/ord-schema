@@ -16,7 +16,8 @@
 
 Artifact behavior is covered in ord_schema.artifacts.pivot_test; these cover the CLI:
 the per-level layout a Corpus reads, which matches count as sources, the skip-if-current
-shortcut, and how an unknown level is refused.
+shortcut, how an unknown level is refused, that each level is written the count taken
+for it rather than another level's, and that a level empty everywhere says so.
 """
 
 import logging
@@ -38,9 +39,14 @@ from ord_schema.search import execute, query
 
 def _dataset(dataset_id: str):
     reaction = reaction_pb2.Reaction(reaction_id=f"ord-{dataset_id}-01")
-    reaction.inputs["a"].components.add().identifiers.add(
-        type="SMILES", value="c1ccccc1"
-    )
+    # Three components against one workup, so a run deriving both levels pairs two
+    # counts that are not interchangeable: a query built in one order and read back in
+    # another would answer each level with the other's count, and levels holding the
+    # same number of elements make every such pairing the identity.
+    for smiles in ("c1ccccc1", "CCO", "CC(=O)O"):
+        reaction.inputs["a"].components.add().identifiers.add(
+            type="SMILES", value=smiles
+        )
     reaction.workups.add(type="EXTRACTION")
     reaction.outcomes.add().products.add(isolated_color="white")
     return dataset_pb2.Dataset(
@@ -100,6 +106,32 @@ def test_each_level_gets_its_own_tree(projected):
     # A level not asked for is not derived, which is what makes naming them cheaper
     # than deriving all 39.
     assert not (projected / "pivots" / "inputs.components").exists()
+
+
+def test_each_level_is_written_its_own_count(projected):
+    # One query carries an aggregate per level and the row is paired back to the levels
+    # by position, so the whole batching optimization rests on that pairing. The two
+    # levels hold different numbers of elements, or any mispairing would be invisible.
+    _run(projected, "--levels", "workups", "inputs.components")
+    for level, rows in (("workups", 1), ("inputs.components", 3)):
+        for shard in ("aa", "bb"):
+            written = (
+                projected / "pivots" / level / shard / f"ord_dataset-{shard}.parquet"
+            )
+            assert pq.read_table(written).num_rows == rows, level
+
+
+def test_a_level_empty_everywhere_is_reported(projected, caplog):
+    # Ordinary for a level this corpus never records, and identical on disk to a level
+    # whose count came back wrong. Nothing else in the chain reports rows at all, so
+    # without this an empty artifact is published, stamped current, and never revisited.
+    with caplog.at_level(logging.WARNING):
+        _run(projected, "--levels", "observations", "workups")
+    warnings = [
+        record.message for record in caplog.records if record.levelno == logging.WARNING
+    ]
+    assert any("observations: every projection derived is empty" in m for m in warnings)
+    assert not any("workups" in m for m in warnings)
 
 
 def test_a_second_run_skips_what_is_already_current(projected):

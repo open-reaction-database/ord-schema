@@ -39,8 +39,13 @@ artifact version are skipped, so re-running is cheap; --force rewrites them anyw
 A match that is not a projection -- a source dataset, or an artifact from an earlier
 run -- is ignored rather than derived from, so --output_dir may sit inside a recursive
 pattern's reach. These are errors: an --output_dir that would write over any input, a
-match that cannot be read as Parquet at all, a level the schema does not have, and a
-run that finds no projections at all.
+match that cannot be read as Parquet at all, a level the schema does not have or that
+is named twice, a projection that changed while the run was deriving from it or whose
+count and unnest disagreed, and a run that finds no projections at all.
+
+A level that comes out empty across every projection is logged at WARNING. That is
+ordinary for a level nothing in the corpus records, and it is also what a wrong count
+looks like, which nothing downstream can tell apart.
 """
 
 import argparse
@@ -85,6 +90,7 @@ def _write_counted(
     *,
     level_path: str,
     level_paths: tuple[str, ...],
+    written: list[int],
     source_md5: str,
     source_dataset_id: str | None,
 ) -> int:
@@ -95,31 +101,38 @@ def _write_counted(
         output: Where the artifact goes.
         level_path: The level to pivot.
         level_paths: Every level this run derives, counted together on first need.
+        written: Collects the rows each artifact holds, so the caller can say when a
+            level came out empty everywhere; derive_tree reports artifacts, not rows.
         source_md5: Hash of the source dataset to stamp.
         source_dataset_id: Source dataset ID to stamp.
 
     Returns:
         The number of rows written.
     """
-    return pivot.write_pivot(
+    identity = pivot.file_identity(source)
+    rows = pivot.write_pivot(
         source,
         output,
         level_path=level_path,
-        element_count=_counts(source, source_md5, level_paths)[level_path],
+        element_count=_counts(source, identity, level_paths)[level_path],
+        counted_over=identity,
         source_md5=source_md5,
         source_dataset_id=source_dataset_id,
     )
+    written.append(rows)
+    return rows
 
 
 @functools.cache
 def _counts(
-    source: pathlib.Path, source_md5: str, level_paths: tuple[str, ...]
+    source: pathlib.Path, identity: tuple[int, int, int], level_paths: tuple[str, ...]
 ) -> dict[str, int]:
     """Returns the element count per level for one projection, read once.
 
     Cached because derive_tree drives one level at a time: the levels share ancestors,
     so counting them together reads the projection once where a count per level reads
-    it once per level, measured at 15x on a projection recording every level.
+    it once per level -- measured at 15x on a two-shard tree of projections recording
+    every level, and wider on a corpus, where more levels share more ancestors.
 
     Asked for every level being derived rather than only the one at hand, which is the
     trade: a run rebuilding one stale level of a projection reads the columns of all of
@@ -129,12 +142,12 @@ def _counts(
 
     Args:
         source: The projection to count.
-        source_md5: Hash of the dataset the projection reflects, which is part of the
-            key: a count is only the answer for the content it was taken over, and one
-            process outliving a rewritten projection would otherwise pivot the new
-            content against the old count. A count wrongly zero is the bad way to be
-            wrong, since it skips the unnest and publishes an empty artifact that every
-            later run then finds current.
+        identity: ``pivot.file_identity(source)``, which is what makes the key name the
+            file rather than the path. The dataset hash will not do: it is stamped
+            through from the projection's parent, so a projection rebuilt from an
+            unchanged dataset carries the same one and would hit an entry counted over
+            the previous bytes. The same value is handed to ``write_pivot``, so the end
+            that counted and the end that unnests agree on what they read.
         level_paths: Every level being derived, so one read answers for all of them.
 
     Returns:
@@ -152,13 +165,15 @@ def main(args: argparse.Namespace) -> None:
 
     Raises:
         ValueError: If a requested level is not one the projection schema has or is
-            named twice, or if the pattern matched no projections -- which usually
-            means it was aimed at the source tree, or at an output tree, rather than at
-            the projections. Silence there would let a pipeline step downstream proceed
-            as though the artifacts had been built.
+            named twice; if a projection changed while it was being derived, or its
+            count and its unnest disagreed; or if the pattern matched no projections --
+            which usually means it was aimed at the source tree, or at an output tree,
+            rather than at the projections. Silence there would let a pipeline step
+            downstream proceed as though the artifacts had been built.
     """
-    pivot.check_levels(args.levels)
-    for level_path in args.levels:
+    levels = pivot.check_levels(args.levels)
+    for level_path in levels:
+        rows: list[int] = []
         written, skipped, ignored = base.derive_tree(
             args.input_pattern,
             str(pathlib.Path(args.output_dir) / level_path),
@@ -166,8 +181,10 @@ def main(args: argparse.Namespace) -> None:
             write=functools.partial(
                 _write_counted,
                 level_path=level_path,
-                level_paths=tuple(args.levels),
+                level_paths=tuple(levels),
+                written=rows,
             ),
+            schema=pivot.schema(pivot.LEVELS[level_path]),
             force=args.force,
             parent_artifact=projection.ARTIFACT,
         )
@@ -177,6 +194,15 @@ def main(args: argparse.Namespace) -> None:
                 f"for {args.input_pattern!r} are projections"
             )
         logger.info("%s: %d written, %d already current", level_path, written, skipped)
+        if rows and not any(rows):
+            # Ordinary for a level nothing in this corpus records, and identical on
+            # disk to the level whose count was wrong: an empty artifact is stamped
+            # current like any other, so no later run revisits it and no reader
+            # distinguishes it. Said out loud once per level, because nothing else in
+            # the chain reports rows at all.
+            logger.warning(
+                "%s: every projection derived is empty at this level", level_path
+            )
 
 
 if __name__ == "__main__":

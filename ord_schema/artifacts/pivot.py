@@ -372,6 +372,27 @@ def pivot_path(path: str | os.PathLike[str]) -> str | None:
     return value.decode() if value is not None else None
 
 
+def file_identity(source: str | os.PathLike[str]) -> tuple[int, int, int]:
+    """Returns what tells one version of a file from another, cheaply.
+
+    A count is only the answer for the bytes it was taken over, and a caller that
+    counts and then writes does the two against separate opens. This is what the two
+    ends compare so a file replaced in between is caught -- including by the pivot
+    whose count came out zero, which is otherwise unfalsifiable, since it skips the
+    unnest that would have contradicted it.
+
+    Args:
+        source: Path to the file.
+
+    Returns:
+        Inode, size, and modification time in nanoseconds. Not a hash: this is asked
+        once per artifact on the path where a hash would mean reading the file again,
+        and a rewrite that preserves all three is not the accident this guards.
+    """
+    status = pathlib.Path(source).stat()
+    return status.st_ino, status.st_size, status.st_mtime_ns
+
+
 def _check_projection(source: str | os.PathLike[str]) -> base.Stamps:
     """Returns the stamps of a current projection, refusing anything else.
 
@@ -382,11 +403,12 @@ def _check_projection(source: str | os.PathLike[str]) -> base.Stamps:
         Its stamps.
 
     Raises:
-        ValueError: If it holds another artifact, or is a projection the current
-            library did not write. derive_tree refuses stale parents, but the readers
-            here are public and their output inherits the dataset hash: an artifact
-            derived from a stale projection would claim a provenance it does not have
-            and nothing would ever mark it stale again.
+        ValueError: If it carries no artifact stamps at all, if it holds another
+            artifact, or if it is a projection the current library did not write.
+            derive_tree refuses stale parents, but the readers here are public and
+            their output inherits the dataset hash: an artifact derived from a stale
+            projection would claim a provenance it does not have and nothing would
+            ever mark it stale again.
     """
     parent = base.load_stamps(source)
     if parent.artifact != projection.ARTIFACT:
@@ -437,9 +459,8 @@ def _count_within(steps: Sequence[Step], source: str | None, depth: int = 0) -> 
         depth: How far down this is, which names the bound variable.
 
     Returns:
-        An expression summing the lengths at each level rather than building the
-        flattened list and measuring it, so a reaction's elements are never all
-        resident at once.
+        An expression summing the lengths level by level, rather than flattening the
+        levels into one list and measuring that.
     """
     reached = steps[0].expression(source)
     if len(steps) == 1:
@@ -452,19 +473,21 @@ def _count_within(steps: Sequence[Step], source: str | None, depth: int = 0) -> 
 def count_expression(level: RepeatedLevel) -> str:
     """Returns SQL counting the elements a projection records at ``level``.
 
-    Cheaper than unnesting the level, measured at roughly nine times on a populated
-    one, because it does not cross-join a row against its elements -- not because it
-    reads less of the column. Reaching an element to measure its list pulls the whole
-    nested payload off disk either way, and the count scales with the payload's width.
-    What it buys is on the levels a corpus never records, where the answer is nothing
-    and the unnest would still walk every ancestor to say so.
+    Cheaper than unnesting the level, because it does not cross-join a row against its
+    elements -- not because it reads less of the column. Reaching an element to measure
+    its list pulls the whole nested payload off disk either way, and the count scales
+    with the payload's width, so the margin is a property of the corpus and not of this
+    expression: it was roughly nine times on a populated level of an ORD projection
+    holding 8% of the corpus by bytes. What it buys reliably is on the levels a corpus
+    never records, where the answer is nothing and the unnest would still walk every
+    ancestor to say so.
 
     Args:
         level: The level to count.
 
     Returns:
-        An aggregate over the reactions relation, to be selected with no GROUP BY, and
-        zero where nothing is recorded.
+        An aggregate over a relation carrying the projection schema, to be selected
+        with no GROUP BY, and zero where nothing is recorded.
     """
     return f"coalesce(sum({_count_within(level.steps, None)}), 0)"
 
@@ -472,7 +495,7 @@ def count_expression(level: RepeatedLevel) -> str:
 def _count_view(
     connection: duckdb.DuckDBPyConnection, view: str, level_paths: Sequence[str]
 ) -> dict[str, int]:
-    """Returns the element count per level over an already-published view.
+    """Returns the element count per level over an already-created view.
 
     Args:
         connection: Connection holding the view.
@@ -489,6 +512,9 @@ def _count_view(
     # view is this module's own name for the relation it just created.
     row = connection.execute(f"SELECT {counts} FROM {view}").fetchone()  # noqa: S608
     assert row is not None  # An aggregate with no GROUP BY yields exactly one row.
+    # The aggregates come back in the order they were selected, which is the order the
+    # levels were asked in; int() is exact because every term is a list length, so the
+    # sum types as an integer and nothing here can arrive fractional and floor.
     return dict(zip(level_paths, (int(value) for value in row), strict=True))
 
 
@@ -509,8 +535,8 @@ def count_levels(
         The count per level, in the order asked.
 
     Raises:
-        ValueError: If ``source`` is not a projection, or if any path is not a repeated
-            level of the projection schema, or if one is named twice.
+        ValueError: If ``source`` is not a current projection, or if any path is not a
+            repeated level of the projection schema, or if one is named twice.
     """
     wanted = check_levels(level_paths)
     _check_projection(source)
@@ -533,6 +559,7 @@ def write_pivot(
     compression: str = "zstd",
     row_group_size: int = 100_000,
     element_count: int | None = None,
+    counted_over: tuple[int, int, int] | None = None,
 ) -> int:
     """Derives a pivot artifact over one repeated level and writes it.
 
@@ -559,18 +586,22 @@ def write_pivot(
         element_count: How many elements this level holds, where the caller has already
             counted. Counted here when omitted. A build deriving every level counts
             them together, since one query answers for all of them at the cost of
-            reading the projection once. A count that disagrees with the unnest is
-            refused -- but a count of zero skips the unnest, so a caller that answers
-            zero for a level holding elements publishes an empty artifact and gets no
-            error. Pass a count taken over the content at ``source``, not a remembered
-            one; proving a zero costs the full pass this parameter exists to skip.
+            reading the projection once. Requires ``counted_over``, because a count
+            says nothing without the bytes it was taken over.
+        counted_over: ``file_identity(source)`` as it stood when ``element_count`` was
+            taken, which is checked against ``source`` as it stands now. This is what
+            makes a count of zero falsifiable: a nonzero count is checked against the
+            unnest afterwards, but a zero skips the unnest and would leave nothing to
+            contradict it. Required with ``element_count`` and meaningless without it.
 
     Returns:
         Number of rows written: the number of elements at that level.
 
     Raises:
         ValueError: If ``source`` is not a current projection, if the schema has no
-            such repeated level, or if the element count and the unnest disagree.
+            such repeated level, if ``element_count`` and ``counted_over`` are not
+            passed together, if ``source`` has changed since it was counted, or if the
+            element count and the unnest disagree.
     """
     level = LEVELS.get(level_path)
     if level is None:
@@ -578,7 +609,18 @@ def write_pivot(
             f"{level_path} is not a repeated level of the projection schema; "
             f"a pivot has nothing to hold. Known levels: {sorted(LEVELS)}"
         )
+    if (element_count is None) != (counted_over is None):
+        raise ValueError(
+            "element_count and counted_over go together: a count is only the answer "
+            "for the bytes it was taken over, and the pair is what says so"
+        )
     parent = _check_projection(source)
+    if counted_over is not None and counted_over != file_identity(source):
+        raise ValueError(
+            f"{source} has changed since it was counted; the count of "
+            f"{element_count} at {level_path} is an answer about a file that is no "
+            "longer there. Count it again."
+        )
     if source_md5 is None:
         source_md5 = parent.source_md5
     if source_dataset_id is None:
@@ -624,9 +666,14 @@ def write_pivot(
                 # Raised inside the atomic write, so the rejected artifact is removed
                 # rather than published: one that reached the destination would be
                 # stamped current, skipped by every later run, and read as the truth
-                # about the level ever after. This catches a count that came in low; a
-                # count that came in at zero skipped the unnest, so there is nothing
-                # here to disagree with it, and the tests are what hold that case.
+                # about the level ever after -- where an empty pivot does not merely
+                # lose the matches an exists would have found, it makes every forall
+                # over the level vacuously true for every reaction in the corpus.
+                #
+                # This catches any nonzero count the unnest disagrees with, in either
+                # direction. Only zero escapes it, having skipped the unnest that
+                # would have contradicted it; counted_over is what holds that case,
+                # by refusing a count taken over other bytes than these.
                 raise ValueError(
                     f"{source}: counted {element_count} elements at {level_path} and "
                     f"unnested {written}; the count and the pivot disagree"
