@@ -1,5 +1,5 @@
 /**
- * Copyright 2025 Open Reaction Database Project Authors
+ * Copyright 2026 Open Reaction Database Project Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,13 +59,15 @@ export const ord = $root.ord = (() => {
          * not wish to restrict what users are able to specify if their synthesis
          * does not fit cleanly into a pre-existing enum field. For that reason, many
          * enums contain a CUSTOM field, which must be accompanied by setting the
-         * 'details' field, where appropriate).
+         * 'details' field, where appropriate.
          * 
-         * NOTE(kearnes): In many places, we deliberately violate the style guide for
-         * enums by nesting instead of prefixing; this is not done lightly. The primary
-         * consideration is API consistency and the ability to use unqualified strings
-         * as enum values. For instance, we want 'CUSTOM' to be a valid value for all
-         * enums that support custom types.
+         * Enums are nested in the message they describe rather than declared at top
+         * level with prefixed values; the style guide accepts either, and both avoid
+         * the collisions protobuf's enum scoping would otherwise produce. Nesting keeps
+         * values unqualified, so CUSTOM and UNSPECIFIED are spelled the same in every
+         * enum that has them: one shared check reads 'type' and 'details' off any
+         * message carrying them, and text format and the projection store value names
+         * rather than numbers.
          * @implements IReaction
          * @constructor
          * @param {ord.IReaction=} [properties] Properties to set
