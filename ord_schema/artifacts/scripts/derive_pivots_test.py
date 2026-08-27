@@ -523,3 +523,18 @@ def test_an_empty_level_is_not_also_named_artifact_by_artifact(projected, caplog
         _run(projected, "--levels", "observations")
     assert any("observations: every artifact is empty" in m for m in _warnings(caplog))
     assert not [m for m in _messages(caplog) if "no elements at" in m]
+
+
+def test_each_level_is_derived_against_its_own_columns(projected):
+    # The columns a level declares are its own, and a level's are a strict subset of
+    # every level beneath it: "outcomes" has no product_index. A run deriving both
+    # against one of their schemas would find a product artifact short an ordinal
+    # current and leave it, which only a correlation joining on that ordinal notices,
+    # by over-returning. Two levels, the shallower named first.
+    _run(projected, "--levels", "outcomes", "outcomes.products")
+    written = (
+        projected / "pivots" / "outcomes.products" / "aa" / "ord_dataset-aa.parquet"
+    )
+    _drop_column(written, "product_index")
+    _run(projected, "--levels", "outcomes", "outcomes.products")
+    assert "product_index" in pq.read_schema(written).names
