@@ -125,9 +125,29 @@ jobs:
           cache-dependency-glob: "uv.lock"
       - name: Install ord_schema
         run: uv sync --extra examples --extra tests --locked
-      - name: Test notebooks
-        # Single-threaded: default treon parallelism loads TensorFlow in multiple kernels and OOMs on CI.
-        run: uv run treon --threads=1
+      # Both runs are serial: loading TensorFlow in several kernels at once OOMs the runner.
+      #
+      # Strict first, on the notebooks whose every output reproduces exactly. Executing a
+      # notebook proves its code runs; comparing the output proves the file a reader sees
+      # still says what the code produces. A stored output that has gone stale is a lie in
+      # the most-read documentation the project has, and nothing else checks it.
+      - name: Test notebooks (compare stored output)
+        run: >
+          uv run pytest --nbval --nbval-current-env -vv -ra
+          --nbval-sanitize-with examples/nbval_sanitize.cfg
+          examples/submissions/2_Nielsen_Deoxyfluorination_Screen/example_nielsen.ipynb
+          examples/submissions/3_Liu_Copper_OrgSyn/example_liu.ipynb
+          examples/submissions/9_Ahneman_Science_CN_Coupling/example_Ahenman.ipynb
+      # The rest print figures, timestamps, and object addresses, none of which reproduce.
+      # They are executed only, which is what the whole suite did before. Moving one here
+      # to the strict list is a matter of sanitizing or marking those cells.
+      - name: Test notebooks (execution only)
+        run: >
+          uv run pytest --nbval-lax --nbval-current-env -vv -ra examples
+          --nbval-sanitize-with examples/nbval_sanitize.cfg
+          --ignore=examples/submissions/2_Nielsen_Deoxyfluorination_Screen/example_nielsen.ipynb
+          --ignore=examples/submissions/3_Liu_Copper_OrgSyn/example_liu.ipynb
+          --ignore=examples/submissions/9_Ahneman_Science_CN_Coupling/example_Ahenman.ipynb
 
   test_proto_wrappers:
     runs-on: ubuntu-latest
