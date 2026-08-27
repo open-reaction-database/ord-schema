@@ -894,21 +894,21 @@ def test_canonical_smiles_for_identifier_keys_on_type_not_just_value():
     An InChI is not a SMILES, so caching on the value alone would let whichever
     type was seen first answer for both.
     """
-    inchi = reaction_pb2.CompoundIdentifier.INCHI
-    smiles = reaction_pb2.CompoundIdentifier.SMILES
+    inchi = reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_INCHI
+    smiles = reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_SMILES
     value = "InChI=1S/CH4/h1H4"
     assert message_helpers.canonical_smiles_for_identifier(inchi, value) == "C"
     assert message_helpers.canonical_smiles_for_identifier(smiles, value) is None
 
 
 def test_canonical_smiles_for_identifier_returns_none_when_unparseable():
-    smiles = reaction_pb2.CompoundIdentifier.SMILES
+    smiles = reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_SMILES
     unparseable = message_helpers.canonical_smiles_for_identifier(
         smiles, "not a molecule"
     )
     assert unparseable is None
     # A type no Mol can be built from is not a parse failure to report either.
-    name = reaction_pb2.CompoundIdentifier.NAME
+    name = reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_NAME
     assert message_helpers.canonical_smiles_for_identifier(name, "benzene") is None
 
 
@@ -935,7 +935,7 @@ def test_inconsistent_identifiers_are_reported_in_a_stable_order():
 
 def test_identifier_parses_unsanitized_separates_the_two_failure_modes():
     """Pentavalent nitrogen parses only once sanitization is skipped."""
-    smiles = reaction_pb2.CompoundIdentifier.SMILES
+    smiles = reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_SMILES
     unsanitizable = "CN(C)(C)C"
     assert (
         message_helpers.canonical_smiles_for_identifier(smiles, unsanitizable) is None
@@ -982,7 +982,7 @@ def test_structural_identifiers_skips_non_structural_and_empty_values():
     assert [
         identifier.type
         for identifier in message_helpers.structural_identifiers(compound)
-    ] == [reaction_pb2.CompoundIdentifier.INCHI]
+    ] == [reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_INCHI]
 
 
 def test_mol_from_compound_prefers_cxsmiles():
@@ -992,7 +992,7 @@ def test_mol_from_compound_prefers_cxsmiles():
     mol, identifier = message_helpers.mol_from_compound(
         compound, return_identifier=True
     )
-    assert identifier.type == reaction_pb2.CompoundIdentifier.CXSMILES
+    assert identifier.type == reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_CXSMILES
     assert mol.GetStereoGroups()
 
 

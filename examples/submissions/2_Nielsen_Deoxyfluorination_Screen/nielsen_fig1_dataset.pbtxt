@@ -9,7 +9,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -21,7 +21,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -42,7 +42,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -59,7 +59,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -71,7 +71,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -139,11 +139,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -154,11 +154,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -178,7 +178,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -227,7 +227,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -239,7 +239,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -260,7 +260,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -277,7 +277,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -289,7 +289,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -357,11 +357,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -372,11 +372,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -396,7 +396,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -445,7 +445,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -457,7 +457,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -478,7 +478,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -495,7 +495,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -507,7 +507,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -575,11 +575,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -590,11 +590,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -614,7 +614,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -663,7 +663,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -675,7 +675,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -696,7 +696,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -713,7 +713,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -725,7 +725,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -793,11 +793,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -808,11 +808,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -832,7 +832,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -881,7 +881,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -893,7 +893,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -914,7 +914,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -931,7 +931,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -943,7 +943,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -1011,11 +1011,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -1026,11 +1026,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -1050,7 +1050,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -1099,7 +1099,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -1111,7 +1111,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -1132,7 +1132,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -1149,7 +1149,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -1161,7 +1161,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -1229,11 +1229,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -1244,11 +1244,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -1268,7 +1268,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -1317,7 +1317,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -1329,7 +1329,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -1350,7 +1350,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -1367,7 +1367,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -1379,7 +1379,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -1447,11 +1447,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -1462,11 +1462,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -1486,7 +1486,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -1535,7 +1535,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -1547,7 +1547,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -1568,7 +1568,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -1585,7 +1585,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -1597,7 +1597,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -1665,11 +1665,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -1680,11 +1680,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -1704,7 +1704,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -1753,7 +1753,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -1765,7 +1765,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -1786,7 +1786,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -1803,7 +1803,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -1815,7 +1815,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -1883,11 +1883,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -1898,11 +1898,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -1922,7 +1922,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -1971,7 +1971,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -1983,7 +1983,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -2004,7 +2004,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -2021,7 +2021,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -2033,7 +2033,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -2101,11 +2101,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -2116,11 +2116,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -2140,7 +2140,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -2189,7 +2189,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -2201,7 +2201,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -2222,7 +2222,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -2239,7 +2239,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -2251,7 +2251,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -2319,11 +2319,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -2334,11 +2334,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -2358,7 +2358,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -2407,7 +2407,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -2419,7 +2419,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -2440,7 +2440,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -2457,7 +2457,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -2469,7 +2469,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -2537,11 +2537,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -2552,11 +2552,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -2576,7 +2576,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -2625,7 +2625,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -2637,7 +2637,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -2658,7 +2658,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -2675,7 +2675,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -2687,7 +2687,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -2755,11 +2755,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -2770,11 +2770,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -2794,7 +2794,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -2843,7 +2843,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -2855,7 +2855,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -2876,7 +2876,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -2893,7 +2893,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -2905,7 +2905,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -2973,11 +2973,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -2988,11 +2988,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -3012,7 +3012,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -3061,7 +3061,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -3073,7 +3073,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -3094,7 +3094,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -3111,7 +3111,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -3123,7 +3123,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -3191,11 +3191,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -3206,11 +3206,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -3230,7 +3230,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -3279,7 +3279,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -3291,7 +3291,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -3312,7 +3312,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -3329,7 +3329,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -3341,7 +3341,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -3409,11 +3409,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -3424,11 +3424,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -3448,7 +3448,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -3497,7 +3497,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -3509,7 +3509,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -3530,7 +3530,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -3547,7 +3547,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -3559,7 +3559,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -3627,11 +3627,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -3642,11 +3642,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -3666,7 +3666,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -3715,7 +3715,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -3727,7 +3727,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -3748,7 +3748,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -3765,7 +3765,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -3777,7 +3777,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -3845,11 +3845,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -3860,11 +3860,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -3884,7 +3884,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -3933,7 +3933,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -3945,7 +3945,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -3966,7 +3966,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -3983,7 +3983,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -3995,7 +3995,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -4063,11 +4063,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -4078,11 +4078,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -4102,7 +4102,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -4151,7 +4151,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(O)C"
         }
         moles {
@@ -4163,7 +4163,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -4184,7 +4184,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -4201,7 +4201,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -4213,7 +4213,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -4281,11 +4281,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -4296,11 +4296,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -4320,7 +4320,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1CCC(F)C"
         }
       }
@@ -4369,7 +4369,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -4381,7 +4381,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -4402,7 +4402,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -4419,7 +4419,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -4431,7 +4431,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -4499,11 +4499,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -4514,11 +4514,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -4538,7 +4538,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -4587,7 +4587,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -4599,7 +4599,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -4620,7 +4620,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -4637,7 +4637,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -4649,7 +4649,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -4717,11 +4717,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -4732,11 +4732,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -4756,7 +4756,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -4805,7 +4805,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -4817,7 +4817,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -4838,7 +4838,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -4855,7 +4855,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -4867,7 +4867,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -4935,11 +4935,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -4950,11 +4950,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -4974,7 +4974,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -5023,7 +5023,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -5035,7 +5035,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -5056,7 +5056,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -5073,7 +5073,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -5085,7 +5085,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -5153,11 +5153,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -5168,11 +5168,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -5192,7 +5192,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -5241,7 +5241,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -5253,7 +5253,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -5274,7 +5274,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -5291,7 +5291,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -5303,7 +5303,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -5371,11 +5371,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -5386,11 +5386,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -5410,7 +5410,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -5459,7 +5459,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -5471,7 +5471,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -5492,7 +5492,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -5509,7 +5509,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -5521,7 +5521,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -5589,11 +5589,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -5604,11 +5604,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -5628,7 +5628,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -5677,7 +5677,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -5689,7 +5689,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -5710,7 +5710,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -5727,7 +5727,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -5739,7 +5739,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -5807,11 +5807,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -5822,11 +5822,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -5846,7 +5846,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -5895,7 +5895,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -5907,7 +5907,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -5928,7 +5928,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -5945,7 +5945,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -5957,7 +5957,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -6025,11 +6025,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -6040,11 +6040,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -6064,7 +6064,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -6113,7 +6113,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -6125,7 +6125,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -6146,7 +6146,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -6163,7 +6163,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -6175,7 +6175,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -6243,11 +6243,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -6258,11 +6258,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -6282,7 +6282,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -6331,7 +6331,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -6343,7 +6343,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -6364,7 +6364,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -6381,7 +6381,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -6393,7 +6393,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -6461,11 +6461,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -6476,11 +6476,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -6500,7 +6500,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -6549,7 +6549,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -6561,7 +6561,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -6582,7 +6582,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -6599,7 +6599,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -6611,7 +6611,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -6679,11 +6679,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -6694,11 +6694,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -6718,7 +6718,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -6767,7 +6767,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -6779,7 +6779,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -6800,7 +6800,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -6817,7 +6817,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -6829,7 +6829,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -6897,11 +6897,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -6912,11 +6912,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -6936,7 +6936,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -6985,7 +6985,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -6997,7 +6997,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -7018,7 +7018,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -7035,7 +7035,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -7047,7 +7047,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -7115,11 +7115,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -7130,11 +7130,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -7154,7 +7154,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -7203,7 +7203,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -7215,7 +7215,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -7236,7 +7236,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -7253,7 +7253,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -7265,7 +7265,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -7333,11 +7333,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -7348,11 +7348,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -7372,7 +7372,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -7421,7 +7421,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -7433,7 +7433,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -7454,7 +7454,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -7471,7 +7471,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -7483,7 +7483,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -7551,11 +7551,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -7566,11 +7566,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -7590,7 +7590,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -7639,7 +7639,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -7651,7 +7651,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -7672,7 +7672,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -7689,7 +7689,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -7701,7 +7701,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -7769,11 +7769,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -7784,11 +7784,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -7808,7 +7808,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -7857,7 +7857,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -7869,7 +7869,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -7890,7 +7890,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -7907,7 +7907,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -7919,7 +7919,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -7987,11 +7987,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -8002,11 +8002,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -8026,7 +8026,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -8075,7 +8075,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -8087,7 +8087,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -8108,7 +8108,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -8125,7 +8125,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -8137,7 +8137,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -8205,11 +8205,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -8220,11 +8220,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -8244,7 +8244,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -8293,7 +8293,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -8305,7 +8305,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -8326,7 +8326,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -8343,7 +8343,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -8355,7 +8355,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -8423,11 +8423,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -8438,11 +8438,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -8462,7 +8462,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -8511,7 +8511,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CO)cc2"
         }
         moles {
@@ -8523,7 +8523,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -8544,7 +8544,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -8561,7 +8561,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -8573,7 +8573,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -8641,11 +8641,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -8656,11 +8656,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -8680,7 +8680,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "c1ccccc1-c2ccc(CF)cc2"
         }
       }
@@ -8729,7 +8729,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -8741,7 +8741,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -8762,7 +8762,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -8779,7 +8779,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -8791,7 +8791,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -8859,11 +8859,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -8874,11 +8874,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -8898,7 +8898,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -8947,7 +8947,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -8959,7 +8959,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -8980,7 +8980,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -8997,7 +8997,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -9009,7 +9009,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -9077,11 +9077,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -9092,11 +9092,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -9116,7 +9116,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -9165,7 +9165,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -9177,7 +9177,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -9198,7 +9198,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -9215,7 +9215,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -9227,7 +9227,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -9295,11 +9295,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -9310,11 +9310,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -9334,7 +9334,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -9383,7 +9383,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -9395,7 +9395,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -9416,7 +9416,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -9433,7 +9433,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -9445,7 +9445,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -9513,11 +9513,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -9528,11 +9528,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -9552,7 +9552,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -9601,7 +9601,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -9613,7 +9613,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -9634,7 +9634,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -9651,7 +9651,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -9663,7 +9663,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -9731,11 +9731,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -9746,11 +9746,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -9770,7 +9770,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -9819,7 +9819,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -9831,7 +9831,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -9852,7 +9852,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -9869,7 +9869,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -9881,7 +9881,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -9949,11 +9949,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -9964,11 +9964,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -9988,7 +9988,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -10037,7 +10037,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -10049,7 +10049,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -10070,7 +10070,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -10087,7 +10087,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -10099,7 +10099,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -10167,11 +10167,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -10182,11 +10182,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -10206,7 +10206,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -10255,7 +10255,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -10267,7 +10267,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -10288,7 +10288,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -10305,7 +10305,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -10317,7 +10317,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -10385,11 +10385,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -10400,11 +10400,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -10424,7 +10424,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -10473,7 +10473,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -10485,7 +10485,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -10506,7 +10506,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -10523,7 +10523,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -10535,7 +10535,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -10603,11 +10603,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -10618,11 +10618,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -10642,7 +10642,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -10691,7 +10691,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -10703,7 +10703,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -10724,7 +10724,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -10741,7 +10741,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -10753,7 +10753,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -10821,11 +10821,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -10836,11 +10836,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -10860,7 +10860,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -10909,7 +10909,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -10921,7 +10921,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -10942,7 +10942,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -10959,7 +10959,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -10971,7 +10971,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -11039,11 +11039,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -11054,11 +11054,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -11078,7 +11078,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -11127,7 +11127,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -11139,7 +11139,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -11160,7 +11160,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -11177,7 +11177,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -11189,7 +11189,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -11257,11 +11257,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -11272,11 +11272,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -11296,7 +11296,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -11345,7 +11345,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -11357,7 +11357,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -11378,7 +11378,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -11395,7 +11395,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -11407,7 +11407,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -11475,11 +11475,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -11490,11 +11490,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -11514,7 +11514,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -11563,7 +11563,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -11575,7 +11575,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -11596,7 +11596,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -11613,7 +11613,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -11625,7 +11625,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -11693,11 +11693,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -11708,11 +11708,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -11732,7 +11732,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -11781,7 +11781,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -11793,7 +11793,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -11814,7 +11814,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -11831,7 +11831,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -11843,7 +11843,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -11911,11 +11911,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -11926,11 +11926,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -11950,7 +11950,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -11999,7 +11999,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -12011,7 +12011,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -12032,7 +12032,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -12049,7 +12049,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -12061,7 +12061,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -12129,11 +12129,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -12144,11 +12144,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -12168,7 +12168,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -12217,7 +12217,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -12229,7 +12229,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -12250,7 +12250,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -12267,7 +12267,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -12279,7 +12279,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -12347,11 +12347,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -12362,11 +12362,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -12386,7 +12386,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -12435,7 +12435,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -12447,7 +12447,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -12468,7 +12468,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -12485,7 +12485,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -12497,7 +12497,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -12565,11 +12565,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -12580,11 +12580,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -12604,7 +12604,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -12653,7 +12653,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -12665,7 +12665,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -12686,7 +12686,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -12703,7 +12703,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -12715,7 +12715,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -12783,11 +12783,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -12798,11 +12798,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -12822,7 +12822,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -12871,7 +12871,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
         moles {
@@ -12883,7 +12883,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -12904,7 +12904,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -12921,7 +12921,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -12933,7 +12933,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -13001,11 +13001,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -13016,11 +13016,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -13040,7 +13040,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1"
         }
       }
@@ -13089,7 +13089,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -13101,7 +13101,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -13122,7 +13122,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -13139,7 +13139,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -13151,7 +13151,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -13219,11 +13219,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -13234,11 +13234,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -13258,7 +13258,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -13307,7 +13307,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -13319,7 +13319,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -13340,7 +13340,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -13357,7 +13357,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -13369,7 +13369,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -13437,11 +13437,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -13452,11 +13452,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -13476,7 +13476,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -13525,7 +13525,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -13537,7 +13537,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -13558,7 +13558,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -13575,7 +13575,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -13587,7 +13587,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -13655,11 +13655,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -13670,11 +13670,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -13694,7 +13694,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -13743,7 +13743,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -13755,7 +13755,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -13776,7 +13776,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -13793,7 +13793,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "Clc1ccc(S(=O)(=O)F)cc1"
         }
         moles {
@@ -13805,7 +13805,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -13873,11 +13873,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -13888,11 +13888,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -13912,7 +13912,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -13961,7 +13961,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -13973,7 +13973,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -13994,7 +13994,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -14011,7 +14011,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -14023,7 +14023,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -14091,11 +14091,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -14106,11 +14106,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -14130,7 +14130,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -14179,7 +14179,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -14191,7 +14191,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -14212,7 +14212,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -14229,7 +14229,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -14241,7 +14241,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -14309,11 +14309,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -14324,11 +14324,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -14348,7 +14348,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -14397,7 +14397,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -14409,7 +14409,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -14430,7 +14430,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -14447,7 +14447,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -14459,7 +14459,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -14527,11 +14527,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -14542,11 +14542,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -14566,7 +14566,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -14615,7 +14615,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -14627,7 +14627,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -14648,7 +14648,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -14665,7 +14665,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=CC=N1)(F)=O"
         }
         moles {
@@ -14677,7 +14677,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -14745,11 +14745,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -14760,11 +14760,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -14784,7 +14784,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -14833,7 +14833,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -14845,7 +14845,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -14866,7 +14866,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -14883,7 +14883,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -14895,7 +14895,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -14963,11 +14963,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -14978,11 +14978,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -15002,7 +15002,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -15051,7 +15051,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -15063,7 +15063,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -15084,7 +15084,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -15101,7 +15101,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -15113,7 +15113,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -15181,11 +15181,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -15196,11 +15196,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -15220,7 +15220,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -15269,7 +15269,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -15281,7 +15281,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -15302,7 +15302,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -15319,7 +15319,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -15331,7 +15331,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -15399,11 +15399,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -15414,11 +15414,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -15438,7 +15438,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -15487,7 +15487,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -15499,7 +15499,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -15520,7 +15520,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -15537,7 +15537,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O"
         }
         moles {
@@ -15549,7 +15549,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -15617,11 +15617,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -15632,11 +15632,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -15656,7 +15656,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -15705,7 +15705,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -15717,7 +15717,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -15738,7 +15738,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -15755,7 +15755,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -15767,7 +15767,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -15835,11 +15835,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -15850,11 +15850,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -15874,7 +15874,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -15923,7 +15923,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -15935,7 +15935,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -15956,7 +15956,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -15973,7 +15973,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -15985,7 +15985,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -16053,11 +16053,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -16068,11 +16068,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -16092,7 +16092,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -16141,7 +16141,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -16153,7 +16153,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -16174,7 +16174,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -16191,7 +16191,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -16203,7 +16203,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -16271,11 +16271,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -16286,11 +16286,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -16310,7 +16310,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -16359,7 +16359,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -16371,7 +16371,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -16392,7 +16392,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -16409,7 +16409,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O"
         }
         moles {
@@ -16421,7 +16421,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -16489,11 +16489,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -16504,11 +16504,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -16528,7 +16528,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -16577,7 +16577,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -16589,7 +16589,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -16610,7 +16610,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "N\\2=C1\\N(CCCCC1)CCC/2"
         }
         moles {
@@ -16627,7 +16627,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -16639,7 +16639,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -16707,11 +16707,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -16722,11 +16722,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -16746,7 +16746,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -16795,7 +16795,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -16807,7 +16807,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -16828,7 +16828,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CN1CCCN2C1=NCCC2"
         }
         moles {
@@ -16845,7 +16845,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -16857,7 +16857,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -16925,11 +16925,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -16940,11 +16940,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -16964,7 +16964,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -17013,7 +17013,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -17025,7 +17025,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -17046,7 +17046,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=C(N(C)C)N(C)C"
         }
         moles {
@@ -17063,7 +17063,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -17075,7 +17075,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -17143,11 +17143,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -17158,11 +17158,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -17182,7 +17182,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }
@@ -17231,7 +17231,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
         moles {
@@ -17243,7 +17243,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -17264,7 +17264,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3"
         }
         moles {
@@ -17281,7 +17281,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F"
         }
         moles {
@@ -17293,7 +17293,7 @@ reactions {
       }
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1CCOC1"
         }
         volume {
@@ -17361,11 +17361,11 @@ reactions {
     input {
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "1-fluoronaphthalene"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "C1=CC=C2C(=C1)C=CC=C2F"
         }
         moles {
@@ -17376,11 +17376,11 @@ reactions {
       }
       components {
         identifiers {
-          type: NAME
+          type: COMPOUND_IDENTIFIER_TYPE_NAME
           value: "CDCl3"
         }
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "[2H]C(Cl)(Cl)Cl"
         }
         volume {
@@ -17400,7 +17400,7 @@ reactions {
     products {
       compound {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           value: "F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1"
         }
       }

@@ -7,7 +7,7 @@ inputs {
   value {
     components {
       identifiers {
-        type: SMILES
+        type: COMPOUND_IDENTIFIER_TYPE_SMILES
         value: "$alcohol_smiles$"
       }
       moles {
@@ -19,7 +19,7 @@ inputs {
     }
     components {
       identifiers {
-        type: SMILES
+        type: COMPOUND_IDENTIFIER_TYPE_SMILES
         value: "C1CCOC1"
       }
       volume {
@@ -40,7 +40,7 @@ inputs {
   value {
     components {
       identifiers {
-        type: SMILES
+        type: COMPOUND_IDENTIFIER_TYPE_SMILES
         value: "$base_smiles$"
       }
       moles {
@@ -57,7 +57,7 @@ inputs {
   value {
     components {
       identifiers {
-        type: SMILES
+        type: COMPOUND_IDENTIFIER_TYPE_SMILES
         value: "$sulfonyl_fluoride_smiles$"
       }
       moles {
@@ -69,7 +69,7 @@ inputs {
     }
     components {
       identifiers {
-        type: SMILES
+        type: COMPOUND_IDENTIFIER_TYPE_SMILES
         value: "C1CCOC1"
       }
       volume {
@@ -137,11 +137,11 @@ workup {
   input {
     components {
       identifiers {
-        type: NAME
+        type: COMPOUND_IDENTIFIER_TYPE_NAME
         value: "1-fluoronaphthalene"
       }
       identifiers {
-        type: SMILES
+        type: COMPOUND_IDENTIFIER_TYPE_SMILES
         value: "C1=CC=C2C(=C1)C=CC=C2F"
       }
       moles {
@@ -152,11 +152,11 @@ workup {
     }
     components {
       identifiers {
-        type: NAME
+        type: COMPOUND_IDENTIFIER_TYPE_NAME
         value: "CDCl3"
       }
       identifiers {
-        type: SMILES
+        type: COMPOUND_IDENTIFIER_TYPE_SMILES
         value: "[2H]C(Cl)(Cl)Cl"
       }
       volume {
@@ -176,7 +176,7 @@ outcomes {
   products {
     compound {
       identifiers {
-        type: SMILES
+        type: COMPOUND_IDENTIFIER_TYPE_SMILES
         value: "$product_smiles$"
       }
     }

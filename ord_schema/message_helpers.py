@@ -50,11 +50,11 @@ _CX_STRUCTURAL_FIELDS = (
 )
 
 _COMPOUND_IDENTIFIER_LOADERS = {
-    reaction_pb2.CompoundIdentifier.SMILES: Chem.MolFromSmiles,
+    reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_SMILES: Chem.MolFromSmiles,
     # MolFromSmiles reads CXSMILES, so it is as structural as SMILES.
-    reaction_pb2.CompoundIdentifier.CXSMILES: Chem.MolFromSmiles,
-    reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
-    reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
+    reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_CXSMILES: Chem.MolFromSmiles,
+    reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_INCHI: Chem.MolFromInchi,
+    reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_MOLBLOCK: Chem.MolFromMolBlock,
 }
 # The identifier types a Mol can be built from, keyed off the loaders above so
 # every caller shares this module's single source of truth for what "structural"
@@ -373,8 +373,8 @@ def structural_identifiers(
         Each identifier with a non-empty value whose type a Mol can be built from.
     """
     preferred = (
-        reaction_pb2.CompoundIdentifier.CXSMILES,
-        reaction_pb2.CompoundIdentifier.SMILES,
+        reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_CXSMILES,
+        reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_SMILES,
     )
     for identifier_type in preferred:
         for identifier in compound.identifiers:
@@ -991,7 +991,7 @@ def get_compound_smiles(
     Returns:
         SMILES string or None if the compound has no SMILES identifier.
     """
-    return get_compound_identifier(compound, reaction_pb2.CompoundIdentifier.SMILES)
+    return get_compound_identifier(compound, reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_SMILES)
 
 
 def set_compound_smiles(
@@ -1007,7 +1007,7 @@ def set_compound_smiles(
         The compound identifier that was modified or created.
     """
     return set_compound_identifier(
-        compound, reaction_pb2.CompoundIdentifier.SMILES, value
+        compound, reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_SMILES, value
     )
 
 
@@ -1113,7 +1113,7 @@ def get_compound_name(compound: reaction_pb2.Compound) -> str | None:
     Returns:
         NAME string or None if the compound has no NAME identifier.
     """
-    return get_compound_identifier(compound, reaction_pb2.CompoundIdentifier.NAME)
+    return get_compound_identifier(compound, reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_NAME)
 
 
 def set_compound_name(
@@ -1129,7 +1129,7 @@ def set_compound_name(
         The compound identifier that was modified or created.
     """
     return set_compound_identifier(
-        compound, reaction_pb2.CompoundIdentifier.NAME, value
+        compound, reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_NAME, value
     )
 
 
@@ -1144,7 +1144,7 @@ def get_compound_molblock(
     Returns:
         MOLBLOCK string or None if the compound has no MOLBLOCK identifier.
     """
-    return get_compound_identifier(compound, reaction_pb2.CompoundIdentifier.MOLBLOCK)
+    return get_compound_identifier(compound, reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_MOLBLOCK)
 
 
 def set_compound_molblock(
@@ -1160,7 +1160,7 @@ def set_compound_molblock(
         The compound identifier that was modified or created.
     """
     return set_compound_identifier(
-        compound, reaction_pb2.CompoundIdentifier.MOLBLOCK, value
+        compound, reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_MOLBLOCK, value
     )
 
 

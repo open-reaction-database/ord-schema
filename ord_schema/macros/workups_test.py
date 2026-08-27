@@ -62,7 +62,7 @@ def test_drying_agent():
     assert component.reaction_role == reaction_pb2.ReactionRole.WORKUP
     assert len(component.identifiers) == 1
     identifier = component.identifiers[0]
-    assert identifier.type == reaction_pb2.CompoundIdentifier.SMILES
+    assert identifier.type == reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_SMILES
     assert identifier.value == "[Mg+2].[O-]S([O-])(=O)=O"
     validations.validate_message(workup)
 

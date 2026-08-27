@@ -341,7 +341,7 @@ def test_compound_smiles_fallback_without_stored_smiles(prepared_engine):
         Chem.MolFromSmiles(message_helpers.get_compound_smiles(compound))
     )
     del compound.identifiers[:]
-    compound.identifiers.add(type=reaction_pb2.CompoundIdentifier.INCHI, value=inchi)
+    compound.identifiers.add(type=reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_INCHI, value=inchi)
     expected = Chem.MolToSmiles(Chem.MolFromInchi(inchi))
     with Session(prepared_engine) as session:
         with session.begin():
@@ -388,7 +388,7 @@ def test_underivable_compound_skips_reconstruction(prepared_engine, monkeypatch)
     )
     del compound.identifiers[:]
     compound.identifiers.add(
-        type=reaction_pb2.CompoundIdentifier.NAME, value="mystery reagent"
+        type=reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_NAME, value="mystery reagent"
     )
     to_proto_calls = []
     real_to_proto = _orm_database.to_proto
@@ -476,7 +476,7 @@ def test_derived_compound_smiles_covers_every_attachment(prepared_engine):
     )
     measurement.uses_authentic_standard = True
     measurement.authentic_standard.identifiers.add(
-        type=reaction_pb2.CompoundIdentifier.SMILES, value="c1ccccc1"
+        type=reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_SMILES, value="c1ccccc1"
     )
     with Session(prepared_engine) as session:
         with session.begin():

@@ -475,7 +475,7 @@ def clean_reaction(reaction: reaction_pb2.Reaction) -> None:
                 identifier.type
             )
             identifier.details = f"Originally defined as {old_type}"
-            identifier.type = reaction_pb2.CompoundIdentifier.CUSTOM
+            identifier.type = reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_CUSTOM
     # Adjust workup types as needed.
     for workup in reaction.workups:
         output = validations.validate_message(workup, raise_on_error=False)

@@ -89,7 +89,7 @@ class TestNameResolvers:
         )
         assert resolvers.resolve_names(message)
         identifier = message.inputs["test"].components[0].identifiers[1]
-        assert identifier.type == reaction_pb2.CompoundIdentifier.SMILES
+        assert identifier.type == reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_SMILES
         assert identifier.value == "CC(=O)Oc1ccccc1C(=O)O"
         assert identifier.details == "NAME resolved by the PubChem API"
 
@@ -113,7 +113,7 @@ class TestInputResolvers:
         ] == reaction_pb2.CompoundIdentifier(type="NAME", value="THF")
         assert (
             reaction_input.components[0].identifiers[1].type
-            == reaction_pb2.CompoundIdentifier.SMILES
+            == reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_SMILES
         )
         assert roundtrip_smi(
             reaction_input.components[0].identifiers[1].value
@@ -132,7 +132,7 @@ class TestInputResolvers:
         ] == reaction_pb2.CompoundIdentifier(type="NAME", value="sodium hydroxide")
         assert (
             reaction_input.components[0].identifiers[1].type
-            == reaction_pb2.CompoundIdentifier.SMILES
+            == reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_SMILES
         )
         assert roundtrip_smi(
             reaction_input.components[0].identifiers[1].value
@@ -146,7 +146,7 @@ class TestInputResolvers:
         ] == reaction_pb2.CompoundIdentifier(type="NAME", value="water")
         assert (
             reaction_input.components[1].identifiers[1].type
-            == reaction_pb2.CompoundIdentifier.SMILES
+            == reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_SMILES
         )
         assert roundtrip_smi(
             reaction_input.components[1].identifiers[1].value
@@ -176,7 +176,7 @@ class TestInputResolvers:
         ] == reaction_pb2.CompoundIdentifier(type="NAME", value="THF")
         assert (
             reaction_input.components[0].identifiers[1].type
-            == reaction_pb2.CompoundIdentifier.SMILES
+            == reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_SMILES
         )
         assert reaction_input.components[0].identifiers[1].value == "C1COCC1"
 

@@ -726,15 +726,15 @@ def _validate_reaction(
 # messages a depositor reads. Anything absent falls back to the enum name, which already
 # reads correctly for SMILES and CXSMILES.
 _IDENTIFIER_NAMES = {
-    reaction_pb2.CompoundIdentifier.INCHI: "InChI",
-    reaction_pb2.CompoundIdentifier.MOLBLOCK: "MolBlock",
+    reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_INCHI: "InChI",
+    reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_MOLBLOCK: "MolBlock",
 }
 
 # Block formats whose leading and trailing newlines are part of the format.
 _WHITESPACE_EXEMPT_TYPES = frozenset(
     {
-        reaction_pb2.CompoundIdentifier.MOLBLOCK,
-        reaction_pb2.CompoundIdentifier.XYZ,
+        reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_MOLBLOCK,
+        reaction_pb2.CompoundIdentifier.COMPOUND_IDENTIFIER_TYPE_XYZ,
         reaction_pb2.ReactionIdentifier.RDFILE,
     }
 )

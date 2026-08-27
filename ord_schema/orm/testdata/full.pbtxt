@@ -16,7 +16,7 @@ reactions {
     value {
       components {
         identifiers {
-          type: SMILES
+          type: COMPOUND_IDENTIFIER_TYPE_SMILES
           details: "6"
           value: "5"
         }
@@ -404,17 +404,17 @@ reactions {
     }
     products {
       identifiers {
-        type: IUPAC_NAME
+        type: COMPOUND_IDENTIFIER_TYPE_IUPAC_NAME
         details: "116.2"
         value: "116.1"
       }
       identifiers {
-        type: NAME
+        type: COMPOUND_IDENTIFIER_TYPE_NAME
         details: "Name of this compound"
         value: "DMSO"
       }
       identifiers {
-        type: SMILES
+        type: COMPOUND_IDENTIFIER_TYPE_SMILES
         details: "NAME resolved by the PubChem API"
         value: "CS(C)=O"
       }
@@ -450,12 +450,12 @@ reactions {
         uses_authentic_standard: true
         authentic_standard {
           identifiers {
-            type: NAME
+            type: COMPOUND_IDENTIFIER_TYPE_NAME
             details: "Name of this compound"
             value: "DBU"
           }
           identifiers {
-            type: SMILES
+            type: COMPOUND_IDENTIFIER_TYPE_SMILES
             details: "NAME resolved by the PubChem API"
             value: "C1CCC2=NCCCN2CC1"
           }

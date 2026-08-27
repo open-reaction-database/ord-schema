@@ -371,40 +371,22 @@ message CompoundPreparation {
  */
 message CompoundIdentifier {
   enum CompoundIdentifierType {
-    UNSPECIFIED = 0;
-    CUSTOM = 1;
-    // Simplified molecular-input line-entry system.
-    SMILES = 2;
-    // IUPAC International Chemical Identifier.
-    INCHI = 3;
-    // Molblock from a MDL Molfile V3000.
-    MOLBLOCK = 4;
-    // Chemical name following IUPAC nomenclature recommendations.
-    IUPAC_NAME = 5;
-    // Any accepted common name, trade name, etc.
-    NAME = 6;
-    // Chemical Abstracts Service Registry Number (with hyphens).
-    CAS_NUMBER = 7;
-    // PubChem Compound ID number.
-    PUBCHEM_CID = 8;
-    // ChemSpider ID number.
-    CHEMSPIDER_ID = 9;
-    // ChemAxon extended SMILES
-    CXSMILES = 10;
-    // IUPAC International Chemical Identifier key
-    INCHI_KEY = 11;
-    // XYZ molecule file
-    XYZ = 12;
-    // UniProt ID (for enzymes)
-    UNIPROT_ID = 13;
-    // Protein data bank ID (for enzymes)
-    PDB_ID = 14;
-    // Amino acid sequence (for enzymes).
-    AMINO_ACID_SEQUENCE = 15;
-    // HELM; https://www.pistoiaalliance.org/helm-notation/.
-    HELM = 16;
-    MDL = 17;
-    // MDL number e.g., MFCD00005972 for morpholine,
+    COMPOUND_IDENTIFIER_TYPE_UNSPECIFIED = 0;    COMPOUND_IDENTIFIER_TYPE_CUSTOM = 1;    // Simplified molecular-input line-entry system.
+    COMPOUND_IDENTIFIER_TYPE_SMILES = 2;    // IUPAC International Chemical Identifier.
+    COMPOUND_IDENTIFIER_TYPE_INCHI = 3;    // Molblock from a MDL Molfile V3000.
+    COMPOUND_IDENTIFIER_TYPE_MOLBLOCK = 4;    // Chemical name following IUPAC nomenclature recommendations.
+    COMPOUND_IDENTIFIER_TYPE_IUPAC_NAME = 5;    // Any accepted common name, trade name, etc.
+    COMPOUND_IDENTIFIER_TYPE_NAME = 6;    // Chemical Abstracts Service Registry Number (with hyphens).
+    COMPOUND_IDENTIFIER_TYPE_CAS_NUMBER = 7;    // PubChem Compound ID number.
+    COMPOUND_IDENTIFIER_TYPE_PUBCHEM_CID = 8;    // ChemSpider ID number.
+    COMPOUND_IDENTIFIER_TYPE_CHEMSPIDER_ID = 9;    // ChemAxon extended SMILES
+    COMPOUND_IDENTIFIER_TYPE_CXSMILES = 10;    // IUPAC International Chemical Identifier key
+    COMPOUND_IDENTIFIER_TYPE_INCHI_KEY = 11;    // XYZ molecule file
+    COMPOUND_IDENTIFIER_TYPE_XYZ = 12;    // UniProt ID (for enzymes)
+    COMPOUND_IDENTIFIER_TYPE_UNIPROT_ID = 13;    // Protein data bank ID (for enzymes)
+    COMPOUND_IDENTIFIER_TYPE_PDB_ID = 14;    // Amino acid sequence (for enzymes).
+    COMPOUND_IDENTIFIER_TYPE_AMINO_ACID_SEQUENCE = 15;    // HELM; https://www.pistoiaalliance.org/helm-notation/.
+    COMPOUND_IDENTIFIER_TYPE_HELM = 16;    COMPOUND_IDENTIFIER_TYPE_MDL = 17;    // MDL number e.g., MFCD00005972 for morpholine,
     // often included on commercial supplier listings.
   }
   CompoundIdentifierType type = 1;
