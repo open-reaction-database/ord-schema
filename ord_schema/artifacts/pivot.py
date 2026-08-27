@@ -45,7 +45,7 @@ the elements that match something never can.
 import dataclasses
 import os
 import pathlib
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 import duckdb
 import inflection
@@ -372,6 +372,83 @@ def pivot_path(path: str | os.PathLike[str]) -> str | None:
     return value.decode() if value is not None else None
 
 
+def _check_projection(source: str | os.PathLike[str]) -> base.Stamps:
+    """Returns the stamps of a current projection, refusing anything else.
+
+    Args:
+        source: Path to the file a pivot would read.
+
+    Returns:
+        Its stamps.
+
+    Raises:
+        ValueError: If it holds another artifact, or is a projection the current
+            library did not write. derive_tree refuses stale parents, but the readers
+            here are public and their output inherits the dataset hash: an artifact
+            derived from a stale projection would claim a provenance it does not have
+            and nothing would ever mark it stale again.
+    """
+    parent = base.load_stamps(source)
+    if parent.artifact != projection.ARTIFACT:
+        raise ValueError(
+            f"{source} is a {parent.artifact}, not a {projection.ARTIFACT}; a pivot "
+            "unnests a projection"
+        )
+    if not base.stamps_are_current(parent, projection.ARTIFACT):
+        raise ValueError(
+            f"{source} is a stale {projection.ARTIFACT}; derive it again first"
+        )
+    return parent
+
+
+def check_levels(level_paths: Iterable[str]) -> list[str]:
+    """Returns ``level_paths`` as a list, refusing any the schema does not have.
+
+    Args:
+        level_paths: The levels to check, as the query grammar names them.
+
+    Returns:
+        The same paths, in order.
+
+    Raises:
+        ValueError: If any path is not a repeated level of the projection schema, or
+            if one is named twice, which would leave a caller fewer answers than it
+            asked for.
+    """
+    wanted = list(level_paths)
+    unknown = sorted(set(wanted) - set(LEVELS))
+    if unknown:
+        raise ValueError(
+            f"not repeated levels of the projection schema: {unknown}; "
+            f"known levels are {sorted(LEVELS)}"
+        )
+    repeated = sorted({path for path in wanted if wanted.count(path) > 1})
+    if repeated:
+        raise ValueError(f"levels named more than once: {repeated}")
+    return wanted
+
+
+def _count_within(steps: Sequence[Step], source: str | None, depth: int = 0) -> str:
+    """Returns an expression counting what ``steps`` reach from one element.
+
+    Args:
+        steps: The steps left to walk, outermost first.
+        source: The variable bound to the element, or None at the row.
+        depth: How far down this is, which names the bound variable.
+
+    Returns:
+        An expression summing the lengths at each level rather than building the
+        flattened list and measuring it, so a reaction's elements are never all
+        resident at once.
+    """
+    reached = steps[0].expression(source)
+    if len(steps) == 1:
+        return f"len({reached})"
+    element = f"e{depth}"
+    inner = _count_within(steps[1:], element, depth + 1)
+    return f"coalesce(list_sum(list_transform({reached}, {element} -> {inner})), 0)"
+
+
 def count_expression(level: RepeatedLevel) -> str:
     """Returns SQL counting the elements a projection records at ``level``.
 
@@ -387,17 +464,32 @@ def count_expression(level: RepeatedLevel) -> str:
 
     Returns:
         An aggregate over the reactions relation, to be selected with no GROUP BY, and
-        zero where nothing is recorded. Flattened at each step, so the count is of
-        elements rather than of the lists holding them.
+        zero where nothing is recorded.
     """
-    expression = level.steps[0].expression(None)
-    for depth, step in enumerate(level.steps[1:], start=1):
-        element = f"e{depth}"
-        expression = (
-            f"flatten(list_transform({expression}, "
-            f"{element} -> {step.expression(element)}))"
-        )
-    return f"coalesce(sum(len({expression})), 0)"
+    return f"coalesce(sum({_count_within(level.steps, None)}), 0)"
+
+
+def _count_view(
+    connection: duckdb.DuckDBPyConnection, view: str, level_paths: Sequence[str]
+) -> dict[str, int]:
+    """Returns the element count per level over an already-published view.
+
+    Args:
+        connection: Connection holding the view.
+        view: Relation holding the reactions.
+        level_paths: The levels to count; checked by the caller.
+
+    Returns:
+        The count per level, in the order asked.
+    """
+    if not level_paths:
+        return {}
+    counts = ", ".join(count_expression(LEVELS[path]) for path in level_paths)
+    # S608: every fragment is this module's own walk of the projection schema, and the
+    # view is this module's own name for the relation it just created.
+    row = connection.execute(f"SELECT {counts} FROM {view}").fetchone()  # noqa: S608
+    assert row is not None  # An aggregate with no GROUP BY yields exactly one row.
+    return dict(zip(level_paths, (int(value) for value in row), strict=True))
 
 
 def count_levels(
@@ -414,30 +506,20 @@ def count_levels(
         level_paths: The levels to count, as the query grammar names them.
 
     Returns:
-        The count per level, in no particular order.
+        The count per level, in the order asked.
 
     Raises:
-        ValueError: If any path is not a repeated level of the projection schema.
+        ValueError: If ``source`` is not a projection, or if any path is not a
+            repeated level of the projection schema.
     """
-    wanted = list(level_paths)
-    unknown = sorted(set(wanted) - set(LEVELS))
-    if unknown:
-        raise ValueError(
-            f"not repeated levels of the projection schema: {unknown}; "
-            f"known levels are {sorted(LEVELS)}"
-        )
-    if not wanted:
-        return {}
+    wanted = check_levels(level_paths)
+    _check_projection(source)
     connection = duckdb.connect()
     try:
         connection.read_parquet(str(pathlib.Path(source))).create_view("reactions")
-        counts = ", ".join(count_expression(LEVELS[path]) for path in wanted)
-        # S608: every fragment is this module's own walk of the projection schema.
-        row = connection.execute(f"SELECT {counts} FROM reactions").fetchone()  # noqa: S608
+        return _count_view(connection, "reactions", wanted)
     finally:
         connection.close()
-    assert row is not None  # An aggregate with no GROUP BY yields exactly one row.
-    return dict(zip(wanted, (int(value) for value in row), strict=True))
 
 
 def write_pivot(
@@ -492,19 +574,7 @@ def write_pivot(
             f"{level_path} is not a repeated level of the projection schema; "
             f"a pivot has nothing to hold. Known levels: {sorted(LEVELS)}"
         )
-    parent = base.load_stamps(source)
-    if parent.artifact != projection.ARTIFACT:
-        raise ValueError(
-            f"{source} is a {parent.artifact}, not a {projection.ARTIFACT}; a pivot "
-            "unnests a projection"
-        )
-    # derive_tree refuses stale parents, but this writer is public and its output
-    # inherits the dataset hash: an artifact derived from a stale projection would
-    # claim a provenance it does not have and nothing would ever mark it stale again.
-    if not base.stamps_are_current(parent, projection.ARTIFACT):
-        raise ValueError(
-            f"{source} is a stale {projection.ARTIFACT}; derive it again first"
-        )
+    parent = _check_projection(source)
     if source_md5 is None:
         source_md5 = parent.source_md5
     if source_dataset_id is None:
@@ -512,50 +582,52 @@ def write_pivot(
     stamps = base.current_stamps(ARTIFACT, source_dataset_id, source_md5)
     metadata = base.to_metadata(stamps) | {_META_PIVOT_PATH: level_path}
     target = schema(level).with_metadata(metadata)
-    if element_count is None:
-        element_count = count_levels(source, [level_path])[level_path]
     connection = duckdb.connect()
     written = 0
     try:
         # Through the relational API rather than a path interpolated into SQL, which a
-        # filename holding a quote would otherwise close.
+        # filename holding a quote would otherwise close. One view serves the count and
+        # the unnest, which read the same nested column.
         connection.read_parquet(str(pathlib.Path(source))).create_view("reactions")
-        # Counting settled it: the unnest would walk every ancestor of a level this
-        # projection never records, to arrive at the same nothing.
-        batches = (
-            iter(())
-            if not element_count
-            else connection.execute(select(level, "reactions")).to_arrow_reader(
-                row_group_size
-            )
-        )
+        if element_count is None:
+            element_count = _count_view(connection, "reactions", [level_path])[
+                level_path
+            ]
         with (
             atomic_io.atomic_path(output) as temp_path,
             pq.ParquetWriter(temp_path, target, compression=compression) as writer,
         ):
-            # A level with no elements writes no batches; the writer's close still
-            # produces a valid zero-row file carrying the schema and stamps, which is
-            # what a reader globs and finds nothing in rather than a file that is
-            # missing. One writer either way, so the two files differ only in rows.
-            for batch in batches:
-                # Cast rather than trust: DuckDB's own widths are its business, and the
-                # artifact's schema is a promise to whoever reads it later.
-                writer.write_table(
-                    pa.Table.from_batches([batch])
-                    .cast(schema(level))
-                    .replace_schema_metadata(metadata)
+            # A level with no elements writes no batches, and the writer's close still
+            # produces a valid zero-row file carrying the schema and stamps -- what a
+            # reader globs and finds nothing in, rather than a file that is missing.
+            # One writer either way, so the two differ only in rows.
+            if element_count:
+                # Counting settled the other case: the unnest would walk every ancestor
+                # of a level this projection never records to reach the same nothing.
+                reader = connection.execute(select(level, "reactions")).to_arrow_reader(
+                    row_group_size
                 )
-                written += batch.num_rows
+                for batch in reader:
+                    # Cast rather than trust: DuckDB's own widths are its business, and
+                    # the artifact's schema is a promise to whoever reads it later.
+                    writer.write_table(
+                        pa.Table.from_batches([batch])
+                        .cast(schema(level))
+                        .replace_schema_metadata(metadata)
+                    )
+                    written += batch.num_rows
+            if written != element_count:
+                # Raised inside the atomic write, so the rejected artifact is removed
+                # rather than published: one that reached the destination would be
+                # stamped current, skipped by every later run, and read as the truth
+                # about the level ever after. This catches a count that came in low; a
+                # count that came in at zero skipped the unnest, so there is nothing
+                # here to disagree with it, and the tests are what hold that case.
+                raise ValueError(
+                    f"{source}: counted {element_count} elements at {level_path} and "
+                    f"unnested {written}; the count and the pivot disagree"
+                )
     finally:
         connection.close()
-    if written != element_count:
-        # The count decides whether the unnest runs at all, so a disagreement is the
-        # one failure that would otherwise be silent: an empty artifact published over
-        # a level that holds rows, which every quantifier over it then reads as no
-        # matches. Loud here, rather than correct-looking forever after.
-        raise ValueError(
-            f"{source}: counted {element_count} elements at {level_path} and unnested "
-            f"{written}; the count and the pivot disagree"
-        )
     logger.info("%s: %d elements at %s", source, written, level_path)
     return written

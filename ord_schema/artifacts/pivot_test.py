@@ -164,36 +164,51 @@ def projected(tmp_path_factory) -> pathlib.Path:
 
 
 def _fill_compound(compound) -> None:
-    """Populates every repeated level a compound carries."""
-    compound.identifiers.add(type=reaction_pb2.CompoundIdentifier.NAME, value="ethanol")
+    """Populates every repeated level a compound carries, more than one deep."""
+    for name in ("ethanol", "ethyl alcohol"):
+        compound.identifiers.add(type=reaction_pb2.CompoundIdentifier.NAME, value=name)
     compound.preparations.add(type=reaction_pb2.CompoundPreparation.DRIED)
-    compound.features["feature"].string_value = "recorded"
-    analysis = compound.analyses["analysis"]
-    analysis.type = reaction_pb2.Analysis.LC
-    analysis.data["datum"].string_value = "recorded"
+    compound.features["first"].string_value = "recorded"
+    compound.features["second"].string_value = "recorded"
+    for key in ("first", "second", "third"):
+        analysis = compound.analyses[key]
+        analysis.type = reaction_pb2.Analysis.LC
+        analysis.data["datum"].string_value = "recorded"
+        analysis.data["another"].string_value = "recorded"
 
 
-def _fill_input(reaction_input) -> None:
-    """Populates a reaction input, its components, and their levels."""
-    _fill_compound(reaction_input.components.add())
+def _fill_input(reaction_input, components: int) -> None:
+    """Populates a reaction input, its components, and their levels.
+
+    Args:
+        reaction_input: The input to fill.
+        components: How many components to add, which is what makes a count of
+            elements differ from a count of the lists holding them.
+    """
+    for _ in range(components):
+        _fill_compound(reaction_input.components.add())
     reaction_input.crude_components.add(reaction_id="ord-pvfull", includes_workup=True)
 
 
 @pytest.fixture(scope="module")
 def populated(tmp_path_factory) -> pathlib.Path:
-    """A projection recording at least one element at every repeated level.
+    """A projection recording elements at every repeated level, several per parent.
 
     The count decides whether a level is unnested at all, so a wrong count is only
     catchable where the level holds something: against a projection recording nothing
     below the second level, a count that answered zero for everything deeper would
     agree with the unnest on every level there is.
+
+    More than one element per parent, because a count of the lists and a count of the
+    elements inside them are the same number when every list holds one.
     """
     root = tmp_path_factory.mktemp("pivot_full")
     reaction = reaction_pb2.Reaction(reaction_id="ord-pvfull")
     reaction.identifiers.add(
         type=reaction_pb2.ReactionIdentifier.REACTION_TYPE, value="oxidation"
     )
-    _fill_input(reaction.inputs["first"])
+    _fill_input(reaction.inputs["first"], components=3)
+    _fill_input(reaction.inputs["second"], components=2)
     reaction.setup.vessel.attachments.add(type=reaction_pb2.VesselAttachment.SEPTUM)
     reaction.setup.vessel.preparations.add(
         type=reaction_pb2.VesselPreparation.OVEN_DRIED
@@ -209,22 +224,26 @@ def populated(tmp_path_factory) -> pathlib.Path:
         current={"value": 1.0, "units": "AMPERE"}
     )
     reaction.observations.add(comment="recorded")
+    reaction.workups.add(type=reaction_pb2.ReactionWorkup.FILTRATION)
     workup = reaction.workups.add(type=reaction_pb2.ReactionWorkup.EXTRACTION)
-    _fill_input(workup.input)
+    _fill_input(workup.input, components=2)
     workup.temperature.measurements.add(
         type=reaction_pb2.TemperatureConditions.TemperatureMeasurement.THERMOCOUPLE_INTERNAL
     )
+    reaction.outcomes.add()
     outcome = reaction.outcomes.add()
     outcome_analysis = outcome.analyses["analysis"]
     outcome_analysis.type = reaction_pb2.Analysis.LC
     outcome_analysis.data["datum"].string_value = "recorded"
+    outcome.products.add(is_desired_product=False)
     product = outcome.products.add(is_desired_product=True)
-    product.identifiers.add(
-        type=reaction_pb2.CompoundIdentifier.NAME, value="acetaldehyde"
-    )
-    product.features["feature"].string_value = "recorded"
+    for name in ("acetaldehyde", "ethanal"):
+        product.identifiers.add(type=reaction_pb2.CompoundIdentifier.NAME, value=name)
+    product.features["first"].string_value = "recorded"
+    product.features["second"].string_value = "recorded"
+    product.measurements.add(type=reaction_pb2.ProductMeasurement.YIELD)
     measurement = product.measurements.add(
-        type=reaction_pb2.ProductMeasurement.YIELD, analysis_key="analysis"
+        type=reaction_pb2.ProductMeasurement.YIELD, analysis_key="first"
     )
     _fill_compound(measurement.authentic_standard)
     reaction.provenance.record_modified.add(details="recorded")
@@ -327,13 +346,41 @@ def test_a_count_that_disagrees_with_the_unnest_is_refused(populated, tmp_path):
     # The count that runs the unnest is checked against what the unnest produced. A
     # count wrongly zero is a different failure, caught by the agreement test above,
     # since the unnest it skips has nothing to disagree with.
+    output = tmp_path / "products.parquet"
     with pytest.raises(ValueError, match="disagree"):
         pivot.write_pivot(
-            populated,
-            tmp_path / "products.parquet",
-            level_path="outcomes.products",
-            element_count=99,
+            populated, output, level_path="outcomes.products", element_count=99
         )
+    # Nothing published: an artifact that reached the destination would be stamped
+    # current, skipped by every later run, and read as the truth about the level.
+    assert not output.exists()
+
+
+def test_a_rejected_pivot_leaves_an_existing_artifact_alone(populated, tmp_path):
+    output = tmp_path / "products.parquet"
+    pivot.write_pivot(populated, output, level_path="outcomes.products")
+    good = pq.read_table(output)
+    with pytest.raises(ValueError, match="disagree"):
+        pivot.write_pivot(
+            populated, output, level_path="outcomes.products", element_count=99
+        )
+    assert pq.read_table(output).equals(good)
+
+
+def test_counting_a_level_twice_is_refused(populated):
+    # zip would pair both, and the dict would collapse them, leaving the caller one
+    # fewer answer than it asked for and no sign of it.
+    with pytest.raises(ValueError, match="named more than once"):
+        pivot.count_levels(populated, ["workups", "workups"])
+
+
+def test_counting_something_that_is_not_a_projection_is_refused(tmp_path):
+    # Otherwise the failure is a DuckDB binder error naming a view the caller never
+    # created, for a file it should have been told is the wrong kind.
+    other = tmp_path / "not-a-projection.parquet"
+    pq.write_table(pa.table({"x": [1]}), other)
+    with pytest.raises(ValueError, match=r"not a derived artifact|not a projection"):
+        pivot.count_levels(other, ["workups"])
 
 
 def test_a_path_that_is_not_a_level_is_refused(projected, tmp_path):

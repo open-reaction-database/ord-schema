@@ -46,7 +46,6 @@ run that finds no projections at all.
 import argparse
 import functools
 import pathlib
-from collections.abc import Callable, Sequence
 
 from ord_schema.artifacts import base, pivot, projection
 from ord_schema.logging import get_logger
@@ -85,7 +84,7 @@ def _write_counted(
     /,
     *,
     level_path: str,
-    counts: Callable[[pathlib.Path], dict[str, int]],
+    level_paths: tuple[str, ...],
     source_md5: str,
     source_dataset_id: str | None,
 ) -> int:
@@ -95,8 +94,7 @@ def _write_counted(
         source: The projection to pivot.
         output: Where the artifact goes.
         level_path: The level to pivot.
-        counts: Answers how many elements a projection holds at every level being
-            derived, reading it once however many levels ask.
+        level_paths: Every level this run derives, counted together on first need.
         source_md5: Hash of the source dataset to stamp.
         source_dataset_id: Source dataset ID to stamp.
 
@@ -107,31 +105,34 @@ def _write_counted(
         source,
         output,
         level_path=level_path,
-        element_count=counts(source)[level_path],
+        element_count=_counts(source, level_paths)[level_path],
         source_md5=source_md5,
         source_dataset_id=source_dataset_id,
     )
 
 
-def _counter(level_paths: Sequence[str]) -> Callable[[pathlib.Path], dict[str, int]]:
-    """Returns a per-projection count of every level, read once per file.
+@functools.cache
+def _counts(source: pathlib.Path, level_paths: tuple[str, ...]) -> dict[str, int]:
+    """Returns the element count per level for one projection, read once.
+
+    Cached because derive_tree drives one level at a time: the levels share ancestors,
+    so counting them together reads the projection once where a count per level reads
+    it once per level, measured at 15x on a projection recording every level.
+
+    Asked for every level being derived rather than only the one at hand, which is the
+    trade: a run rebuilding one stale level of a projection reads the columns of all of
+    them, against a run rebuilding many reading those columns once instead of once per
+    level. Only projections that need at least one level written are counted at all,
+    since nothing calls this for a source derive_tree skips.
 
     Args:
-        level_paths: The levels being derived.
+        source: The projection to count.
+        level_paths: Every level being derived, so one read answers for all of them.
 
     Returns:
-        A callable taking a projection and returning its count per level. The levels
-        share ancestors, so counting them together reads the projection once where a
-        count per level reads it once per level.
+        The count per level.
     """
-    counted: dict[pathlib.Path, dict[str, int]] = {}
-
-    def counts(source: pathlib.Path) -> dict[str, int]:
-        if source not in counted:
-            counted[source] = pivot.count_levels(source, level_paths)
-        return counted[source]
-
-    return counts
+    return pivot.count_levels(source, level_paths)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -148,20 +149,16 @@ def main(args: argparse.Namespace) -> None:
             Silence there would let a pipeline step downstream proceed as though the
             artifacts had been built.
     """
-    unknown = sorted(set(args.levels) - set(pivot.LEVELS))
-    if unknown:
-        raise ValueError(
-            f"not repeated levels of the projection schema: {unknown}; "
-            f"known levels are {sorted(pivot.LEVELS)}"
-        )
-    counts = _counter(args.levels)
+    pivot.check_levels(args.levels)
     for level_path in args.levels:
         written, skipped, ignored = base.derive_tree(
             args.input_pattern,
             str(pathlib.Path(args.output_dir) / level_path),
             artifact=pivot.ARTIFACT,
             write=functools.partial(
-                _write_counted, level_path=level_path, counts=counts
+                _write_counted,
+                level_path=level_path,
+                level_paths=tuple(args.levels),
             ),
             force=args.force,
             parent_artifact=projection.ARTIFACT,
