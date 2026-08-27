@@ -14,7 +14,10 @@
 
 """Tests for ord_schema.artifacts.pivot."""
 
+import os
 import pathlib
+import re
+import shutil
 
 import duckdb
 import pyarrow as pa
@@ -168,6 +171,7 @@ def _fill_compound(compound) -> None:
     for name in ("ethanol", "ethyl alcohol"):
         compound.identifiers.add(type=reaction_pb2.CompoundIdentifier.NAME, value=name)
     compound.preparations.add(type=reaction_pb2.CompoundPreparation.DRIED)
+    compound.preparations.add(type=reaction_pb2.CompoundPreparation.SYNTHESIZED)
     compound.features["first"].string_value = "recorded"
     compound.features["second"].string_value = "recorded"
     for key in ("first", "second", "third"):
@@ -191,11 +195,12 @@ def _fill_input(reaction_input, components: int) -> None:
 
 
 def _second_reaction():
-    """A reaction recording fewer elements than the first, at the levels that nest.
+    """A second reaction recording something at every repeated level.
 
-    A count that took the largest row, or the first, instead of the total agrees with
-    the unnest at every level where one row holds everything. Two rows recording
-    *different* numbers is what separates a sum from a maximum.
+    What separates a total from a per-row maximum, or from the first row's count, is a
+    second row recording something at the same level -- not two rows recording
+    different numbers, since (1, 1) already sums to more than either. Every level this
+    fills is one where taking a maximum falls short.
     """
     reaction = reaction_pb2.Reaction(reaction_id="ord-pvsecond")
     reaction.identifiers.add(
@@ -245,11 +250,12 @@ def populated(tmp_path_factory) -> pathlib.Path:
     agree with the unnest on every level there is.
 
     Three shapes, because three different wrong counts each agree with the unnest on a
-    projection missing one of them. More than one element per parent at the levels that
-    nest, or counting the lists and counting the elements inside them come to the same
-    number. Two rows recording different totals, or a sum and a maximum do. One row
-    recording nothing, so every level is also counted over a chain that is NULL rather
-    than empty.
+    projection missing one of them. Lists holding more than one element, at enough
+    levels that counting the lists rather than summing their lengths is caught -- not
+    at every level, since a level whose lists happen to hold one element apiece ties
+    either way. Two reactions recording something at every level, so a maximum or a
+    first-row count falls short of the total everywhere. And a third recording nothing,
+    so every level is also counted over a chain that is NULL rather than empty.
     """
     root = tmp_path_factory.mktemp("pivot_full")
     reaction = reaction_pb2.Reaction(reaction_id="ord-pvfull")
@@ -419,79 +425,135 @@ def test_counting_many_levels_answers_each_one_for_itself(populated):
         "inputs.components.analyses.data",
     ]
     counted = pivot.count_levels(populated, wanted)
-    assert len(set(counted.values())) == len(wanted), counted
-    assert counted == {path: _unnested(populated, path) for path in wanted}
+    assert len(set(counted.at.values())) == len(wanted), counted
+    assert counted.at == {path: _unnested(populated, path) for path in wanted}
+
+
+def test_each_part_of_a_file_identity_catches_a_replacement_the_others_miss(tmp_path):
+    # Three components because each covers what the others let through, and the ways a
+    # file is replaced without appearing to change are ordinary rather than exotic:
+    # restoring timestamps is what rsync --times, tar -p, and a snapshot rollback all
+    # do, and a filesystem with coarse mtime granularity does it by accident.
+    path = tmp_path / "file"
+    path.write_bytes(b"first")
+    identity = pivot.file_identity(path)
+
+    # Replaced by rename, with the timestamp put back: same size, same mtime, and only
+    # the inode says a different file is there.
+    replacement = tmp_path / "replacement"
+    replacement.write_bytes(b"secnd")
+    os.utime(replacement, ns=(identity.modified, identity.modified))
+    replacement.replace(path)
+    renamed = pivot.file_identity(path)
+    assert (renamed.size, renamed.modified) == (identity.size, identity.modified)
+    assert renamed != identity
+
+    # Rewritten in place with the timestamp put back: the inode is unchanged and the
+    # mtime restored, so the size is the only difference left.
+    path.write_bytes(b"longer than before")
+    os.utime(path, ns=(renamed.modified, renamed.modified))
+    resized = pivot.file_identity(path)
+    assert (resized.inode, resized.modified) == (renamed.inode, renamed.modified)
+    assert resized != renamed
+
+    # Rewritten in place at the same length: inode and size both hold, and the
+    # timestamp is what is left to notice.
+    path.write_bytes(b"longer than beforE")
+    retimed = pivot.file_identity(path)
+    assert (retimed.inode, retimed.size) == (resized.inode, resized.size)
+    assert retimed != resized
+
+
+def _miscounted(counts: pivot.Counts, level_path: str, value: int) -> pivot.Counts:
+    """Returns ``counts`` with ``level_path`` answered wrongly, everything else kept."""
+    return pivot.Counts(counts.identity, dict(counts.at) | {level_path: value})
 
 
 def test_a_count_that_disagrees_with_the_unnest_is_refused(populated, tmp_path):
     # A nonzero count is checked against what the unnest produced, in either direction.
-    # A count of zero skips the unnest and has nothing to disagree with; counted_over
-    # is what holds that case, in the test below.
+    # A count of zero skips the unnest and has nothing to disagree with; what holds
+    # that case is that the count came from Counts, which names the file it was read
+    # from and the level it answers for -- the two tests below.
     output = tmp_path / "products.parquet"
+    counts = pivot.count_levels(populated, ["outcomes.products"])
     with pytest.raises(ValueError, match="disagree"):
         pivot.write_pivot(
             populated,
             output,
             level_path="outcomes.products",
-            element_count=99,
-            counted_over=pivot.file_identity(populated),
+            counts=_miscounted(counts, "outcomes.products", 99),
         )
     # Nothing published: an artifact that reached the destination would be stamped
     # current, skipped by every later run, and read as the truth about the level.
     assert not output.exists()
 
 
-def test_a_count_taken_over_other_bytes_is_refused(populated, projected, tmp_path):
-    # The case the agreement check cannot reach. Zero is the count that skips the
-    # unnest, so nothing downstream contradicts it and the empty artifact is published
-    # stamped current -- which is why the identity is checked before the count is
-    # believed, rather than the rows checked after.
+def test_a_count_of_the_bytes_that_are_gone_is_refused(populated, tmp_path):
+    # The case the agreement check cannot reach, at the same path rather than a
+    # different one -- an identity that merely told two paths apart would satisfy a
+    # test using two files, and this is the accident the check exists for. Zero is the
+    # count that skips the unnest, so nothing downstream contradicts it and the empty
+    # artifact is published stamped current.
+    source = tmp_path / "projection.parquet"
+    shutil.copy(populated, source)
+    counts = pivot.count_levels(source, ["outcomes.products"])
+    assert counts["outcomes.products"] > 0
+    stale = _miscounted(counts, "outcomes.products", 0)
+    # Rewritten in place, at the path already counted.
+    shutil.copy(populated, source)
     output = tmp_path / "products.parquet"
     with pytest.raises(ValueError, match="has changed since it was counted"):
+        pivot.write_pivot(source, output, level_path="outcomes.products", counts=stale)
+    assert not output.exists()
+
+
+def test_a_count_of_another_level_is_not_an_answer_for_this_one(populated, tmp_path):
+    # The count is taken from Counts by the level being written rather than passed
+    # beside it, so an honest count of one level cannot be spent on another. Zero is
+    # the one that would go unnoticed: the unnest is skipped and the empty artifact
+    # published.
+    counts = pivot.count_levels(populated, ["observations"])
+    output = tmp_path / "components.parquet"
+    with pytest.raises(KeyError, match=re.escape("inputs.components")):
         pivot.write_pivot(
-            populated,
-            output,
-            level_path="outcomes.products",
-            element_count=0,
-            counted_over=pivot.file_identity(projected),
+            populated, output, level_path="inputs.components", counts=counts
         )
     assert not output.exists()
 
 
-def test_a_count_without_what_it_was_counted_over_is_refused(populated, tmp_path):
-    with pytest.raises(ValueError, match="go together"):
-        pivot.write_pivot(
-            populated,
-            tmp_path / "products.parquet",
-            level_path="outcomes.products",
-            element_count=5,
-        )
-    with pytest.raises(ValueError, match="go together"):
-        pivot.write_pivot(
-            populated,
-            tmp_path / "products.parquet",
-            level_path="outcomes.products",
-            counted_over=pivot.file_identity(populated),
-        )
+def test_a_projection_replaced_while_it_is_counted_is_refused(
+    populated, tmp_path, monkeypatch
+):
+    # The counts would describe neither version. Caught by the identity being taken on
+    # both sides of the read rather than only before it.
+    source = tmp_path / "projection.parquet"
+    shutil.copy(populated, source)
+    original = pivot._count_view
+
+    def replace_then_count(*args, **kwargs):
+        result = original(*args, **kwargs)
+        shutil.copy(populated, source)
+        return result
+
+    monkeypatch.setattr(pivot, "_count_view", replace_then_count)
+    with pytest.raises(ValueError, match="replaced while it was being counted"):
+        pivot.count_levels(source, ["outcomes.products"])
 
 
 def test_a_pivot_larger_than_one_batch_counts_every_batch(populated, tmp_path):
     # The rows are accumulated across batches and then checked against the count, so a
     # writer that streams more than one batch is the only shape where the accumulation
-    # can be wrong. Compared against the file, not against the counter it returns.
+    # can be wrong. One write_table per batch means one row group per batch, so the
+    # file says how many batches there were -- where the row count would only say that
+    # row_group_size was honored, which is DuckDB's business and not this test's.
     output = tmp_path / "data.parquet"
     level_path = "inputs.components.analyses.data"
-    counted = pivot.count_levels(populated, [level_path])[level_path]
+    counts = pivot.count_levels(populated, [level_path])
     written = pivot.write_pivot(
-        populated,
-        output,
-        level_path=level_path,
-        row_group_size=7,
-        element_count=counted,
-        counted_over=pivot.file_identity(populated),
+        populated, output, level_path=level_path, row_group_size=7, counts=counts
     )
-    assert written > 7, "one batch would not exercise the accumulation"
-    assert pq.read_table(output).num_rows == written
+    assert pq.ParquetFile(output).num_row_groups > 1, "one batch proves nothing here"
+    assert pq.read_table(output).num_rows == written == counts[level_path]
 
 
 def test_a_rejected_pivot_leaves_an_existing_artifact_alone(populated, tmp_path):
@@ -507,8 +569,11 @@ def test_a_rejected_pivot_leaves_an_existing_artifact_alone(populated, tmp_path)
             populated,
             output,
             level_path="outcomes.products",
-            element_count=99,
-            counted_over=pivot.file_identity(populated),
+            counts=_miscounted(
+                pivot.count_levels(populated, ["outcomes.products"]),
+                "outcomes.products",
+                99,
+            ),
         )
     assert pq.read_table(output).equals(good)
     assert pivot.pivot_path(output) == "workups"

@@ -16,8 +16,9 @@
 
 Artifact behavior is covered in ord_schema.artifacts.pivot_test; these cover the CLI:
 the per-level layout a Corpus reads, which matches count as sources, the skip-if-current
-shortcut, how an unknown level is refused, that each level is written the count taken
-for it rather than another level's, and that a level empty everywhere says so.
+shortcut, how an unknown level is refused, that a projection rewritten under a running
+process is counted again, that each level is written the count taken for it rather than
+another level's, and that a level empty in every artifact says so and keeps saying so.
 """
 
 import logging
@@ -37,7 +38,20 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.search import execute, query
 
 
-def _dataset(dataset_id: str):
+def _dataset(dataset_id: str, *, observations: bool = False):
+    """Returns a one-reaction dataset.
+
+    Args:
+        dataset_id: The dataset ID, which also names the reaction.
+        observations: Whether to record an observation. Off in both shards of the
+            default tree, which is what makes ``observations`` a level the whole tree
+            is empty at; on in one shard where a test needs the levels to differ, since
+            two identical shards make "empty in every artifact" and "empty in any of
+            them" the same question.
+
+    Returns:
+        The dataset.
+    """
     reaction = reaction_pb2.Reaction(reaction_id=f"ord-{dataset_id}-01")
     # Three components against one workup, so a run deriving both levels pairs two
     # counts that are not interchangeable: a query built in one order and read back in
@@ -49,6 +63,8 @@ def _dataset(dataset_id: str):
         )
     reaction.workups.add(type="EXTRACTION")
     reaction.outcomes.add().products.add(isolated_color="white")
+    if observations:
+        reaction.observations.add(comment="recorded")
     return dataset_pb2.Dataset(
         dataset_id=dataset_id, name="test", description="desc", reactions=[reaction]
     )
@@ -121,17 +137,58 @@ def test_each_level_is_written_its_own_count(projected):
             assert pq.read_table(written).num_rows == rows, level
 
 
-def test_a_level_empty_everywhere_is_reported(projected, caplog):
-    # Ordinary for a level this corpus never records, and identical on disk to a level
-    # whose count came back wrong. Nothing else in the chain reports rows at all, so
-    # without this an empty artifact is published, stamped current, and never revisited.
-    with caplog.at_level(logging.WARNING):
-        _run(projected, "--levels", "observations", "workups")
-    warnings = [
+def _warnings(caplog) -> list[str]:
+    """Returns the WARNING messages recorded so far."""
+    return [
         record.message for record in caplog.records if record.levelno == logging.WARNING
     ]
-    assert any("observations: every projection derived is empty" in m for m in warnings)
+
+
+def test_a_level_empty_in_every_artifact_is_reported(projected, caplog):
+    # Ordinary for a level this corpus never records, and identical on disk to a level
+    # whose count came back wrong. Nothing else in the chain aggregates rows across a
+    # tree, so without this an empty artifact is published, stamped current, and never
+    # looked at again.
+    with caplog.at_level(logging.WARNING):
+        _run(projected, "--levels", "observations", "workups")
+    warnings = _warnings(caplog)
+    assert any("observations: every artifact is empty" in m for m in warnings)
     assert not any("workups" in m for m in warnings)
+
+
+def test_a_level_empty_in_only_some_artifacts_is_not_reported(tmp_path, caplog):
+    # The two shards differ at this level, which is the whole point: with identical
+    # shards, "every artifact is empty" and "any artifact is empty" are the same
+    # question and a warning that fired on an ordinary mixed corpus would pass.
+    for shard, observations in (("aa", True), ("bb", False)):
+        directory = tmp_path / "data" / shard
+        directory.mkdir(parents=True, exist_ok=True)
+        parquet.save_dataset(
+            _dataset(f"ord_dataset-{shard}", observations=observations),
+            str(directory / f"ord_dataset-{shard}.parquet"),
+        )
+    _reproject(tmp_path)
+    with caplog.at_level(logging.WARNING):
+        _run(tmp_path, "--levels", "observations")
+    rows = [
+        pq.read_metadata(path).num_rows
+        for path in sorted((tmp_path / "pivots" / "observations").rglob("*.parquet"))
+    ]
+    assert sorted(rows) == [0, 1], "the shards must differ for this to prove anything"
+    assert not _warnings(caplog)
+
+
+def test_a_level_empty_in_every_artifact_is_reported_again_on_a_re_run(
+    projected, caplog
+):
+    # Counted from the artifacts rather than from what the run wrote, so a re-run that
+    # skips every artifact says the same thing. The signal would otherwise appear only
+    # on the run that created them and never again -- vanishing exactly once the empty
+    # artifacts are entrenched.
+    _run(projected, "--levels", "observations")
+    with caplog.at_level(logging.WARNING):
+        _run(projected, "--levels", "observations")
+    assert any("observations: every artifact is empty" in m for m in _warnings(caplog))
 
 
 def test_a_second_run_skips_what_is_already_current(projected):

@@ -45,7 +45,8 @@ the elements that match something never can.
 import dataclasses
 import os
 import pathlib
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from typing import NamedTuple
 
 import duckdb
 import inflection
@@ -372,25 +373,74 @@ def pivot_path(path: str | os.PathLike[str]) -> str | None:
     return value.decode() if value is not None else None
 
 
-def file_identity(source: str | os.PathLike[str]) -> tuple[int, int, int]:
-    """Returns what tells one version of a file from another, cheaply.
+class FileIdentity(NamedTuple):
+    """What tells one version of a file from another, without reading it.
 
-    A count is only the answer for the bytes it was taken over, and a caller that
-    counts and then writes does the two against separate opens. This is what the two
-    ends compare so a file replaced in between is caught -- including by the pivot
-    whose count came out zero, which is otherwise unfalsifiable, since it skips the
-    unnest that would have contradicted it.
+    Attributes:
+        inode: The file's inode, which an atomic replacement changes; atomic_io writes
+            a sibling and renames over the destination, so every publication is one.
+        size: Size in bytes.
+        modified: Modification time in nanoseconds.
+    """
+
+    inode: int
+    size: int
+    modified: int
+
+
+def file_identity(source: str | os.PathLike[str]) -> FileIdentity:
+    """Returns the identity of the file at ``source``.
 
     Args:
         source: Path to the file.
 
     Returns:
-        Inode, size, and modification time in nanoseconds. Not a hash: this is asked
-        once per artifact on the path where a hash would mean reading the file again,
-        and a rewrite that preserves all three is not the accident this guards.
+        Its inode, size, and modification time.
+
+    Raises:
+        OSError: If ``source`` cannot be stat'ed.
     """
     status = pathlib.Path(source).stat()
-    return status.st_ino, status.st_size, status.st_mtime_ns
+    return FileIdentity(status.st_ino, status.st_size, status.st_mtime_ns)
+
+
+@dataclasses.dataclass(frozen=True)
+class Counts:
+    """How many elements a projection records at each of several levels.
+
+    Carries the identity of the file the counts were read from, which is what lets the
+    build that unnests check that it is unnesting what was counted. A count of zero is
+    the answer nothing downstream can contradict -- it skips the unnest, so the check
+    against the rows produced has nothing to disagree with -- and an empty pivot does
+    not merely lose the matches an ``exists`` would find, it makes every ``forall``
+    over the level vacuously true of every reaction in the corpus.
+
+    Handed out whole rather than as a number the caller pairs up itself, because a
+    caller holding a bare count and a bare identity can pass an honest count of one
+    level against an honest identity of the file, for a different level entirely.
+
+    Attributes:
+        identity: The file the counts were read from, as it stood across the read.
+        at: The count per level, in the order asked.
+    """
+
+    identity: FileIdentity
+    at: Mapping[str, int]
+
+    def __getitem__(self, level_path: str) -> int:
+        """Returns the count at ``level_path``.
+
+        Args:
+            level_path: A level these counts were asked for.
+
+        Returns:
+            How many elements the projection records there.
+
+        Raises:
+            KeyError: If these counts do not cover ``level_path``, rather than an
+                answer about some other level.
+        """
+        return self.at[level_path]
 
 
 def _check_projection(source: str | os.PathLike[str]) -> base.Stamps:
@@ -513,14 +563,21 @@ def _count_view(
     row = connection.execute(f"SELECT {counts} FROM {view}").fetchone()  # noqa: S608
     assert row is not None  # An aggregate with no GROUP BY yields exactly one row.
     # The aggregates come back in the order they were selected, which is the order the
-    # levels were asked in; int() is exact because every term is a list length, so the
-    # sum types as an integer and nothing here can arrive fractional and floor.
-    return dict(zip(level_paths, (int(value) for value in row), strict=True))
+    # levels were asked in.
+    counted = {}
+    for level_path, value in zip(level_paths, row, strict=True):
+        if value is None:
+            # Every aggregate is wrapped in coalesce, so this is unreachable by the
+            # expressions this module builds. Named rather than left to int(), whose
+            # TypeError says nothing about which file or which level produced it.
+            raise ValueError(f"counting {level_path} over {view} yielded no answer")
+        # Exact: every term is a list length, so the sum types as an integer and
+        # nothing here arrives fractional to be floored.
+        counted[level_path] = int(value)
+    return counted
 
 
-def count_levels(
-    source: str | os.PathLike[str], level_paths: Iterable[str]
-) -> dict[str, int]:
+def count_levels(source: str | os.PathLike[str], level_paths: Iterable[str]) -> Counts:
     """Returns how many elements a projection records at each of ``level_paths``.
 
     One query carrying one aggregate per level, because the count reads the same
@@ -532,20 +589,31 @@ def count_levels(
         level_paths: The levels to count, as the query grammar names them.
 
     Returns:
-        The count per level, in the order asked.
+        The counts, carrying the identity of the file they were read from. The identity
+        is taken on both sides of the read and must agree, so a projection replaced
+        while it was being counted yields no counts rather than counts of two files.
 
     Raises:
-        ValueError: If ``source`` is not a current projection, or if any path is not a
-            repeated level of the projection schema, or if one is named twice.
+        ValueError: If ``source`` is not a current projection, if any path is not a
+            repeated level of the projection schema, if one is named twice, or if
+            ``source`` was replaced while it was being counted.
+        OSError: If ``source`` cannot be stat'ed.
     """
     wanted = check_levels(level_paths)
     _check_projection(source)
+    before = file_identity(source)
     connection = duckdb.connect()
     try:
         connection.read_parquet(str(pathlib.Path(source))).create_view("reactions")
-        return _count_view(connection, "reactions", wanted)
+        counted = _count_view(connection, "reactions", wanted)
     finally:
         connection.close()
+    if file_identity(source) != before:
+        raise ValueError(
+            f"{source} was replaced while it was being counted; the counts describe "
+            "no one version of it"
+        )
+    return Counts(before, counted)
 
 
 def write_pivot(
@@ -558,8 +626,7 @@ def write_pivot(
     source_dataset_id: str | None = None,
     compression: str = "zstd",
     row_group_size: int = 100_000,
-    element_count: int | None = None,
-    counted_over: tuple[int, int, int] | None = None,
+    counts: Counts | None = None,
 ) -> int:
     """Derives a pivot artifact over one repeated level and writes it.
 
@@ -583,25 +650,24 @@ def write_pivot(
         compression: Parquet codec, any name ``pq.ParquetWriter`` accepts.
         row_group_size: Rows per output row group, which is also how many elements are
             held in memory at a time.
-        element_count: How many elements this level holds, where the caller has already
+        counts: What ``count_levels`` read off ``source``, where the caller has already
             counted. Counted here when omitted. A build deriving every level counts
             them together, since one query answers for all of them at the cost of
-            reading the projection once. Requires ``counted_over``, because a count
-            says nothing without the bytes it was taken over.
-        counted_over: ``file_identity(source)`` as it stood when ``element_count`` was
-            taken, which is checked against ``source`` as it stands now. This is what
-            makes a count of zero falsifiable: a nonzero count is checked against the
-            unnest afterwards, but a zero skips the unnest and would leave nothing to
-            contradict it. Required with ``element_count`` and meaningless without it.
+            reading the projection once. The level's own count is taken from these
+            rather than passed alongside them, and the identity they carry is checked
+            against ``source``: a count of zero skips the unnest, so unlike a nonzero
+            one it is never checked against the rows produced, and this is what stands
+            in place of that check.
 
     Returns:
         Number of rows written: the number of elements at that level.
 
     Raises:
         ValueError: If ``source`` is not a current projection, if the schema has no
-            such repeated level, if ``element_count`` and ``counted_over`` are not
-            passed together, if ``source`` has changed since it was counted, or if the
-            element count and the unnest disagree.
+            such repeated level, if ``source`` has changed since it was counted, or if
+            the element count and the unnest disagree.
+        KeyError: If ``counts`` does not cover ``level_path``.
+        OSError: If ``source`` cannot be stat'ed.
     """
     level = LEVELS.get(level_path)
     if level is None:
@@ -609,18 +675,16 @@ def write_pivot(
             f"{level_path} is not a repeated level of the projection schema; "
             f"a pivot has nothing to hold. Known levels: {sorted(LEVELS)}"
         )
-    if (element_count is None) != (counted_over is None):
-        raise ValueError(
-            "element_count and counted_over go together: a count is only the answer "
-            "for the bytes it was taken over, and the pair is what says so"
-        )
     parent = _check_projection(source)
-    if counted_over is not None and counted_over != file_identity(source):
-        raise ValueError(
-            f"{source} has changed since it was counted; the count of "
-            f"{element_count} at {level_path} is an answer about a file that is no "
-            "longer there. Count it again."
-        )
+    element_count = None
+    if counts is not None:
+        element_count = counts[level_path]
+        if counts.identity != file_identity(source):
+            raise ValueError(
+                f"{source} has changed since it was counted; the count of "
+                f"{element_count} at {level_path} is an answer about a file that is "
+                "no longer there. Count it again."
+            )
     if source_md5 is None:
         source_md5 = parent.source_md5
     if source_dataset_id is None:
@@ -671,9 +735,13 @@ def write_pivot(
                 # over the level vacuously true for every reaction in the corpus.
                 #
                 # This catches any nonzero count the unnest disagrees with, in either
-                # direction. Only zero escapes it, having skipped the unnest that
-                # would have contradicted it; counted_over is what holds that case,
-                # by refusing a count taken over other bytes than these.
+                # direction. Zero escapes it, having skipped the unnest that would
+                # have contradicted it: what stands in its place is that the count
+                # came from Counts, which names the level it answers for and the file
+                # it was read from. A count that is wrong over the right file is
+                # outside both -- that one is held by the tests comparing the count
+                # against the unnest at every level, and by a level that comes out
+                # empty across a whole tree saying so.
                 raise ValueError(
                     f"{source}: counted {element_count} elements at {level_path} and "
                     f"unnested {written}; the count and the pivot disagree"
