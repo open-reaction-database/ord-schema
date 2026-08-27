@@ -59,20 +59,15 @@ export const ord = $root.ord = (() => {
          * not wish to restrict what users are able to specify if their synthesis
          * does not fit cleanly into a pre-existing enum field. For that reason, many
          * enums contain a CUSTOM field, which must be accompanied by setting the
-         * 'details' field, where appropriate).
+         * 'details' field, where appropriate.
          * 
-         * Enums are nested inside the message they describe, rather than declared at
-         * the top level with each value prefixed by the enum name. Both forms avoid the
-         * collisions that protobuf's enum scoping would otherwise produce, and the
-         * style guide accepts either; nesting is what keeps the values unqualified, so
-         * 'CUSTOM' and 'UNSPECIFIED' are spelled the same way in every enum that has
-         * them.
-         * 
-         * That uniformity is relied upon rather than merely tidy. Validation reads
-         * `type` and `details` off any message carrying them through one shared check,
-         * and both the text format and the tabular projection store value names rather
-         * than numbers, so the unqualified spelling is what a person reads in a pbtxt
-         * and what a query compares against.
+         * Enums are nested in the message they describe rather than declared at top
+         * level with prefixed values; the style guide accepts either, and both avoid
+         * the collisions protobuf's enum scoping would otherwise produce. Nesting keeps
+         * values unqualified, so CUSTOM and UNSPECIFIED are spelled the same in every
+         * enum that has them: one shared check reads 'type' and 'details' off any
+         * message carrying them, and text format and the projection store value names,
+         * so that spelling is what a pbtxt shows and what a query compares against.
          * @implements IReaction
          * @constructor
          * @param {ord.IReaction=} [properties] Properties to set
