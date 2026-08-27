@@ -501,7 +501,7 @@ def test_two_files_alike_but_for_their_filesystem_are_told_apart(tmp_path, monke
 
 def test_artifact_paths_are_sorted(tmp_path):
     # The order artifacts are read in is the order a view holds their rows, and the
-    # order a report names them. rglob answers in directory order, which is whatever
+    # order a report names them. A glob answers in directory order, which is whatever
     # the filesystem last did.
     directory = tmp_path / "workups"
     for shard in ("cc", "aa", "bb"):

@@ -273,17 +273,21 @@ def test_a_level_whose_artifacts_a_reader_cannot_find_is_an_error(tmp_path):
     _reproject(tmp_path)
     for projection_path in (tmp_path / "projections").rglob("*.parquet"):
         projection_path.replace(projection_path.with_suffix(".pq"))
+    arguments = derive_pivots.parse_args(
+        [
+            f"--input_pattern={tmp_path / 'projections' / '*' / '*.pq'}",
+            f"--output_dir={tmp_path / 'pivots'}",
+            "--levels",
+            "workups",
+        ]
+    )
     with pytest.raises(ValueError, match="holds 0 pivot artifacts for workups"):
-        derive_pivots.main(
-            derive_pivots.parse_args(
-                [
-                    f"--input_pattern={tmp_path / 'projections' / '*' / '*.pq'}",
-                    f"--output_dir={tmp_path / 'pivots'}",
-                    "--levels",
-                    "workups",
-                ]
-            )
-        )
+        derive_pivots.main(arguments)
+    # Again, where the artifacts are now current and the run writes nothing: that is
+    # the steady state of every build after the first, and a guard that counted only
+    # what this run wrote would find nothing missing and report the level empty.
+    with pytest.raises(ValueError, match="holds 0 pivot artifacts for workups"):
+        derive_pivots.main(arguments)
 
 
 def test_a_level_empty_in_every_artifact_is_reported_again_on_a_re_run(
@@ -487,3 +491,35 @@ def test_a_level_whose_artifacts_cannot_be_found_is_an_error(projected, monkeypa
         r"2 not counted.*ord_dataset-aa\.parquet cannot be read",
     ):
         _run(projected, "--levels", "workups")
+
+
+def test_artifacts_a_shrunken_corpus_left_behind_are_not_an_error(projected, caplog):
+    # A corpus that loses a dataset -- removed, or consolidated into another shard --
+    # leaves its pivots behind with no projection to match. The guard against artifacts
+    # a reader cannot find has to stay one-directional through that: surplus is not the
+    # same failure as absence, and a build that stopped on it would stop on every run
+    # from then on, sending an operator to look for files that are not missing.
+    _run(projected, "--levels", "workups")
+    orphan = projected / "pivots" / "workups" / "cc"
+    orphan.mkdir(parents=True)
+    shutil.copy(
+        projected / "pivots" / "workups" / "aa" / "ord_dataset-aa.parquet",
+        orphan / "ord_dataset-cc.parquet",
+    )
+    with caplog.at_level(logging.INFO):
+        _run(projected, "--levels", "workups")
+    assert any(
+        "workups: 0 written, 2 already current, 0 of 3 artifacts empty" in message
+        for message in _messages(caplog)
+    )
+
+
+def test_an_empty_level_is_not_also_named_artifact_by_artifact(projected, caplog):
+    # The warning already says every artifact is empty. Naming each one as well would
+    # be a line per shard across the levels a corpus records nothing at, which on ORD
+    # is most of them -- burying the case the lines exist for, a level empty in only
+    # some of its artifacts.
+    with caplog.at_level(logging.INFO):
+        _run(projected, "--levels", "observations")
+    assert any("observations: every artifact is empty" in m for m in _warnings(caplog))
+    assert not [m for m in _messages(caplog) if "no elements at" in m]
