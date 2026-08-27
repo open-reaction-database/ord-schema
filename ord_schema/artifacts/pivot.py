@@ -509,8 +509,8 @@ def count_levels(
         The count per level, in the order asked.
 
     Raises:
-        ValueError: If ``source`` is not a projection, or if any path is not a
-            repeated level of the projection schema.
+        ValueError: If ``source`` is not a projection, or if any path is not a repeated
+            level of the projection schema, or if one is named twice.
     """
     wanted = check_levels(level_paths)
     _check_projection(source)
@@ -559,7 +559,11 @@ def write_pivot(
         element_count: How many elements this level holds, where the caller has already
             counted. Counted here when omitted. A build deriving every level counts
             them together, since one query answers for all of them at the cost of
-            reading the projection once.
+            reading the projection once. A count that disagrees with the unnest is
+            refused -- but a count of zero skips the unnest, so a caller that answers
+            zero for a level holding elements publishes an empty artifact and gets no
+            error. Pass a count taken over the content at ``source``, not a remembered
+            one; proving a zero costs the full pass this parameter exists to skip.
 
     Returns:
         Number of rows written: the number of elements at that level.

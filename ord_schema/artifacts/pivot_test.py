@@ -254,7 +254,10 @@ def populated(tmp_path_factory) -> pathlib.Path:
             dataset_id="ord_dataset-pvfull",
             name="test",
             description="test",
-            reactions=[reaction],
+            # A reaction recording nothing alongside it, so every level is counted over
+            # a row whose whole chain is NULL: the sum skips those and the traversal
+            # coalesces them, and the two agree only if both do it at every depth.
+            reactions=[reaction, reaction_pb2.Reaction(reaction_id="ord-pvempty")],
         ),
         str(source),
     )
@@ -357,14 +360,19 @@ def test_a_count_that_disagrees_with_the_unnest_is_refused(populated, tmp_path):
 
 
 def test_a_rejected_pivot_leaves_an_existing_artifact_alone(populated, tmp_path):
-    output = tmp_path / "products.parquet"
-    pivot.write_pivot(populated, output, level_path="outcomes.products")
+    # The rejected write is over a *different* level than the one already there. Aimed
+    # at the same level it would unnest the same rows, so a destination overwritten by
+    # the artifact being rejected would hold a file equal to the one it replaced, and
+    # comparing them would pass whether or not anything was published.
+    output = tmp_path / "pivot.parquet"
+    pivot.write_pivot(populated, output, level_path="workups")
     good = pq.read_table(output)
     with pytest.raises(ValueError, match="disagree"):
         pivot.write_pivot(
             populated, output, level_path="outcomes.products", element_count=99
         )
     assert pq.read_table(output).equals(good)
+    assert pivot.pivot_path(output) == "workups"
 
 
 def test_counting_a_level_twice_is_refused(populated):

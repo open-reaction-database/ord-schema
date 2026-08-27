@@ -22,6 +22,7 @@ shortcut, and how an unknown level is refused.
 import logging
 import pathlib
 
+import pyarrow.parquet as pq
 import pytest
 
 from ord_schema import parquet
@@ -47,6 +48,19 @@ def _dataset(dataset_id: str):
     )
 
 
+def _reproject(root: pathlib.Path) -> None:
+    """Derives the projections under ``root`` from the datasets under it."""
+    derive_projection.main(
+        derive_projection.parse_args(
+            [
+                f"--input_pattern={root / 'data' / '*' / '*.parquet'}",
+                f"--output_dir={root / 'projections'}",
+                "--force",
+            ]
+        )
+    )
+
+
 @pytest.fixture
 def projected(tmp_path) -> pathlib.Path:
     """Writes two shards of projections, and returns the root holding them."""
@@ -57,14 +71,7 @@ def projected(tmp_path) -> pathlib.Path:
             _dataset(f"ord_dataset-{shard}"),
             str(directory / f"ord_dataset-{shard}.parquet"),
         )
-    derive_projection.main(
-        derive_projection.parse_args(
-            [
-                f"--input_pattern={tmp_path / 'data' / '*' / '*.parquet'}",
-                f"--output_dir={tmp_path / 'projections'}",
-            ]
-        )
-    )
+    _reproject(tmp_path)
     return tmp_path
 
 
@@ -109,6 +116,31 @@ def test_force_rewrites_a_current_artifact(projected):
     before = written.stat().st_mtime_ns
     _run(projected, "--levels", "workups", "--force")
     assert written.stat().st_mtime_ns != before
+
+
+def test_a_rewritten_projection_is_counted_again(projected):
+    # The count decides whether a level is unnested at all, and it is cached across the
+    # levels of one run. A process that outlives a projection must not pivot the new
+    # content against the old count: counting the workups this dataset does not yet
+    # have would answer zero, skip the unnest, and publish an empty artifact stamped
+    # current -- which every later run skips and every quantifier reads as no matches.
+    without = _dataset("ord_dataset-aa")
+    del without.reactions[0].workups[:]
+    parquet.save_dataset(
+        without, str(projected / "data" / "aa" / "ord_dataset-aa.parquet")
+    )
+    _reproject(projected)
+    _run(projected, "--levels", "workups")
+    written = projected / "pivots" / "workups" / "aa" / "ord_dataset-aa.parquet"
+    assert pq.read_table(written).num_rows == 0
+
+    parquet.save_dataset(
+        _dataset("ord_dataset-aa"),
+        str(projected / "data" / "aa" / "ord_dataset-aa.parquet"),
+    )
+    _reproject(projected)
+    _run(projected, "--levels", "workups")
+    assert pq.read_table(written).num_rows == 1
 
 
 def test_an_unknown_level_is_refused_before_anything_is_written(projected):

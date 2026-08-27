@@ -105,14 +105,16 @@ def _write_counted(
         source,
         output,
         level_path=level_path,
-        element_count=_counts(source, level_paths)[level_path],
+        element_count=_counts(source, source_md5, level_paths)[level_path],
         source_md5=source_md5,
         source_dataset_id=source_dataset_id,
     )
 
 
 @functools.cache
-def _counts(source: pathlib.Path, level_paths: tuple[str, ...]) -> dict[str, int]:
+def _counts(
+    source: pathlib.Path, source_md5: str, level_paths: tuple[str, ...]
+) -> dict[str, int]:
     """Returns the element count per level for one projection, read once.
 
     Cached because derive_tree drives one level at a time: the levels share ancestors,
@@ -127,6 +129,12 @@ def _counts(source: pathlib.Path, level_paths: tuple[str, ...]) -> dict[str, int
 
     Args:
         source: The projection to count.
+        source_md5: Hash of the dataset the projection reflects, which is part of the
+            key: a count is only the answer for the content it was taken over, and one
+            process outliving a rewritten projection would otherwise pivot the new
+            content against the old count. A count wrongly zero is the bad way to be
+            wrong, since it skips the unnest and publishes an empty artifact that every
+            later run then finds current.
         level_paths: Every level being derived, so one read answers for all of them.
 
     Returns:
@@ -143,11 +151,11 @@ def main(args: argparse.Namespace) -> None:
             and ``force``.
 
     Raises:
-        ValueError: If a requested level is not one the projection schema has, or if
-            the pattern matched no projections -- which usually means it was aimed at
-            the source tree, or at an output tree, rather than at the projections.
-            Silence there would let a pipeline step downstream proceed as though the
-            artifacts had been built.
+        ValueError: If a requested level is not one the projection schema has or is
+            named twice, or if the pattern matched no projections -- which usually
+            means it was aimed at the source tree, or at an output tree, rather than at
+            the projections. Silence there would let a pipeline step downstream proceed
+            as though the artifacts had been built.
     """
     pivot.check_levels(args.levels)
     for level_path in args.levels:
