@@ -504,9 +504,14 @@ def artifact_paths(
         The paths, sorted. Empty if the level has no directory at all.
     """
     directory = pathlib.Path(pivots_dir) / level_path
+    # Escaped, because only the last two segments are a pattern: a directory is a name
+    # someone chose, and one holding a bracket or a star would otherwise be read as a
+    # character class or a wildcard and match somewhere else, or nowhere.
     return sorted(
         pathlib.Path(found)
-        for found in glob.glob(f"{directory}/**/*.parquet", recursive=True)
+        for found in glob.glob(
+            f"{glob.escape(str(directory))}/**/*.parquet", recursive=True
+        )
     )
 
 

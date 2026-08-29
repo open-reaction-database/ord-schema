@@ -511,6 +511,17 @@ def test_artifact_paths_are_sorted(tmp_path):
     assert [path.parent.name for path in found] == ["aa", "bb", "cc"]
 
 
+def test_artifact_paths_reads_a_directory_whose_name_looks_like_a_pattern(tmp_path):
+    # Only the last two segments are a pattern; everything above them is a name someone
+    # chose. A bracket in it would be read as a character class and match nothing, and
+    # the build would then reject a level whose artifacts are all present.
+    directory = tmp_path / "pivots[v2]"
+    (directory / "workups" / "aa").mkdir(parents=True)
+    written = directory / "workups" / "aa" / "ord_dataset-aa.parquet"
+    written.write_bytes(b"")
+    assert pivot.artifact_paths(directory, "workups") == [written]
+
+
 def test_artifact_paths_finds_nothing_where_there_is_no_level(tmp_path):
     assert pivot.artifact_paths(tmp_path, "workups") == []
 
