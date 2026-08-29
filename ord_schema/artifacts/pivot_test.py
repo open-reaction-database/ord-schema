@@ -499,6 +499,22 @@ def test_two_files_alike_but_for_their_filesystem_are_told_apart(tmp_path, monke
     assert there != here
 
 
+def test_artifact_paths_are_sorted(tmp_path):
+    # The order artifacts are read in is the order a view holds their rows, and the
+    # order a report names them. A glob answers in directory order, which is whatever
+    # the filesystem last did.
+    directory = tmp_path / "workups"
+    for shard in ("cc", "aa", "bb"):
+        (directory / shard).mkdir(parents=True)
+        (directory / shard / f"ord_dataset-{shard}.parquet").write_bytes(b"")
+    found = pivot.artifact_paths(tmp_path, "workups")
+    assert [path.parent.name for path in found] == ["aa", "bb", "cc"]
+
+
+def test_artifact_paths_finds_nothing_where_there_is_no_level(tmp_path):
+    assert pivot.artifact_paths(tmp_path, "workups") == []
+
+
 def _miscounted(counts: pivot.Counts, level_path: str, value: int) -> pivot.Counts:
     """Returns ``counts`` with ``level_path`` answered wrongly, everything else kept."""
     return pivot.Counts(counts.identity, dict(counts) | {level_path: value})

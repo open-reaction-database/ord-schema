@@ -1112,9 +1112,7 @@ class Corpus:
         found = {}
         for path in sorted(pivot.LEVELS):
             if self._pivot_view(path) is not None:
-                found[path] = len(
-                    glob.glob(f"{self._pivots_dir}/{path}/**/*.parquet", recursive=True)
-                )
+                found[path] = len(pivot.artifact_paths(self._pivots_dir, path))
         logger.info(
             "%d of %d levels are held as artifacts: %s",
             len(found),
@@ -1779,12 +1777,9 @@ class Corpus:
         with self._views_lock:
             if path in self._pivot_views:
                 return self._pivot_views[path]
-            # Recursive, because a pivot tree mirrors the projections it was derived
-            # from: a sharded corpus puts them under <level>/<shard>/ rather than
-            # directly under the level.
-            files = sorted(
-                glob.glob(f"{self._pivots_dir}/{path}/**/*.parquet", recursive=True)
-            )
+            files = [
+                str(found) for found in pivot.artifact_paths(self._pivots_dir, path)
+            ]
             if not files:
                 self._pivot_views[path] = None
                 return None
