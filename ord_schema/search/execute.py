@@ -1895,6 +1895,9 @@ class Corpus:
                 str(pathlib.Path(self._pivots_dir) / path),
                 artifact=pivot.ARTIFACT,
                 write=functools.partial(pivot.write_pivot, level_path=path),
+                # The same columns derive_pivots declares, so a tree built by one and
+                # extended by the other agrees on which artifacts are current.
+                schema=pivot.schema(pivot.LEVELS[path]),
                 parent_artifact=projection.ARTIFACT,
             )
             logger.info(

@@ -16,12 +16,16 @@
 
 Artifact behavior is covered in ord_schema.artifacts.pivot_test; these cover the CLI:
 the per-level layout a Corpus reads, which matches count as sources, the skip-if-current
-shortcut, and how an unknown level is refused.
+shortcut, how an unknown level is refused, that a projection rewritten under a running
+process is counted again, that each level is written the count taken for it rather than
+another level's, and that an artifact short a column is derived again rather than left
+current, from here and from a Corpus.
 """
 
 import logging
 import pathlib
 
+import pyarrow.parquet as pq
 import pytest
 
 from ord_schema import parquet
@@ -35,15 +39,45 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.search import execute, query
 
 
-def _dataset(dataset_id: str):
+def _dataset(dataset_id: str, *, observations: bool = False):
+    """Returns a one-reaction dataset.
+
+    Args:
+        dataset_id: The dataset ID, which also names the reaction.
+        observations: Whether to record an observation, which is a level the default
+            tree records nothing at.
+
+    Returns:
+        The dataset.
+    """
     reaction = reaction_pb2.Reaction(reaction_id=f"ord-{dataset_id}-01")
-    reaction.inputs["a"].components.add().identifiers.add(
-        type="SMILES", value="c1ccccc1"
-    )
+    # Three components against one workup, so a run deriving both levels pairs two
+    # counts that are not interchangeable: a query built in one order and read back in
+    # another would answer each level with the other's count, and levels holding the
+    # same number of elements make every such pairing the identity.
+    for smiles in ("c1ccccc1", "CCO", "CC(=O)O"):
+        reaction.inputs["a"].components.add().identifiers.add(
+            type="SMILES", value=smiles
+        )
     reaction.workups.add(type="EXTRACTION")
     reaction.outcomes.add().products.add(isolated_color="white")
+    if observations:
+        reaction.observations.add(comment="recorded")
     return dataset_pb2.Dataset(
         dataset_id=dataset_id, name="test", description="desc", reactions=[reaction]
+    )
+
+
+def _reproject(root: pathlib.Path) -> None:
+    """Derives the projections under ``root`` from the datasets under it."""
+    derive_projection.main(
+        derive_projection.parse_args(
+            [
+                f"--input_pattern={root / 'data' / '*' / '*.parquet'}",
+                f"--output_dir={root / 'projections'}",
+                "--force",
+            ]
+        )
     )
 
 
@@ -57,14 +91,7 @@ def projected(tmp_path) -> pathlib.Path:
             _dataset(f"ord_dataset-{shard}"),
             str(directory / f"ord_dataset-{shard}.parquet"),
         )
-    derive_projection.main(
-        derive_projection.parse_args(
-            [
-                f"--input_pattern={tmp_path / 'data' / '*' / '*.parquet'}",
-                f"--output_dir={tmp_path / 'projections'}",
-            ]
-        )
-    )
+    _reproject(tmp_path)
     return tmp_path
 
 
@@ -95,6 +122,19 @@ def test_each_level_gets_its_own_tree(projected):
     assert not (projected / "pivots" / "inputs.components").exists()
 
 
+def test_each_level_is_written_its_own_count(projected):
+    # One query carries an aggregate per level and the row is paired back to the levels
+    # by position, so the whole batching optimization rests on that pairing. The two
+    # levels hold different numbers of elements, or any mispairing would be invisible.
+    _run(projected, "--levels", "workups", "inputs.components")
+    for level, rows in (("workups", 1), ("inputs.components", 3)):
+        for shard in ("aa", "bb"):
+            written = (
+                projected / "pivots" / level / shard / f"ord_dataset-{shard}.parquet"
+            )
+            assert pq.read_table(written).num_rows == rows, level
+
+
 def test_a_second_run_skips_what_is_already_current(projected):
     _run(projected, "--levels", "workups")
     written = projected / "pivots" / "workups" / "aa" / "ord_dataset-aa.parquet"
@@ -109,6 +149,32 @@ def test_force_rewrites_a_current_artifact(projected):
     before = written.stat().st_mtime_ns
     _run(projected, "--levels", "workups", "--force")
     assert written.stat().st_mtime_ns != before
+
+
+def test_a_rewritten_projection_is_counted_again(projected):
+    # The count decides whether a level is unnested at all, and it is cached across the
+    # levels of one run. A process that outlives a projection must not pivot the new
+    # content against the old count: counting the workups this dataset does not yet
+    # have would answer zero, skip the unnest, and publish an empty artifact stamped
+    # current -- which every later run skips, and which answers no exists and
+    # every forall.
+    without = _dataset("ord_dataset-aa")
+    del without.reactions[0].workups[:]
+    parquet.save_dataset(
+        without, str(projected / "data" / "aa" / "ord_dataset-aa.parquet")
+    )
+    _reproject(projected)
+    _run(projected, "--levels", "workups")
+    written = projected / "pivots" / "workups" / "aa" / "ord_dataset-aa.parquet"
+    assert pq.read_table(written).num_rows == 0
+
+    parquet.save_dataset(
+        _dataset("ord_dataset-aa"),
+        str(projected / "data" / "aa" / "ord_dataset-aa.parquet"),
+    )
+    _reproject(projected)
+    _run(projected, "--levels", "workups")
+    assert pq.read_table(written).num_rows == 1
 
 
 def test_an_unknown_level_is_refused_before_anything_is_written(projected):
@@ -163,3 +229,94 @@ def test_a_corpus_reads_the_tree_this_script_writes(projected, caplog):
     messages = [record.message for record in caplog.records]
     assert any("read 2 pivot artifacts for workups" in message for message in messages)
     assert not any("building the pivot" in message for message in messages)
+
+
+def _drop_column(path: pathlib.Path, column: str) -> None:
+    """Rewrites the artifact at ``path`` without ``column``, keeping its footer.
+
+    Stands in for an artifact written before the schema carried that column, by a
+    library version that would not have bumped for it: the stamps are what a run reads
+    to decide the file is current, and they say nothing about its columns.
+
+    Args:
+        path: The artifact to rewrite.
+        column: The column to drop.
+    """
+    table = pq.read_table(path)
+    metadata = table.schema.metadata
+    table = table.drop_columns([column])
+    pq.write_table(table.replace_schema_metadata(metadata), path)
+
+
+def test_an_artifact_missing_an_ordinal_is_derived_again(projected):
+    # A repeated level added above this one gives it another ordinal, and the artifacts
+    # written before it carry stamps a later run cannot tell apart, absent a version
+    # bump -- so the columns are the only difference, and without declaring them the
+    # short artifact is current forever. An uncorrelated query still answers off it,
+    # and only a correlation joining on the missing ordinal fails, so this asserts on
+    # the file rather than on a result.
+    _run(projected, "--levels", "outcomes.products")
+    written = (
+        projected / "pivots" / "outcomes.products" / "aa" / "ord_dataset-aa.parquet"
+    )
+    _drop_column(written, "product_index")
+    assert "product_index" not in pq.read_schema(written).names
+    _run(projected, "--levels", "outcomes.products")
+    assert "product_index" in pq.read_schema(written).names
+
+
+def test_a_corpus_deriving_pivots_also_derives_an_artifact_missing_an_ordinal(
+    projected,
+):
+    # The script and the Corpus write into one tree, so they have to agree on which
+    # artifacts are current; one of them accepting a column-short artifact the other
+    # rebuilds would leave the answer to whichever ran last.
+    derive_structures.main(
+        derive_structures.parse_args(
+            [
+                f"--input_pattern={projected / 'projections' / '*' / '*.parquet'}",
+                f"--output_dir={projected / 'structures'}",
+            ]
+        )
+    )
+    _run(projected, "--levels", "workups")
+    written = projected / "pivots" / "workups" / "aa" / "ord_dataset-aa.parquet"
+    _drop_column(written, "workup_index")
+    with execute.Corpus(
+        str(projected / "projections" / "*" / "*.parquet"),
+        str(projected / "structures" / "*" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(projected / "pivots"),
+        derive_pivots=True,
+    ) as corpus:
+        corpus.search(
+            query.Query.model_validate(
+                {
+                    "where": {
+                        "op": "exists",
+                        "path": "workups",
+                        "where": {
+                            "op": "eq",
+                            "path": "type",
+                            "value": {"literal": "EXTRACTION"},
+                        },
+                    }
+                }
+            )
+        )
+    assert "workup_index" in pq.read_schema(written).names
+
+
+def test_each_level_is_derived_against_its_own_columns(projected):
+    # The columns a level declares are its own, and a level's are a strict subset of
+    # every level beneath it: "outcomes" has no product_index. A run deriving both
+    # against one of their schemas would find a product artifact short an ordinal
+    # current and leave it, which only a correlation joining on that ordinal notices,
+    # by over-returning. Two levels, the shallower named first.
+    _run(projected, "--levels", "outcomes", "outcomes.products")
+    written = (
+        projected / "pivots" / "outcomes.products" / "aa" / "ord_dataset-aa.parquet"
+    )
+    _drop_column(written, "product_index")
+    _run(projected, "--levels", "outcomes", "outcomes.products")
+    assert "product_index" in pq.read_schema(written).names

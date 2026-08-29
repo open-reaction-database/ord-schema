@@ -3584,15 +3584,23 @@ def test_a_pivoted_quantifier_still_reaches_the_structures_artifact(corpus):
     assert found == {"ord-bb01"}
 
 
-def test_check_pivots_reports_the_levels_held_as_artifacts(wide_root):
-    pivots = _write_pivots(wide_root, ("outcomes.products", "workups"))
+def test_check_pivots_reports_the_levels_held_as_artifacts(wide_root, tmp_path):
+    # An operator reads these counts to see that a sharded corpus has all its shards,
+    # so the two levels are held by different numbers of artifacts, and neither by one:
+    # a constant, an off-by-one, and a level answered with another's count all agree
+    # wherever every level holds the same number.
+    pivots = _write_pivots(wide_root, ("outcomes.products", "workups"), into=tmp_path)
+    duplicate = pivots / "outcomes.products" / "second"
+    duplicate.mkdir(parents=True)
+    for artifact in sorted((pivots / "outcomes.products").rglob("*.parquet")):
+        shutil.copy(artifact, duplicate / artifact.name)
     with execute.Corpus(
         str(wide_root / "projections" / "*.parquet"),
         str(wide_root / "structures" / "*.parquet"),
         resolver={}.__getitem__,
         pivots_dir=str(pivots),
     ) as corpus:
-        assert corpus.check_pivots() == {"outcomes.products": 1, "workups": 1}
+        assert corpus.check_pivots() == {"outcomes.products": 2, "workups": 1}
 
 
 def test_check_pivots_is_empty_without_a_directory(wide_corpus):

@@ -39,12 +39,17 @@ its own, and hoisted it would collide with the row's.
 
 A pivot is unfiltered -- every element gets a row, including one whose fields are all
 NULL. That completeness is what lets it answer ``forall``, which an index holding only
-the elements that match something never can.
+the elements that match something never can -- and what makes an empty one dangerous
+rather than merely useless, since ``forall`` over it is then vacuously true of every
+reaction in the corpus. See ``Counts``.
 """
 
 import dataclasses
 import os
 import pathlib
+import types
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from typing import NamedTuple
 
 import duckdb
 import inflection
@@ -61,7 +66,7 @@ logger = get_logger(__name__)
 # holds. One artifact name covers every level, because they are one kind of thing
 # derived one way; the path is what tells them apart.
 ARTIFACT = "pivot"
-_META_PIVOT_PATH = "ord.pivot_path"
+META_PIVOT_PATH = "ord.pivot_path"
 
 # The column the element's own fields sit under, and the row's join key.
 ELEMENT = "element"
@@ -367,8 +372,283 @@ def pivot_path(path: str | os.PathLike[str]) -> str | None:
         pivot artifact.
     """
     metadata = pq.read_schema(path).metadata or {}
-    value = metadata.get(_META_PIVOT_PATH.encode())
+    value = metadata.get(META_PIVOT_PATH.encode())
     return value.decode() if value is not None else None
+
+
+class FileIdentity(NamedTuple):
+    """What tells one version of a file from another, without reading it.
+
+    Attributes:
+        device: The filesystem the file sits on, which is what makes the inode mean
+            anything: inode numbers are unique per device, not across them.
+        inode: The file's inode, which an atomic replacement changes; atomic_io writes
+            a sibling and renames over the destination, so every publication is one.
+        size: Size in bytes.
+        modified: Modification time in nanoseconds.
+    """
+
+    device: int
+    inode: int
+    size: int
+    modified: int
+
+
+def file_identity(source: str | os.PathLike[str]) -> FileIdentity:
+    """Returns the identity of the file at ``source``.
+
+    Args:
+        source: Path to the file.
+
+    Returns:
+        Its device, inode, size, and modification time.
+
+    Raises:
+        OSError: If ``source`` cannot be stat'ed.
+    """
+    status = pathlib.Path(source).stat()
+    return FileIdentity(
+        status.st_dev, status.st_ino, status.st_size, status.st_mtime_ns
+    )
+
+
+@dataclasses.dataclass(frozen=True)
+class Counts(Mapping[str, int]):
+    """How many elements a projection records at each of several levels.
+
+    A read-only mapping of level to count, carrying the identity of the file they were
+    read from -- which is what lets the build that unnests check that it is unnesting
+    what was counted. A count of zero is the answer nothing downstream can contradict:
+    it skips the unnest, so the check against the rows produced has nothing to disagree
+    with, and the empty pivot that follows costs what this module's docstring describes.
+
+    Handed out whole rather than as a number the caller pairs up itself, because a
+    caller holding a bare count and a bare identity can pass an honest count of one
+    level against an honest identity of the file, for a different level entirely. Held
+    behind a proxy for the same reason one step on: a build shares a projection's counts
+    across every level it derives, so a write through one level's handle would be
+    answering for the rest of the run.
+
+    Attributes:
+        identity: The file the counts were read from, as it stood across the read.
+        at: The count per level, in the order asked.
+    """
+
+    identity: FileIdentity
+    at: Mapping[str, int]
+
+    def __post_init__(self) -> None:
+        """Replaces ``at`` with a read-only view of a copy of what was passed."""
+        object.__setattr__(self, "at", types.MappingProxyType(dict(self.at)))
+
+    def __getitem__(self, level_path: str) -> int:
+        """Returns the count at ``level_path``.
+
+        Args:
+            level_path: A level these counts were asked for.
+
+        Returns:
+            How many elements the projection records there.
+
+        Raises:
+            KeyError: If these counts do not cover ``level_path``, rather than an
+                answer about some other level.
+        """
+        return self.at[level_path]
+
+    def __iter__(self) -> Iterator[str]:
+        """Yields the levels these counts cover, in the order asked."""
+        return iter(self.at)
+
+    def __len__(self) -> int:
+        """Returns how many levels these counts cover."""
+        return len(self.at)
+
+    def __hash__(self) -> int:
+        """Returns a hash over the file and the counts, which do not change.
+
+        Defined because a frozen dataclass advertises hashability, and the generated
+        one reaches the mapping and raises for it -- naming the mapping's type rather
+        than this one, to a caller who asked about this one.
+        """
+        return hash((self.identity, frozenset(self.at.items())))
+
+
+def _check_projection(source: str | os.PathLike[str]) -> base.Stamps:
+    """Returns the stamps of a current projection, refusing anything else.
+
+    Args:
+        source: Path to the file a pivot would read.
+
+    Returns:
+        Its stamps.
+
+    Raises:
+        ValueError: If it carries no artifact stamps at all, if it holds another
+            artifact, or if it is a projection the current library did not write.
+            derive_tree refuses stale parents, but the readers here are public and
+            their output inherits the dataset hash: an artifact derived from a stale
+            projection would claim a provenance it does not have and nothing would
+            ever mark it stale again.
+    """
+    parent = base.load_stamps(source)
+    if parent.artifact != projection.ARTIFACT:
+        raise ValueError(
+            f"{source} is a {parent.artifact}, not a {projection.ARTIFACT}; a pivot "
+            "unnests a projection"
+        )
+    if not base.stamps_are_current(parent, projection.ARTIFACT):
+        raise ValueError(
+            f"{source} is a stale {projection.ARTIFACT}; derive it again first"
+        )
+    return parent
+
+
+def check_levels(level_paths: Iterable[str]) -> list[str]:
+    """Returns ``level_paths`` as a list, refusing any the schema does not have.
+
+    Args:
+        level_paths: The levels to check, as the query grammar names them.
+
+    Returns:
+        The same paths, in order.
+
+    Raises:
+        ValueError: If any path is not a repeated level of the projection schema, or
+            if one is named twice, which would leave a caller fewer answers than it
+            asked for.
+    """
+    wanted = list(level_paths)
+    unknown = sorted(set(wanted) - set(LEVELS))
+    if unknown:
+        raise ValueError(
+            f"not repeated levels of the projection schema: {unknown}; "
+            f"known levels are {sorted(LEVELS)}"
+        )
+    repeated = sorted({path for path in wanted if wanted.count(path) > 1})
+    if repeated:
+        raise ValueError(f"levels named more than once: {repeated}")
+    return wanted
+
+
+def _count_within(steps: Sequence[Step], source: str | None, depth: int = 0) -> str:
+    """Returns an expression counting what ``steps`` reach from one element.
+
+    Args:
+        steps: The steps left to walk, outermost first.
+        source: The variable bound to the element, or None at the row.
+        depth: How far down this is, which names the bound variable.
+
+    Returns:
+        An expression summing the lengths level by level, rather than flattening the
+        levels into one list and measuring that.
+    """
+    reached = steps[0].expression(source)
+    if len(steps) == 1:
+        return f"len({reached})"
+    element = f"e{depth}"
+    inner = _count_within(steps[1:], element, depth + 1)
+    return f"coalesce(list_sum(list_transform({reached}, {element} -> {inner})), 0)"
+
+
+def _count_expression(level: RepeatedLevel) -> str:
+    """Returns SQL counting the elements a projection records at ``level``.
+
+    Cheaper than unnesting the level, because it does not cross-join a row against its
+    elements -- not because it reads less of the column. Reaching an element to measure
+    its list pulls the whole nested payload off disk either way, and the count scales
+    with the payload's width, so the margin is a property of the corpus and not of this
+    expression: it was roughly nine times on a populated level of an ORD projection
+    holding 8% of the corpus by bytes. What it buys reliably is on the levels a corpus
+    never records, where the answer is nothing and the unnest would still walk every
+    ancestor to say so.
+
+    Args:
+        level: The level to count.
+
+    Returns:
+        An aggregate over a relation carrying the projection schema, to be selected
+        with no GROUP BY, and zero where nothing is recorded.
+    """
+    return f"coalesce(sum({_count_within(level.steps, None)}), 0)"
+
+
+def _count_view(
+    connection: duckdb.DuckDBPyConnection,
+    view: str,
+    level_paths: Sequence[str],
+    source: str | os.PathLike[str],
+) -> dict[str, int]:
+    """Returns the element count per level over an already-created view.
+
+    Args:
+        connection: Connection holding the view.
+        view: Relation holding the reactions.
+        level_paths: The levels to count; checked by the caller.
+        source: The file behind the view, for anything this has to say about it.
+
+    Returns:
+        The count per level, in the order asked.
+    """
+    if not level_paths:
+        return {}
+    counts = ", ".join(_count_expression(LEVELS[path]) for path in level_paths)
+    # S608: every fragment is this module's own walk of the projection schema, and the
+    # view is this module's own name for the relation it just created.
+    row = connection.execute(f"SELECT {counts} FROM {view}").fetchone()  # noqa: S608
+    assert row is not None  # An aggregate with no GROUP BY yields exactly one row.
+    # The aggregates come back in the order they were selected, which is the order the
+    # levels were asked in.
+    counted = {}
+    for level_path, value in zip(level_paths, row, strict=True):
+        if value is None:
+            # Every aggregate is wrapped in coalesce, so this is unreachable by the
+            # expressions this module builds. Named rather than left to int(), whose
+            # TypeError says nothing about which file or which level produced it.
+            raise ValueError(f"{source}: counting {level_path} yielded no answer")
+        # Exact: every term is a list length, so the sum types as an integer and
+        # nothing here arrives fractional to be floored.
+        counted[level_path] = int(value)
+    return counted
+
+
+def count_levels(source: str | os.PathLike[str], level_paths: Iterable[str]) -> Counts:
+    """Returns how many elements a projection records at each of ``level_paths``.
+
+    One query carrying one aggregate per level, because the count reads the same
+    columns for every level sharing a prefix and a query per level reads them again
+    each time.
+
+    Args:
+        source: Path to the projection to count.
+        level_paths: The levels to count, as the query grammar names them.
+
+    Returns:
+        The counts, carrying the identity of the file they were read from. The identity
+        is taken on both sides of the read and must agree, so a projection replaced
+        while it was being counted yields no counts rather than counts of two files.
+
+    Raises:
+        ValueError: If ``source`` is not a current projection, if any path is not a
+            repeated level of the projection schema, if one is named twice, or if
+            ``source`` was replaced while it was being counted.
+        OSError: If ``source`` cannot be stat'ed.
+    """
+    wanted = check_levels(level_paths)
+    _check_projection(source)
+    before = file_identity(source)
+    connection = duckdb.connect()
+    try:
+        connection.read_parquet(str(pathlib.Path(source))).create_view("reactions")
+        counted = _count_view(connection, "reactions", wanted, source)
+    finally:
+        connection.close()
+    if file_identity(source) != before:
+        raise ValueError(
+            f"{source} was replaced while it was being counted; the counts describe "
+            "no one version of it"
+        )
+    return Counts(before, counted)
 
 
 def write_pivot(
@@ -381,6 +661,7 @@ def write_pivot(
     source_dataset_id: str | None = None,
     compression: str = "zstd",
     row_group_size: int = 100_000,
+    counts: Counts | None = None,
 ) -> int:
     """Derives a pivot artifact over one repeated level and writes it.
 
@@ -404,13 +685,24 @@ def write_pivot(
         compression: Parquet codec, any name ``pq.ParquetWriter`` accepts.
         row_group_size: Rows per output row group, which is also how many elements are
             held in memory at a time.
+        counts: What ``count_levels`` read off ``source``, where the caller has already
+            counted. Counted here when omitted. A build deriving every level counts
+            them together, since one query answers for all of them at the cost of
+            reading the projection once. The level's own count is taken from these
+            rather than passed alongside them, and the identity they carry is checked
+            against ``source``: a count of zero skips the unnest, so unlike a nonzero
+            one it is never checked against the rows produced, and this is what stands
+            in place of that check.
 
     Returns:
         Number of rows written: the number of elements at that level.
 
     Raises:
-        ValueError: If ``source`` is not a current projection, or the schema has no
-            such repeated level.
+        ValueError: If ``source`` is not a current projection, if the schema has no
+            such repeated level, if ``source`` has changed since it was counted, or if
+            the element count and the unnest disagree.
+        KeyError: If ``counts`` does not cover ``level_path``.
+        OSError: If ``counts`` is given and ``source`` cannot be stat'ed.
     """
     level = LEVELS.get(level_path)
     if level is None:
@@ -418,50 +710,78 @@ def write_pivot(
             f"{level_path} is not a repeated level of the projection schema; "
             f"a pivot has nothing to hold. Known levels: {sorted(LEVELS)}"
         )
-    parent = base.load_stamps(source)
-    if parent.artifact != projection.ARTIFACT:
-        raise ValueError(
-            f"{source} is a {parent.artifact}, not a {projection.ARTIFACT}; a pivot "
-            "unnests a projection"
-        )
-    # derive_tree refuses stale parents, but this writer is public and its output
-    # inherits the dataset hash: an artifact derived from a stale projection would
-    # claim a provenance it does not have and nothing would ever mark it stale again.
-    if not base.stamps_are_current(parent, projection.ARTIFACT):
-        raise ValueError(
-            f"{source} is a stale {projection.ARTIFACT}; derive it again first"
-        )
+    parent = _check_projection(source)
+    element_count = None
+    if counts is not None:
+        element_count = counts[level_path]
+        if counts.identity != file_identity(source):
+            raise ValueError(
+                f"{source} has changed since it was counted; the count of "
+                f"{element_count} at {level_path} is an answer about a file that is "
+                "no longer there. Count it again."
+            )
     if source_md5 is None:
         source_md5 = parent.source_md5
     if source_dataset_id is None:
         source_dataset_id = parent.source_dataset_id
     stamps = base.current_stamps(ARTIFACT, source_dataset_id, source_md5)
-    metadata = base.to_metadata(stamps) | {_META_PIVOT_PATH: level_path}
+    metadata = base.to_metadata(stamps) | {META_PIVOT_PATH: level_path}
     target = schema(level).with_metadata(metadata)
     connection = duckdb.connect()
     written = 0
     try:
         # Through the relational API rather than a path interpolated into SQL, which a
-        # filename holding a quote would otherwise close.
+        # filename holding a quote would otherwise close. One view serves the count and
+        # the unnest, which read the same nested column.
         connection.read_parquet(str(pathlib.Path(source))).create_view("reactions")
-        result = connection.execute(select(level, "reactions"))
+        if element_count is None:
+            element_count = _count_view(connection, "reactions", [level_path], source)[
+                level_path
+            ]
         with (
             atomic_io.atomic_path(output) as temp_path,
             pq.ParquetWriter(temp_path, target, compression=compression) as writer,
         ):
-            # A projection whose reactions record nothing at this level leaves the loop
-            # empty; the writer's close still produces a valid zero-row file carrying
-            # the schema and stamps, which is what a reader globs and finds nothing in
-            # rather than a file that is missing.
-            for batch in result.to_arrow_reader(row_group_size):
-                # Cast rather than trust: DuckDB's own widths are its business, and the
-                # artifact's schema is a promise to whoever reads it later.
-                writer.write_table(
-                    pa.Table.from_batches([batch])
-                    .cast(schema(level))
-                    .replace_schema_metadata(metadata)
+            # A level with no elements writes no batches, and the writer's close still
+            # produces a valid zero-row file carrying the schema and stamps -- what a
+            # reader globs and finds nothing in, rather than a file that is missing.
+            # One writer either way, so the two differ only in rows.
+            if element_count:
+                # Counting settled the other case: the unnest would walk every ancestor
+                # of a level this projection never records to reach the same nothing.
+                reader = connection.execute(select(level, "reactions")).to_arrow_reader(
+                    row_group_size
                 )
-                written += batch.num_rows
+                for batch in reader:
+                    # Cast rather than trust: DuckDB's own widths are its business, and
+                    # the artifact's schema is a promise to whoever reads it later.
+                    writer.write_table(
+                        pa.Table.from_batches([batch])
+                        .cast(schema(level))
+                        .replace_schema_metadata(metadata)
+                    )
+                    written += batch.num_rows
+            if written != element_count:
+                # Raised inside the atomic write, so the rejected artifact is removed
+                # rather than published: one that reached the destination would be
+                # stamped current, skipped by every later run, and read as the truth
+                # about the level ever after, with the consequences this module's
+                # docstring gives.
+                #
+                # This catches any nonzero count the unnest disagrees with, in either
+                # direction. Zero escapes it, having skipped the unnest that would have
+                # contradicted it, and what stands in its place depends on where the
+                # count came from: one taken here read the same view in the same
+                # connection the unnest would have, with no window between them at all,
+                # while one that came in through Counts names the level it answers for
+                # and the file it was read from. A count that is simply wrong over the
+                # right file is outside both -- that one is held by the tests comparing
+                # the count against the unnest at every level, and by a level that
+                # comes out empty across a whole tree saying so.
+                raise ValueError(
+                    f"{source}: counted {element_count} elements at {level_path} and "
+                    f"unnested {written}; the count and the pivot disagree"
+                )
     finally:
         connection.close()
     logger.info("%s: %d elements at %s", source, written, level_path)

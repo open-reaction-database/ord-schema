@@ -38,9 +38,10 @@ artifact version are skipped, so re-running is cheap; --force rewrites them anyw
 
 A match that is not a projection -- a source dataset, or an artifact from an earlier
 run -- is ignored rather than derived from, so --output_dir may sit inside a recursive
-pattern's reach. These are errors: an --output_dir that would write over any input, a
-match that cannot be read as Parquet at all, a level the schema does not have, and a
-run that finds no projections at all.
+pattern's reach. These are errors: an --output_dir that would write over any input, an
+input that cannot be read as Parquet at all, a level the schema does not have or that
+is named twice, a projection that changed while the run was deriving from it or whose
+count and unnest disagreed, and a run that finds no projections at all.
 """
 
 import argparse
@@ -78,6 +79,74 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _write_counted(
+    source: pathlib.Path,
+    output: pathlib.Path,
+    /,
+    *,
+    level_path: str,
+    level_paths: tuple[str, ...],
+    source_md5: str,
+    source_dataset_id: str | None,
+) -> int:
+    """Writes one level's artifact, told how many elements it holds.
+
+    Args:
+        source: The projection to pivot.
+        output: Where the artifact goes.
+        level_path: The level to pivot.
+        level_paths: Every level this run derives, counted together on first need.
+        source_md5: Hash of the source dataset to stamp.
+        source_dataset_id: Source dataset ID to stamp.
+
+    Returns:
+        The number of rows written.
+    """
+    return pivot.write_pivot(
+        source,
+        output,
+        level_path=level_path,
+        counts=_counts(source, pivot.file_identity(source), level_paths),
+        source_md5=source_md5,
+        source_dataset_id=source_dataset_id,
+    )
+
+
+@functools.cache
+def _counts(
+    source: pathlib.Path,
+    identity: pivot.FileIdentity,
+    level_paths: tuple[str, ...],
+) -> pivot.Counts:
+    """Returns the element count per level for one projection, read once.
+
+    Cached because derive_tree drives one level at a time: the levels share ancestors,
+    so counting them together reads the projection once where a count per level reads
+    it once per level -- measured at 15x deriving every level of a two-shard tree of
+    projections that record them all. The margin grows with the bytes each level
+    carries, since that is what the count reads and what the extra reads repeat.
+
+    Asked for every level being derived rather than only the one at hand, which is the
+    trade: a run rebuilding one stale level of a projection reads the columns of all of
+    them, against a run rebuilding many reading those columns once instead of once per
+    level. Only projections that need at least one level written are counted at all,
+    since nothing calls this for a source derive_tree skips.
+
+    Args:
+        source: The projection to count.
+        identity: ``pivot.file_identity(source)``, which is what makes the key name the
+            file rather than the path. The dataset hash will not do: it is stamped
+            through from the projection's parent, so a projection rebuilt from an
+            unchanged dataset carries the same one and would hit an entry counted over
+            the previous bytes.
+        level_paths: Every level being derived, so one read answers for all of them.
+
+    Returns:
+        The counts, carrying the identity of the file they were read from.
+    """
+    return pivot.count_levels(source, level_paths)
+
+
 def main(args: argparse.Namespace) -> None:
     """Derives a pivot artifact per level for every projection matching the pattern.
 
@@ -86,24 +155,31 @@ def main(args: argparse.Namespace) -> None:
             and ``force``.
 
     Raises:
-        ValueError: If a requested level is not one the projection schema has, or if
-            the pattern matched no projections -- which usually means it was aimed at
-            the source tree, or at an output tree, rather than at the projections.
-            Silence there would let a pipeline step downstream proceed as though the
-            artifacts had been built.
+        ValueError: If a requested level is not one the projection schema has or is
+            named twice; if a projection changed while it was being derived, or its
+            count and its unnest disagreed; or if the pattern matched no projections --
+            which usually means it was aimed at the source tree, or at an output tree,
+            rather than at the projections. Silence there would let a pipeline step
+            downstream proceed as though the artifacts had been built.
     """
-    unknown = sorted(set(args.levels) - set(pivot.LEVELS))
-    if unknown:
-        raise ValueError(
-            f"not repeated levels of the projection schema: {unknown}; "
-            f"known levels are {sorted(pivot.LEVELS)}"
-        )
-    for level_path in args.levels:
+    levels = pivot.check_levels(args.levels)
+    for level_path in levels:
+        directory = pathlib.Path(args.output_dir) / level_path
         written, skipped, ignored = base.derive_tree(
             args.input_pattern,
-            str(pathlib.Path(args.output_dir) / level_path),
+            str(directory),
             artifact=pivot.ARTIFACT,
-            write=functools.partial(pivot.write_pivot, level_path=level_path),
+            write=functools.partial(
+                _write_counted,
+                level_path=level_path,
+                level_paths=tuple(levels),
+            ),
+            # Reaches the ordinals, which are top-level columns: a repeated level added
+            # to the schema above this one gives every level beneath it another one,
+            # and the artifacts carrying the old set are derived again rather than
+            # stamping as current. What it does not reach is the element struct, which
+            # is one column however its fields change; that is what a version is for.
+            schema=pivot.schema(pivot.LEVELS[level_path]),
             force=args.force,
             parent_artifact=projection.ARTIFACT,
         )
