@@ -506,7 +506,10 @@ def derive_tree(
         ValueError: If the input pattern matches nothing, if any match cannot be read as
             Parquet, or if any destination would land on a parent.
     """
-    matches = sorted(glob.glob(input_pattern, recursive=True))
+    # Deduplicated: a pattern with more than one ** reaches the same file by more than
+    # one route, and a source derived twice is written twice -- the second pass reading
+    # what the first just wrote, and counted again in what this returns.
+    matches = sorted(set(glob.glob(input_pattern, recursive=True)))
     if not matches:
         raise ValueError(f"no datasets matched: {input_pattern}")
     sources = []
