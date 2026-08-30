@@ -105,8 +105,7 @@ jobs:
     strategy:
       matrix:
         os: ["ubuntu-latest", "macos-14"]
-        # examples extra requires TensorFlow, which only ships wheels through cp313 as of 2.20.0.
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     runs-on: ${{ matrix.os }}
     env:
       # CPU-only runners: avoid TensorFlow probing CUDA (noise + unstable kernels).
@@ -128,6 +127,15 @@ jobs:
       - name: Test notebooks
         # Single-threaded: default treon parallelism loads TensorFlow in multiple kernels and OOMs on CI.
         run: uv run treon --threads=1
+        if: ${{ matrix.python-version != '3.14' }}
+      # TensorFlow ships no CPython 3.14 wheels as of 2.21.0, so the one notebook that
+      # imports it cannot run there. The other six can, and this is the only job that
+      # exercises them at all.
+      - name: Test notebooks (without the one that needs TensorFlow)
+        run: >
+          uv run treon --threads=1
+          --exclude=examples/applications/Perera_Science_Granda_Nature_Suzuki
+        if: ${{ matrix.python-version == '3.14' }}
 
   test_proto_wrappers:
     runs-on: ubuntu-latest
