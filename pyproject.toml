@@ -42,7 +42,11 @@ dependencies = [
     "protobuf>=4.22.3,<6",
     "pyarrow>=14",
     "python-dateutil>=1.10.0",
-    "rdkit>=2021.9.5",
+    # 2025.03.1 introduced Chem.ValenceType and deprecated Atom.GetExplicitValence,
+    # which set_dative_bonds calls the replacement for; 2025.03.4 is the first release
+    # with CPython 3.14 wheels, and this package claims to support 3.14, so a floor
+    # below it would send anyone installing there into a source build.
+    "rdkit>=2025.03.4",
     "tqdm>=4.61.2",
 ]
 
