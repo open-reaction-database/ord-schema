@@ -2003,7 +2003,6 @@ examples = [
     { name = "matplotlib" },
     { name = "scikit-learn" },
     { name = "tensorflow", marker = "python_full_version < '3.14'" },
-    { name = "wget" },
 ]
 huggingface = [
     { name = "huggingface-hub" },
@@ -2084,7 +2083,6 @@ requires-dist = [
     { name = "tqdm", specifier = ">=4.61.2" },
     { name = "ty", marker = "extra == 'tests'", specifier = ">=0.0.28" },
     { name = "uuid6", marker = "extra == 'orm'", specifier = ">=2023" },
-    { name = "wget", marker = "extra == 'examples'", specifier = ">=3.2" },
 ]
 provides-extras = ["search", "nl", "docs", "examples", "huggingface", "orm", "tests"]
 
@@ -3725,12 +3723,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/dd/b2/381be8cfdee792dd1
 wheels = [
     { url = "https://files.pythonhosted.org/packages/93/8c/2e650f2afeb7ee576912636c23ddb621c91ac6a98e66dc8d29c3c69446e1/werkzeug-3.1.8-py3-none-any.whl", hash = "sha256:63a77fb8892bf28ebc3178683445222aa500e48ebad5ec77b0ad80f8726b1f50", size = 226459, upload-time = "2026-04-02T18:49:12.72Z" },
 ]
-
-[[package]]
-name = "wget"
-version = "3.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/47/6a/62e288da7bcda82b935ff0c6cfe542970f04e29c756b0e147251b2fb251f/wget-3.2.zip", hash = "sha256:35e630eca2aa50ce998b9b1a127bb26b30dfee573702782aa982f875e3f16061", size = 10857, upload-time = "2015-10-22T15:26:37.51Z" }
 
 [[package]]
 name = "wheel"
