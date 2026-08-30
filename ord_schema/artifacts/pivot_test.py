@@ -499,6 +499,33 @@ def test_two_files_alike_but_for_their_filesystem_are_told_apart(tmp_path, monke
     assert there != here
 
 
+def test_artifact_paths_are_sorted(tmp_path):
+    # The order artifacts are read in is the order a view holds their rows, and the
+    # order a report names them. A glob answers in directory order, which is whatever
+    # the filesystem last did.
+    directory = tmp_path / "workups"
+    for shard in ("cc", "aa", "bb"):
+        (directory / shard).mkdir(parents=True)
+        (directory / shard / f"ord_dataset-{shard}.parquet").write_bytes(b"")
+    found = pivot.artifact_paths(tmp_path, "workups")
+    assert [path.parent.name for path in found] == ["aa", "bb", "cc"]
+
+
+def test_artifact_paths_reads_a_directory_whose_name_looks_like_a_pattern(tmp_path):
+    # Only the last two segments are a pattern; everything above them is a name someone
+    # chose. A bracket in it would be read as a character class and match nothing, and
+    # the build would then reject a level whose artifacts are all present.
+    directory = tmp_path / "pivots[v2]"
+    (directory / "workups" / "aa").mkdir(parents=True)
+    written = directory / "workups" / "aa" / "ord_dataset-aa.parquet"
+    written.write_bytes(b"")
+    assert pivot.artifact_paths(directory, "workups") == [written]
+
+
+def test_artifact_paths_finds_nothing_where_there_is_no_level(tmp_path):
+    assert pivot.artifact_paths(tmp_path, "workups") == []
+
+
 def _miscounted(counts: pivot.Counts, level_path: str, value: int) -> pivot.Counts:
     """Returns ``counts`` with ``level_path`` answered wrongly, everything else kept."""
     return pivot.Counts(counts.identity, dict(counts) | {level_path: value})

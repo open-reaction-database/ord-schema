@@ -45,6 +45,7 @@ reaction in the corpus. See ``Counts``.
 """
 
 import dataclasses
+import glob
 import os
 import pathlib
 import types
@@ -472,6 +473,46 @@ class Counts(Mapping[str, int]):
         than this one, to a caller who asked about this one.
         """
         return hash((self.identity, frozenset(self.at.items())))
+
+
+def artifact_paths(
+    pivots_dir: str | os.PathLike[str], level_path: str
+) -> list[pathlib.Path]:
+    """Returns the artifacts a reader finds for one level, in a stable order.
+
+    The one definition of what a level's artifacts are. A build that judges its own
+    output by a wider rule than a reader applies calls a tree healthy that no query can
+    read: the level then has no artifacts as far as the corpus is concerned, and every
+    quantifier over it falls back to unnesting the projection, or is refused.
+
+    Recursive, because a pivot tree mirrors the projections it was derived from: a
+    sharded corpus puts them under ``<level>/<shard>/`` rather than directly under the
+    level. Named rather than stamped, so listing a level costs no reads -- and so a
+    build writing anything else has written something nothing here will find.
+
+    Through ``glob``, which descends a symlinked shard directory and passes over a
+    file whose name begins with a dot. Both matter: a deployment is free to put a shard
+    on other storage and link it into place, and the tree may sit on a filesystem whose
+    tools leave dotted siblings of their own. It is also how the projections and
+    structures beside these are found, so one corpus cannot read part of itself.
+
+    Args:
+        pivots_dir: The directory the levels sit under.
+        level_path: The level, as the query grammar names it.
+
+    Returns:
+        The paths, sorted. Empty if the level has no directory at all.
+    """
+    directory = pathlib.Path(pivots_dir) / level_path
+    # Escaped, because only the last two segments are a pattern: a directory is a name
+    # someone chose, and one holding a bracket or a star would otherwise be read as a
+    # character class or a wildcard and match somewhere else, or nowhere.
+    return sorted(
+        pathlib.Path(found)
+        for found in glob.glob(
+            f"{glob.escape(str(directory))}/**/*.parquet", recursive=True
+        )
+    )
 
 
 def _check_projection(source: str | os.PathLike[str]) -> base.Stamps:
