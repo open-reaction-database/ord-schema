@@ -3584,6 +3584,41 @@ def test_a_pivoted_quantifier_still_reaches_the_structures_artifact(corpus):
     assert found == {"ord-bb01"}
 
 
+def test_a_pivot_under_a_directory_that_looks_like_a_pattern_is_read(
+    wide_root, tmp_path
+):
+    # read_parquet reads its arguments as globs, so a bracket in a directory name is a
+    # character class, and it matches the sibling this decoy provides rather than the
+    # artifact itself. The decoy holds no rows, so a query reading it answers nothing
+    # and says nothing about having done so.
+    pivots = _write_pivots(
+        wide_root, ("outcomes.products",), into=tmp_path / "pivots[v2]"
+    )
+    real = next(iter(pivots.rglob("*.parquet")))
+    decoy = tmp_path / "pivotsv" / "outcomes.products" / real.parent.name
+    decoy.mkdir(parents=True)
+    empty = pq.read_table(real)
+    pq.write_table(
+        empty.slice(0, 0).replace_schema_metadata(empty.schema.metadata),
+        decoy / real.name,
+    )
+    assert pq.read_table(real).num_rows > 0
+
+    where = {
+        "op": "exists",
+        "path": "outcomes.products",
+        "where": {"op": "not_null", "path": "is_desired_product"},
+    }
+    with execute.Corpus(
+        str(wide_root / "projections" / "*.parquet"),
+        str(wide_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots),
+    ) as corpus:
+        found = corpus.search(query.Query.model_validate({"where": where}))
+    assert found.num_rows > 0
+
+
 def test_check_pivots_reports_the_levels_held_as_artifacts(wide_root, tmp_path):
     # An operator reads these counts to see that a sharded corpus has all its shards,
     # so the two levels are held by different numbers of artifacts, and neither by one:
