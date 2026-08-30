@@ -56,7 +56,7 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
        pre-commit install
        ```
 
-       Hooks run `addlicense`, Ruff (`ruff-check` with fixes + `ruff-format`), `ty check ord_schema` (same scope as CI Lint), `clang-format` on `.proto` files, and `markdownlint-cli2` on Markdown. Example notebooks under `examples/` are not type-checked by `ty`; they are covered by the notebook test job, which runs them under `nbval`. Three submission notebooks additionally have their stored output compared against a fresh run; if you change what one of them prints, regenerate it with `uv run jupyter nbconvert --to notebook --execute --inplace <notebook>` and commit the result.
+       Hooks run `addlicense`, Ruff (`ruff-check` with fixes + `ruff-format`), `ty check ord_schema` (same scope as CI Lint), `clang-format` on `.proto` files, and `markdownlint-cli2` on Markdown. Example notebooks under `examples/` are not type-checked by `ty`; they are covered by the notebook test job, which runs them under `nbval`. Three submission notebooks additionally have their stored output compared against a fresh run; if you change what one of them prints, regenerate it with `uv run jupyter execute --inplace <notebook>` and commit the result.
 
        If you'd rather not use pre-commit, you can run the same checks by hand:
 
