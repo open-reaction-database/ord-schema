@@ -232,9 +232,23 @@ def sql_string(value: str) -> str:
     return f"'{escaped}'"
 
 
-def _sql_strings(values: Iterable[str]) -> str:
-    """Returns ``values`` as a SQL list literal, single quotes escaped."""
-    return "[" + ", ".join(sql_string(value) for value in values) + "]"
+def _sql_paths(paths: Iterable[str]) -> str:
+    """Returns ``paths`` as a SQL list literal naming each file and no other.
+
+    read_parquet reads its arguments as globs, so a path is not simply itself: a
+    directory named with a bracket becomes a character class that matches a sibling
+    instead, and one with a star or a question mark matches its neighbors as well as
+    itself. Either way the query answers off files nobody asked for, which is the kind
+    of wrong that arrives as data rather than as an error.
+
+    Args:
+        paths: Paths to files, as this process found them.
+
+    Returns:
+        A SQL list literal, single quotes escaped and glob characters spelled as the
+        one-character classes that match them literally.
+    """
+    return "[" + ", ".join(sql_string(glob.escape(path)) for path in paths) + "]"
 
 
 def _max_structure_id(path: str) -> int | None:
@@ -1005,8 +1019,8 @@ class Corpus:
         self._connection.unregister("registered_offsets")
         # Inlined rather than bound because DuckDB refuses parameters in DDL. The
         # paths came from this process's own glob, and the quoting still escapes them.
-        projection_files = _sql_strings(pair[0] for pair in pairs)
-        structure_files = _sql_strings(pair[1] for pair in pairs)
+        projection_files = _sql_paths(pair[0] for pair in pairs)
+        structure_files = _sql_paths(pair[1] for pair in pairs)
         # S608: the fragments are this module's constants and this process's own
         # glob results, quoted with their single quotes escaped.
         self._connection.execute(
@@ -1112,9 +1126,7 @@ class Corpus:
         found = {}
         for path in sorted(pivot.LEVELS):
             if self._pivot_view(path) is not None:
-                found[path] = len(
-                    glob.glob(f"{self._pivots_dir}/{path}/**/*.parquet", recursive=True)
-                )
+                found[path] = len(pivot.artifact_paths(self._pivots_dir, path))
         logger.info(
             "%d of %d levels are held as artifacts: %s",
             len(found),
@@ -1779,12 +1791,9 @@ class Corpus:
         with self._views_lock:
             if path in self._pivot_views:
                 return self._pivot_views[path]
-            # Recursive, because a pivot tree mirrors the projections it was derived
-            # from: a sharded corpus puts them under <level>/<shard>/ rather than
-            # directly under the level.
-            files = sorted(
-                glob.glob(f"{self._pivots_dir}/{path}/**/*.parquet", recursive=True)
-            )
+            files = [
+                str(found) for found in pivot.artifact_paths(self._pivots_dir, path)
+            ]
             if not files:
                 self._pivot_views[path] = None
                 return None
@@ -1794,7 +1803,7 @@ class Corpus:
             # from this process's own glob, quoted with their single quotes escaped.
             self._connection.execute(
                 f"CREATE OR REPLACE VIEW {name} AS "  # noqa: S608
-                f"SELECT * FROM read_parquet({_sql_strings(files)})"
+                f"SELECT * FROM read_parquet({_sql_paths(files)})"
             )
             logger.info("read %d pivot artifacts for %s", len(files), path)
             self._pivot_views[path] = name
@@ -1895,6 +1904,9 @@ class Corpus:
                 str(pathlib.Path(self._pivots_dir) / path),
                 artifact=pivot.ARTIFACT,
                 write=functools.partial(pivot.write_pivot, level_path=path),
+                # The same columns derive_pivots declares, so a tree built by one and
+                # extended by the other agrees on which artifacts are current.
+                schema=pivot.schema(pivot.LEVELS[path]),
                 parent_artifact=projection.ARTIFACT,
             )
             logger.info(

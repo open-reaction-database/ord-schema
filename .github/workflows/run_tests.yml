@@ -105,8 +105,7 @@ jobs:
     strategy:
       matrix:
         os: ["ubuntu-latest", "macos-14"]
-        # examples extra requires TensorFlow, which only ships wheels through cp313 as of 2.20.0.
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     runs-on: ${{ matrix.os }}
     env:
       # CPU-only runners: avoid TensorFlow probing CUDA (noise + unstable kernels).
@@ -125,10 +124,7 @@ jobs:
           cache-dependency-glob: "uv.lock"
       - name: Install ord_schema
         run: uv sync --extra examples --extra tests --locked
-      # Both runs are serial: loading TensorFlow in several kernels at once OOMs the runner.
-      # --nbval-cell-timeout matches the unlimited timeout the notebooks were executed
-      # under before; Granda_Perera trains for 300 epochs on a CPU-only runner and can
-      # exceed nbval's 2000-second default.
+      # The runs are serial: loading TensorFlow in several kernels at once OOMs the runner.
       #
       # Executing a notebook proves its code runs; comparing its stored output proves the
       # file a reader sees still says what the code produces. A stored output that has
@@ -155,6 +151,16 @@ jobs:
           --ignore=examples/submissions/2_Nielsen_Deoxyfluorination_Screen/example_nielsen.ipynb
           --ignore=examples/submissions/3_Liu_Copper_OrgSyn/example_liu.ipynb
           --ignore=examples/submissions/9_Ahneman_Science_CN_Coupling/example_Ahenman.ipynb
+          --ignore=examples/applications/Perera_Science_Granda_Nature_Suzuki
+      # TensorFlow ships no CPython 3.14 wheels as of 2.21.0, so this notebook cannot run
+      # on that interpreter; the other six can, and this is the only job that exercises
+      # them at all. It is also what the unlimited cell timeout is for: it trains for 300
+      # epochs on a CPU-only runner and can exceed nbval's 2000-second default.
+      - name: Test notebooks (the one that needs TensorFlow)
+        if: ${{ !cancelled() && matrix.python-version != '3.14' }}
+        run: >
+          uv run pytest --nbval-lax --nbval-current-env --nbval-cell-timeout=-1 -vv -ra
+          examples/applications/Perera_Science_Granda_Nature_Suzuki
 
   test_proto_wrappers:
     runs-on: ubuntu-latest

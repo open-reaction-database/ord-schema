@@ -224,6 +224,30 @@ def test_derive_tree_writes_one_artifact_per_source(tmp_path):
     assert {path.parent.name for path in written_paths} == {"aa", "bb"}
 
 
+def test_derive_tree_derives_a_source_reached_twice_only_once(tmp_path):
+    # A pattern with more than one ** reaches the same file by more than one route.
+    # Derived twice, the second pass reads what the first wrote and the counts returned
+    # say two sources where the tree holds one -- which a caller comparing them against
+    # the artifacts on disk reads as artifacts having gone missing.
+    (tmp_path / "aa").mkdir()
+    _fake_source(tmp_path / "aa" / "source.parquet")
+    seen = []
+
+    def _write_one(path, output, *, source_md5, source_dataset_id):
+        seen.append(str(path))
+        pathlib.Path(output).write_bytes(b"")
+        return 1
+
+    written, skipped, _ = base.derive_tree(
+        str(tmp_path / "**" / "**" / "*.parquet"),
+        str(tmp_path / "out"),
+        artifact="structures",
+        write=_write_one,
+    )
+    assert len(seen) == 1
+    assert (written, skipped) == (1, 0)
+
+
 def test_derive_tree_hands_the_writer_the_source_and_its_provenance(tmp_path):
     (tmp_path / "aa").mkdir()
     source = tmp_path / "aa" / "source.parquet"

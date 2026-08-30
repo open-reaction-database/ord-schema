@@ -79,7 +79,10 @@ docs = [
 examples = [
     "matplotlib>=3.3.4",
     "scikit-learn>=0.24.1",
-    "tensorflow>=2.4.1",
+    # TensorFlow ships no CPython 3.14 wheels as of 2.21.0, and one notebook needs it.
+    # Marked rather than holding the extra back, so the six notebooks that do not touch
+    # it keep their coverage on a version this package says it supports.
+    "tensorflow>=2.4.1; python_version < '3.14'",
     "wget>=3.2",
 ]
 # Optional: only ord_schema.huggingface (fetch_dataset) needs this; it downloads
