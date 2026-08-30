@@ -82,7 +82,7 @@ Or a **relational database**, for field-level queries against a live server:
 ## Command-line entry points
 
 ```bash
-python -m ord_schema.scripts.validate_dataset --input_pattern='data/*/*.pb.gz'
+python -m ord_schema.scripts.validate_dataset --input_pattern='data/*/*.parquet'
 
 python -m ord_schema.scripts.build_dataset --input_pattern='reactions/*.pbtxt' \
     --name=... --description=... --output=dataset.pb.gz
