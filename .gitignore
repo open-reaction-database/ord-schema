@@ -38,11 +38,10 @@ docs/*.md
 # same run: a downloaded dataset, a trained model, serialized messages. Running a
 # notebook reproduces them, so committing them only offers a stale copy for review and
 # leaves a dirty tree after the notebook tests.
-examples/applications/Perera_Science_Granda_Nature_Suzuki/*.pb.gz
+examples/applications/Perera_Science_Granda_Nature_Suzuki/*.parquet
 examples/applications/Perera_Science_Granda_Nature_Suzuki/saved_model.keras
+examples/submissions/1_Santanilla_Nanomole_HTE/*.parquet
 examples/submissions/1_Santanilla_Nanomole_HTE/*.pbtxt
-examples/submissions/1_Santanilla_Nanomole_HTE/*.pb
-examples/submissions/2_Nielsen_Deoxyfluorination_Screen/ord-nielsen-example.pbtxt
-examples/submissions/3_Liu_Copper_OrgSyn/example_liu.pb
-examples/submissions/3_Liu_Copper_OrgSyn/example_liu.pbtxt
-examples/submissions/10_Perera_Science_Suzuki/perera_dataset.pbtxt
+examples/submissions/2_Nielsen_Deoxyfluorination_Screen/ord-nielsen-example.parquet
+examples/submissions/3_Liu_Copper_OrgSyn/example_liu.parquet
+examples/submissions/10_Perera_Science_Suzuki/perera_dataset.parquet
