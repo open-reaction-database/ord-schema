@@ -47,14 +47,20 @@ repos:
         language: system
         pass_filenames: false
 
-      # A hook rather than a step in the regeneration command: a notebook is reformatted
-      # and stamped by whatever wrote it, and a contributor who edits one in Jupyter
-      # never sees that command at all.
-      - id: format-notebooks
-        name: format notebooks
-        entry: uv run --extra tests python .github/scripts/format_notebooks.py
-        language: system
-        files: \.ipynb$
+  # Rewrites each notebook through nbformat, which is what settles how the JSON is
+  # written: tools disagree on whether a multi-line output is one string or a list of
+  # lines, and an edit through any of them reformats whatever it touches. It also drops
+  # the timings that executing a notebook stamps on every cell -- metadata.execution and
+  # ExecuteTime -- which change on every run whether or not the output did, and which
+  # nothing reads, since nbval compares outputs and ignores cell metadata.
+  #
+  # The output is what #995 made contributors keep current, and the execution counts
+  # tell a reader what ran in what order, so both stay.
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.9.1
+    hooks:
+      - id: nbstripout
+        args: [--keep-output, --keep-count, --keep-id]
 
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v22.1.2
