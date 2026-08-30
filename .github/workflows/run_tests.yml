@@ -133,7 +133,7 @@ jobs:
       # second standard.
       - name: Test notebooks (compare stored output)
         run: >
-          uv run pytest --nbval --nbval-current-env --nbval-cell-timeout=-1 -vv -ra
+          uv run pytest --nbval --nbval-current-env -vv -ra
           --nbval-sanitize-with examples/nbval_sanitize.cfg
           examples/submissions/2_Nielsen_Deoxyfluorination_Screen/example_nielsen.ipynb
           examples/submissions/3_Liu_Copper_OrgSyn/example_liu.ipynb
@@ -146,7 +146,7 @@ jobs:
       - name: Test notebooks (execution only)
         if: ${{ !cancelled() }}
         run: >
-          uv run pytest --nbval-lax --nbval-current-env --nbval-cell-timeout=-1 -vv -ra
+          uv run pytest --nbval-lax --nbval-current-env -vv -ra
           examples
           --ignore=examples/submissions/2_Nielsen_Deoxyfluorination_Screen/example_nielsen.ipynb
           --ignore=examples/submissions/3_Liu_Copper_OrgSyn/example_liu.ipynb
@@ -154,12 +154,11 @@ jobs:
           --ignore=examples/applications/Perera_Science_Granda_Nature_Suzuki
       # TensorFlow ships no CPython 3.14 wheels as of 2.21.0, so this notebook cannot run
       # on that interpreter; the other six can, and this is the only job that exercises
-      # them at all. It is also what the unlimited cell timeout is for: it trains for 300
-      # epochs on a CPU-only runner and can exceed nbval's 2000-second default.
+      # them at all.
       - name: Test notebooks (the one that needs TensorFlow)
         if: ${{ !cancelled() && matrix.python-version != '3.14' }}
         run: >
-          uv run pytest --nbval-lax --nbval-current-env --nbval-cell-timeout=-1 -vv -ra
+          uv run pytest --nbval-lax --nbval-current-env -vv -ra
           examples/applications/Perera_Science_Granda_Nature_Suzuki
 
   test_proto_wrappers:
