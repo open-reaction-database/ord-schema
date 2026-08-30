@@ -47,12 +47,12 @@ repos:
         language: system
         pass_filenames: false
 
-      # A hook rather than a step in the regeneration command: the timings are written
-      # by whatever executed the notebook, and a contributor who runs it in Jupyter
+      # A hook rather than a step in the regeneration command: a notebook is reformatted
+      # and stamped by whatever wrote it, and a contributor who edits one in Jupyter
       # never sees that command at all.
-      - id: strip-notebook-execution-metadata
-        name: strip notebook execution metadata
-        entry: uv run --extra tests python .github/scripts/strip_notebook_execution_metadata.py
+      - id: format-notebooks
+        name: format notebooks
+        entry: uv run --extra tests python .github/scripts/format_notebooks.py
         language: system
         files: \.ipynb$
 

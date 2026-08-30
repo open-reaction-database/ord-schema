@@ -69,14 +69,14 @@ jobs:
       - name: Run ty
         run: |
           uv run ty check ord_schema
-      - name: Check notebook execution metadata
+      - name: Check notebook formatting
         # The same script the pre-commit hook runs, so CI and local runs agree. It exits
-        # non-zero having rewritten the file, which here means the commit carried timings
-        # -- from an author whose hooks are not installed, since nothing else adds them.
+        # non-zero having rewritten the file, which here means the commit carried a
+        # notebook that is not formatted -- from an author whose hooks are not installed.
         #
         # File list from git rather than a glob, as in check_markdown: tracked files
         # exclude .venv/ and any notebook a run left behind.
-        run: git ls-files -z '*.ipynb' | xargs -0 uv run python .github/scripts/strip_notebook_execution_metadata.py
+        run: git ls-files -z '*.ipynb' | xargs -0 uv run python .github/scripts/format_notebooks.py
 
   check_proto:
     runs-on: ubuntu-latest
