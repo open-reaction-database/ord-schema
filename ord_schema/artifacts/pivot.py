@@ -72,6 +72,8 @@ META_PIVOT_PATH = "ord.pivot_path"
 # The column the element's own fields sit under, and the row's join key.
 ELEMENT = "element"
 REACTION_ID = "reaction_id"
+# The whole element, as a staged ancestor carries it -- not the artifact's pruned one.
+_STAGED_ELEMENT = "staged_element"
 
 # What an ordinal is stored as. A reaction cannot hold four billion of anything at one
 # level, and the narrower column is the one a pivot carries once per row.
@@ -264,6 +266,110 @@ def select(level: RepeatedLevel, table: str) -> str:
     ]
     # S608: every fragment is this module's own walk of the projection schema.
     return f"SELECT {', '.join(selected)} FROM {', '.join(froms)}"  # noqa: S608
+
+
+def _ancestor_path(level: RepeatedLevel, depth: int) -> str:
+    """Returns the level reached by unnesting ``level``'s steps through ``depth``.
+
+    Args:
+        level: The level whose ancestor to name.
+        depth: Index into ``level.steps`` of the last step to take.
+
+    Returns:
+        The ancestor as the query grammar names it: a level's path is the join of every
+        step's segments, so the steps through ``depth`` name a prefix of it. That prefix
+        is a repeated level of the schema but not necessarily a key of ``LEVELS``, which
+        omits a level whose elements are entirely repeated.
+    """
+    steps = level.steps[: depth + 1]
+    reached = (segment for step in steps for segment in step.segments)
+    return ".".join(reached)
+
+
+def _stage_table(level: RepeatedLevel, depth: int) -> str:
+    """Returns the temp-table name holding ``level``'s ancestor at ``depth``.
+
+    Args:
+        level: The level being staged.
+        depth: Index into ``level.steps`` of the step the table holds.
+
+    Returns:
+        A bare identifier, as ``table_name`` returns for a pivot. Naming it for the
+        ancestor means two levels of one chain ask for one name rather than giving one
+        name two meanings.
+    """
+    return f"stage_{_ancestor_path(level, depth).replace('.', '_')}"
+
+
+def stage(
+    connection: duckdb.DuckDBPyConnection, level: RepeatedLevel, table: str
+) -> str:
+    """Unnests ``level`` a step at a time through temp tables, returning the last query.
+
+    A step given a table of its own can run on its own, where a whole level reached in
+    one query -- every unnest and the element prune in a single pipeline, which is what
+    ``select`` returns -- runs largely serially. The work is the same either way; what
+    differs is how much of the machine it can occupy. Over the 1.77M-reaction ORD
+    projection the two cost about the same CPU and staging spends it some six times
+    faster in wall clock on 18 cores, so expect the margin to fall with the core count.
+
+    Every step but the last gets a table. Fusing more than one re-serializes them, so a
+    single-step level is the case that must be staged rather than the case that can be
+    skipped.
+
+    The tables hold the element whole, unlike the artifact: pruning is what removes the
+    repeated fields, and a child reaches its own through the field a pruned parent would
+    have dropped.
+
+    Args:
+        connection: Connection to create the temp tables in, holding ``table``. They
+            live as long as it does and are named for the level's ancestors, so staging
+            a second level that shares one raises rather than answering short. Give
+            each call a connection it can have to itself.
+        level: The level to pivot.
+        table: The relation holding the reactions.
+
+    Returns:
+        A SELECT of ``reaction_id``, the level's ordinals, and the pruned element, one
+        row per element of the level, reading the last temp table rather than ``table``.
+
+    Raises:
+        duckdb.Error: If a table this level would stage is already in ``connection``.
+    """
+    # Fused: reached from the final SELECT's own FROM rather than given a table -- every
+    # step but the last, unless that would fuse the only step there is.
+    staged = level.steps[:-1] or level.steps
+    fused = level.steps[-1] if len(level.steps) > 1 else None
+    source, carried = table, []
+    element: str | None = None
+    for depth, step in enumerate(staged):
+        kept = ", ".join([REACTION_ID, *carried])
+        carried.append(step.ordinal)
+        # S608: every fragment is this module's own walk of the projection schema.
+        connection.execute(
+            # Plain CREATE, so a name already taken raises here: replacing a table a
+            # reader is still streaming from ends its rows early and raises nothing.
+            f"CREATE TEMP TABLE {_stage_table(level, depth)} AS "  # noqa: S608
+            f"SELECT {kept}, e AS {_STAGED_ELEMENT}, {step.ordinal} "
+            f"FROM {source}, unnest({step.expression(element)}) "
+            f"WITH ORDINALITY AS u(e, {step.ordinal})"
+        )
+        source, element = _stage_table(level, depth), _STAGED_ELEMENT
+    # Cast for the reason select does: the ordinals carried through the tables and any
+    # the last step contributes are all BIGINT, and the artifact's schema is a promise.
+    ordinals = [f"{ordinal}::{ORDINAL_SQL} AS {ordinal}" for ordinal in level.ordinals]
+    reached = "e" if fused is not None else str(element)
+    selected = [
+        REACTION_ID,
+        *ordinals,
+        f"{element_expression(level.element_type, reached)} AS {ELEMENT}",
+    ]
+    if fused is None:
+        return f"SELECT {', '.join(selected)} FROM {source}"  # noqa: S608
+    return (
+        f"SELECT {', '.join(selected)} FROM {source}, "  # noqa: S608
+        f"unnest({fused.expression(element)}) WITH ORDINALITY AS u(e, {fused.ordinal})"
+    )
 
 
 def schema(level: RepeatedLevel) -> pa.Schema:
@@ -708,8 +814,10 @@ def write_pivot(
 
     One artifact holds one level of one projection, because the levels have different
     schemas and a reader globs the one it wants. The rows stream out of DuckDB a batch
-    at a time, so a level that explodes -- a corpus of long measurement lists -- costs
-    a batch of memory rather than the whole level.
+    at a time, so a level that explodes -- a corpus of long measurement lists -- costs a
+    batch rather than the whole level on the way out. Its ancestors are another matter:
+    ``stage`` holds each one whole, repeated fields and all, under DuckDB's memory limit
+    rather than the caller's.
 
     The output is published atomically, so a failure partway leaves any existing
     artifact untouched.
@@ -771,6 +879,13 @@ def write_pivot(
     connection = duckdb.connect()
     written = 0
     try:
+        # A pivot has no row order to keep: a reader semi-joins it on reaction_id and
+        # the ordinals, and which element came back first says nothing. Keeping one
+        # costs the parallelism of the unnest that produces it, which over ORD's
+        # largest projection is most of what a build costs. The price is that two
+        # builds of one artifact need not agree byte for byte, which nothing checks --
+        # currency is keyed on the source hash, not on the bytes written.
+        connection.execute("SET preserve_insertion_order=false")
         # Through the relational API rather than a path interpolated into SQL, which a
         # filename holding a quote would otherwise close. One view serves the count and
         # the unnest, which read the same nested column.
@@ -790,9 +905,9 @@ def write_pivot(
             if element_count:
                 # Counting settled the other case: the unnest would walk every ancestor
                 # of a level this projection never records to reach the same nothing.
-                reader = connection.execute(select(level, "reactions")).to_arrow_reader(
-                    row_group_size
-                )
+                reader = connection.execute(
+                    stage(connection, level, "reactions")
+                ).to_arrow_reader(row_group_size)
                 for batch in reader:
                     # Cast rather than trust: DuckDB's own widths are its business, and
                     # the artifact's schema is a promise to whoever reads it later.

@@ -1859,8 +1859,10 @@ class Corpus:
         The same derivation ``derive_pivots`` runs offline, aimed at this corpus's own
         projections: one artifact per projection, stamped, and skipped where one is
         already current -- so a run interrupted partway is finished by the next rather
-        than started again. It reads a projection at a time and streams the rows out, so
-        it holds a batch where building the level in memory holds the level.
+        than started again. It reads a projection at a time and streams the artifact's
+        rows out a batch at a time, but holds the level's ancestors whole on the way --
+        under DuckDB's own memory limit rather than the pivot budget, which bounds what
+        this corpus holds in process and not what a derivation spends.
 
         Derived before the level is read rather than after refusing to read it. What an
         interrupted run leaves behind is a set covering some of the projections, which
