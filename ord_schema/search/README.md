@@ -175,8 +175,8 @@ Substructure runs through an RDKit `SubstructLibrary` built over the corpus: a
 fingerprint **screen** — complete but not exact — over every distinct molecule in the
 corpus, then exact subgraph **verification** of the survivors. It runs on RDKit's own
 threads with the GIL released, so one `Corpus` serves concurrent requests without
-forking; the library is built on the first substructure query and costs seconds and
-about 1.5 GB for the full corpus.
+forking; the library is built at open, which `Corpus(warm=False)` defers to the first
+substructure query, and costs seconds and about 1.5 GB for the full corpus.
 Each search takes its own DuckDB cursor, since a connection holds the pending result of
 its last `execute` and concurrent searches sharing one would read each other's rows.
 `threads` is per search rather than per corpus, so a server expecting several at once
@@ -203,9 +203,11 @@ authentic standards — is a level with no elements: nothing satisfies an `exist
 and nothing contradicts a `forall`, so "reactions **without** pyridine in the workup"
 includes every reaction that has no workup at all.
 
-The index is built by the first query that spends it, one pass over the projections per
-indexed path, so a server wanting its first real query to be fast should issue a
-throwaway structure query at startup.
+The index is built at open, which `Corpus(warm=False)` defers to the first query that
+spends it. Where a pivot artifact covers an indexed path the build reads that level
+instead of unnesting the projection — over ORD **3.3s against 59.4s** for the same
+18,847,978 occurrences — and every path no artifact covers still costs its own pass over
+the projections.
 
 ## Pivoted levels
 
@@ -288,6 +290,10 @@ answers against rows this corpus does not hold, confidently and wrongly. A level
 artifacts is still built in process, so a partial set is a partial speedup rather than a
 missing answer.
 
+The occurrence index reads them too, one indexed path at a time: an artifact holds one
+row per element of the nearest repeated level, which is what the build would otherwise
+unnest the projection to produce.
+
 `Corpus(..., pivots_dir=..., derive_pivots=True)` writes the missing ones instead of
 building them: the same pass, spent where it outlives the process and costs no budget,
 and holding a projection at a time rather than the whole level — so a level too large for
@@ -295,7 +301,8 @@ the budget is still derivable this way. Artifacts already current are skipped, s
 interrupted run is finished by the next rather than started again. It is off by default,
 and `check_pivots()` never triggers it: that call reaches all 39 levels, and deriving
 there would unnest the projection 39 times at startup for a deployment that asks about
-two.
+two. It needs `warm=False`, since deriving a level has to precede the read that would
+refuse it half-derived and warming reads the levels the occurrence index covers.
 
 ## What a projection query costs
 
@@ -340,8 +347,11 @@ derived artifacts spends none of it: those are views over Parquet, not tables.
 ## Sizing a deployment
 
 Budget **about 8 GiB of resident memory** for a corpus serving substructure search over
-ORD: 1.1 GiB to open, 2.2 GiB for the `SubstructLibrary`, 1.19 GiB for the occurrence
-index, and DuckDB's own caches on top, which fill whatever `memory_limit` allows. `Corpus`
+ORD: 1.1 GiB for the relations, 2.2 GiB for the `SubstructLibrary`, 1.19 GiB for the
+occurrence index, and DuckDB's own caches on top, which fill whatever `memory_limit`
+allows. An open corpus holds all three, since the two builds happen at open unless it
+was given `warm=False` — which is what makes the resident figure something to size a
+container against rather than a floor a later query raises it to. `Corpus`
 takes that limit as an argument; left unset, DuckDB claims about 80% of the machine — or
 of the container's cap, which it does read. The step-by-step breakdown is in
 [the logbook entry][cache-entry], finding 16.
@@ -370,13 +380,16 @@ on DuckDB's own 6.3 GiB default was killed 85s in; a 12 GiB container holding Du
 `6500MiB` finished, peaking at 9.3 GB resident. `Corpus` warns at open when a cap it can
 read leaves less than 4 GB above the limit ([logbook][cache-entry], finding 19).
 
-Which is survivable but should not be discovered by a user. The index is built by the
-first query that can spend it, so a container short of the floor starts cleanly, passes
-`check_pivots()`, answers scalar queries, and then raises at whoever runs the first
-substructure search. `Corpus.check_index()` moves that to startup, where it is a failed
-deployment rather than a failed request. It is opt-in for the same reason the build is
-lazy — a minute and 1.19 GB that a corpus asked only for scalar or similarity queries
-never needs to spend.
+Which is survivable but should not be discovered by a user. A corpus opened with
+`warm=False` builds the index on the first query that can spend it, so a container short
+of the floor starts cleanly, passes `check_pivots()`, answers scalar queries, and then
+raises at whoever runs the first substructure search. Warming puts both builds at open,
+where falling short is a failed deployment rather than a failed request;
+`Corpus.check_index()` does the same for the index alone over a cold corpus, which is
+what a deployment answering scalar and similarity queries wants — those spend the index
+but never the library. What a cold corpus buys is the memory floor above, the 1.19 GB
+the index holds, and the 2.2 GB the library holds, none of which a scalar-only corpus
+needs to spend.
 
 Across a mixed workload pairing an indexed structure clause with one the index cannot
 carry, the index is **2–24× ahead** of the same corpus answering every quantifier from
