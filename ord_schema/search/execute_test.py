@@ -100,8 +100,8 @@ def corpus_dir(tmp_path_factory) -> pathlib.Path:
 
 
 @pytest.fixture(scope="module")
-def deep_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
-    """A corpus holding a structure at every indexed path, and a reaction at none.
+def deep_root(tmp_path_factory) -> pathlib.Path:
+    """Sources, projections, and structures holding a structure at every indexed path.
 
     A workup's components and a product measurement's authentic standard are reached by
     the longest traversals the index generates, and the main fixture has neither, so
@@ -141,8 +141,16 @@ def deep_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
     structured = root / "structures" / source.name
     structured.parent.mkdir(parents=True, exist_ok=True)
     structures.write_structures(projected, structured)
+    return root
+
+
+@pytest.fixture(scope="module")
+def deep_corpus(deep_root) -> Iterator[execute.Corpus]:
+    """The corpus over ``deep_root``, holding no pivot artifacts."""
     with execute.Corpus(
-        str(projected), str(structured), resolver={}.__getitem__
+        str(deep_root / "projections" / "*.parquet"),
+        str(deep_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
     ) as value:
         yield value
 
@@ -157,8 +165,12 @@ def corpus(corpus_dir) -> Iterator[execute.Corpus]:
         yield value
 
 
+def _exists_at(path, where):
+    return {"op": "exists", "path": path, "where": where}
+
+
 def _exists(where):
-    return {"op": "exists", "path": "inputs.components", "where": where}
+    return _exists_at("inputs.components", where)
 
 
 def _reactions(table) -> set[str]:
@@ -3425,6 +3437,44 @@ def test_an_index_read_from_pivots_keeps_a_structure_in_its_own_dataset(
     assert matched == {"ord-bb01"}
 
 
+def test_an_index_read_from_pivots_keeps_the_element_s_role(tmp_path, corpus_dir):
+    # The role travels beside the structure, and it is what binds a query to one
+    # element: aa01 holds benzene as a reactant and pyridine as its solvent. A role read
+    # wrong from the artifact answers "pyridine as the solvent" with silence and
+    # "benzene as the solvent" with aa01, neither of which raises.
+    pivots = _write_pivots(corpus_dir, _OCCURRENCE_LEVELS, into=tmp_path / "pivots")
+    with _indexed_corpus(corpus_dir, pivots) as corpus:
+        assert _search(corpus, _role_and_structure("c1ccncc1", "SOLVENT")) == {
+            "ord-aa01"
+        }
+        assert _search(corpus, _role_and_structure("c1ccccc1", "SOLVENT")) == set()
+
+
+# One structure per indexed path, with the reactions holding it. The two deepest paths
+# are why this runs over deep_root: the main corpus records no workups and no authentic
+# standards, so a differential there compares nothing to nothing at exactly the paths
+# whose traversal is longest -- and the authentic standard is the one whose level is not
+# the indexed path, reached from the measurements' artifact through the remainder.
+_INDEXED_OCCURRENCES = (
+    ("inputs.components", "CCO", {"ord-cc01", "ord-cc02"}),
+    ("workups.input.components", "c1ccncc1", {"ord-cc01"}),
+    ("outcomes.products", "Cc1ccccc1", {"ord-cc01"}),
+    ("outcomes.products.measurements.authentic_standard", "c1ccccc1", {"ord-cc01"}),
+)
+
+
+@pytest.mark.parametrize(("path", "smarts", "expected"), _INDEXED_OCCURRENCES)
+def test_an_index_read_from_pivots_answers_at_every_indexed_path(
+    tmp_path, deep_root, path, smarts, expected
+):
+    pivots = _write_pivots(deep_root, _OCCURRENCE_LEVELS, into=tmp_path / "pivots")
+    where = _exists_at(path, {"op": "substructure", "path": "smiles", "smarts": smarts})
+    with _indexed_corpus(deep_root, None) as unnested:
+        assert _search(unnested, where) == expected
+    with _indexed_corpus(deep_root, pivots) as read:
+        assert _search(read, where) == expected
+
+
 def test_an_index_reads_the_pivots_rather_than_unnesting_the_projection(
     tmp_path, corpus_dir, caplog
 ):
@@ -3437,7 +3487,8 @@ def test_an_index_reads_the_pivots_rather_than_unnesting_the_projection(
             corpus, _exists({"op": "substructure", "path": "smiles", "smarts": "[Pt]"})
         )
     assert any(
-        "4 of 4 paths read from pivot artifacts" in record.message
+        f"{len(execute.INDEXED_PATHS)} of {len(execute.INDEXED_PATHS)} "
+        "paths read from pivot artifacts" in record.message
         for record in caplog.records
     )
 
@@ -3457,7 +3508,8 @@ def test_a_path_whose_level_has_no_pivot_is_still_unnested(
     ):
         assert _search(corpus, where) == expected
     assert any(
-        "1 of 4 paths read from pivot artifacts" in record.message
+        f"1 of {len(execute.INDEXED_PATHS)} paths read from pivot artifacts"
+        in record.message
         for record in caplog.records
     )
 
@@ -3744,6 +3796,23 @@ def test_a_pivot_from_another_corpus_is_refused(wide_root, corpus_dir, tmp_path)
         pytest.raises(execute.PairingError, match="another corpus"),
     ):
         _search(corpus, _white("exists"))
+
+
+def test_a_stranger_s_pivot_over_an_indexed_level_is_refused_at_open(
+    wide_root, corpus_dir
+):
+    # Warming reads the levels the index covers, so a pivots_dir belonging to another
+    # corpus fails the deployment rather than whichever query first quantified over one
+    # of those levels. Filed at an indexed level for that reason: the levels the index
+    # does not cover are still found by the query that wants them.
+    stranger = _write_pivots(corpus_dir, ("inputs.components",))
+    with pytest.raises(execute.PairingError, match="another corpus"):
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(stranger),
+        )
 
 
 def test_a_pivot_filed_under_the_wrong_level_is_refused(wide_root, tmp_path):
