@@ -3819,10 +3819,9 @@ def test_a_stranger_s_pivot_over_an_indexed_level_is_refused_at_open(
 
 
 def test_two_pivots_of_one_dataset_under_a_level_are_refused(corpus_dir, tmp_path):
-    # A set comparison accepts a stray copy, and both are then read, so every element of
-    # the level is stated twice. A quantifier cannot see it -- a semi-join returns a
-    # reaction once however many rows name it -- but the occurrence index counts those
-    # rows, and check_index reports the count a deployment baselines against.
+    # A stray copy under the level satisfies the set comparison over source hashes, and
+    # both artifacts are then read. What that costs is in _check_pivots; what makes it
+    # worth a refusal here is that the corpus opens and answers, so nothing else says.
     pivots = _write_pivots(corpus_dir, ("inputs.components",), into=tmp_path / "pivots")
     stray = pivots / "inputs.components" / "again"
     stray.mkdir(parents=True)

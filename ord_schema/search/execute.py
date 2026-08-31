@@ -471,9 +471,9 @@ INDEXED_PATHS = _indexed_paths()
 def _occurrences_from_projection(path: str, expression: str) -> str:
     """Returns the SELECT unnesting ``path``'s occurrences out of the projection.
 
-    What the index is built from where no pivot covers the level. A path's elements are
-    already a list, so unnest yields one row each, and the offset comes from the row's
-    own file, which the reactions view carries.
+    Used where no pivot artifact covers the path's level. A path's elements are already
+    a list, so unnest yields one row each, and the offset comes from the row's own file,
+    which the reactions view carries.
 
     Args:
         path: The indexed path.
@@ -482,7 +482,8 @@ def _occurrences_from_projection(path: str, expression: str) -> str:
     Returns:
         The SELECT.
     """
-    # S608: the traversal is the compiler's own, resolved against the projection schema.
+    # S608: the traversal is the compiler's own, resolved against the projection schema,
+    # and the path is a key of INDEXED_PATHS, quoted.
     return f"""
         SELECT reaction_id, {sql_string(path)} AS path,
                (element.structure_id + {query.STRUCTURE_OFFSET})::UINTEGER AS global_id,
@@ -1002,12 +1003,11 @@ class Corpus:
             )
         if derive_pivots and warm:
             # The index reads the artifacts over the levels it indexes as files, so
-            # warming would check a level derive_pivots means to complete before the
+            # warming checks a level derive_pivots means to complete before the
             # derivation that completes it has run -- and a set covering some of the
-            # projections is exactly what the check refuses; see _derive_pivot. Refused
-            # rather than ordered around, because the ordering that works is a
-            # derivation of every indexed level at open, which is minutes charged to a
-            # corpus that asked for artifacts to be filled in as they were wanted.
+            # projections is exactly what the check refuses; see _derive_pivot. The
+            # ordering that would work derives every indexed level at open, minutes
+            # charged to a corpus that asked for artifacts as they were wanted.
             raise ValueError(
                 "derive_pivots was set beside warm, which reads the levels the "
                 "occurrence index covers before the derivation can complete them; open "
@@ -1029,9 +1029,10 @@ class Corpus:
         self._projections = [pair[0] for pair in pairs]
         self._pivot_views: dict[str, str] = {}
         self._views_lock = threading.Lock()
-        # The artifacts found for each level, under their own lock: the occurrence
-        # build reads them as files while a query reads the same level as a view, and
-        # neither should wait on the other's DDL to learn whether any exist.
+        # The artifacts found for each level, with the source each names, under their
+        # own lock: the occurrence build reads them as files while a query reads the
+        # same level as a view, and the lock holds a footer read per artifact, which is
+        # not something to hold the lock a published view is looked up under.
         self._pivot_artifacts_found: dict[str, dict[str, str] | None] = {}
         self._artifacts_lock = threading.Lock()
         # What a dataset's structure IDs add to reach a corpus-wide one, keyed by the
@@ -1142,10 +1143,10 @@ class Corpus:
         # the reachable one, since read_parquet globs each element it is handed --
         # drops rows from the join rather than failing, leaving a corpus that answers
         # every query with silence. Each side is counted against the total its own
-        # footers state, which is the only place the loss is visible: a reaction the
-        # view lost is one no query can find, and the occurrence index cannot stand in
-        # for the count, since a path read from a pivot artifact reaches the structures
-        # whatever the view holds.
+        # footers state, which is where the loss is visible: a reaction the view lost is
+        # one no query can find, and the occurrence index cannot stand in for the count,
+        # since a path read from a pivot artifact reaches the structures whatever the
+        # view holds.
         counts = self._connection.execute(
             "SELECT count(*), count(pattern_fp) FROM corpus_structures"
         ).fetchone()
@@ -1493,7 +1494,8 @@ class Corpus:
         offsets = self._pivot_offsets(level.path, sources)
         element = ".".join(["x", pivot.ELEMENT, *remainder])
         # S608: the level and its remainder come from this module's walk of the schema,
-        # and the paths from this process's own glob, quoted with their quotes escaped.
+        # and the paths from this process's own glob, quoted with their single quotes
+        # escaped.
         return f"""
             SELECT x.{pivot.REACTION_ID}, {sql_string(path)} AS path,
                    ({element}.structure_id + o.{query.STRUCTURE_OFFSET})::UINTEGER
@@ -1527,8 +1529,8 @@ class Corpus:
             # projections', and the offsets are keyed by those same hashes.
             assert offset is not None, f"{name} names a source the corpus does not hold"
             rows.append((name, offset))
-        # Named for the level rather than per attempt, so a retry after a refusal
-        # replaces these rows rather than leaving a relation behind for each try.
+        # Named for the level, so a retry after a refusal replaces these rows instead of
+        # leaving a relation behind per attempt.
         published = f"{pivot.table_name(level)}_offsets"
         registered = pa.table(
             {
@@ -1538,10 +1540,9 @@ class Corpus:
                 ),
             }
         )
-        # Under the build lock, which every statement that puts a table in this database
-        # takes, so a materialization measuring what a pivot costs does not read these
-        # rows into its own total. S608: the name comes from this module's walk of the
-        # schema.
+        # Under the build lock, for the reason _build states: a materialization brackets
+        # its table with two memory readings taken across everyone. S608: the name comes
+        # from this module's walk of the schema.
         with self._build_lock:
             self._connection.register("registered_pivot_offsets", registered)
             self._connection.execute(
@@ -2059,9 +2060,9 @@ class Corpus:
             files: The artifacts found for it.
 
         Returns:
-            The source dataset each artifact was derived from, keyed by its path. What
-            pairs an artifact with the offset its projection was given, and read here
-            rather than again later; see ``_pivot_offsets``.
+            The source dataset each artifact was derived from, keyed by its path, which
+            is what pairs an artifact with the offset its projection was given; see
+            ``_pivot_offsets``.
 
         Raises:
             PairingError: If a file is not a pivot over ``path``, if two artifacts
@@ -2088,11 +2089,11 @@ class Corpus:
                 stamps, pivot.ARTIFACT
             ):
                 raise PairingError(f"{name} is a stale {pivot.ARTIFACT}")
-            # Two artifacts of one dataset pass the set comparison below and are then
-            # both read, so every element of the level is stated twice: a quantifier
-            # cannot see it, since a semi-join returns a reaction once however many
-            # rows name it, but the occurrence index counts those rows and check_index
-            # reports the count.
+            # Two artifacts of one dataset pass the set comparison below and are both
+            # read, so every element of the level is stated twice. A quantifier cannot
+            # see it -- a semi-join returns a reaction once however many rows name it --
+            # but the occurrence index counts those rows, and check_index reports the
+            # count.
             if stamps.source_md5 in derived_from:
                 raise PairingError(
                     f"{name} and {derived_from[stamps.source_md5]} are both "
