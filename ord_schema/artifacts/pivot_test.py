@@ -385,7 +385,11 @@ def test_a_level_with_no_elements_is_never_unnested(projected, tmp_path, monkeyp
     def refuse(*args: object, **kwargs: object) -> str:
         raise AssertionError("the level was unnested")
 
+    # Both names: write_pivot builds its query through stage, and select is what stage
+    # is the staged counterpart of. Patching only the one write_pivot does not call
+    # leaves this passing however much work the zero-count path does.
     monkeypatch.setattr(pivot, "select", refuse)
+    monkeypatch.setattr(pivot, "stage", refuse)
     output = tmp_path / "workups.parquet"
     assert pivot.write_pivot(projected, output, level_path="workups") == 0
     assert pq.read_table(output).num_rows == 0
@@ -401,6 +405,52 @@ def _unnested(source: pathlib.Path, level_path: str) -> int:
             .to_arrow_table()
             .num_rows
         )
+    finally:
+        connection.close()
+
+
+@pytest.mark.parametrize("level_path", sorted(pivot.LEVELS))
+def test_staging_a_level_produces_what_unnesting_it_in_one_query_does(
+    populated, level_path
+):
+    # stage is an optimization, so what makes it safe is that it answers identically --
+    # and the part most easily got wrong is invisible in a row count. Each temp table
+    # has to carry the ordinals accumulated above it, and a level whose prefix is
+    # dropped or misordered still produces exactly as many rows, with the wrong ones. A
+    # correlation joining on that prefix is what would notice, in production rather than
+    # here, so this compares the rows themselves.
+    #
+    # Sorted, because neither form promises an order and the artifact does not need one.
+    level = pivot.LEVELS[level_path]
+    connection = duckdb.connect()
+    try:
+        connection.read_parquet(str(populated)).create_view("reactions")
+        direct = connection.execute(pivot.select(level, "reactions")).to_arrow_table()
+        staged = connection.execute(
+            pivot.stage(connection, level, "reactions")
+        ).to_arrow_table()
+    finally:
+        connection.close()
+    assert staged.schema == direct.schema
+    assert staged.num_rows > 0, f"{level_path} is unpopulated; this proves nothing"
+    assert sorted(map(repr, staged.to_pylist())) == sorted(
+        map(repr, direct.to_pylist())
+    )
+
+
+def test_staging_materializes_the_unnest_that_reads_the_projection(populated):
+    # The cost being avoided is pruning the element inside an unnest over the nested
+    # column, which is the first step and only the first. A level with one step is
+    # therefore the case that has to be staged rather than the case that can be skipped
+    # -- measured at 134.5 s against 22.5 s for inputs over the 1.77M-reaction corpus --
+    # and an implementation returning select for it would look like an optimization
+    # while giving that back.
+    connection = duckdb.connect()
+    try:
+        connection.read_parquet(str(populated)).create_view("reactions")
+        one_step = pivot.LEVELS["workups"]
+        assert len(one_step.steps) == 1
+        assert "unnest" not in pivot.stage(connection, one_step, "reactions").lower()
     finally:
         connection.close()
 

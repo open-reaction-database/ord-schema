@@ -72,6 +72,8 @@ META_PIVOT_PATH = "ord.pivot_path"
 # The column the element's own fields sit under, and the row's join key.
 ELEMENT = "element"
 REACTION_ID = "reaction_id"
+# The whole element, as a staged ancestor carries it -- not the artifact's pruned one.
+_STAGED_ELEMENT = "staged_element"
 
 # What an ordinal is stored as. A reaction cannot hold four billion of anything at one
 # level, and the narrower column is the one a pivot carries once per row.
@@ -264,6 +266,95 @@ def select(level: RepeatedLevel, table: str) -> str:
     ]
     # S608: every fragment is this module's own walk of the projection schema.
     return f"SELECT {', '.join(selected)} FROM {', '.join(froms)}"  # noqa: S608
+
+
+def ancestor_path(level: RepeatedLevel, depth: int) -> str:
+    """Returns the level reached by unnesting ``level``'s steps down to ``depth``.
+
+    Args:
+        level: The level whose ancestor to name.
+        depth: How many steps to take, as an index into ``level.steps``.
+
+    Returns:
+        The ancestor as the query grammar names it. A level's own path is the join of
+        every step's segments, so a prefix of the steps names a prefix of the path --
+        and each one is itself a repeated level, since that is what a step is.
+    """
+    steps = level.steps[: depth + 1]
+    reached = (segment for step in steps for segment in step.segments)
+    return ".".join(reached)
+
+
+def _stage_table(level: RepeatedLevel, depth: int) -> str:
+    """Returns the temp-table name holding ``level``'s ancestor at ``depth``."""
+    return f"stage_{ancestor_path(level, depth).replace('.', '_')}"
+
+
+def stage(
+    connection: duckdb.DuckDBPyConnection, level: RepeatedLevel, table: str
+) -> str:
+    """Unnests ``level``'s steps into temp tables, returning the query over the last.
+
+    ``select`` reaches a level in one query, which fuses the element prune into an
+    unnest reading the projection's nested column. That is what costs: DuckDB prunes a
+    flat relation far more cheaply than it prunes mid-pipeline. Unnesting into a table
+    first, and pruning what comes back, is the same rows for a fraction of the work --
+    measured over the 1.77M-reaction projection, ``inputs`` took 134.5 s in one query
+    and 22.5 s staged, and ``inputs.components.identifiers`` 666 s against 34 s.
+
+    Only the first unnest reads the nested column, so only it has to be materialized;
+    below that the input is already flat and the last step fuses for free. A level with
+    a single step is therefore the one where everything must be materialized, not the
+    one where nothing is.
+
+    The tables are named for the ancestor rather than for the depth, so a connection
+    deriving several levels of one chain builds each shared prefix once. They hold the
+    element whole, unlike the artifact: pruning is what removes the repeated fields, and
+    a child reaches its own through the field a pruned parent would have dropped.
+
+    Args:
+        connection: Connection to create the temp tables in, holding ``table``. They
+            live as long as it does, so it should be the one the caller is about to
+            read the result on and then close.
+        level: The level to pivot.
+        table: The relation holding the reactions.
+
+    Returns:
+        A SELECT producing the same rows and columns as ``select``, reading the last
+        table rather than the reactions.
+    """
+    # Every step but the last, which fuses into the final SELECT -- unless that would
+    # leave the one unnest that reads the nested column fused, which is the whole cost.
+    staged = level.steps[:-1] or level.steps
+    fused = level.steps[-1] if len(level.steps) > 1 else None
+    source, carried = table, []
+    element: str | None = None
+    for depth, step in enumerate(staged):
+        kept = ", ".join([REACTION_ID, *carried])
+        carried.append(step.ordinal)
+        # S608: every fragment is this module's own walk of the projection schema.
+        connection.execute(
+            f"CREATE OR REPLACE TEMP TABLE {_stage_table(level, depth)} AS "  # noqa: S608
+            f"SELECT {kept}, e AS {_STAGED_ELEMENT}, {step.ordinal} "
+            f"FROM {source}, unnest({step.expression(element)}) "
+            f"WITH ORDINALITY AS u(e, {step.ordinal})"
+        )
+        source, element = _stage_table(level, depth), _STAGED_ELEMENT
+    # Cast for the reason select does: the ordinals carried through the tables and any
+    # the last step contributes are all BIGINT, and the artifact's schema is a promise.
+    ordinals = [f"{ordinal}::{ORDINAL_SQL} AS {ordinal}" for ordinal in level.ordinals]
+    reached = "e" if fused is not None else str(element)
+    selected = [
+        REACTION_ID,
+        *ordinals,
+        f"{element_expression(level.element_type, reached)} AS {ELEMENT}",
+    ]
+    if fused is None:
+        return f"SELECT {', '.join(selected)} FROM {source}"  # noqa: S608
+    return (
+        f"SELECT {', '.join(selected)} FROM {source}, "  # noqa: S608
+        f"unnest({fused.expression(element)}) WITH ORDINALITY AS u(e, {fused.ordinal})"
+    )
 
 
 def schema(level: RepeatedLevel) -> pa.Schema:
@@ -771,6 +862,13 @@ def write_pivot(
     connection = duckdb.connect()
     written = 0
     try:
+        # A pivot has no meaningful row order: a reader semi-joins it on reaction_id and
+        # the ordinals, and which element came back first says nothing. Holding the
+        # order of a 8.3M-row unnest, on the other hand, serializes the pipeline that
+        # produces it -- 777 s against 88 s over the largest level of the corpus, at the
+        # same total CPU, because the difference is how much of the machine it may use.
+        # The cost is that two builds of one artifact need not agree byte for byte.
+        connection.execute("SET preserve_insertion_order=false")
         # Through the relational API rather than a path interpolated into SQL, which a
         # filename holding a quote would otherwise close. One view serves the count and
         # the unnest, which read the same nested column.
@@ -790,9 +888,9 @@ def write_pivot(
             if element_count:
                 # Counting settled the other case: the unnest would walk every ancestor
                 # of a level this projection never records to reach the same nothing.
-                reader = connection.execute(select(level, "reactions")).to_arrow_reader(
-                    row_group_size
-                )
+                reader = connection.execute(
+                    stage(connection, level, "reactions")
+                ).to_arrow_reader(row_group_size)
                 for batch in reader:
                     # Cast rather than trust: DuckDB's own widths are its business, and
                     # the artifact's schema is a promise to whoever reads it later.
