@@ -268,17 +268,18 @@ def select(level: RepeatedLevel, table: str) -> str:
     return f"SELECT {', '.join(selected)} FROM {', '.join(froms)}"  # noqa: S608
 
 
-def ancestor_path(level: RepeatedLevel, depth: int) -> str:
-    """Returns the level reached by unnesting ``level``'s steps down to ``depth``.
+def _ancestor_path(level: RepeatedLevel, depth: int) -> str:
+    """Returns the level reached by unnesting ``level``'s steps through ``depth``.
 
     Args:
         level: The level whose ancestor to name.
-        depth: How many steps to take, as an index into ``level.steps``.
+        depth: Index into ``level.steps`` of the last step to take.
 
     Returns:
         The ancestor as the query grammar names it. A level's own path is the join of
-        every step's segments, so a prefix of the steps names a prefix of the path --
-        and each one is itself a repeated level, since that is what a step is.
+        every step's segments, so the steps through ``depth`` name a prefix of it. That
+        prefix is a repeated level of the schema, though not necessarily a key of
+        ``LEVELS``, which omits a level whose elements are entirely repeated.
     """
     steps = level.steps[: depth + 1]
     reached = (segment for step in steps for segment in step.segments)
@@ -286,45 +287,57 @@ def ancestor_path(level: RepeatedLevel, depth: int) -> str:
 
 
 def _stage_table(level: RepeatedLevel, depth: int) -> str:
-    """Returns the temp-table name holding ``level``'s ancestor at ``depth``."""
-    return f"stage_{ancestor_path(level, depth).replace('.', '_')}"
+    """Returns the temp-table name holding ``level``'s ancestor at ``depth``.
+
+    Args:
+        level: The level being staged.
+        depth: Index into ``level.steps`` of the step the table holds.
+
+    Returns:
+        A bare identifier, as ``table_name`` returns for a pivot. Naming it for the
+        ancestor rather than the depth is what keeps two levels of one chain from
+        meaning different things by one name.
+    """
+    return f"stage_{_ancestor_path(level, depth).replace('.', '_')}"
 
 
 def stage(
     connection: duckdb.DuckDBPyConnection, level: RepeatedLevel, table: str
 ) -> str:
-    """Unnests ``level``'s steps into temp tables, returning the query over the last.
+    """Unnests ``level`` a step at a time through temp tables, returning the last query.
 
-    ``select`` reaches a level in one query, which fuses the element prune into an
-    unnest reading the projection's nested column. That is what costs: DuckDB prunes a
-    flat relation far more cheaply than it prunes mid-pipeline. Unnesting into a table
-    first, and pruning what comes back, is the same rows for a fraction of the work --
-    measured over the 1.77M-reaction projection, ``inputs`` took 134.5 s in one query
-    and 22.5 s staged, and ``inputs.components.identifiers`` 666 s against 34 s.
+    ``select`` reaches a level in one query, so every unnest and the element prune sit
+    in a single pipeline. Giving each step a table of its own instead lets the engine
+    work on one at a time, and the whole difference is how much of the machine it can
+    put on that: over the 1.77M-reaction ORD projection the two forms cost about the
+    same CPU, and staging spends it roughly six times faster in wall clock on an
+    18-core machine. Expect it to fall with the core count rather than hold.
 
-    Only the first unnest reads the nested column, so only it has to be materialized;
-    below that the input is already flat and the last step fuses for free. A level with
-    a single step is therefore the one where everything must be materialized, not the
-    one where nothing is.
+    Every step but the last gets a table, and the last is fused into the returned
+    SELECT because it has nowhere cheaper to go -- but fusing more than one is what
+    re-serializes the pipeline, so a level whose only step is fused gives the saving
+    back entirely. A single-step level is therefore the case that must be staged, not
+    the case that can be skipped.
 
-    The tables are named for the ancestor rather than for the depth, so a connection
-    deriving several levels of one chain builds each shared prefix once. They hold the
-    element whole, unlike the artifact: pruning is what removes the repeated fields, and
-    a child reaches its own through the field a pruned parent would have dropped.
+    The tables hold the element whole, unlike the artifact: pruning is what removes the
+    repeated fields, and a child reaches its own through the field a pruned parent would
+    have dropped.
 
     Args:
         connection: Connection to create the temp tables in, holding ``table``. They
-            live as long as it does, so it should be the one the caller is about to
-            read the result on and then close.
+            live as long as it does and are named for the level's own ancestors, so a
+            second call for a *different* level replaces any table they share -- which
+            a reader still streaming the first call's query would see as rows that
+            stop. Give each call a connection it can have to itself.
         level: The level to pivot.
         table: The relation holding the reactions.
 
     Returns:
-        A SELECT producing the same rows and columns as ``select``, reading the last
-        table rather than the reactions.
+        A SELECT of ``reaction_id``, the level's ordinals, and the pruned element, one
+        row per element of the level, reading the last temp table rather than ``table``.
     """
-    # Every step but the last, which fuses into the final SELECT -- unless that would
-    # leave the one unnest that reads the nested column fused, which is the whole cost.
+    # Fused: reached from the final SELECT's own FROM rather than given a table. Every
+    # step but the last, unless that would fuse the only step there is.
     staged = level.steps[:-1] or level.steps
     fused = level.steps[-1] if len(level.steps) > 1 else None
     source, carried = table, []
@@ -334,7 +347,10 @@ def stage(
         carried.append(step.ordinal)
         # S608: every fragment is this module's own walk of the projection schema.
         connection.execute(
-            f"CREATE OR REPLACE TEMP TABLE {_stage_table(level, depth)} AS "  # noqa: S608
+            # Not OR REPLACE: replacing a table a reader is still streaming from ends
+            # its rows early and raises nothing, so a second call on one connection has
+            # to fail here instead of answering short.
+            f"CREATE TEMP TABLE {_stage_table(level, depth)} AS "  # noqa: S608
             f"SELECT {kept}, e AS {_STAGED_ELEMENT}, {step.ordinal} "
             f"FROM {source}, unnest({step.expression(element)}) "
             f"WITH ORDINALITY AS u(e, {step.ordinal})"
@@ -799,8 +815,11 @@ def write_pivot(
 
     One artifact holds one level of one projection, because the levels have different
     schemas and a reader globs the one it wants. The rows stream out of DuckDB a batch
-    at a time, so a level that explodes -- a corpus of long measurement lists -- costs
-    a batch of memory rather than the whole level.
+    at a time, so the artifact side of a level that explodes -- a corpus of long
+    measurement lists -- costs a batch rather than the whole level. What ``stage``
+    materializes on the way there does not: a level's ancestors are held whole, with
+    their repeated fields still on them, and DuckDB spills them under its own memory
+    limit rather than the caller's.
 
     The output is published atomically, so a failure partway leaves any existing
     artifact untouched.
@@ -863,11 +882,11 @@ def write_pivot(
     written = 0
     try:
         # A pivot has no meaningful row order: a reader semi-joins it on reaction_id and
-        # the ordinals, and which element came back first says nothing. Holding the
-        # order of a 8.3M-row unnest, on the other hand, serializes the pipeline that
-        # produces it -- 777 s against 88 s over the largest level of the corpus, at the
-        # same total CPU, because the difference is how much of the machine it may use.
-        # The cost is that two builds of one artifact need not agree byte for byte.
+        # the ordinals, and which element came back first says nothing. Holding an
+        # order nobody reads costs the parallelism of the unnest that produces it,
+        # which over ORD's largest projection is most of what a build costs. The price
+        # is that two builds of one artifact need not agree byte for byte, which
+        # nothing checks: currency is keyed on the source hash, not the bytes written.
         connection.execute("SET preserve_insertion_order=false")
         # Through the relational API rather than a path interpolated into SQL, which a
         # filename holding a quote would otherwise close. One view serves the count and
