@@ -456,6 +456,7 @@ def test_a_corpus_deriving_pivots_also_derives_an_artifact_missing_an_ordinal(
         resolver={}.__getitem__,
         pivots_dir=str(projected / "pivots"),
         derive_pivots=True,
+        warm=False,
     ) as corpus:
         corpus.search(
             query.Query.model_validate(

@@ -72,11 +72,11 @@ The grammar bounds what a query can cost (one pass and a sort), and ``search``
 takes a wall-clock timeout that interrupts the final query. Name resolution, the
 one-time library and index builds, screening, and verification all run before the timer
 starts: each is bounded by the corpus rather than by the query, so a slow one is slow
-for every caller and shows up in the logs rather than in a timeout. The two builds have
-separate triggers -- the library on the first substructure predicate, and the index at
-open unless the corpus was given ``warm=False``, which leaves it to the first query that
-takes a clause of it. A search that pays for either pays upwards of a minute over the
-whole corpus, on top of whatever timeout it was given.
+for every caller and shows up in the logs rather than in a timeout. Both builds happen
+at open unless the corpus was given ``warm=False``, which leaves the index to the first
+query taking a clause of it and the library to the first substructure predicate. A
+search that pays for either pays upwards of a minute over the whole corpus, on top of
+whatever timeout it was given.
 """
 
 import array
@@ -875,7 +875,9 @@ class Corpus:
                 for the budget is still derivable. Off by default: a deployment reading
                 artifacts someone else derives should not start writing them because a
                 directory was mistyped, and a corpus-scale derivation belongs in
-                ``ord_schema.artifacts.scripts.derive_pivots``.
+                ``ord_schema.artifacts.scripts.derive_pivots``. Needs ``warm`` off,
+                since warming reads the levels the occurrence index covers and a
+                derivation has to precede the read of the level it completes.
             memory_limit: What DuckDB may hold, spelled as it spells sizes: ``6500MiB``,
                 ``8GB``. Left unset, DuckDB takes about 80% of the machine, or of the
                 container's cap, which it does read. That default suits a process that
@@ -886,34 +888,38 @@ class Corpus:
                 to leave that much. Over ORD, ``6500MiB`` under a 12 GiB cap builds the
                 occurrence index, where DuckDB's own default under an 8 GiB cap is
                 killed partway.
-            warm: Build the occurrence index at open rather than on the query that
-                first wants it, on by default. What it costs is a read of the pivot
-                artifacts covering the indexed paths, and a pass over the projections
-                for any they do not cover -- which over ORD is the difference between a
-                second and a minute. The build also wants 5-6.5 GB of DuckDB memory and
-                leaves 1.19 GB resident, so a deployment without those artifacts, or one
-                whose queries are all scalar or similarity and never reach the index,
-                may prefer to charge that to a query rather than to startup; see
-                ``check_index``. The substructure library is left to first use either
-                way: it costs gigabytes on top, and only a substructure query needs it.
+            warm: Build at open what a structure query would otherwise build on the
+                query itself, on by default: the occurrence index, then the substructure
+                library. The index costs a read of the pivot artifacts covering the
+                indexed paths and a pass over the projections for every path they do not
+                cover -- over ORD the difference between a second and a minute -- and it
+                wants 5-6.5 GB of DuckDB memory to build and holds 1.19 GB afterwards.
+                The library is about 8s and 2.2 GB on top. Together they are most of
+                what a container is sized against, which is the reason to spend them
+                where falling short is a failed deployment rather than a failed request;
+                see ``check_index``. A corpus asked only scalar queries needs neither,
+                and one asked scalar and similarity queries needs the index without the
+                library -- ``warm=False`` beside ``check_index`` builds that pair.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
                 partner on the other, a pair's stamps disagree about the source
                 dataset, or -- with ``require_current`` -- any artifact is stale. With
-                ``warm``, also whatever building the occurrence index refuses: a corpus
-                stating a reaction twice, one whose index does not reach every structure
-                it holds, or pivot artifacts over an indexed level that belong to
-                another corpus, all of which otherwise surface on the first query that
-                needs the index rather than at open.
+                ``warm``, also whatever building the occurrence index and the
+                substructure library refuse: a corpus stating a reaction twice, one
+                whose index does not reach every structure it holds, one whose IDs are
+                not every integer from zero, or pivot artifacts over an indexed level
+                that belong to another corpus, all of which otherwise surface on the
+                first query that wants what refused them rather than at open.
             duckdb.OutOfMemoryException: With ``warm``, if DuckDB is held below what the
                 occurrence index wants to build; see ``check_index`` for that floor, and
                 for the container cap that kills the process rather than raising.
             ValueError: If ``require_pivots`` is set beside a ``pivot_budget_bytes``,
-                which budgets for a build it rules out. If ``pivot_budget_bytes`` is
-                negative, which no amount of
-                memory is; zero is allowed, and materializes nothing; or if
-                ``derive_pivots`` or ``require_pivots`` is set without a
+                which budgets for a build it rules out. If ``derive_pivots`` is set
+                beside ``warm``, which reads the levels the index covers before the
+                derivation can complete them. If ``pivot_budget_bytes`` is negative,
+                which no amount of memory is; zero is allowed, and materializes nothing;
+                or if ``derive_pivots`` or ``require_pivots`` is set without a
                 ``pivots_dir``.
         """
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
@@ -994,6 +1000,20 @@ class Corpus:
                 "require_pivots was set without a pivots_dir, so there is nowhere to "
                 "look for what it would require"
             )
+        if derive_pivots and warm:
+            # The index reads the artifacts over the levels it indexes as files, so
+            # warming would check a level derive_pivots means to complete before the
+            # derivation that completes it has run -- and a set covering some of the
+            # projections is exactly what the check refuses; see _derive_pivot. Refused
+            # rather than ordered around, because the ordering that works is a
+            # derivation of every indexed level at open, which is minutes charged to a
+            # corpus that asked for artifacts to be filled in as they were wanted.
+            raise ValueError(
+                "derive_pivots was set beside warm, which reads the levels the "
+                "occurrence index covers before the derivation can complete them; open "
+                "with warm=False and let a query or check_index build the index once "
+                "the artifacts are there"
+            )
         pairs, self._fingerprint = _pair(
             projection_pattern, structures_pattern, require_current
         )
@@ -1027,20 +1047,36 @@ class Corpus:
             if require_pivots:
                 self._require_every_pivot()
             if warm:
-                self._occurrences()
+                self._warm()
         except Exception:
             # Nothing else holds the connection yet, and the caller has no object to
             # close one from if __init__ does not return.
             self._connection.close()
             raise
 
+    def _warm(self) -> None:
+        """Builds at open everything a structure query would otherwise build on demand.
+
+        The index before the library, so the library's gigabytes are not resident
+        through the build that wants the most memory of anything here.
+
+        Raises:
+            PairingError: Whatever the index or the library refuses; see
+                ``_occurrences`` and ``_library``.
+        """
+        self._occurrences()
+        self._library()
+
     def _prepare(self, pairs: list[tuple[str, str, str]]) -> tuple[int, int]:
         """Publishes the relations, and returns the total and searchable row counts."""
         offsets = []
         total = 0
+        stated = 0
         for projected, structured, source in pairs:
             with pq.ParquetFile(structured) as artifact:
                 count = artifact.metadata.num_rows
+            with pq.ParquetFile(projected) as artifact:
+                stated += artifact.metadata.num_rows
             # The IDs the projection carries have to land inside the partner's rows.
             # Stamps cannot see this: an artifact rederived from a rewritten
             # projection keeps the same source hash, so a short one pairs cleanly and
@@ -1105,10 +1141,11 @@ class Corpus:
         # that makes the two disagree -- a glob metacharacter in a directory name is
         # the reachable one, since read_parquet globs each element it is handed --
         # drops rows from the join rather than failing, leaving a corpus that answers
-        # every query with silence. The structures side is counted against a total
-        # taken from the footers; the reactions side has no such total to check
-        # against, so a projection whose path failed the same way goes unnoticed here
-        # and shows up only as reactions nobody can find.
+        # every query with silence. Each side is counted against the total its own
+        # footers state, which is the only place the loss is visible: a reaction the
+        # view lost is one no query can find, and the occurrence index cannot stand in
+        # for the count, since a path read from a pivot artifact reaches the structures
+        # whatever the view holds.
         counts = self._connection.execute(
             "SELECT count(*), count(pattern_fp) FROM corpus_structures"
         ).fetchone()
@@ -1118,6 +1155,15 @@ class Corpus:
             raise PairingError(
                 f"the structures artifacts hold {total} rows but only {joined} joined "
                 "to their offsets; a path did not survive read_parquet"
+            )
+        reactions = self._connection.execute(
+            f"SELECT count(*) FROM {query.TABLE}"  # noqa: S608
+        ).fetchone()
+        assert reactions is not None  # An aggregate over any relation returns one row.
+        if reactions[0] != stated:
+            raise PairingError(
+                f"the projections hold {stated} reactions but only {reactions[0]} "
+                "joined to their offsets; a path did not survive read_parquet"
             )
         return total, searchable
 
@@ -1291,8 +1337,9 @@ class Corpus:
     def _library(self) -> rdSubstructLibrary.SubstructLibrary:
         """Returns the substructure library, building it on first use.
 
-        Built lazily because it costs seconds and gigabytes, and a corpus asked only
-        for similarity or scalar queries never needs it.
+        Built at open under ``warm``, and otherwise on the first substructure query: it
+        costs seconds and gigabytes, and a corpus asked only for similarity or scalar
+        queries never needs it.
 
         Structures are deduplicated per dataset, so a molecule used by several datasets
         occupies a row in each and would otherwise be matched once per copy. The library
@@ -1572,9 +1619,10 @@ class Corpus:
                         "glob one artifact per reaction"
                     )
                     raise PairingError(self._refused)
-                # Under the build lock, so the only other thing that puts a table
-                # in this database does not do it while a materialization is measuring
-                # what one costs -- a difference of two readings taken across everyone.
+                # Under the build lock, which every statement that puts a table in this
+                # database takes, so none of them lands while a materialization is
+                # measuring what one costs -- a difference of two readings taken across
+                # everyone.
                 # OR REPLACE, so a build interrupted after the table exists is a build
                 # the next query repeats rather than one that collides with itself
                 # forever. S608: the fragments are this module's own schema walk and
@@ -1599,10 +1647,9 @@ class Corpus:
                 if reached[0] != self._total:
                     self._refused = (
                         f"the occurrence index reached {reached[0]} of the corpus's "
-                        f"{self._total} structures over {sorted(INDEXED_PATHS)}; "
-                        "either the projections are not the schema this walk was built "
-                        "from, or their rows did not survive the filename join, so the "
-                        "reactions holding the rest cannot be found"
+                        f"{self._total} structures over {sorted(INDEXED_PATHS)}, so "
+                        "the reactions holding the rest cannot be found; the "
+                        "projections are not the schema this walk was built from"
                     )
                     raise PairingError(self._refused)
                 self._occurrences_built = True

@@ -664,6 +664,7 @@ def test_structure_ids_that_are_not_one_unbroken_run_are_refused(
             str(root / "projections" / "*.parquet"),
             str(root / "structures" / "*.parquet"),
             resolver={}.__getitem__,
+            warm=False,
         ) as value,
         pytest.raises(execute.PairingError, match="not one unbroken run"),
     ):
@@ -688,6 +689,7 @@ def test_half_a_derived_structure_is_refused(corpus_dir, tmp_path, missing):
             str(root / "projections" / "*.parquet"),
             str(root / "structures" / "*.parquet"),
             resolver={}.__getitem__,
+            warm=False,
         ) as value,
         pytest.raises(execute.PairingError, match="writes both or neither"),
     ):
@@ -1192,6 +1194,7 @@ def test_concurrent_first_searches_build_one_library(corpus_dir, monkeypatch):
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver=resolver,
+        warm=False,
     ) as value:
         request = query.Query.model_validate(
             {
@@ -1659,6 +1662,74 @@ def test_a_cold_corpus_leaves_the_index_to_the_first_query(corpus_dir):
         warm=False,
     ) as value:
         assert not value._occurrences_built
+
+
+def test_a_corpus_builds_the_substructure_library_at_open(corpus_dir):
+    # Warming covers both builds a substructure query needs, so what an open corpus
+    # holds is what a container has to be sized for rather than a floor a later query
+    # raises it to.
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        assert value._substructure_library is not None
+
+
+def test_a_cold_corpus_leaves_the_library_to_the_first_query(corpus_dir):
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        warm=False,
+    ) as value:
+        assert value._substructure_library is None
+
+
+def test_projections_that_do_not_join_to_their_offsets_are_refused(
+    corpus_dir, tmp_path, monkeypatch
+):
+    # read_parquet globs every path it is handed, so anything making DuckDB resolve one
+    # differently than Python did drops that file's rows from the join rather than
+    # failing, leaving reactions no query can find. Staged by pointing the view at
+    # copies filed elsewhere, which is what such a resolution looks like from here. The
+    # structures side has been counted against its footers all along; the reactions
+    # side was covered only by the occurrence index reaching every structure, and a
+    # path read from a pivot artifact reaches them whatever the view holds.
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    for projected in sorted((corpus_dir / "projections").glob("*.parquet")):
+        shutil.copy(projected, elsewhere / projected.name)
+    original = execute._sql_paths
+
+    def redirected(paths):
+        listed = [str(path) for path in paths]
+        if all("projections" in path for path in listed):
+            return original(str(elsewhere / pathlib.Path(path).name) for path in listed)
+        return original(listed)
+
+    monkeypatch.setattr(execute, "_sql_paths", redirected)
+    with pytest.raises(execute.PairingError, match="the projections hold"):
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+        )
+
+
+def test_deriving_pivots_beside_warming_is_refused(corpus_dir, tmp_path):
+    # Warming reads the levels the index covers, and a set covering some of the
+    # projections is what that read refuses -- so the two together would make an
+    # interrupted derivation permanent, the pass that completes it sitting behind the
+    # refusal.
+    with pytest.raises(ValueError, match="derive_pivots was set beside warm"):
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(tmp_path / "pivots"),
+            derive_pivots=True,
+        )
 
 
 def test_warming_refuses_at_open_what_the_index_would_refuse_on_a_query(tmp_path):
@@ -2796,6 +2867,7 @@ def test_a_library_that_lost_a_molecule_is_refused(corpus_dir, monkeypatch):
             str(corpus_dir / "projections" / "*.parquet"),
             str(corpus_dir / "structures" / "*.parquet"),
             resolver={}.__getitem__,
+            warm=False,
         ) as value,
         pytest.raises(execute.PairingError, match="distinct SMILES"),
     ):
@@ -3506,6 +3578,7 @@ def test_a_level_with_no_artifacts_is_derived_rather_than_built(
             resolver={}.__getitem__,
             pivots_dir=str(pivots),
             derive_pivots=True,
+            warm=False,
         ) as corpus,
     ):
         assert _search(corpus, _white("exists")) == expected
@@ -3529,6 +3602,7 @@ def test_a_derived_pivot_is_read_by_the_next_corpus_over_the_directory(
         resolver={}.__getitem__,
         pivots_dir=str(pivots),
         derive_pivots=True,
+        warm=False,
     ) as deriving:
         expected = _search(deriving, _white("exists"))
     caplog.clear()
@@ -3559,6 +3633,7 @@ def test_a_level_already_derived_is_not_derived_again(wide_root, tmp_path, caplo
             resolver={}.__getitem__,
             pivots_dir=str(pivots),
             derive_pivots=True,
+            warm=False,
         ) as corpus,
     ):
         _search(corpus, _white("exists"))
@@ -3636,6 +3711,7 @@ def test_checking_the_pivots_derives_none_of_them(wide_root, tmp_path):
         resolver={}.__getitem__,
         pivots_dir=str(pivots),
         derive_pivots=True,
+        warm=False,
     ) as corpus:
         assert corpus.check_pivots() == {}
     assert not pivots.exists()
