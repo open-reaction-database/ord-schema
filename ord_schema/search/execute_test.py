@@ -32,7 +32,13 @@ from rdkit import Chem
 from rdkit.Chem import rdSubstructLibrary
 
 from ord_schema import parquet
-from ord_schema.artifacts import base, pivot, projection, structures
+from ord_schema.artifacts import (
+    base,
+    occurrences,
+    pivot,
+    projection,
+    structures,
+)
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.search import execute, query
 
@@ -1653,6 +1659,12 @@ def test_the_index_is_built_once_and_only_when_wanted(corpus_dir, caplog):
         record for record in caplog.records if record.message.startswith("indexed ")
     ]
     assert len(builds) == 1
+
+
+def test_the_indexed_paths_are_the_ones_the_artifact_carries():
+    # Two walks are two answers waiting to disagree: a path this compiler routes to the
+    # index that the artifact does not carry is a quantifier answered from nothing.
+    assert set(execute.INDEXED_PATHS) == set(occurrences.PATHS)
 
 
 def test_a_corpus_builds_the_occurrence_index_at_open(corpus_dir):
