@@ -203,9 +203,11 @@ authentic standards — is a level with no elements: nothing satisfies an `exist
 and nothing contradicts a `forall`, so "reactions **without** pyridine in the workup"
 includes every reaction that has no workup at all.
 
-The index is built by the first query that spends it, one pass over the projections per
-indexed path, so a server wanting its first real query to be fast should issue a
-throwaway structure query at startup.
+The index is built at open, which `Corpus(warm=False)` defers to the first query that
+spends it. Where a pivot artifact covers an indexed path the build reads that level
+instead of unnesting the projection — over ORD **3.3s against 59.4s** for the same
+18,847,978 occurrences — and every path no artifact covers still costs its own pass over
+the projections.
 
 ## Pivoted levels
 
@@ -287,6 +289,10 @@ corpus's own projections: a pivot names its reactions by ID, so one derived else
 answers against rows this corpus does not hold, confidently and wrongly. A level with no
 artifacts is still built in process, so a partial set is a partial speedup rather than a
 missing answer.
+
+The occurrence index reads them too, one indexed path at a time: an artifact holds one
+row per element of the nearest repeated level, which is what the build would otherwise
+unnest the projection to produce.
 
 `Corpus(..., pivots_dir=..., derive_pivots=True)` writes the missing ones instead of
 building them: the same pass, spent where it outlives the process and costs no budget,
@@ -370,13 +376,14 @@ on DuckDB's own 6.3 GiB default was killed 85s in; a 12 GiB container holding Du
 `6500MiB` finished, peaking at 9.3 GB resident. `Corpus` warns at open when a cap it can
 read leaves less than 4 GB above the limit ([logbook][cache-entry], finding 19).
 
-Which is survivable but should not be discovered by a user. The index is built by the
-first query that can spend it, so a container short of the floor starts cleanly, passes
-`check_pivots()`, answers scalar queries, and then raises at whoever runs the first
-substructure search. `Corpus.check_index()` moves that to startup, where it is a failed
-deployment rather than a failed request. It is opt-in for the same reason the build is
-lazy — a minute and 1.19 GB that a corpus asked only for scalar or similarity queries
-never needs to spend.
+Which is survivable but should not be discovered by a user. A corpus opened with
+`warm=False` builds the index on the first query that can spend it, so a container short
+of the floor starts cleanly, passes `check_pivots()`, answers scalar queries, and then
+raises at whoever runs the first substructure search. Warming, or `Corpus.check_index()`
+over a cold corpus, puts that at startup, where it is a failed deployment rather than a
+failed request. What a cold corpus buys is the memory floor above and the 1.19 GB the
+index holds, which one asked only for scalar or similarity queries never needs to
+spend.
 
 Across a mixed workload pairing an indexed structure clause with one the index cannot
 carry, the index is **2–24× ahead** of the same corpus answering every quantifier from

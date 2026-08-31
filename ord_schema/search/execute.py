@@ -889,11 +889,13 @@ class Corpus:
             warm: Build the occurrence index at open rather than on the query that
                 first wants it. What it costs is a read of the pivot artifacts covering
                 the indexed paths, and a pass over the projections for any they do not
-                cover -- which over ORD is the difference between a second and a minute,
-                so a deployment without those artifacts may prefer to charge it to a
-                query rather than to startup. The substructure library is left to first
-                use either way: it costs gigabytes, and a corpus asked only for
-                similarity or scalar queries never needs it.
+                cover -- which over ORD is the difference between a second and a minute.
+                The build also wants 5-6.5 GB of DuckDB memory and leaves 1.19 GB
+                resident, so a deployment without those artifacts, or one whose queries
+                are all scalar or similarity and never reach the index, may prefer to
+                charge that to a query rather than to startup; see ``check_index``. The
+                substructure library is left to first use either way: it costs gigabytes
+                on top, and only a structure query needs it.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
@@ -1193,14 +1195,14 @@ class Corpus:
     def check_index(self) -> dict[str, int]:
         """Builds the occurrence index and returns what it reached, per path.
 
-        The sibling of ``check_pivots``, and for the same reason: the index is
-        otherwise built by the first query that can spend it, so a corpus it refuses --
-        a reaction stated twice, a structure no indexed path reaches -- fails that query
-        rather than the deployment. It also has a memory floor, and meeting that one the
-        other way is worse still. Over ORD the build wants 5-6.5 GB of DuckDB memory and
-        writes 16-25 GB of temporary files getting there; below that it raises
-        ``duckdb.OutOfMemoryException`` rather than running slowly, since a block it
-        cannot pin is not one it can spill.
+        The sibling of ``check_pivots``, and for the same reason: a corpus opened
+        without ``warm`` builds the index on the first query that can spend it, so a
+        corpus it refuses -- a reaction stated twice, a structure no indexed path
+        reaches -- fails that query rather than the deployment. It also has a memory
+        floor, and meeting that one the other way is worse still. Over ORD the build
+        wants 5-6.5 GB of DuckDB memory and writes 16-25 GB of temporary files getting
+        there; below that it raises ``duckdb.OutOfMemoryException`` rather than running
+        slowly, since a block it cannot pin is not one it can spill.
 
         That exception is the good outcome, and under a cgroup cap it is only reached
         with room to spare above ``memory_limit``: the build holds up to 2.8 GB outside
@@ -1210,9 +1212,10 @@ class Corpus:
         holding DuckDB to 6500MiB finishes at 9.3 GB resident. ``Corpus`` warns at open
         when a cap it can read leaves too little.
 
-        Opt-in rather than done at open, because the cost is real and a corpus asked
-        only for scalar or similarity queries never pays it: about a minute, and 1.19 GB
-        resident afterwards at ORD's scale.
+        A corpus opened with ``warm`` has paid the build already, and the call is then
+        its counts. Leaving it cold suits one asked only for scalar or similarity
+        queries, which never spends what the index costs: about a minute over ORD where
+        no pivot artifact covers a path, and 1.19 GB resident however it was built.
 
         Returns:
             The number of occurrences found per indexed path, including the paths that
@@ -1503,8 +1506,9 @@ class Corpus:
         condition on one row rather than an intersection of two reaction sets, which
         over-returns.
 
-        Costs one pass over the projections per indexed path, so it is built when a
-        query first wants it rather than at open. Concurrent first queries serialize
+        Costs a read of the pivot artifacts covering the indexed paths and one pass over
+        the projections per path they do not cover, charged at open under ``warm`` and
+        otherwise to the query that first wants it. Concurrent first queries serialize
         here and share the result.
 
         Raises:
