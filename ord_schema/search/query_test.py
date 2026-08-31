@@ -438,6 +438,22 @@ def test_max_rows_leaves_a_smaller_limit_alone():
     assert compiled.limit == 10
 
 
+def test_a_limit_of_zero_is_not_read_as_no_limit():
+    # The trap in `query.limit or max_rows`: a falsy limit reads as absent, so a query
+    # asking for no rows would be served max_rows of them. Held off by the model's
+    # gt=0 today, which is not where the compiler should rest.
+    compiled = query.compile_query(query.Query.model_construct(limit=0), max_rows=100)
+    assert compiled.limit == 0
+
+
+def test_a_max_rows_no_query_can_satisfy_is_refused():
+    # Zero compiles to a LIMIT nothing satisfies and a negative one to SQL DuckDB
+    # refuses at execution, both far from whoever passed it.
+    for value in (0, -5):
+        with pytest.raises(ValueError, match="which no query can return"):
+            _compile({}, max_rows=value)
+
+
 def test_without_max_rows_a_query_is_as_stated():
     assert _compile({}).limit is None
     assert " LIMIT " not in _compile({}).sql

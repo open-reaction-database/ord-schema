@@ -1692,7 +1692,7 @@ def test_max_rows_bounds_what_a_search_returns(corpus_dir, caplog):
     assert any("bounds this query at 2 rows" in m for m in _messages(caplog))
 
 
-def test_max_rows_clamps_a_query_asking_for_more_and_says_so(corpus_dir, caplog):
+def test_an_answer_that_reaches_the_bound_says_it_may_be_cut(corpus_dir, caplog):
     # Cut rather than refused: the answer is nearer what the caller wanted than an
     # error, and nothing in the result says it was cut, so the log has to.
     with (
@@ -1706,7 +1706,46 @@ def test_max_rows_clamps_a_query_asking_for_more_and_says_so(corpus_dir, caplog)
     ):
         found = value.search(query.Query.model_validate({"limit": 3}))
     assert found.num_rows == 1
-    assert any("asked for 3 rows" in m for m in _messages(caplog))
+    assert any("there may be matches it did not return" in m for m in _messages(caplog))
+
+
+def test_an_answer_the_bound_never_reached_says_nothing(corpus_dir, caplog):
+    # The ordinary case, and the reason the warning waits for the result: warning
+    # wherever the bound was merely applied is how a reader learns to skip the line.
+    with (
+        caplog.at_level(logging.WARNING, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            max_rows=100,
+        ) as value,
+    ):
+        assert value.search(query.Query.model_validate({"limit": 5000})).num_rows == 3
+    assert not _messages(caplog)
+
+
+def test_a_truncated_aggregate_says_the_distribution_is_partial(corpus_dir, caplog):
+    # A truncated list of reactions is a sample of the matching ones; a truncated list
+    # of groups is part of a distribution read as the whole of it, and ordered by
+    # nothing it is an arbitrary part.
+    request = {
+        "aggregate": {
+            "group_by": ["reaction_id"],
+            "measures": [{"fn": "count", "name": "n"}],
+        }
+    }
+    with (
+        caplog.at_level(logging.WARNING, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            max_rows=2,
+        ) as value,
+    ):
+        assert value.search(query.Query.model_validate(request)).num_rows == 2
+    assert any("an arbitrary part of the distribution" in m for m in _messages(caplog))
 
 
 def test_a_search_under_a_smaller_limit_than_max_rows_is_untouched(corpus_dir):

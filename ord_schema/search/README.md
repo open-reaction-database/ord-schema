@@ -747,10 +747,15 @@ statement timeout, row cap, or memory limit.
 The grammar leaves `limit` optional, so the unbounded query is the ordinary one — a
 predicate matching much of the corpus returns millions of rows, built into an Arrow table
 in the executing process. `Corpus(..., max_rows=...)` bounds every search, filling in a
-limit where the query states none and clamping one that asks for more; the clamp is
-logged, since nothing in the result says the answer was cut. `search(timeout_seconds=)`
-bounds the SQL and only the SQL: name resolution, the library and index builds, screening,
-and verification all run before that timer starts.
+limit where the query states none and clamping one that asks for more. An answer that
+comes back *at* the bound is logged as possibly cut, since nothing in the table says so;
+one the bound never reached is not, because a warning on every generous limit is how a
+reader learns to skip the line that matters. On an **aggregated** query the bound cuts
+groups rather than reactions — part of a distribution read as the whole of it, and an
+arbitrary part where the query ordered by nothing — so that one says more.
+
+`search(timeout_seconds=)` bounds the SQL and only the SQL: name resolution, the library
+and index builds, screening, and verification all run before that timer starts.
 
 ## Not yet solved
 
