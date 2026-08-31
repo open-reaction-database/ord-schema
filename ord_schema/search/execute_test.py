@@ -3405,7 +3405,7 @@ def _indexed_corpus(root, pivots, **kwargs) -> execute.Corpus:
 
 @pytest.mark.parametrize(
     "smarts",
-    ["c1ccncc1", "[OX2H]", "c1ccccc1", "[Pt]"],
+    ["c1ccncc1", "[OX2H]", "c1ccccc1", "[#6]"],
 )
 def test_an_index_read_from_pivots_answers_what_unnesting_answers(
     tmp_path, corpus_dir, smarts
@@ -3418,6 +3418,9 @@ def test_an_index_read_from_pivots_answers_what_unnesting_answers(
     where = _exists({"op": "substructure", "path": "smiles", "smarts": smarts})
     with _indexed_corpus(corpus_dir, None) as unnested:
         expected = _search(unnested, where)
+    # Every pattern here matches something, so neither route is compared against the
+    # empty set it would also return had the build produced no rows at all.
+    assert expected
     with _indexed_corpus(corpus_dir, pivots) as read:
         assert _search(read, where) == expected
 
@@ -3815,6 +3818,47 @@ def test_a_stranger_s_pivot_over_an_indexed_level_is_refused_at_open(
         )
 
 
+def test_two_pivots_of_one_dataset_under_a_level_are_refused(corpus_dir, tmp_path):
+    # A set comparison accepts a stray copy, and both are then read, so every element of
+    # the level is stated twice. A quantifier cannot see it -- a semi-join returns a
+    # reaction once however many rows name it -- but the occurrence index counts those
+    # rows, and check_index reports the count a deployment baselines against.
+    pivots = _write_pivots(corpus_dir, ("inputs.components",), into=tmp_path / "pivots")
+    stray = pivots / "inputs.components" / "again"
+    stray.mkdir(parents=True)
+    for artifact in sorted((pivots / "inputs.components").rglob("*.parquet")):
+        shutil.copy(artifact, stray / artifact.name)
+    with pytest.raises(execute.PairingError, match="the same source dataset"):
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+        )
+
+
+def test_a_stale_pivot_is_refused(corpus_dir, tmp_path):
+    # Warming reads the levels the index covers, so what a stale artifact fails is the
+    # deployment. The stamps are the only thing saying an artifact was written by the
+    # library reading it; a pivot derived by an older one can hold columns this schema
+    # walk does not find.
+    pivots = _write_pivots(corpus_dir, ("inputs.components",), into=tmp_path / "pivots")
+    target = next((pivots / "inputs.components").rglob("*.parquet"))
+    with pq.ParquetFile(target) as artifact:
+        table = artifact.read()
+        schema = artifact.schema_arrow
+    metadata = dict(schema.metadata)
+    metadata[b"ord.rdkit_version"] = b"0000.00.0"
+    pq.write_table(table.cast(schema.with_metadata(metadata)), target)
+    with pytest.raises(execute.PairingError, match="is a stale"):
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+        )
+
+
 def test_a_pivot_filed_under_the_wrong_level_is_refused(wide_root, tmp_path):
     pivots = tmp_path / "pivots"
     (pivots / "outcomes.products").mkdir(parents=True)
@@ -3918,23 +3962,19 @@ def test_a_pivot_under_a_directory_that_looks_like_a_pattern_is_read(
     assert found.num_rows > 0
 
 
-def test_check_pivots_reports_the_levels_held_as_artifacts(wide_root, tmp_path):
-    # An operator reads these counts to see that a sharded corpus has all its shards,
-    # so the two levels are held by different numbers of artifacts, and neither by one:
-    # a constant, an off-by-one, and a level answered with another's count all agree
-    # wherever every level holds the same number.
-    pivots = _write_pivots(wide_root, ("outcomes.products", "workups"), into=tmp_path)
-    duplicate = pivots / "outcomes.products" / "second"
-    duplicate.mkdir(parents=True)
-    for artifact in sorted((pivots / "outcomes.products").rglob("*.parquet")):
-        shutil.copy(artifact, duplicate / artifact.name)
+def test_check_pivots_reports_the_levels_held_as_artifacts(corpus_dir, tmp_path):
+    # An operator reads these counts to see that a sharded corpus has all its shards, so
+    # this runs over the two-dataset corpus: a count of one, or one taken from the
+    # levels rather than the files, would agree with the answer over a single shard. A
+    # level with no artifacts is absent rather than zero, since most levels have none.
+    pivots = _write_pivots(corpus_dir, ("outcomes.products",), into=tmp_path)
     with execute.Corpus(
-        str(wide_root / "projections" / "*.parquet"),
-        str(wide_root / "structures" / "*.parquet"),
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
         pivots_dir=str(pivots),
     ) as corpus:
-        assert corpus.check_pivots() == {"outcomes.products": 2, "workups": 1}
+        assert corpus.check_pivots() == {"outcomes.products": 2}
 
 
 def test_check_pivots_is_empty_without_a_directory(wide_corpus):
