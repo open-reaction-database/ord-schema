@@ -360,8 +360,8 @@ def _fingerprint(stamps: Iterable[base.Stamps]) -> str:
 
 def _pair(
     projection_pattern: str, structures_pattern: str, require_current: bool
-) -> tuple[list[tuple[str, str]], str]:
-    """Returns (projection, structures) path pairs, verified by their stamps.
+) -> tuple[list[tuple[str, str, str]], str]:
+    """Returns (projection, structures, source) triples, verified by their stamps.
 
     Args:
         projection_pattern: Glob matching the projection base.
@@ -369,7 +369,9 @@ def _pair(
         require_current: Refuse artifacts not written by the current versions.
 
     Returns:
-        One pair per source dataset, ordered by the projection's source hash, and the
+        One triple per source dataset, ordered by the source hash, carrying that hash
+        beside the paths -- every artifact derived from the dataset names it, so it is
+        what pairs a pivot with the offset this corpus gave its projection. Also the
         fingerprint over the stamps this already read to verify them.
 
     Raises:
@@ -393,7 +395,8 @@ def _pair(
             f"counterpart derived from the same source dataset: {orphans}"
         )
     pairs = [
-        (projections[key][0], structure_files[key][0]) for key in sorted(projections)
+        (projections[key][0], structure_files[key][0], key)
+        for key in sorted(projections)
     ]
     fingerprint = _fingerprint(
         stamps
@@ -462,6 +465,30 @@ def _indexed_paths(schema: pa.Schema = projection.SCHEMA) -> dict[str, str]:
 
 
 INDEXED_PATHS = _indexed_paths()
+
+
+def _occurrences_from_projection(path: str, expression: str) -> str:
+    """Returns the SELECT unnesting ``path``'s occurrences out of the projection.
+
+    What the index is built from where no pivot covers the level. A path's elements are
+    already a list, so unnest yields one row each, and the offset comes from the row's
+    own file, which the reactions view carries.
+
+    Args:
+        path: The indexed path.
+        expression: The traversal yielding its elements, from ``INDEXED_PATHS``.
+
+    Returns:
+        The SELECT.
+    """
+    # S608: the traversal is the compiler's own, resolved against the projection schema.
+    return f"""
+        SELECT reaction_id, {sql_string(path)} AS path,
+               (element.structure_id + {query.STRUCTURE_OFFSET})::UINTEGER AS global_id,
+               element.{_INDEXED_FIELD} AS {_INDEXED_FIELD}
+        FROM {query.TABLE}, unnest({expression}) AS unnested(element)
+        WHERE element.structure_id IS NOT NULL
+        """  # noqa: S608
 
 
 def _index_condition(
@@ -795,6 +822,7 @@ class Corpus:
         derive_pivots: bool = False,
         require_pivots: bool = False,
         memory_limit: str | None = None,
+        warm: bool = True,
     ) -> None:
         """Pairs the artifacts, checks their stamps, and prepares the relations.
 
@@ -858,10 +886,23 @@ class Corpus:
                 occurrence index, where DuckDB's own default under an 8 GiB cap is
                 killed partway.
 
+            warm: Build the occurrence index at open rather than on the query that
+                first wants it. What it costs is a read of the pivot artifacts covering
+                the indexed paths, and a pass over the projections for any they do not
+                cover -- which over ORD is the difference between a second and a minute,
+                so a deployment without those artifacts may prefer to charge it to a
+                query rather than to startup. The substructure library is left to first
+                use either way: it costs gigabytes, and a corpus asked only for
+                similarity or scalar queries never needs it.
+
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
                 partner on the other, a pair's stamps disagree about the source
-                dataset, or -- with ``require_current`` -- any artifact is stale.
+                dataset, or -- with ``require_current`` -- any artifact is stale. With
+                ``warm``, also whatever building the occurrence index refuses: a corpus
+                stating a reaction twice, or one whose index does not reach every
+                structure it holds, both of which otherwise surface on the first query
+                that needs the index rather than at open.
             ValueError: If ``require_pivots`` is set beside a ``pivot_budget_bytes``,
                 which budgets for a build it rules out. If ``pivot_budget_bytes`` is
                 negative, which no amount of
@@ -960,8 +1001,16 @@ class Corpus:
         # The projections a pivot artifact has to have been derived from, and the views
         # already published over the artifacts that were; see _pivot_view.
         self._projections = [pair[0] for pair in pairs]
-        self._pivot_views: dict[str, str | None] = {}
+        self._pivot_views: dict[str, str] = {}
         self._views_lock = threading.Lock()
+        # The artifacts found for each level, under their own lock: the occurrence
+        # build reads them as files while a query reads the same level as a view, and
+        # neither should wait on the other's DDL to learn whether any exist.
+        self._pivot_artifacts_found: dict[str, list[str] | None] = {}
+        self._artifacts_lock = threading.Lock()
+        # What a dataset's structure IDs add to reach a corpus-wide one, keyed by the
+        # source every artifact derived from it names; filled by _prepare.
+        self._offset_of_source: dict[str, int] = {}
         self._connection = duckdb.connect(
             config={"memory_limit": memory_limit} if memory_limit is not None else {}
         )
@@ -971,17 +1020,19 @@ class Corpus:
             self._total, self._searchable = self._prepare(pairs)
             if require_pivots:
                 self._require_every_pivot()
+            if warm:
+                self._occurrences()
         except Exception:
             # Nothing else holds the connection yet, and the caller has no object to
             # close one from if __init__ does not return.
             self._connection.close()
             raise
 
-    def _prepare(self, pairs: list[tuple[str, str]]) -> tuple[int, int]:
+    def _prepare(self, pairs: list[tuple[str, str, str]]) -> tuple[int, int]:
         """Publishes the relations, and returns the total and searchable row counts."""
         offsets = []
         total = 0
-        for projected, structured in pairs:
+        for projected, structured, source in pairs:
             with pq.ParquetFile(structured) as artifact:
                 count = artifact.metadata.num_rows
             # The IDs the projection carries have to land inside the partner's rows.
@@ -999,6 +1050,10 @@ class Corpus:
                     "projection again"
                 )
             offsets.append((projected, structured, total))
+            # Keyed by the source rather than by the file, so an artifact derived from
+            # this projection finds the offset wherever it is filed; see
+            # ``_pivot_offsets``.
+            self._offset_of_source[source] = total
             total += count
         registered = pa.table(
             {
@@ -1350,6 +1405,95 @@ class Corpus:
             self._substructure_library = library
             return self._substructure_library
 
+    def _occurrences_from_pivot(self, path: str) -> str | None:
+        """Returns the SELECT reading ``path``'s occurrences from a pivot, or None.
+
+        A pivot holds one row per element of the nearest repeated level, so an indexed
+        path that descends from one through singular struct fields is read from that
+        level's artifact rather than unnested out of the projection.
+
+        The corpus-wide structure ID is the element's own plus its dataset's offset,
+        which is a running total over the corpus's pairs and so belongs to no artifact:
+        the same pivot read beside a different set of datasets needs a different
+        offset. It is joined here from the file each row came from, keyed by the source
+        the file and its projection both name.
+
+        Args:
+            path: The indexed path.
+
+        Returns:
+            The SELECT, or None where no artifact covers the path's level.
+
+        Raises:
+            PairingError: If the artifacts do not pair with this corpus; see
+                ``_pivot_artifacts``.
+        """
+        reached = pivot.reach(path)
+        if reached is None:
+            return None
+        level, remainder, _ = reached
+        files = self._pivot_artifacts(level.path)
+        if files is None:
+            return None
+        offsets = self._pivot_offsets(level.path, files)
+        if offsets is None:
+            return None
+        element = ".".join(["x", pivot.ELEMENT, *remainder])
+        # S608: the level and its remainder come from this module's walk of the schema,
+        # and the paths from this process's own glob, quoted with their quotes escaped.
+        return f"""
+            SELECT x.{pivot.REACTION_ID}, {sql_string(path)} AS path,
+                   ({element}.structure_id + o.{query.STRUCTURE_OFFSET})::UINTEGER
+                       AS global_id,
+                   {element}.{_INDEXED_FIELD} AS {_INDEXED_FIELD}
+            FROM read_parquet({_sql_paths(files)}, filename=true) x
+            JOIN {offsets} o ON x.filename = o.pivot_filename
+            WHERE {element}.structure_id IS NOT NULL
+            """  # noqa: S608
+
+    def _pivot_offsets(self, level: str, files: list[str]) -> str | None:
+        """Publishes what each pivot artifact's rows add to reach a corpus-wide ID.
+
+        A pivot and the projection it was derived from restate one source dataset, so
+        they carry the same ``source_md5`` however many derivations apart they sit, and
+        that hash is what pairs an artifact with the offset its projection was given.
+        Pairing on the filename instead would rest on the two trees being laid out
+        alike, which nothing enforces.
+
+        Args:
+            level: The repeated level the artifacts hold, which names the relation.
+            files: The artifacts to map, from ``_pivot_artifacts``.
+
+        Returns:
+            The relation's name, or None if any artifact names a source the corpus does
+            not hold -- which ``_check_pivots`` refuses first, leaving this a guard
+            rather than a path taken.
+        """
+        rows = []
+        for name in files:
+            offset = self._offset_of_source.get(base.load_stamps(name).source_md5)
+            if offset is None:
+                return None
+            rows.append((name, offset))
+        # Named for the level, so a build the last one refused partway replaces these
+        # rows rather than leaving a relation per attempt behind.
+        published = f"{pivot.table_name(level)}_offsets"
+        registered = pa.table(
+            {
+                "pivot_filename": [row[0] for row in rows],
+                query.STRUCTURE_OFFSET: pa.array(
+                    [row[1] for row in rows], type=pa.int64()
+                ),
+            }
+        )
+        self._connection.register("registered_pivot_offsets", registered)
+        self._connection.execute(
+            f"CREATE OR REPLACE TABLE {published} AS "  # noqa: S608
+            "SELECT * FROM registered_pivot_offsets"
+        )
+        self._connection.unregister("registered_pivot_offsets")
+        return published
+
     def _occurrences(self) -> None:
         """Builds the occurrence index, once.
 
@@ -1378,19 +1522,20 @@ class Corpus:
             if self._occurrences_built:
                 return
             start = time.perf_counter()
-            # A path's elements are already a list, so unnest yields one row each. The
-            # offset comes from the row's own file, which the reactions view carries.
-            selects = "\nUNION ALL\n".join(
-                f"""
-                SELECT reaction_id, {sql_string(path)} AS path,
-                       (element.structure_id + {query.STRUCTURE_OFFSET})::UINTEGER
-                           AS global_id,
-                       element.{_INDEXED_FIELD} AS {_INDEXED_FIELD}
-                FROM {query.TABLE}, unnest({expression}) AS unnested(element)
-                WHERE element.structure_id IS NOT NULL
-                """  # noqa: S608
-                for path, expression in INDEXED_PATHS.items()
-            )
+            # A level's pivot already holds one row per element, which is what this
+            # build would otherwise unnest the projection to produce. Reading it is a
+            # scan of a few hundred megabytes against a traversal of every reaction.
+            # Decided per path, so a directory holding some levels and not others is a
+            # partial speedup rather than a missing index.
+            selects, from_pivots = [], []
+            for path, expression in INDEXED_PATHS.items():
+                reading = self._occurrences_from_pivot(path)
+                if reading is None:
+                    selects.append(_occurrences_from_projection(path, expression))
+                else:
+                    selects.append(reading)
+                    from_pivots.append(path)
+            selects = "\nUNION ALL\n".join(selects)
             # Its own cursor: this runs while searches are in flight, and the shared
             # connection holds their results.
             cursor = self._connection.cursor()
@@ -1455,9 +1600,12 @@ class Corpus:
             # authentic standards -- which is why the refusal above counts structures
             # rather than paths.
             logger.info(
-                "indexed %d structure occurrences in %.1fs: %s",
+                "indexed %d structure occurrences in %.1fs, %d of %d paths read from "
+                "pivot artifacts: %s",
                 sum(counts.values()),
                 time.perf_counter() - start,
+                len(from_pivots),
+                len(INDEXED_PATHS),
                 ", ".join(f"{path} {counts.get(path, 0)}" for path in INDEXED_PATHS),
             )
 
@@ -1786,18 +1934,13 @@ class Corpus:
                 confidently and wrongly, since its reaction IDs resolve against the
                 wrong rows -- or, with ``require_current``, if any of them is stale.
         """
-        if self._pivots_dir is None:
+        files = self._pivot_artifacts(path)
+        if files is None:
             return None
         with self._views_lock:
-            if path in self._pivot_views:
-                return self._pivot_views[path]
-            files = [
-                str(found) for found in pivot.artifact_paths(self._pivots_dir, path)
-            ]
-            if not files:
-                self._pivot_views[path] = None
-                return None
-            self._check_pivots(path, files)
+            published = self._pivot_views.get(path)
+            if published is not None:
+                return published
             name = pivot.table_name(path)
             # S608: the name comes from this module's walk of the schema, and the paths
             # from this process's own glob, quoted with their single quotes escaped.
@@ -1808,6 +1951,38 @@ class Corpus:
             logger.info("read %d pivot artifacts for %s", len(files), path)
             self._pivot_views[path] = name
             return name
+
+    def _pivot_artifacts(self, path: str) -> list[str] | None:
+        """Returns the artifacts holding the pivot over ``path``, checked, or None.
+
+        Globbed and checked once per level and remembered, including the answer that
+        there are none, so a corpus without artifacts reads the directory once rather
+        than on every query.
+
+        Args:
+            path: The repeated level, as the query grammar names it.
+
+        Returns:
+            The artifact paths, or None where the directory holds none for this level.
+
+        Raises:
+            PairingError: If the artifacts were not derived from the projections this
+                corpus reads, or -- with ``require_current`` -- if any is stale.
+        """
+        if self._pivots_dir is None:
+            return None
+        with self._artifacts_lock:
+            if path in self._pivot_artifacts_found:
+                return self._pivot_artifacts_found[path]
+            files = [
+                str(found) for found in pivot.artifact_paths(self._pivots_dir, path)
+            ]
+            if not files:
+                self._pivot_artifacts_found[path] = None
+                return None
+            self._check_pivots(path, files)
+            self._pivot_artifacts_found[path] = files
+            return files
 
     def _check_pivots(self, path: str, files: list[str]) -> None:
         """Refuses pivot artifacts that do not belong to this corpus.
@@ -1922,8 +2097,8 @@ class Corpus:
                 return None
             # A glob that found nothing is remembered, so it has to be forgotten before
             # the same call can find what this just wrote.
-            with self._views_lock:
-                self._pivot_views.pop(path, None)
+            with self._artifacts_lock:
+                self._pivot_artifacts_found.pop(path, None)
             return self._pivot_view(path)
 
     @contextlib.contextmanager
