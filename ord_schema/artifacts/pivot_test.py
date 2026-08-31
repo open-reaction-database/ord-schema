@@ -411,12 +411,11 @@ def _unnested(source: pathlib.Path, level_path: str) -> int:
 def test_staging_a_level_produces_what_unnesting_it_in_one_query_does(
     populated, level_path
 ):
-    # stage is an optimization, so what makes it safe is that it answers identically --
-    # and the part most easily got wrong is invisible in a row count. Each temp table
-    # has to carry the ordinals accumulated above it, and a level whose prefix is
-    # dropped or misordered still produces exactly as many rows, with the wrong ones. A
-    # correlation joining on that prefix is what would notice, in production rather than
-    # here, so this compares the rows themselves.
+    # What makes staging safe is that it answers identically, and the part most easily
+    # got wrong is invisible in a row count: each temp table carries the ordinals
+    # accumulated above it, and a level whose prefix is dropped or misordered produces
+    # exactly as many rows, with the wrong ones. Only a correlation joining on that
+    # prefix would notice, in production rather than here, so compare the rows.
     #
     # Sorted reprs, because neither form promises an order and the artifact does not
     # need one -- and a row is a dict, which sorted() cannot order directly.
@@ -446,9 +445,9 @@ def _staged_tables(connection) -> list[str]:
 
 
 def test_staging_leaves_a_table_behind_for_every_step_but_the_last(populated):
-    # A table, specifically. A view here would read as staged and plan as though it
-    # were not, since the engine inlines it and the pipeline collapses back to the one
-    # select builds -- the whole saving given back, with nothing in the SQL to show it.
+    # A table, specifically: a view would read as staged and plan as though it were
+    # not, since the engine inlines it and the pipeline collapses back into one. The
+    # saving would be gone with nothing in the SQL to show it.
     connection = duckdb.connect()
     try:
         connection.read_parquet(str(populated)).create_view("reactions")
@@ -460,10 +459,9 @@ def test_staging_leaves_a_table_behind_for_every_step_but_the_last(populated):
 
 
 def test_a_level_with_one_step_is_staged_rather_than_fused(populated):
-    # Staging is what lets each unnest run on its own, and a step left fused runs with
-    # whatever follows it. A level with a single step therefore has to be staged, or
-    # its one unnest is fused and the saving is given back entirely -- which would look
-    # like an optimization for the case with nothing to stage.
+    # Staging is what lets an unnest run on its own, and a fused step runs with
+    # whatever follows it. A single-step level fused is therefore the whole saving
+    # given back, in the case that looks like it has nothing to stage.
     connection = duckdb.connect()
     try:
         connection.read_parquet(str(populated)).create_view("reactions")
@@ -476,9 +474,9 @@ def test_a_level_with_one_step_is_staged_rather_than_fused(populated):
 
 
 def test_staging_a_second_level_on_one_connection_is_refused(populated):
-    # The tables are named for the level's ancestors, so two levels of one chain want
-    # the same name. Replacing one a reader is still streaming from ends its rows early
-    # and raises nothing, so the second call has to fail rather than answer short.
+    # The tables are named for the level's ancestors, so two levels of one chain ask
+    # for one name. Replacing a table a reader is still streaming from ends its rows
+    # early and raises nothing, so the second call has to fail instead.
     connection = duckdb.connect()
     try:
         connection.read_parquet(str(populated)).create_view("reactions")
@@ -493,10 +491,10 @@ def test_write_pivot_stages_rather_than_unnesting_in_one_query(
     populated, tmp_path, monkeypatch
 ):
     # The inverse of the zero-element test: there select must not be called at all,
-    # here it must not be what write_pivot builds with. Without this the change is
-    # invisible to the suite -- both forms answer identically, which is what the
-    # equivalence test proves, so every other assertion passes either way and a merge
-    # whose base predates the call restores select with no conflict and no failure.
+    # here it must not be what write_pivot builds with. Nothing else can tell the two
+    # apart -- they answer identically, which is what the equivalence test proves -- so
+    # every other assertion holds whichever one runs, and only this fails when a merge
+    # or an edit quietly puts the level back in a single query.
     def refuse(*args: object, **kwargs: object) -> str:
         raise AssertionError("write_pivot built its query with select")
 
@@ -510,13 +508,11 @@ def test_write_pivot_stages_rather_than_unnesting_in_one_query(
 def test_write_pivot_does_not_hold_the_order_of_the_unnest(
     populated, tmp_path, monkeypatch
 ):
-    # A pivot has no row order worth holding, and holding one costs the parallelism of
-    # the unnest that produces it. Asserted on the connection rather than on a
-    # duration, which here would be a flake; the setting is the mechanism.
+    # Asserted on the connection rather than on a duration, which here would be a
+    # flake; the setting is the mechanism, and what it buys is in pivot.write_pivot.
     #
     # Read as the connection closes, since write_pivot closes it before returning and
-    # the setting is per-instance: asking any other connection answers for a different
-    # database.
+    # the setting is per-instance: any other connection answers for another database.
     seen = []
 
     class Watched:
