@@ -825,6 +825,7 @@ class Corpus:
         require_pivots: bool = False,
         memory_limit: str | None = None,
         warm: bool = True,
+        max_rows: int | None = None,
     ) -> None:
         """Pairs the artifacts, checks their stamps, and prepares the relations.
 
@@ -895,12 +896,19 @@ class Corpus:
                 indexed paths and a pass over the projections for every path they do not
                 cover -- over ORD the difference between a second and a minute -- and it
                 wants 5-6.5 GB of DuckDB memory to build and holds 1.19 GB afterwards.
-                The library is about 8s and 2.2 GB on top. Together they are most of
+                The library is about 8s and 2.4 GB on top. Together they are most of
                 what a container is sized against, which is the reason to spend them
                 where falling short is a failed deployment rather than a failed request;
                 see ``check_index``. A corpus asked only scalar queries needs neither,
                 and one asked scalar and similarity queries needs the index without the
                 library -- ``warm=False`` beside ``check_index`` builds that pair.
+            max_rows: Most rows a search may return, applied whether or not the query
+                asked for a limit and clamping one that asks for more. The grammar
+                leaves ``limit`` optional, so a query without one returns every matching
+                reaction -- at ORD's scale millions of rows, built into an Arrow table
+                in this process, from a query that reads as ordinary. A caller serving
+                queries it did not write wants this set. None leaves every query's own
+                limit, or none, exactly as stated.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
@@ -924,6 +932,12 @@ class Corpus:
                 ``pivots_dir``.
         """
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
+        if max_rows is not None and max_rows <= 0:
+            raise ValueError(
+                f"max_rows is {max_rows}, which no query can return; leave it unset to "
+                "bound nothing"
+            )
+        self._max_rows = max_rows
         if pivot_budget_bytes is not None and pivot_budget_bytes < 0:
             raise ValueError(
                 f"pivot_budget_bytes is {pivot_budget_bytes}, which is not an amount "
@@ -2405,7 +2419,21 @@ class Corpus:
                     pivoted[path] = reading.enter_context(self._pivoted_table(path))
                 return pivoted[path]
 
-            compiled = query.compile_query(request, index=index, pivot=pivot_table)
+            compiled = query.compile_query(
+                request, index=index, pivot=pivot_table, max_rows=self._max_rows
+            )
+            if request.limit is None and compiled.limit is not None:
+                logger.info("the corpus bounds this query at %d rows", compiled.limit)
+            elif compiled.limit != request.limit:
+                # Said rather than raised: the caller asked for rows this corpus does
+                # not serve, and an answer cut to what it does serve is nearer what they
+                # wanted than an error. Whoever reads the result cannot tell it was cut.
+                logger.warning(
+                    "this query asked for %d rows and the corpus bounds it at %d, so "
+                    "the answer is cut short",
+                    request.limit,
+                    compiled.limit,
+                )
             if indexing:
                 # Built after compiling and before running: the condition names the
                 # table, so the table has to exist by the time the query does. Logged

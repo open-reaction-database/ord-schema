@@ -744,6 +744,14 @@ It is a check on the compiler's own output; the guard is the grammar. It **does 
 cost**, and says so: a caller running arbitrary SQL against a real corpus needs its own
 statement timeout, row cap, or memory limit.
 
+The grammar leaves `limit` optional, so the unbounded query is the ordinary one — a
+predicate matching much of the corpus returns millions of rows, built into an Arrow table
+in the executing process. `Corpus(..., max_rows=...)` bounds every search, filling in a
+limit where the query states none and clamping one that asks for more; the clamp is
+logged, since nothing in the result says the answer was cut. `search(timeout_seconds=)`
+bounds the SQL and only the SQL: name resolution, the library and index builds, screening,
+and verification all run before that timer starts.
+
 ## Not yet solved
 
 Execution has no sandbox. `enable_external_access=false` cannot be combined with a lazy Parquet

@@ -25,8 +25,8 @@ from ord_schema.artifacts import pivot, projection
 from ord_schema.search import query, sql
 
 
-def _compile(payload):
-    return query.compile_query(query.Query.model_validate(payload))
+def _compile(payload, **kwargs):
+    return query.compile_query(query.Query.model_validate(payload), **kwargs)
 
 
 def _run(compiled, parameters=None):
@@ -415,6 +415,33 @@ def test_ordering_by_a_reduction_over_a_repeated_path():
     )
     assert "list_max(" in compiled.sql
     assert compiled.sql.endswith("DESC LIMIT 10")
+
+
+def test_max_rows_bounds_a_query_that_asked_for_no_limit():
+    # The grammar leaves limit optional, so the unbounded query is the ordinary one: a
+    # predicate matching much of the corpus returns millions of rows to whoever ran it.
+    compiled = _compile({}, max_rows=100)
+    assert compiled.sql.endswith(" LIMIT 100")
+    assert compiled.limit == 100
+
+
+def test_max_rows_clamps_a_query_asking_for_more():
+    # A bound an explicit limit can exceed bounds nothing.
+    compiled = _compile({"limit": 5000}, max_rows=100)
+    assert compiled.sql.endswith(" LIMIT 100")
+    assert compiled.limit == 100
+
+
+def test_max_rows_leaves_a_smaller_limit_alone():
+    compiled = _compile({"limit": 10}, max_rows=100)
+    assert compiled.sql.endswith(" LIMIT 10")
+    assert compiled.limit == 10
+
+
+def test_without_max_rows_a_query_is_as_stated():
+    assert _compile({}).limit is None
+    assert " LIMIT " not in _compile({}).sql
+    assert _compile({"limit": 5000}).limit == 5000
 
 
 def test_a_reduction_reaches_the_same_rows_the_elements_do():

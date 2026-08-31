@@ -1676,6 +1676,59 @@ def test_a_cold_corpus_leaves_the_index_to_the_first_query(corpus_dir):
         assert not value._occurrences_built
 
 
+def test_max_rows_bounds_what_a_search_returns(corpus_dir, caplog):
+    # The corpus holds three reactions and the query asks for none of them in
+    # particular, which is the shape that returns everything at corpus scale.
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            max_rows=2,
+        ) as value,
+    ):
+        assert value.search(query.Query.model_validate({})).num_rows == 2
+    assert any("bounds this query at 2 rows" in m for m in _messages(caplog))
+
+
+def test_max_rows_clamps_a_query_asking_for_more_and_says_so(corpus_dir, caplog):
+    # Cut rather than refused: the answer is nearer what the caller wanted than an
+    # error, and nothing in the result says it was cut, so the log has to.
+    with (
+        caplog.at_level(logging.WARNING, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            max_rows=1,
+        ) as value,
+    ):
+        found = value.search(query.Query.model_validate({"limit": 3}))
+    assert found.num_rows == 1
+    assert any("asked for 3 rows" in m for m in _messages(caplog))
+
+
+def test_a_search_under_a_smaller_limit_than_max_rows_is_untouched(corpus_dir):
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        max_rows=100,
+    ) as value:
+        assert value.search(query.Query.model_validate({"limit": 2})).num_rows == 2
+
+
+def test_a_max_rows_no_query_can_satisfy_is_refused(corpus_dir):
+    with pytest.raises(ValueError, match="which no query can return"):
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            max_rows=0,
+        )
+
+
 def test_a_corpus_builds_the_substructure_library_at_open(corpus_dir):
     # Warming covers both builds a substructure query needs, so what an open corpus
     # holds is what a container has to be sized for rather than a floor a later query

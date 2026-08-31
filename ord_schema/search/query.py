@@ -193,11 +193,16 @@ class Compiled:
     predicates the caller evaluates against the structures artifact, each bound as a
     bitmap over corpus-wide structure IDs; a query carrying any also references the
     ``STRUCTURE_OFFSET`` column, so it runs only against the executor's relation.
+
+    ``limit`` is the row bound the SQL carries, which is the query's own where it asked
+    for one within ``max_rows`` and ``max_rows`` where it did not. A caller comparing it
+    against ``Query.limit`` learns whether the answer was cut short.
     """
 
     sql: str
     compounds: tuple[str, ...]
     structures: tuple[StructureParameter, ...] = ()
+    limit: int | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1198,6 +1203,7 @@ def compile_query(
     table: str = TABLE,
     index: ElementIndex | None = None,
     pivot: PivotIndex | None = None,
+    max_rows: int | None = None,
 ) -> Compiled:
     """Compiles a query to DuckDB SQL over the projection.
 
@@ -1214,6 +1220,12 @@ def compile_query(
         pivot: Pivoted levels to spend where they can answer a quantifier; see
             ``PivotIndex``. Consulted after ``index``, and for ``forall`` as well as
             ``exists``.
+        max_rows: Most rows the SQL may return, applied whether or not the query asked
+            for a limit and clamping one that asks for more. The grammar leaves
+            ``limit`` optional, and a query without one returns every matching
+            reaction -- millions of rows at corpus scale, materialized in whatever
+            process is executing. A caller serving queries it did not write wants this
+            set; None leaves the query's own limit, or none, exactly as stated.
 
     Returns:
         The SQL, the compound names whose resolved SMILES the caller binds, and the
@@ -1294,6 +1306,7 @@ def compile_query(
                 )
             keys.append(f"{key} DESC" if order.descending else key)
         sql += " ORDER BY " + ", ".join(keys)
-    if query.limit is not None:
-        sql += f" LIMIT {query.limit}"
-    return Compiled(sql, tuple(compounds), tuple(structures))
+    limit = query.limit if max_rows is None else min(query.limit or max_rows, max_rows)
+    if limit is not None:
+        sql += f" LIMIT {limit}"
+    return Compiled(sql, tuple(compounds), tuple(structures), limit)
