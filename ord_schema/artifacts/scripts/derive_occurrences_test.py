@@ -15,6 +15,7 @@
 """Tests for ord_schema.artifacts.scripts.derive_occurrences."""
 
 import pathlib
+import shutil
 
 import pyarrow.parquet as pq
 import pytest
@@ -130,3 +131,35 @@ def test_the_levels_to_derive_first_are_printed(capsys):
     derive_occurrences.main(derive_occurrences.parse_args(["--print_levels"]))
     printed = capsys.readouterr().out.split()
     assert printed == sorted({level.path for level, _ in occurrences.PATHS.values()})
+
+
+def test_an_artifact_filed_under_another_path_is_refused(pivots, tmp_path):
+    # Every path writes the same three columns, so a file copied from one to another
+    # passes the currency check on every measure it has -- artifact name, source hash,
+    # versions, columns -- and is skipped by every later run, answering that path's
+    # quantifiers with another level's elements. The stamped path is the only thing
+    # that tells them apart.
+    output = tmp_path / "occurrences"
+    _run(pivots, output)
+    stranger = occurrences.artifact_paths(output, "inputs.components")[0]
+    shutil.copy(stranger, output / "outcomes.products" / "aa" / stranger.name)
+    with pytest.raises(ValueError, match="stamped with another path"):
+        _run(pivots, output)
+
+
+def test_a_path_whose_artifacts_all_hold_nothing_warns(pivots, tmp_path, caplog):
+    # Ordinary for a path nothing in the corpus records, and identical on disk to a
+    # derivation that filtered wrongly: an empty artifact is stamped current like any
+    # other, so no later run revisits it and no reader tells the two apart.
+    output = tmp_path / "occurrences"
+    with caplog.at_level("WARNING"):
+        _run(pivots, output, "--paths", "workups.input.components")
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("every artifact is empty at this path" in m for m in messages)
+
+
+def test_a_path_holding_rows_does_not_warn(pivots, tmp_path, caplog):
+    output = tmp_path / "occurrences"
+    with caplog.at_level("WARNING"):
+        _run(pivots, output, "--paths", "inputs.components")
+    assert not [record.getMessage() for record in caplog.records]

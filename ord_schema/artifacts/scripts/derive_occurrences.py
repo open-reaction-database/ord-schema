@@ -48,7 +48,10 @@ that finds no pivots for a path at all.
 
 import argparse
 import functools
+import glob
 import pathlib
+
+import pyarrow.parquet as pq
 
 from ord_schema.artifacts import base, occurrences, pivot
 from ord_schema.logging import get_logger
@@ -122,6 +125,39 @@ def levels_for(paths: list[str]) -> list[str]:
     return sorted({occurrences.PATHS[path][0].path for path in paths})
 
 
+def _audit(
+    output_dir: str, path: str
+) -> tuple[int, list[str], list[tuple[str, str | None]]]:
+    """Reads back what a reader would find for one path, and says what is wrong with it.
+
+    Taken over exactly the files ``occurrences.artifact_paths`` lists, which is what a
+    corpus reads: a report over any other set describes a tree nobody queries. Rows come
+    from the Parquet footers rather than being tallied as the run writes, so the answer
+    covers artifacts this run skipped as already current, and a re-run says what the run
+    that built them said.
+
+    Args:
+        output_dir: The directory the paths sit under.
+        path: The indexed path to audit.
+
+    Returns:
+        How many artifacts a reader finds, which of them hold no rows, and which are
+        stamped with a path other than this one -- the last carrying what each holds,
+        which is None for a file that is not an occurrences artifact at all.
+    """
+    empty: list[str] = []
+    mismatched: list[tuple[str, str | None]] = []
+    found = occurrences.artifact_paths(output_dir, path)
+    for artifact in found:
+        held = occurrences.occurrence_path(artifact)
+        if held != path:
+            mismatched.append((str(artifact), held))
+            continue
+        if not pq.read_metadata(artifact).num_rows:
+            empty.append(str(artifact))
+    return len(found), empty, mismatched
+
+
 def main(args: argparse.Namespace) -> None:
     """Derives the occurrences at each requested path.
 
@@ -143,13 +179,13 @@ def main(args: argparse.Namespace) -> None:
         raise ValueError("--pivots_dir and --output_dir are both required")
     for path in paths:
         level = occurrences.PATHS[path][0].path
-        # Escaped for the same reason artifact_paths escapes: only the last segments
-        # are a pattern, and a shard directory holding a bracket is a name, not a class.
         pattern = f"{pathlib.Path(args.pivots_dir) / level}/**/*.parquet"
         directory = pathlib.Path(args.output_dir) / path
-        if not pivot.artifact_paths(args.pivots_dir, level):
-            # Said here rather than left to derive_tree, which reports an empty glob
-            # against the pattern it was handed and cannot know what would fill it.
+        # Globbed exactly as derive_tree will glob it, rather than through
+        # pivot.artifact_paths, which escapes the directory it is handed: a check that
+        # finds pivots the derivation then cannot would turn this friendly message into
+        # derive_tree's report of an empty pattern.
+        if not glob.glob(pattern, recursive=True):
             raise ValueError(
                 f"no pivots over {level} under {args.pivots_dir}, so there are no "
                 f"occurrences to derive for {path}. Derive them first with "
@@ -170,14 +206,41 @@ def main(args: argparse.Namespace) -> None:
                 f"{pattern!r} are pivots over {level}. Derive them first with "
                 f"derive_pivots.py --levels {level}"
             )
-        found = len(occurrences.artifact_paths(args.output_dir, path))
+        artifacts, empty, mismatched = _audit(args.output_dir, path)
+        for name, held in mismatched:
+            logger.error("%s: holds %s, not %s", name, held or "no path", path)
+        if mismatched:
+            # Every indexed path writes the same three columns, so a file filed under
+            # the wrong one passes the currency check: same artifact name, same source
+            # hash, same versions, same columns. It is then skipped by every later run
+            # and read as this path's occurrences ever after, answering a quantifier
+            # with another level's elements. The stamped path is the only thing that
+            # tells them apart, and this is the only place that reads it.
+            raise ValueError(
+                f"{directory} holds {len(mismatched)} artifacts stamped with another "
+                f"path; they are current for {path} by every other measure and would "
+                "answer its quantifiers with the wrong elements"
+            )
+        found = artifacts
         logger.info(
-            "%s: %d written, %d already current, %d artifacts",
+            "%s: %d written, %d already current, %d of %d artifacts empty",
             path,
             written,
             skipped,
+            len(empty),
             found,
         )
+        if len(empty) < found:
+            # Named one by one where only some are empty, which is the shape worth
+            # looking at. Where all of them are, the warning below says so once.
+            for name in empty:
+                logger.info("%s: no occurrences at %s", name, path)
+        elif found:
+            # Ordinary for a path nothing in this corpus records -- most corpora have no
+            # authentic standards -- and identical on disk to a derivation that filtered
+            # wrongly: an empty artifact is stamped current like any other, so no later
+            # run revisits it and no reader tells the two apart.
+            logger.warning("%s: every artifact is empty at this path", path)
         if found < written + skipped:
             # Every artifact this run wrote or found current, and a reader cannot list
             # them all, so some went where nothing looks and the tree is not the one a

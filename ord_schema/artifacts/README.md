@@ -18,7 +18,7 @@ flowchart LR
     S -.->|"paired by source dataset"| C["ord_schema.search.Corpus"]
     P -.-> C
     V -.-> C
-    O -.-> C
+    O -. "not yet" .-> C
 ```
 
 | artifact | one file per | holds | read by |
@@ -26,7 +26,7 @@ flowchart LR
 | [`projection`](projection.py) | source dataset | every field of every message reachable from `Reaction`, as `STRUCT` / `LIST` / `MAP` | any query engine; the compiler in [`ord_schema.search`](../search/) |
 | [`structures`](structures.py) | projection | one row per distinct structure: `pattern_fp`, `morgan_fp`, `morgan_popcount`, `mol_binary`, keyed by `structure_id` | the screen and verify steps of substructure search |
 | [`pivot`](pivot.py) | projection × repeated level | one row per element, carrying `reaction_id`, the ordinal of every enclosing level, and the element's own non-repeated fields | quantifiers, as a semi-join |
-| [`occurrences`](occurrences.py) | pivot × indexed path | one row per structure occurrence: `reaction_id`, `structure_id`, `reaction_role` | which reactions hold a structure match, as a semi-join |
+| [`occurrences`](occurrences.py) | pivot × indexed path | one row per structure occurrence: `reaction_id`, `structure_id`, `reaction_role` | *nothing yet* — the corpus assembles these rows in process; reading them is a separate change |
 
 The projection leaves **no field out** — a field left out is a question nobody can ask.
 Its schema is generated from the proto descriptors, so a field added upstream appears
@@ -81,7 +81,7 @@ each match:
   source tree maps one dataset onto a *different* one, which a per-source check passes
   while destroying a source the run has not reached yet.
 
-Three scripts wrap it, in dependency order:
+Four scripts wrap it, in dependency order:
 
 ```bash
 python -m ord_schema.artifacts.scripts.derive_projection \
@@ -92,7 +92,7 @@ python -m ord_schema.artifacts.scripts.derive_structures \
 
 python -m ord_schema.artifacts.scripts.derive_pivots \
     --input_pattern='projections/*/*.parquet' --output_dir=pivots \
-    --levels outcomes.products outcomes.products.measurements
+    --levels $(python -m ord_schema.artifacts.scripts.derive_occurrences --print_levels)
 
 python -m ord_schema.artifacts.scripts.derive_occurrences \
     --pivots_dir=pivots --output_dir=occurrences
@@ -100,10 +100,10 @@ python -m ord_schema.artifacts.scripts.derive_occurrences \
 
 Each takes `--force` to rewrite what is already current. `derive_pivots` defaults to all
 39 repeated levels, which is far more than a deployment answers questions over; naming
-the levels it does is the cheaper run. `derive_occurrences` reads the pivots over four of
-those levels and covers every path a structure can sit at, which is not a choice — a path
-left out is one whose structures no query can find. `derive_occurrences --print_levels`
-prints exactly the `--levels` its pivots need.
+the levels it does is the cheaper run — and `derive_occurrences --print_levels` names the
+four it reads, which is why the command above asks it rather than spelling them.
+`derive_occurrences` covers every path a structure can sit at, which is not a choice: a
+path left out is one whose structures no query can find.
 
 ## What pairs with what
 
@@ -133,7 +133,8 @@ file would stay *in range* while naming another dataset's molecule — passing o
 corpus and failing only on a subset of it, which is the shape of bug that reaches
 production. The corpus assigns offsets at open and joins them on, keyed by the source
 dataset every artifact names. That rule is what lets the occurrence index be an artifact
-at all rather than a table rebuilt at every startup.
+at all rather than a relation rebuilt at every startup — which is what
+[`Corpus`](../search/execute.py) still does, since nothing reads the artifact yet.
 
 ## Querying a projection
 

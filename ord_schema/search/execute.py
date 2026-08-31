@@ -100,7 +100,13 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import rdSubstructLibrary
 
 from ord_schema import resolvers
-from ord_schema.artifacts import base, pivot, projection, structures
+from ord_schema.artifacts import (
+    base,
+    occurrences,
+    pivot,
+    projection,
+    structures,
+)
 from ord_schema.logging import get_logger
 from ord_schema.search import query
 
@@ -415,19 +421,22 @@ _NO_BITS = DataStructs.ExplicitBitVect(structures.PATTERN_FP_SIZE)
 
 # The one element field the occurrence index carries besides the structure. A query
 # binding anything else to the element runs against the projection instead.
-_INDEXED_FIELD = "reaction_role"
+# Read from the artifact rather than restated, so the column the index filters on and
+# the column an occurrences artifact carries cannot come apart.
+_INDEXED_FIELD = occurrences.INDEXED_FIELD
 
 
 def _indexed_paths(schema: pa.Schema = projection.SCHEMA) -> dict[str, str]:
     """Returns the paths an occurrence index covers, mapped to their traversals.
 
-    Taken from the same schema walk the structures artifact is built from and resolved
-    through the compiler, so the index reaches the elements the projection does by
-    construction rather than by a list here agreeing with one there.
+    Which paths those are is ``occurrences.indexed_paths``, so the compiler routes a
+    quantifier to the index exactly where an artifact carries the rows to answer it. Two
+    walks of the schema would be two answers waiting to disagree, and the disagreement
+    is silent: a path routed here that no artifact holds is a quantifier answered from
+    nothing.
 
-    Every path the schema can carry a structure at has to come out covered, which is
-    what lets the build check what it indexed against what the corpus says it holds. A
-    path this walk dropped would make a whole corpus look like one that lost structures.
+    What this adds is the traversal, which only the compiler knows -- the expression
+    unnesting the level out of the projection, for the paths no artifact covers.
 
     Args:
         schema: The projection schema.
@@ -437,31 +446,20 @@ def _indexed_paths(schema: pa.Schema = projection.SCHEMA) -> dict[str, str]:
         level whose elements carry a structure.
 
     Raises:
-        ValueError: If a structure-bearing level carries no ``_INDEXED_FIELD`` or does
-            not resolve to a repeated expression, so the index cannot cover it; or if
-            the schema carries no structure at all. Raised at import, naming the path,
-            because the answer is to change this module rather than to retry.
+        ValueError: If a structure-bearing path does not resolve to a repeated
+            expression, so the build cannot unnest it; or whatever
+            ``occurrences.indexed_paths`` refuses. Raised at import, naming the path,
+            because the answer is to change one of these modules rather than to retry.
     """
     paths: dict[str, str] = {}
-    for _, path, dtype in structures.structure_levels(schema):
+    for path in occurrences.indexed_paths(schema):
         resolved = query.resolve(path, schema=schema, allow_internal=True)
-        if _INDEXED_FIELD not in [field.name for field in dtype]:
-            raise ValueError(
-                f"{path} carries a structure but no {_INDEXED_FIELD}, so the "
-                "occurrence index cannot cover it and a structure sitting only "
-                "there would look like one the index lost"
-            )
         if not resolved.repeated:
             raise ValueError(
                 f"{path} carries a structure but resolves to one element rather than "
                 "a repeated expression, which the build cannot unnest"
             )
         paths[path] = resolved.expression
-    if not paths:
-        raise ValueError(
-            "the schema carries no structure at any path, so an occurrence index has "
-            "nothing to index and its build would assemble no SQL at all"
-        )
     return paths
 
 

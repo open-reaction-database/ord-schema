@@ -160,13 +160,42 @@ def test_a_path_below_its_level_is_read_through_the_remainder(pivots, tmp_path):
     assert _rows(written) == [("ord-oc01", 4, None)]
 
 
-def test_a_level_the_source_never_recorded_writes_an_empty_artifact(pivots, tmp_path):
-    # Empty rather than missing: a reader globs a path and finds a file holding nothing,
-    # which is what a corpus recording no workups looks like from here.
-    for level in ("workups.input.components", "inputs.components"):
-        (pivots / level).exists()
+def test_a_workup_component_is_read_from_its_own_level(pivots, tmp_path):
     written = _derive(pivots, tmp_path, "workups.input.components")
     assert _rows(written) == [("ord-oc01", 2, "SOLVENT")]
+
+
+def test_a_path_the_source_never_recorded_writes_an_empty_artifact(tmp_path):
+    # Empty rather than missing: a reader globs a path and finds a file holding nothing
+    # but carrying the schema and the stamps, which is what a corpus recording no
+    # workups looks like from here. A missing file is a path a reader cannot tell from
+    # one nobody derived.
+    reaction = reaction_pb2.Reaction(reaction_id="ord-oc03")
+    _component(reaction.inputs["in"], "CCO", _ROLE.REACTANT)
+    source = tmp_path / "ord_dataset-oc3.parquet"
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-oc3",
+            name="test",
+            description="test",
+            reactions=[reaction],
+        ),
+        str(source),
+    )
+    projected = tmp_path / "projection.parquet"
+    projection.write_projection(source, projected)
+    pivoted = tmp_path / "pivot.parquet"
+    pivot.write_pivot(projected, pivoted, level_path="workups.input.components")
+    assert pq.read_metadata(pivoted).num_rows == 0
+    written = tmp_path / "occurrences.parquet"
+    assert (
+        occurrences.write_occurrences(pivoted, written, path="workups.input.components")
+        == 0
+    )
+    assert written.exists()
+    assert pq.read_metadata(written).num_rows == 0
+    assert pq.read_schema(written).remove_metadata() == occurrences.SCHEMA
+    assert occurrences.occurrence_path(written) == "workups.input.components"
 
 
 def test_the_artifact_carries_the_schema_it_promises(pivots, tmp_path):

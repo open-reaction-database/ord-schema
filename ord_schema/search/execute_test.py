@@ -1661,10 +1661,13 @@ def test_the_index_is_built_once_and_only_when_wanted(corpus_dir, caplog):
     assert len(builds) == 1
 
 
-def test_the_indexed_paths_are_the_ones_the_artifact_carries():
-    # Two walks are two answers waiting to disagree: a path this compiler routes to the
-    # index that the artifact does not carry is a quantifier answered from nothing.
+def test_the_indexed_paths_and_field_come_from_the_artifact():
+    # Not an agreement between two walks -- there is one walk, in the artifact, and this
+    # pins that it stays that way. A path routed here that no artifact carries is a
+    # quantifier answered from nothing, and a field name restated here rather than read
+    # is a column the artifact does not hold.
     assert set(execute.INDEXED_PATHS) == set(occurrences.PATHS)
+    assert execute._INDEXED_FIELD == occurrences.INDEXED_FIELD
 
 
 def test_a_corpus_builds_the_occurrence_index_at_open(corpus_dir):
@@ -2201,8 +2204,10 @@ def test_the_indexed_paths_are_the_ones_a_structure_can_sit_at():
                 ]
             )
         )
-    # A structure on a level that is not repeated is one the build cannot unnest.
-    with pytest.raises(ValueError, match="rather than a repeated expression"):
+    # A structure on a level that is not repeated is one no pivot holds the elements of,
+    # so no artifact can carry it and the build would have to unnest a level that is not
+    # one. Refused by the artifact's walk, which is the walk this reads.
+    with pytest.raises(ValueError, match="no repeated level reaches it"):
         execute._indexed_paths(
             pa.schema(
                 [

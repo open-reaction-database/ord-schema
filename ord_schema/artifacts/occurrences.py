@@ -31,12 +31,12 @@ the whole corpus and failing only on a subset of it. The corpus joins the offset
 open, keyed by the source dataset every artifact names; see
 :mod:`ord_schema.search.execute`.
 
-That rule is what lets this be an artifact at all rather than a table built at open, and
-the difference is the deployment: built, the relation is 18,847,978 rows and 1.19 GiB
-held over ORD, wants 5-6.5 GB of DuckDB memory and 16-25 GB of temporary files to get
-there, and costs seconds to a minute before the first query. Read, it is 256 MB of
-Parquet and a view, and the semi-join over it costs about 1.28x what the built table
-costs.
+That rule is what lets this be an artifact at all rather than a relation assembled at
+open, which is what :mod:`ord_schema.search.execute` still does: over ORD it builds
+18,847,978 rows holding 1.19 GiB, wanting 5-6.5 GB of DuckDB memory and 16-25 GB of
+temporary files to get there, before the first query can be answered. The same rows
+derived here are 242 MB of Parquet. **Nothing reads them yet** -- the corpus that does
+is a separate change, and until it lands a tree derived from this is inert.
 
 Derived from the **pivot** over the level an indexed path ranges within, which already
 holds one row per element: this artifact is that projected down to three columns, so the
@@ -46,7 +46,6 @@ read from that level's pivot through the remainder; see ``ord_schema.artifacts.p
 """
 
 import glob
-import logging
 import os
 import pathlib
 
@@ -56,8 +55,9 @@ import pyarrow.parquet as pq
 
 from ord_schema import atomic_io
 from ord_schema.artifacts import base, pivot, projection, structures
+from ord_schema.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 ARTIFACT = "occurrences"
 
@@ -106,6 +106,11 @@ def indexed_paths(
             because the answer is to change this module rather than to retry.
     """
     paths: dict[str, tuple[pivot.RepeatedLevel, tuple[str, ...]]] = {}
+    # Walked from the schema the caller passed rather than from the module default, so
+    # asking what a written file covers is answered about that file. A reach against the
+    # default levels would answer about the schema this library was imported with, which
+    # is the disagreement between two walks that this function exists to prevent.
+    levels = pivot.repeated_levels(schema)
     for _, path, dtype in structures.structure_levels(schema):
         if INDEXED_FIELD not in [field.name for field in dtype]:
             raise ValueError(
@@ -113,7 +118,7 @@ def indexed_paths(
                 "row cannot bind a query to the element it matched, and a structure "
                 "sitting only there would look like one this artifact lost"
             )
-        reached = pivot.reach(path)
+        reached = pivot.reach(path, levels)
         if reached is None:
             raise ValueError(
                 f"{path} carries a structure but no repeated level reaches it, so no "
