@@ -885,26 +885,29 @@ class Corpus:
                 to leave that much. Over ORD, ``6500MiB`` under a 12 GiB cap builds the
                 occurrence index, where DuckDB's own default under an 8 GiB cap is
                 killed partway.
-
             warm: Build the occurrence index at open rather than on the query that
-                first wants it. What it costs is a read of the pivot artifacts covering
-                the indexed paths, and a pass over the projections for any they do not
-                cover -- which over ORD is the difference between a second and a minute.
-                The build also wants 5-6.5 GB of DuckDB memory and leaves 1.19 GB
-                resident, so a deployment without those artifacts, or one whose queries
-                are all scalar or similarity and never reach the index, may prefer to
-                charge that to a query rather than to startup; see ``check_index``. The
-                substructure library is left to first use either way: it costs gigabytes
-                on top, and only a structure query needs it.
+                first wants it, on by default. What it costs is a read of the pivot
+                artifacts covering the indexed paths, and a pass over the projections
+                for any they do not cover -- which over ORD is the difference between a
+                second and a minute. The build also wants 5-6.5 GB of DuckDB memory and
+                leaves 1.19 GB resident, so a deployment without those artifacts, or one
+                whose queries are all scalar or similarity and never reach the index,
+                may prefer to charge that to a query rather than to startup; see
+                ``check_index``. The substructure library is left to first use either
+                way: it costs gigabytes on top, and only a substructure query needs it.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
                 partner on the other, a pair's stamps disagree about the source
                 dataset, or -- with ``require_current`` -- any artifact is stale. With
                 ``warm``, also whatever building the occurrence index refuses: a corpus
-                stating a reaction twice, or one whose index does not reach every
-                structure it holds, both of which otherwise surface on the first query
-                that needs the index rather than at open.
+                stating a reaction twice, one whose index does not reach every structure
+                it holds, or pivot artifacts over an indexed level that belong to
+                another corpus, all of which otherwise surface on the first query that
+                needs the index rather than at open.
+            duckdb.OutOfMemoryException: With ``warm``, if DuckDB is held below what the
+                occurrence index wants to build; see ``check_index`` for that floor, and
+                for the container cap that kills the process rather than raising.
             ValueError: If ``require_pivots`` is set beside a ``pivot_budget_bytes``,
                 which budgets for a build it rules out. If ``pivot_budget_bytes`` is
                 negative, which no amount of
@@ -1478,8 +1481,8 @@ class Corpus:
             if offset is None:
                 return None
             rows.append((name, offset))
-        # Named for the level, so a build the last one refused partway replaces these
-        # rows rather than leaving a relation per attempt behind.
+        # Named for the level rather than per attempt, so a retry after a refusal
+        # replaces these rows rather than leaving a relation behind for each try.
         published = f"{pivot.table_name(level)}_offsets"
         registered = pa.table(
             {
@@ -1489,12 +1492,17 @@ class Corpus:
                 ),
             }
         )
-        self._connection.register("registered_pivot_offsets", registered)
-        self._connection.execute(
-            f"CREATE OR REPLACE TABLE {published} AS "  # noqa: S608
-            "SELECT * FROM registered_pivot_offsets"
-        )
-        self._connection.unregister("registered_pivot_offsets")
+        # Under the build lock, which every statement that puts a table in this database
+        # takes, so a materialization measuring what a pivot costs does not read these
+        # rows into its own total. S608: the name comes from this module's walk of the
+        # schema.
+        with self._build_lock:
+            self._connection.register("registered_pivot_offsets", registered)
+            self._connection.execute(
+                f"CREATE OR REPLACE TABLE {published} AS "  # noqa: S608
+                "SELECT * FROM registered_pivot_offsets"
+            )
+            self._connection.unregister("registered_pivot_offsets")
         return published
 
     def _occurrences(self) -> None:
@@ -1922,9 +1930,9 @@ class Corpus:
     def _pivot_view(self, path: str) -> str | None:
         """Returns a view over the pivot artifacts for ``path``, or None if none exist.
 
-        Published once per level and remembered, including the answer that there is
-        nothing to publish, so a corpus without artifacts globs the directory once
-        rather than on every query.
+        Published once per level, over whichever artifacts ``_pivot_artifacts`` found
+        and checked, and remembered under its own lock so a query over a published level
+        waits on nothing.
 
         Args:
             path: The repeated level, as the query grammar names it.

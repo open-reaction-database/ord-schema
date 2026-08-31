@@ -3309,15 +3309,6 @@ _OCCURRENCE_LEVELS = (
 )
 
 
-@pytest.fixture(scope="module")
-def indexed_root(tmp_path_factory, corpus_dir) -> pathlib.Path:
-    """The two-dataset corpus with pivots over every level the index reads from."""
-    _write_pivots(
-        corpus_dir, _OCCURRENCE_LEVELS, into=tmp_path_factory.mktemp("pivots")
-    )
-    return corpus_dir
-
-
 def _indexed_corpus(root, pivots, **kwargs) -> execute.Corpus:
     return execute.Corpus(
         str(root / "projections" / "*.parquet"),
