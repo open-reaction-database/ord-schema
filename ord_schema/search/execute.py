@@ -73,9 +73,10 @@ takes a wall-clock timeout that interrupts the final query. Name resolution, the
 one-time library and index builds, screening, and verification all run before the timer
 starts: each is bounded by the corpus rather than by the query, so a slow one is slow
 for every caller and shows up in the logs rather than in a timeout. The two builds have
-separate triggers -- the library on the first substructure predicate, the index on the
-first query it takes a clause of -- and a search wanting both pays both, upwards of a
-minute over the whole corpus, on top of whatever timeout it was given.
+separate triggers -- the library on the first substructure predicate, and the index at
+open unless the corpus was given ``warm=False``, which leaves it to the first query that
+takes a clause of it. A search that pays for either pays upwards of a minute over the
+whole corpus, on top of whatever timeout it was given.
 """
 
 import array
