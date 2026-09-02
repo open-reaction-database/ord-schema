@@ -398,8 +398,11 @@ over the corpus's datasets in `source_md5` order, so adding, removing, or rewrit
 dataset renumbers every structure after it. Everything keyed by those IDs — the occurrence
 index, the `SubstructLibrary` entry mapping, every cached match-set bitmap — is written
 against one such numbering and is silently wrong under another: the IDs stay in range and
-name different molecules. `Corpus.fingerprint` changes exactly when the numbering does,
-and is the guard for anything held outside the corpus.
+name different molecules. Renumbering always moves `Corpus.fingerprint`, which is what
+makes it a sound guard for anything held outside the corpus. It is conservative in the
+other direction: it digests each artifact's whole stamp, so a rebuild under a new RDKit
+moves it even where every offset comes out the same. Invalidating on it discards more than
+it strictly must, and never less.
 
 So a deployment that must pick up new data opens a **second** `Corpus`, waits for it to
 warm, and swaps the reference. Peak memory during the swap is therefore twice the steady
