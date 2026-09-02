@@ -163,3 +163,29 @@ def test_a_path_holding_rows_does_not_warn(pivots, tmp_path, caplog):
     with caplog.at_level("WARNING"):
         _run(pivots, output, "--paths", "inputs.components")
     assert not [record.getMessage() for record in caplog.records]
+
+
+def test_a_pivots_dir_named_with_a_glob_metacharacter_is_read_literally(
+    pivots, tmp_path
+):
+    # A directory is a name someone chose, not a pattern they wrote. Read as a pattern,
+    # "pivots[1]" is the character class matching "pivots1", so the run derives from
+    # whatever sits there -- completely, and without saying it went somewhere else --
+    # while the tree the operator named is never opened.
+    named = tmp_path / "pivots[1]"
+    pivots.rename(named)
+    decoy = tmp_path / "pivots1"
+    shutil.copytree(named, decoy)
+    for level in decoy.iterdir():
+        shutil.rmtree(level / "bb")
+    output = tmp_path / "occurrences"
+    _run(named, output)
+    for path in occurrences.PATHS:
+        found = occurrences.artifact_paths(output, path)
+        # Both shards, each exactly one directory below its own: the mirror is rooted at
+        # the level's directory, rather than at the prefix of the name that a glob stops
+        # reading at, which lands the sources' whole layout a second time underneath.
+        assert [artifact.relative_to(output / path).parts for artifact in found] == [
+            ("aa", "ord_dataset-aa.parquet"),
+            ("bb", "ord_dataset-bb.parquet"),
+        ], path

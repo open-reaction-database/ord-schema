@@ -179,12 +179,18 @@ def main(args: argparse.Namespace) -> None:
         raise ValueError("--pivots_dir and --output_dir are both required")
     for path in paths:
         level = occurrences.PATHS[path][0].path
-        pattern = f"{pathlib.Path(args.pivots_dir) / level}/**/*.parquet"
+        # --pivots_dir is a directory someone named, not a pattern they wrote, so a
+        # bracket or a star in it is part of the name: escaped, it matches that tree
+        # rather than a sibling fitting the character class. The root goes separately
+        # because glob_root reads the escape as the wildcard it is spelled with, and
+        # would stop the mirror short of it.
+        root = pathlib.Path(args.pivots_dir) / level
+        pattern = f"{glob.escape(str(root))}/**/*.parquet"
         directory = pathlib.Path(args.output_dir) / path
         # Globbed exactly as derive_tree will glob it, rather than through
-        # pivot.artifact_paths, which escapes the directory it is handed: a check that
-        # finds pivots the derivation then cannot would turn this friendly message into
-        # derive_tree's report of an empty pattern.
+        # pivot.artifact_paths: a check that finds pivots the derivation then cannot
+        # would turn this friendly message into derive_tree's report of an empty
+        # pattern.
         if not glob.glob(pattern, recursive=True):
             raise ValueError(
                 f"no pivots over {level} under {args.pivots_dir}, so there are no "
@@ -199,6 +205,7 @@ def main(args: argparse.Namespace) -> None:
             schema=occurrences.SCHEMA,
             force=args.force,
             parent_artifact=pivot.ARTIFACT,
+            root=root,
         )
         if not written and not skipped:
             raise ValueError(
@@ -206,7 +213,7 @@ def main(args: argparse.Namespace) -> None:
                 f"{pattern!r} are pivots over {level}. Derive them first with "
                 f"derive_pivots.py --levels {level}"
             )
-        artifacts, empty, mismatched = _audit(args.output_dir, path)
+        found, empty, mismatched = _audit(args.output_dir, path)
         for name, held in mismatched:
             logger.error("%s: holds %s, not %s", name, held or "no path", path)
         if mismatched:
@@ -221,7 +228,6 @@ def main(args: argparse.Namespace) -> None:
                 f"path; they are current for {path} by every other measure and would "
                 "answer its quantifiers with the wrong elements"
             )
-        found = artifacts
         logger.info(
             "%s: %d written, %d already current, %d of %d artifacts empty",
             path,
