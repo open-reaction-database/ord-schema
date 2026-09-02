@@ -366,7 +366,9 @@ derived artifacts spends none of it: those are views over Parquet, not tables.
 Budget **about 8 GiB of resident memory** for a corpus serving substructure search over
 ORD: 1.1 GiB for the relations, 2.2 GiB for the `SubstructLibrary`, 1.19 GiB for the
 occurrence index, and DuckDB's own caches on top, which fill whatever `memory_limit`
-allows. An open corpus holds all three, since the two builds happen at open unless it
+allows. An `occurrences_dir` covering every indexed path takes about a gigabyte off that:
+the index becomes a view holding 0.32 GiB rather than a table holding 1.92 GiB, and the
+build floor below goes with it. An open corpus holds all three, since the two builds happen at open unless it
 was given `warm=False` — which is what makes the resident figure something to size a
 container against rather than a floor a later query raises it to. `Corpus`
 takes that limit as an argument; left unset, DuckDB claims about 80% of the machine — or
@@ -380,7 +382,8 @@ the projection, in seconds rather than the tens of milliseconds a pivot takes. T
 no managed service to move this to — Athena and its kin can scan the Parquet, but the
 chemistry is not SQL.
 
-**The index build has a floor, and it is not a soft one.** Over ORD it wants **5–6.5 GB**
+**A built index has a floor, and it is not a soft one** — a corpus given a covering
+`occurrences_dir` builds nothing and meets none of what follows. Over ORD the build wants **5–6.5 GB**
 of DuckDB memory, and below that it raises `OutOfMemoryException` rather than running
 slowly — a block it cannot pin is not one it can spill, so a `temp_directory` does not
 rescue it. Near the floor it also wants 16–25 GiB of scratch disk, which a container may
@@ -388,6 +391,22 @@ not have: a Fargate task carries 20 GB of ephemeral storage by default, and `Cor
 no `temp_directory`. Three remedies were measured and none moves the floor; a fourth,
 building per projection file, lowers it to ~2 GB and costs every unconstrained deployment
 68% more time — measured and rejected ([logbook][cache-entry], findings 16–17).
+
+**Nothing supports swapping a corpus in place, and the arithmetic is the reason.** A
+structure's corpus-wide ID is its dataset-local one plus an offset that is a running total
+over the corpus's datasets in `source_md5` order, so adding, removing, or rewriting any
+dataset renumbers every structure after it. Everything keyed by those IDs — the occurrence
+index, the `SubstructLibrary` entry mapping, every cached match-set bitmap — is written
+against one such numbering and is silently wrong under another: the IDs stay in range and
+name different molecules. `Corpus.fingerprint` changes exactly when the numbering does,
+and is the guard for anything held outside the corpus.
+
+So a deployment that must pick up new data opens a **second** `Corpus`, waits for it to
+warm, and swaps the reference. Peak memory during the swap is therefore twice the steady
+state — about 16 GiB over ORD, or 14 with a covering `occurrences_dir` — which is the
+figure a container has to be sized against if it is ever to take an update without a
+restart. There is no in-place refresh, and adding one would mean making every ID-keyed
+structure versioned rather than replaced.
 
 **Under a container cap, state the limit rather than letting DuckDB pick it.** Its default
 is sized from the cgroup and not from the host, which is the right input, but the limit
