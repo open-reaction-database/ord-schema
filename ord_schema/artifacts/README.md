@@ -18,7 +18,7 @@ flowchart LR
     S -.->|"paired by source dataset"| C["ord_schema.search.Corpus"]
     P -.-> C
     V -.-> C
-    O -. "not yet" .-> C
+    O -.-> C
 ```
 
 | artifact | one file per | holds | read by |
@@ -26,7 +26,7 @@ flowchart LR
 | [`projection`](projection.py) | source dataset | every field of every message reachable from `Reaction`, as `STRUCT` / `LIST` / `MAP` | any query engine; the compiler in [`ord_schema.search`](../search/) |
 | [`structures`](structures.py) | projection | one row per distinct structure: `pattern_fp`, `morgan_fp`, `morgan_popcount`, `mol_binary`, keyed by `structure_id` | the screen and verify steps of substructure search |
 | [`pivot`](pivot.py) | projection × repeated level | one row per element, carrying `reaction_id`, the ordinal of every enclosing level, and the element's own non-repeated fields | quantifiers, as a semi-join |
-| [`occurrences`](occurrences.py) | pivot × indexed path | one row per structure occurrence: `reaction_id`, `structure_id`, `reaction_role` | *nothing yet* — the corpus assembles these rows in process; reading them is a separate change |
+| [`occurrences`](occurrences.py) | pivot × indexed path | one row per structure occurrence: `reaction_id`, `structure_id`, `reaction_role` | the semi-join a structure query is routed to, as a view rather than a table the corpus builds |
 
 The projection leaves **no field out** — a field left out is a question nobody can ask.
 Its schema is generated from the proto descriptors, so a field added upstream appears
@@ -111,8 +111,13 @@ path left out is one whose structures no query can find.
 one dataset**. The projection and its structures artifact are two statements of one
 derivation and are meaningful only together:
 
-- IDs are not stable across builds, so nothing outside the artifacts should record them.
-  The column is marked internal and stays out of what a model is told it may query.
+- IDs are stable for a fixed source and a fixed library — assignment is first-seen order
+  over the reactions, so the same bytes under the same ord-schema and RDKit give the same
+  numbers, which is what lets an artifact pair with a projection by source hash rather
+  than by which build produced it. They are *not* stable across a library upgrade that
+  changes canonicalization, which is what the version stamps are for. Nothing outside the
+  artifacts should record them either way; the column is marked internal and stays out of
+  what a model is told it may query.
 - A projection rewritten in place needs its structures artifact rederived with it. The
   stamps name the *source dataset* rather than the projection file, so the skip check
   cannot see that the pairing changed — which is why
@@ -133,8 +138,13 @@ file would stay *in range* while naming another dataset's molecule — passing o
 corpus and failing only on a subset of it, which is the shape of bug that reaches
 production. The corpus assigns offsets at open and joins them on, keyed by the source
 dataset every artifact names. That rule is what lets the occurrence index be an artifact
-at all rather than a relation rebuilt at every startup — which is what
-[`Corpus`](../search/execute.py) does, since nothing reads the artifact yet.
+at all rather than a relation rebuilt at every startup: given an `occurrences_dir`
+covering every indexed path, [`Corpus`](../search/execute.py) publishes it as a view over
+those files and builds nothing. Measured over the full corpus that is 0.13 s and 0.32 GiB
+resident against 2.9 s and 1.92 GiB for the table, and DuckDB holds 28 MiB where it held
+1.66 GiB. A path with no artifact is read from a pivot or unnested from the projection as
+before, and one uncovered path materializes the whole index — a view whose branches unnest
+the projection would repeat that traversal on every query rather than pay it once.
 
 ## Querying a projection
 

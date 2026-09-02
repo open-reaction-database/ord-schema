@@ -203,11 +203,28 @@ authentic standards — is a level with no elements: nothing satisfies an `exist
 and nothing contradicts a `forall`, so "reactions **without** pyridine in the workup"
 includes every reaction that has no workup at all.
 
-The index is built at open, which `Corpus(warm=False)` defers to the first query that
-spends it. Where a pivot artifact covers an indexed path the build reads that level
-instead of unnesting the projection — over ORD **3.3s against 59.4s** for the same
-18,847,978 occurrences — and every path no artifact covers still costs its own pass over
-the projections.
+Three ways to reach those rows, cheapest first, decided per path.
+
+`Corpus(..., occurrences_dir=...)` reads an **occurrences artifact**, which is the rows
+themselves: the read adds only the corpus-wide offset. Where the directory covers every
+indexed path the index is published as a **view over Parquet** and nothing is built —
+0.13s and 0.32 GiB resident over ORD, against 2.9s and 1.92 GiB for the table, with
+DuckDB holding 28 MiB where it held 1.66 GiB — at about the same per-query cost, and less
+on the narrow paths, where reading one path's files beats filtering `path = ?` across
+every occurrence in the corpus. `require_occurrences=True` refuses a directory that does
+not cover every path, which is worth setting wherever the container was sized for the
+view.
+
+Failing that, a **pivot artifact** over the path's level holds one row per element, which
+is what the build would otherwise unnest the projection to produce — over ORD **3.3s
+against 59.4s** for the same 18,847,978 occurrences. Failing both, the projection is
+unnested.
+
+One uncovered path materializes the whole index rather than leaving a view whose branches
+unnest the projection, which would repeat that traversal on every query rather than pay it
+once. Either way the index is built at open, which `Corpus(warm=False)` defers to the
+first query that spends it — and with a covering `occurrences_dir` there is little left
+for `warm` to do but check that the index reaches every structure the corpus holds.
 
 ## Pivoted levels
 
@@ -290,9 +307,9 @@ answers against rows this corpus does not hold, confidently and wrongly. A level
 artifacts is still built in process, so a partial set is a partial speedup rather than a
 missing answer.
 
-The occurrence index reads them too, one indexed path at a time: an artifact holds one
-row per element of the nearest repeated level, which is what the build would otherwise
-unnest the projection to produce.
+The occurrence index reads them too, one indexed path at a time, where no occurrences
+artifact covers that path: a pivot holds one row per element of the nearest repeated
+level, which is what the build would otherwise unnest the projection to produce.
 
 `Corpus(..., pivots_dir=..., derive_pivots=True)` writes the missing ones instead of
 building them: the same pass, spent where it outlives the process and costs no budget,

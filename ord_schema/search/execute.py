@@ -76,7 +76,8 @@ for every caller and shows up in the logs rather than in a timeout. Both builds 
 at open unless the corpus was given ``warm=False``, which leaves the index to the first
 query taking a clause of it and the library to the first substructure predicate. A
 search that pays for either pays upwards of a minute over the whole corpus, on top of
-whatever timeout it was given.
+whatever timeout it was given -- unless an ``occurrences_dir`` covers every indexed
+path, where the index is a view over those files and there is nothing to build.
 """
 
 import array
@@ -862,6 +863,8 @@ class Corpus:
         pivots_dir: str | None = None,
         derive_pivots: bool = False,
         require_pivots: bool = False,
+        occurrences_dir: str | None = None,
+        require_occurrences: bool = False,
         memory_limit: str | None = None,
         warm: bool = True,
         max_rows: int | None = None,
@@ -919,6 +922,26 @@ class Corpus:
                 ``ord_schema.artifacts.scripts.derive_pivots``. Needs ``warm`` off,
                 since warming reads the levels the occurrence index covers and a
                 derivation has to precede the read of the level it completes.
+            occurrences_dir: Directory holding derived occurrence artifacts, one
+                subdirectory per indexed path. Given one covering every path, the
+                occurrence index is a view over those files rather than a table built
+                at open: the corpus stops holding the 1.19 GB the table costs over ORD,
+                stops wanting the 5-6.5 GB of DuckDB memory and 16-25 GB of temporary
+                files to build it, and pays instead about 1.28x per query -- less on
+                the narrow paths, where reading one path's files beats filtering across
+                every occurrence in the corpus. A path with no artifacts is read from a
+                pivot or unnested from the projection as before, and one uncovered path
+                materializes the whole index, since a view would repeat that traversal
+                on every query; ``require_occurrences`` refuses that rather than
+                falling back to it. Derived by
+                ``ord_schema.artifacts.scripts.derive_occurrences``.
+            require_occurrences: Refuse a corpus whose ``occurrences_dir`` does not
+                cover every indexed path, rather than materializing the index because
+                one path was missing. Needs an ``occurrences_dir``. What it costs is a
+                footer read per artifact at startup; what it buys is that a deployment
+                sized for the view is not handed the table, which wants several
+                gigabytes it was not given and takes the container down rather than
+                answering slowly.
             memory_limit: What DuckDB may hold, spelled as it spells sizes: ``6500MiB``,
                 ``8GB``. Left unset, DuckDB takes about 80% of the machine, or of the
                 container's cap, which it does read. That default suits a process that
@@ -931,8 +954,11 @@ class Corpus:
                 killed partway.
             warm: Build at open what a structure query would otherwise build on the
                 query itself, on by default: the occurrence index, then the substructure
-                library. The index costs a read of the pivot artifacts covering the
-                indexed paths and a pass over the projections for every path they do not
+                library. An ``occurrences_dir`` covering every indexed path leaves the
+                index nothing to build, so what this then pays for it is the scan that
+                checks it reaches every structure the corpus holds. Built, the index
+                costs a read of the pivot artifacts covering the indexed paths and a
+                pass over the projections for every path they do not
                 cover -- over ORD the difference between a second and a minute -- and it
                 wants 5-6.5 GB of DuckDB memory to build and holds 1.19 GB afterwards.
                 The library is about 8s and 2.2 GB on top. Together they are most of
@@ -968,8 +994,9 @@ class Corpus:
                 derivation can complete them. If ``max_rows`` is less than one, which is
                 a bound no query can satisfy rather than a small one. If
                 ``pivot_budget_bytes`` is negative, which no amount of memory is; zero
-                is allowed, and materializes nothing; or if ``derive_pivots`` or
-                ``require_pivots`` is set without a ``pivots_dir``.
+                is allowed, and materializes nothing; if ``derive_pivots`` or
+                ``require_pivots`` is set without a ``pivots_dir``; or if
+                ``require_occurrences`` is set without an ``occurrences_dir``.
         """
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
         if max_rows is not None and max_rows <= 0:
@@ -1055,6 +1082,11 @@ class Corpus:
                 "require_pivots was set without a pivots_dir, so there is nowhere to "
                 "look for what it would require"
             )
+        if require_occurrences and occurrences_dir is None:
+            raise ValueError(
+                "require_occurrences was set without an occurrences_dir, so there is "
+                "nowhere to look for what it would require"
+            )
         if derive_pivots and warm:
             # The index reads the artifacts over the levels it indexes as files, so
             # warming checks a level derive_pivots means to complete before the
@@ -1072,6 +1104,7 @@ class Corpus:
             projection_pattern, structures_pattern, require_current
         )
         self._pivots_dir = pivots_dir
+        self._occurrences_dir = occurrences_dir
         self._derive_pivots = derive_pivots
         self._require_current = require_current
         # The pattern the derivation reads, which is what mirrors the projections'
@@ -1088,6 +1121,9 @@ class Corpus:
         # same level as a view, and the lock holds a footer read per artifact, which is
         # not something to hold the lock a published view is looked up under.
         self._pivot_artifacts_found: dict[str, dict[str, str] | None] = {}
+        # The occurrence artifacts found for each indexed path, under the same lock and
+        # for the same reason.
+        self._occurrence_artifacts_found: dict[str, dict[str, str] | None] = {}
         self._artifacts_lock = threading.Lock()
         # What a dataset's structure IDs add to reach a corpus-wide one, keyed by the
         # source every artifact derived from it names; filled by _prepare.
@@ -1101,6 +1137,8 @@ class Corpus:
             self._total, self._searchable = self._prepare(pairs)
             if require_pivots:
                 self._require_every_pivot()
+            if require_occurrences:
+                self._require_every_occurrence()
             if warm:
                 self._warm()
         except Exception:
@@ -1317,10 +1355,16 @@ class Corpus:
         holding DuckDB to 6500MiB finishes at 9.3 GB resident. ``Corpus`` warns at open
         when a cap it can read leaves too little.
 
-        A corpus opened with ``warm`` has paid the build already, and the call is then
-        its counts. Leaving it cold suits one asked only for scalar or similarity
-        queries, which never spends what the index costs: about a minute over ORD where
-        no pivot artifact covers a path, and 1.19 GB resident however it was built.
+        None of that applies to an index published as a view, which an
+        ``occurrences_dir`` covering every indexed path gets: there is nothing to
+        materialize, so the floor is the scan this call makes rather than a build. Over
+        ORD that is 0.13s and 0.32 GiB resident, against 2.9s and 1.92 GiB for the table
+        read from pivots.
+
+        A corpus opened with ``warm`` has paid whichever of those it owes already, and
+        the call is then its counts. Leaving it cold suits one asked only for scalar or
+        similarity queries, which never spends what a built index costs: about a minute
+        over ORD where no artifact covers a path, and 1.19 GB resident once built.
 
         Returns:
             The number of occurrences found per indexed path, including the paths that
@@ -1545,7 +1589,9 @@ class Corpus:
         sources = self._pivot_artifacts(level.path)
         if sources is None:
             return None
-        offsets = self._pivot_offsets(level.path, sources)
+        offsets = self._artifact_offsets(
+            f"{pivot.table_name(level.path)}_offsets", sources
+        )
         element = ".".join(["x", pivot.ELEMENT, *remainder])
         # S608: the level and its remainder come from this module's walk of the schema,
         # and the paths from this process's own glob, quoted with their single quotes
@@ -1556,39 +1602,38 @@ class Corpus:
                        AS global_id,
                    {element}.{_INDEXED_FIELD} AS {_INDEXED_FIELD}
             FROM read_parquet({_sql_paths(sources)}, filename=true) x
-            JOIN {offsets} o ON x.filename = o.pivot_filename
+            JOIN {offsets} o ON x.filename = o.artifact_filename
             WHERE {element}.structure_id IS NOT NULL
             """  # noqa: S608
 
-    def _pivot_offsets(self, level: str, sources: dict[str, str]) -> str:
-        """Publishes what each pivot artifact's rows add to reach a corpus-wide ID.
+    def _artifact_offsets(self, published: str, sources: dict[str, str]) -> str:
+        """Publishes what each artifact's rows add to reach a corpus-wide ID.
 
-        A pivot and the projection it was derived from restate one source dataset, so
+        An artifact and the projection it descends from restate one source dataset, so
         they carry the same ``source_md5`` however many derivations apart they sit, and
         that hash is what pairs an artifact with the offset its projection was given.
         Pairing on the filename instead would rest on the two trees being laid out
         alike, which nothing enforces.
 
         Args:
-            level: The repeated level the artifacts hold, which names the relation.
-            sources: The source each artifact names, from ``_pivot_artifacts``.
+            published: The relation to create, named for the level or path it serves so
+                that a retry after a refusal replaces these rows rather than leaving a
+                relation behind per attempt.
+            sources: The source each artifact names, from the check that accepted them.
 
         Returns:
-            The relation's name.
+            ``published``.
         """
         rows = []
         for name, source in sources.items():
-            offset = self._offset_of_source.get(source)
-            # _check_pivots requires these artifacts' sources to be exactly the
+            # The checks require these artifacts' sources to be exactly the
             # projections', and the offsets are keyed by those same hashes.
+            offset = self._offset_of_source.get(source)
             assert offset is not None, f"{name} names a source the corpus does not hold"
             rows.append((name, offset))
-        # Named for the level, so a retry after a refusal replaces these rows instead of
-        # leaving a relation behind per attempt.
-        published = f"{pivot.table_name(level)}_offsets"
         registered = pa.table(
             {
-                "pivot_filename": [row[0] for row in rows],
+                "artifact_filename": [row[0] for row in rows],
                 query.STRUCTURE_OFFSET: pa.array(
                     [row[1] for row in rows], type=pa.int64()
                 ),
@@ -1598,13 +1643,185 @@ class Corpus:
         # its table with two memory readings taken across everyone. S608: the name comes
         # from this module's walk of the schema.
         with self._build_lock:
-            self._connection.register("registered_pivot_offsets", registered)
+            self._connection.register("registered_artifact_offsets", registered)
             self._connection.execute(
                 f"CREATE OR REPLACE TABLE {published} AS "  # noqa: S608
-                "SELECT * FROM registered_pivot_offsets"
+                "SELECT * FROM registered_artifact_offsets"
             )
-            self._connection.unregister("registered_pivot_offsets")
+            self._connection.unregister("registered_artifact_offsets")
         return published
+
+    def _occurrence_artifacts(self, path: str) -> dict[str, str] | None:
+        """Returns the artifacts holding ``path``'s occurrences, checked, or None.
+
+        Globbed and checked once per path and remembered, including the answer that
+        there are none, so a corpus without artifacts reads the directory once rather
+        than on every query.
+
+        Args:
+            path: The indexed path, as the query grammar names it.
+
+        Returns:
+            The source dataset each artifact was derived from, keyed by its path, or
+            None where the corpus has no directory or the directory holds none for this
+            path.
+
+        Raises:
+            PairingError: If the artifacts do not belong to this corpus; see
+                ``_check_occurrences``.
+        """
+        if self._occurrences_dir is None:
+            return None
+        with self._artifacts_lock:
+            if path in self._occurrence_artifacts_found:
+                return self._occurrence_artifacts_found[path]
+            files = [
+                str(found)
+                for found in occurrences.artifact_paths(self._occurrences_dir, path)
+            ]
+            if not files:
+                self._occurrence_artifacts_found[path] = None
+                return None
+            sources = self._check_occurrences(path, files)
+            self._occurrence_artifacts_found[path] = sources
+            return sources
+
+    def _check_occurrences(self, path: str, files: list[str]) -> dict[str, str]:
+        """Refuses occurrence artifacts that do not belong to this corpus.
+
+        The check ``_check_pivots`` makes, for the same reason: an occurrence names its
+        reaction by ID and its structure by a dataset-local ``structure_id``, and both
+        resolve against whatever this corpus holds. Artifacts derived from another
+        corpus therefore answer a quantifier confidently and wrongly rather than
+        failing.
+
+        Every indexed path writes the same three columns, so where a file sits says
+        nothing about what it holds and the stamped path is the only thing that does. A
+        file under the wrong one would answer that path's quantifiers with another
+        level's elements.
+
+        Args:
+            path: The indexed path the files claim to hold.
+            files: The artifacts found for it.
+
+        Returns:
+            The source dataset each artifact was derived from, keyed by its path, which
+            is what pairs an artifact with the offset its projection was given; see
+            ``_artifact_offsets``.
+
+        Raises:
+            PairingError: If a file is not an occurrences artifact, if it is stamped
+                with another path, if two artifacts restate one source dataset, if the
+                set of source datasets differs from the projections', or -- with
+                ``require_current`` -- if any artifact is stale.
+        """
+        wanted = {base.load_stamps(name).source_md5 for name in self._projections}
+        sources: dict[str, str] = {}
+        derived_from: dict[str, str] = {}
+        for name in files:
+            stamps = base.load_stamps(name)
+            if stamps.artifact != occurrences.ARTIFACT:
+                raise PairingError(
+                    f"{name} is a {stamps.artifact}, not an {occurrences.ARTIFACT} "
+                    "artifact"
+                )
+            held = occurrences.occurrence_path(name)
+            if held != path:
+                raise PairingError(
+                    f"{name} holds the occurrences at {held}, but sits where {path} is "
+                    "read from, so a quantifier over it would be answered by another "
+                    "path's elements"
+                )
+            if self._require_current and not base.stamps_are_current(
+                stamps, occurrences.ARTIFACT
+            ):
+                raise PairingError(f"{name} is a stale {occurrences.ARTIFACT} artifact")
+            # Two artifacts of one dataset pass the set comparison below and are both
+            # read, so every occurrence at the path is stated twice. A quantifier cannot
+            # see it -- a semi-join returns a reaction once however many rows name it --
+            # but the structure count that decides whether the index reaches the corpus
+            # is taken over distinct IDs, so it cannot see it either, and check_index
+            # reports the doubled count as the corpus's own.
+            if stamps.source_md5 in derived_from:
+                raise PairingError(
+                    f"{name} and {derived_from[stamps.source_md5]} are both "
+                    f"{occurrences.ARTIFACT} artifacts at {path} of the same source "
+                    "dataset, so its occurrences would each be read twice"
+                )
+            derived_from[stamps.source_md5] = name
+            sources[name] = stamps.source_md5
+        if set(sources.values()) != wanted:
+            found = set(sources.values())
+            raise PairingError(
+                f"the {occurrences.ARTIFACT} artifacts at {path} were derived from "
+                f"{len(found)} source datasets and the projections from {len(wanted)}, "
+                f"and {len(wanted - found)} of the projections' are missing; an "
+                "artifact of another corpus names reactions this one does not hold"
+            )
+        return sources
+
+    def _occurrences_from_artifact(self, path: str) -> str | None:
+        """Returns the SELECT reading ``path``'s occurrences from artifacts, or None.
+
+        The artifact is already one row per occurrence, so the read adds only the
+        corpus-wide ID: the element's own plus its dataset's offset, which is a running
+        total over the corpus's pairs and so belongs to no artifact. It is joined here
+        from the file each row came from, keyed by the source that file and its
+        projection both name.
+
+        Args:
+            path: The indexed path.
+
+        Returns:
+            The SELECT, or None where the corpus has no artifacts for the path.
+
+        Raises:
+            PairingError: If the artifacts do not belong to this corpus; see
+                ``_check_occurrences``.
+        """
+        sources = self._occurrence_artifacts(path)
+        if sources is None:
+            return None
+        offsets = self._artifact_offsets(
+            f"occurrences_{path.replace('.', '_')}_offsets", sources
+        )
+        # The artifact holds no row for an element carrying no structure, so nothing
+        # here filters: what a pivot needs a WHERE for, the derivation already did.
+        # S608: the path is a key of INDEXED_PATHS and the filenames come from this
+        # process's own glob, quoted with their single quotes escaped.
+        return f"""
+            SELECT x.reaction_id, {sql_string(path)} AS path,
+                   (x.structure_id + o.{query.STRUCTURE_OFFSET})::UINTEGER AS global_id,
+                   x.{_INDEXED_FIELD}
+            FROM read_parquet({_sql_paths(sources)}, filename=true) x
+            JOIN {offsets} o ON x.filename = o.artifact_filename
+            """  # noqa: S608
+
+    def _require_every_occurrence(self) -> None:
+        """Refuses a corpus whose occurrences_dir does not hold every indexed path.
+
+        A path with no artifact is otherwise read from a pivot or unnested out of the
+        projection, and either leaves the index a materialized table -- 1.19 GB held
+        over ORD, and 5-6.5 GB of DuckDB memory wanted to build it. A deployment sized
+        for the view is sized for neither, so the fallback that keeps a corpus
+        answering is the one that gets the container killed, which is the failure a
+        caller naming an occurrences_dir is least likely to be expecting.
+
+        Raises:
+            PairingError: If any indexed path has no artifacts. Wrong provenance, a
+                path filed under another, and staleness are raised by the check itself.
+        """
+        missing = [
+            path
+            for path in sorted(INDEXED_PATHS)
+            if self._occurrence_artifacts(path) is None
+        ]
+        if missing:
+            raise PairingError(
+                f"{self._occurrences_dir} holds no {occurrences.ARTIFACT} artifacts "
+                f"for {missing}, which this corpus was opened requiring; derive them "
+                "first with ord_schema.artifacts.scripts.derive_occurrences"
+            )
 
     def _occurrences(self) -> None:
         """Builds the occurrence index, once.
@@ -1635,20 +1852,34 @@ class Corpus:
             if self._occurrences_built:
                 return
             start = time.perf_counter()
-            # A level's pivot already holds one row per element, which is what this
-            # build would otherwise unnest the projection to produce. Reading it is a
-            # scan of a few hundred megabytes against a traversal of every reaction.
-            # Decided per path, so a directory holding some levels and not others is a
-            # partial speedup rather than a missing index.
-            reads, from_pivots = [], []
+            # Three ways to reach a path's occurrences, cheapest first. An occurrences
+            # artifact is the rows themselves and needs only the offset joined on. A
+            # level's pivot holds one row per element, which is a scan of a few hundred
+            # megabytes against a traversal of every reaction. Failing both, the
+            # projection is unnested. Decided per path, so a directory holding some and
+            # not others is a partial speedup rather than a missing index.
+            reads, from_artifacts, from_pivots = [], [], []
             for path, expression in INDEXED_PATHS.items():
-                reading = self._occurrences_from_pivot(path)
-                if reading is None:
-                    reads.append(_occurrences_from_projection(path, expression))
+                reading = self._occurrences_from_artifact(path)
+                if reading is not None:
+                    from_artifacts.append(path)
                 else:
-                    reads.append(reading)
-                    from_pivots.append(path)
+                    reading = self._occurrences_from_pivot(path)
+                    if reading is not None:
+                        from_pivots.append(path)
+                    else:
+                        reading = _occurrences_from_projection(path, expression)
+                reads.append(reading)
             selects = "\nUNION ALL\n".join(reads)
+            # A view where every path is an artifact, and a table otherwise. Read per
+            # query the artifacts cost 1.28x the built table summed over every path and
+            # pattern -- and less on the narrow paths, where reading one path's files
+            # beats filtering path = ? across every occurrence in the corpus -- against
+            # the 1.19 GB the table holds and the 5-6.5 GB it wants to build. A path
+            # read from a pivot or unnested out of the projection is the traversal this
+            # index exists to avoid, and a view would repeat it on every query rather
+            # than pay it once, so one uncovered path materializes all of them.
+            held = "VIEW" if len(from_artifacts) == len(INDEXED_PATHS) else "TABLE"
             # Its own cursor: this runs while searches are in flight, and the shared
             # connection holds their results.
             cursor = self._connection.cursor()
@@ -1672,16 +1903,18 @@ class Corpus:
                         "glob one artifact per reaction"
                     )
                     raise PairingError(self._refused)
-                # Under the build lock, which every statement that puts a table in this
-                # database takes, so none of them lands while a materialization is
+                # Under the build lock, which every statement that puts a relation in
+                # this database takes, so none of them lands while a materialization is
                 # measuring what one costs -- a difference of two readings taken across
                 # everyone.
-                # OR REPLACE, so a build interrupted after the table exists is a build
-                # the next query repeats rather than one that collides with itself
-                # forever. S608: the fragments are this module's own schema walk and
-                # the compiler's traversals, not anything a query supplies.
+                # OR REPLACE, so a build interrupted after the relation exists is a
+                # build the next query repeats rather than one that collides with
+                # itself forever. The kind cannot change under an open corpus, since
+                # what it turns on is which artifacts the directory held at open.
+                # S608: the fragments are this module's own schema walk and the
+                # compiler's traversals, not anything a query supplies.
                 with self._build_lock:
-                    cursor.execute(f"CREATE OR REPLACE TABLE occurrences AS {selects}")
+                    cursor.execute(f"CREATE OR REPLACE {held} occurrences AS {selects}")
                 counts = dict(
                     cursor.execute(
                         "SELECT path, count(*) FROM occurrences GROUP BY path"
@@ -1713,12 +1946,14 @@ class Corpus:
             # authentic standards -- which is why the refusal above counts structures
             # rather than paths.
             logger.info(
-                "indexed %d structure occurrences in %.1fs, %d of %d paths read from "
-                "pivot artifacts: %s",
+                "indexed %d structure occurrences in %.1fs as a %s, %d of %d paths "
+                "read from occurrence artifacts and %d from pivot artifacts: %s",
                 sum(counts.values()),
                 time.perf_counter() - start,
-                len(from_pivots),
+                held.lower(),
+                len(from_artifacts),
                 len(INDEXED_PATHS),
+                len(from_pivots),
                 ", ".join(f"{path} {counts.get(path, 0)}" for path in INDEXED_PATHS),
             )
 

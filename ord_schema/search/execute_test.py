@@ -3598,8 +3598,7 @@ def test_an_index_reads_the_pivots_rather_than_unnesting_the_projection(
             corpus, _exists({"op": "substructure", "path": "smiles", "smarts": "[Pt]"})
         )
     assert any(
-        f"{len(execute.INDEXED_PATHS)} of {len(execute.INDEXED_PATHS)} "
-        "paths read from pivot artifacts" in record.message
+        f"and {len(execute.INDEXED_PATHS)} from pivot artifacts" in record.message
         for record in caplog.records
     )
 
@@ -3619,9 +3618,7 @@ def test_a_path_whose_level_has_no_pivot_is_still_unnested(
     ):
         assert _search(corpus, where) == expected
     assert any(
-        f"1 of {len(execute.INDEXED_PATHS)} paths read from pivot artifacts"
-        in record.message
-        for record in caplog.records
+        "and 1 from pivot artifacts" in record.message for record in caplog.records
     )
 
 
@@ -4392,3 +4389,265 @@ def test_a_corpus_fingerprint_moves_when_only_the_structures_are_rebuilt(
         ) as after,
     ):
         assert before.fingerprint != after.fingerprint
+
+
+# Reading the occurrence index from artifacts
+
+
+def _write_occurrences(
+    pivots: pathlib.Path,
+    into: pathlib.Path,
+    paths: Sequence[str] = tuple(execute.INDEXED_PATHS),
+) -> pathlib.Path:
+    """Derives occurrence artifacts for ``paths`` from the pivots under ``pivots``.
+
+    Written under ``<path>/<shard>/`` because that is where ``derive_occurrences`` puts
+    them, mirroring the pivots it descends from.
+
+    Args:
+        pivots: Holds the pivot artifacts to derive from.
+        into: Where to write.
+        paths: Which indexed paths to write, every one by default.
+
+    Returns:
+        ``into``.
+    """
+    for path in paths:
+        level = occurrences.PATHS[path][0].path
+        for pivoted in sorted((pivots / level).glob("*/*.parquet")):
+            shard = into / path / pivoted.parent.name
+            shard.mkdir(parents=True, exist_ok=True)
+            occurrences.write_occurrences(pivoted, shard / pivoted.name, path=path)
+    return into
+
+
+@pytest.fixture
+def occurrence_dirs(tmp_path, corpus_dir) -> tuple[pathlib.Path, pathlib.Path]:
+    """The pivots the occurrences descend from, and the occurrences themselves."""
+    pivots = _write_pivots(corpus_dir, _OCCURRENCE_LEVELS, into=tmp_path / "pivots")
+    return pivots, _write_occurrences(pivots, tmp_path / "occurrences")
+
+
+@pytest.mark.parametrize("smarts", ["c1ccncc1", "[OX2H]", "c1ccccc1", "[#6]"])
+def test_an_index_read_from_artifacts_answers_what_unnesting_answers(
+    corpus_dir, occurrence_dirs, smarts
+):
+    # The artifact is the same occurrences by a third route, so it cannot answer
+    # differently from either of the two that build them. Over both datasets, because
+    # an occurrence's ID is its element's plus its own dataset's offset and a corpus of
+    # one dataset has an offset of zero to get wrong.
+    _, occurrence_dir = occurrence_dirs
+    where = _exists({"op": "substructure", "path": "smiles", "smarts": smarts})
+    with _indexed_corpus(corpus_dir, None) as unnested:
+        expected = _search(unnested, where)
+    assert expected
+    with _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read:
+        assert _search(read, where) == expected
+
+
+def test_an_index_read_from_artifacts_binds_the_role_to_the_element(
+    corpus_dir, occurrence_dirs
+):
+    # The role travels on the occurrence row, which is what keeps "pyridine as the
+    # solvent" a condition on one row rather than an intersection of two reaction sets.
+    _, occurrence_dir = occurrence_dirs
+    where = _role_and_structure("c1ccncc1", "SOLVENT")
+    with _indexed_corpus(corpus_dir, None) as unnested:
+        expected = _search(unnested, where)
+    with _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read:
+        assert _search(read, where) == expected
+
+
+def test_an_index_read_from_artifacts_keeps_a_structure_in_its_own_dataset(
+    corpus_dir, occurrence_dirs
+):
+    # An offset dropped or taken from the wrong dataset still lands inside the corpus's
+    # structures, so it returns a reaction rather than raising -- the wrong one.
+    _, occurrence_dir = occurrence_dirs
+    with (
+        _indexed_corpus(corpus_dir, None) as unnested,
+        _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read,
+    ):
+        where = _exists({"op": "substructure", "path": "smiles", "smarts": "[OX2H]"})
+        expected = _search(unnested, where)
+        assert expected
+        assert _search(read, where) == expected
+
+
+def test_a_covered_corpus_publishes_the_index_as_a_view(
+    corpus_dir, occurrence_dirs, caplog
+):
+    # The whole point of the artifact: the rows stay on disk. Over ORD the table holds
+    # 1.19 GB and wants several more to build, and the view holds none of it.
+    _, occurrence_dir = occurrence_dirs
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
+        _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read,
+    ):
+        read.check_index()
+    assert any("as a view" in record.message for record in caplog.records)
+    assert any(
+        f"{len(execute.INDEXED_PATHS)} of {len(execute.INDEXED_PATHS)} paths read "
+        "from occurrence artifacts" in record.message
+        for record in caplog.records
+    )
+
+
+def test_one_uncovered_path_materializes_the_whole_index(
+    corpus_dir, occurrence_dirs, caplog
+):
+    # A view whose branches unnest the projection would repeat that traversal on every
+    # query rather than pay it once, so partial coverage is a table.
+    pivots, _ = occurrence_dirs
+    partial = _write_occurrences(
+        pivots, pathlib.Path(str(pivots) + "-partial"), ("outcomes.products",)
+    )
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
+        _indexed_corpus(corpus_dir, None, occurrences_dir=str(partial)) as read,
+    ):
+        read.check_index()
+    assert any("as a table" in record.message for record in caplog.records)
+    assert any(
+        f"1 of {len(execute.INDEXED_PATHS)} paths read from occurrence artifacts"
+        in record.message
+        for record in caplog.records
+    )
+
+
+def test_an_uncovered_path_still_answers(corpus_dir, occurrence_dirs):
+    # Partial coverage is a partial speedup, never a missing answer: the paths with no
+    # artifact are read the way they were before there were any.
+    pivots, _ = occurrence_dirs
+    partial = _write_occurrences(
+        pivots, pathlib.Path(str(pivots) + "-one"), ("outcomes.products",)
+    )
+    where = _exists({"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"})
+    with _indexed_corpus(corpus_dir, None) as unnested:
+        expected = _search(unnested, where)
+    assert expected
+    with _indexed_corpus(corpus_dir, None, occurrences_dir=str(partial)) as read:
+        assert _search(read, where) == expected
+
+
+def test_a_directory_with_no_artifacts_is_not_an_error(corpus_dir, tmp_path):
+    # Naming an empty directory reads as a corpus that has not derived them yet, which
+    # is the state every corpus starts in.
+    empty = tmp_path / "none"
+    empty.mkdir()
+    with _indexed_corpus(corpus_dir, None, occurrences_dir=str(empty)) as read:
+        assert sum(read.check_index().values()) > 0
+
+
+# What the reader refuses
+
+
+def test_occurrence_artifacts_of_another_corpus_are_refused(
+    tmp_path, corpus_dir, occurrence_dirs
+):
+    # An occurrence names its reaction by ID and its structure by a dataset-local one,
+    # and both resolve against whatever this corpus holds -- so artifacts from another
+    # answer a quantifier confidently and wrongly rather than failing.
+    _, occurrence_dir = occurrence_dirs
+    one = tmp_path / "one"
+    for path in execute.INDEXED_PATHS:
+        found = occurrences.artifact_paths(occurrence_dir, path)
+        target = one / path / found[0].parent.name
+        target.mkdir(parents=True)
+        shutil.copy(found[0], target / found[0].name)
+    with pytest.raises(execute.PairingError, match="another corpus names reactions"):
+        _indexed_corpus(corpus_dir, None, occurrences_dir=str(one)).check_index()
+
+
+def test_an_artifact_stamped_with_another_path_is_refused(
+    tmp_path, corpus_dir, occurrence_dirs
+):
+    # Every indexed path writes the same three columns, so where a file sits says
+    # nothing about what it holds and the stamped path is the only thing that does.
+    _, occurrence_dir = occurrence_dirs
+    misfiled = tmp_path / "misfiled"
+    shutil.copytree(occurrence_dir, misfiled)
+    stranger = occurrences.artifact_paths(misfiled, "inputs.components")[0]
+    into = occurrences.artifact_paths(misfiled, "outcomes.products")[0]
+    shutil.copy(stranger, into)
+    with pytest.raises(execute.PairingError, match="holds the occurrences at"):
+        _indexed_corpus(corpus_dir, None, occurrences_dir=str(misfiled)).check_index()
+
+
+def test_two_artifacts_of_one_source_dataset_are_refused(
+    tmp_path, corpus_dir, occurrence_dirs
+):
+    # Both are read, so every occurrence at the path is stated twice. A semi-join
+    # returns a reaction once however many rows name it, and the reached-structure
+    # count is over distinct IDs, so nothing downstream can see it -- but check_index
+    # reports the doubled count as the corpus's own.
+    _, occurrence_dir = occurrence_dirs
+    doubled = tmp_path / "doubled"
+    shutil.copytree(occurrence_dir, doubled)
+    found = occurrences.artifact_paths(doubled, "inputs.components")[0]
+    shutil.copy(found, found.parent / f"copy-{found.name}")
+    with pytest.raises(execute.PairingError, match="of the same source dataset"):
+        _indexed_corpus(corpus_dir, None, occurrences_dir=str(doubled)).check_index()
+
+
+def test_a_file_that_is_not_an_occurrences_artifact_is_refused(
+    tmp_path, corpus_dir, occurrence_dirs
+):
+    _, occurrence_dir = occurrence_dirs
+    mixed = tmp_path / "mixed"
+    shutil.copytree(occurrence_dir, mixed)
+    projected = sorted((corpus_dir / "projections").glob("*.parquet"))[0]
+    shutil.copy(projected, mixed / "inputs.components" / projected.name)
+    with pytest.raises(execute.PairingError, match="is a projection, not an"):
+        _indexed_corpus(corpus_dir, None, occurrences_dir=str(mixed)).check_index()
+
+
+def test_a_stale_occurrence_artifact_is_refused(tmp_path, corpus_dir, occurrence_dirs):
+    # The stamps are the only thing saying an artifact was written by the library
+    # reading it, and an RDKit that has changed canonicalization changes which
+    # structure a row names.
+    _, occurrence_dir = occurrence_dirs
+    staled = tmp_path / "stale"
+    shutil.copytree(occurrence_dir, staled)
+    found = occurrences.artifact_paths(staled, "inputs.components")[0]
+    table = pq.read_table(found)
+    metadata = dict(table.schema.metadata)
+    metadata[b"ord.rdkit_version"] = b"0000.00.0"
+    pq.write_table(table.replace_schema_metadata(metadata), found)
+    with pytest.raises(execute.PairingError, match="is a stale occurrences artifact"):
+        _indexed_corpus(corpus_dir, None, occurrences_dir=str(staled)).check_index()
+    # Read anyway where the caller has said staleness is theirs to judge, which is the
+    # same latitude require_current gives every other artifact.
+    with _indexed_corpus(
+        corpus_dir, None, occurrences_dir=str(staled), require_current=False
+    ) as read:
+        assert sum(read.check_index().values()) > 0
+
+
+def test_requiring_occurrences_refuses_a_partial_directory(
+    corpus_dir, occurrence_dirs, tmp_path
+):
+    # A deployment sized for the view is not sized for the table, so the fallback that
+    # keeps a corpus answering is the one that gets the container killed.
+    pivots, _ = occurrence_dirs
+    partial = _write_occurrences(pivots, tmp_path / "partial", ("outcomes.products",))
+    with pytest.raises(execute.PairingError, match="holds no occurrences artifacts"):
+        _indexed_corpus(
+            corpus_dir, None, occurrences_dir=str(partial), require_occurrences=True
+        )
+
+
+def test_requiring_occurrences_accepts_a_covered_directory(corpus_dir, occurrence_dirs):
+    _, occurrence_dir = occurrence_dirs
+    with _indexed_corpus(
+        corpus_dir,
+        None,
+        occurrences_dir=str(occurrence_dir),
+        require_occurrences=True,
+    ) as read:
+        assert sum(read.check_index().values()) > 0
+
+
+def test_requiring_occurrences_without_a_directory_is_refused(corpus_dir):
+    with pytest.raises(ValueError, match="require_occurrences was set without"):
+        _indexed_corpus(corpus_dir, None, require_occurrences=True)
