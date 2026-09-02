@@ -395,7 +395,12 @@ building per projection file, lowers it to ~2 GB and costs every unconstrained d
 **Nothing supports swapping a corpus in place, and the arithmetic is the reason.** A
 structure's corpus-wide ID is its dataset-local one plus an offset that is a running total
 over the corpus's datasets in `source_md5` order, so adding, removing, or rewriting any
-dataset renumbers every structure after it. Everything keyed by those IDs — the occurrence
+dataset invalidates IDs elsewhere in the corpus. Adding or removing shifts every dataset
+after the one that moved. Rewriting does two things at once: the dataset's own IDs now name
+different molecules, and its `source_md5` re-sorts it to a different position in the
+ordering, which shifts the offsets of everything between where it was and where it lands —
+whether or not its row count changed. No ID survives any of the three by construction, and
+none should be assumed to. Everything keyed by those IDs — the occurrence
 index, the `SubstructLibrary` entry mapping, every cached match-set bitmap — is written
 against one such numbering and is silently wrong under another: the IDs stay in range and
 name different molecules. Renumbering always moves `Corpus.fingerprint`, which is what
