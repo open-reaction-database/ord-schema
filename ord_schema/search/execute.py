@@ -69,11 +69,9 @@ Reading the projection at all costs a re-parse of every file's footer, and over 
 it goes on to read. The corpus keeps the parsed footers instead; see ``_cache_footers``.
 
 The grammar bounds what a query can cost (one pass and a sort), and ``search``
-takes a wall-clock timeout over the whole call. It bounds when the caller is answered
-rather than when work stops: the final query is interrupted, while name resolution, the
-one-time library and index builds, screening, and verification are checked as they
-finish, since none of them can be stopped partway and the builds are shared with
-whatever else is waiting on them. Both builds happen
+takes a wall-clock timeout over the whole call, bounding when the caller is answered
+rather than when work stops; see ``_Deadline`` for which phases can be interrupted and
+which are only checked. Both builds happen
 at open unless the corpus was given ``warm=False``, which leaves the index to the first
 query taking a clause of it and the library to the first substructure predicate. A
 search that pays for either pays upwards of a minute over the whole corpus, on top of
@@ -785,15 +783,14 @@ def _warn_when_the_cap_leaves_no_headroom(
 
 
 class _Deadline:
-    """When a search has to be finished, and what it may still spend getting there.
+    """When a search has to be finished, and what it may still spend.
 
     A search is several phases -- compiling, which may build a pivot; the occurrence
     index; name resolution; screening and verifying a structure predicate; and the query
     itself -- and only the last is a DuckDB statement a timer can interrupt. The rest is
-    RDKit with the GIL released, an external resolver, or a build another search is
-    waiting on, none of which can be stopped partway. So this bounds when the caller
-    gets an answer or an error rather than when work stops: each phase is checked as it
-    finishes, and the query is given whatever is left.
+    RDKit with the GIL released, an external resolver, or a build another search waits
+    on. So this bounds when the caller gets an answer or an error rather than when work
+    stops: each phase is checked as it finishes, and the query gets whatever is left.
 
     A shared build is deliberately not interrupted. The occurrence index, the
     substructure library, and a materialized pivot are built once for the corpus under a
@@ -2700,14 +2697,10 @@ class Corpus:
         Args:
             request: The query to run.
             timeout_seconds: Wall-clock bound on the whole call, not on the final
-                query alone. It bounds when the caller gets an answer or an error rather
-                than when work stops: the query is interrupted, but a phase already
-                running is not. Screening and verifying are RDKit with the GIL released,
-                name resolution is an external service, and the index, the library and a
-                pivot are built once for the corpus under a lock -- a timer that killed
-                one of those would fail every search queued behind it, including
-                callers that asked for no bound. So an overrun in one of those phases
-                raises when it finishes, naming it. None runs unbounded.
+                query alone. The query is interrupted; a phase already running is not,
+                and raises when it finishes instead -- so a search can take longer than
+                this and still report the overrun. ``_Deadline`` says which phases those
+                are and why. None runs unbounded.
 
         Returns:
             The selected columns: ``reaction_id`` for a plain query, the group and
