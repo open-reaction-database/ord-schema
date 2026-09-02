@@ -32,7 +32,7 @@ open, keyed by the source dataset every artifact names; see
 :mod:`ord_schema.search.execute`.
 
 That rule is what lets this be an artifact at all rather than a relation assembled at
-open, which is what :mod:`ord_schema.search.execute` still does: over ORD it builds
+open, which is what :mod:`ord_schema.search.execute` does: over ORD it builds
 18,847,978 rows holding 1.19 GiB, wanting 5-6.5 GB of DuckDB memory and 16-25 GB of
 temporary files to get there, before the first query can be answered. The same rows
 derived here are 242 MB of Parquet. **Nothing reads them yet** -- the corpus that does
@@ -106,10 +106,10 @@ def indexed_paths(
             because the answer is to change this module rather than to retry.
     """
     paths: dict[str, tuple[pivot.RepeatedLevel, tuple[str, ...]]] = {}
-    # Walked from the schema the caller passed rather than from the module default, so
-    # asking what a written file covers is answered about that file. A reach against the
-    # default levels would answer about the schema this library was imported with, which
-    # is the disagreement between two walks that this function exists to prevent.
+    # Levels from the schema the caller passed, so asking what a written file covers is
+    # answered about that file. Reaching against the module's default levels would
+    # answer about the schema this library was imported with -- the disagreement between
+    # two walks that this function exists to prevent.
     levels = pivot.repeated_levels(schema)
     for _, path, dtype in structures.structure_levels(schema):
         if INDEXED_FIELD not in [field.name for field in dtype]:

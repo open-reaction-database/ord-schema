@@ -134,7 +134,7 @@ corpus and failing only on a subset of it, which is the shape of bug that reache
 production. The corpus assigns offsets at open and joins them on, keyed by the source
 dataset every artifact names. That rule is what lets the occurrence index be an artifact
 at all rather than a relation rebuilt at every startup — which is what
-[`Corpus`](../search/execute.py) still does, since nothing reads the artifact yet.
+[`Corpus`](../search/execute.py) does, since nothing reads the artifact yet.
 
 ## Querying a projection
 

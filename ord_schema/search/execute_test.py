@@ -1662,10 +1662,9 @@ def test_the_index_is_built_once_and_only_when_wanted(corpus_dir, caplog):
 
 
 def test_the_indexed_paths_and_field_come_from_the_artifact():
-    # Not an agreement between two walks -- there is one walk, in the artifact, and this
-    # pins that it stays that way. A path routed here that no artifact carries is a
-    # quantifier answered from nothing, and a field name restated here rather than read
-    # is a column the artifact does not hold.
+    # One walk, in the artifact, and this pins that it stays one. A path routed here
+    # that no artifact carries is a quantifier answered from nothing, and a field name
+    # spelled here rather than read is a column the artifact does not hold.
     assert set(execute.INDEXED_PATHS) == set(occurrences.PATHS)
     assert execute._INDEXED_FIELD == occurrences.INDEXED_FIELD
 

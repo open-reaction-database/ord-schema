@@ -420,9 +420,9 @@ _UNPARSEABLE = Chem.Mol().ToBinary()
 _NO_BITS = DataStructs.ExplicitBitVect(structures.PATTERN_FP_SIZE)
 
 # The one element field the occurrence index carries besides the structure. A query
-# binding anything else to the element runs against the projection instead.
-# Read from the artifact rather than restated, so the column the index filters on and
-# the column an occurrences artifact carries cannot come apart.
+# binding anything else to the element runs against the projection instead. Taken from
+# the artifact, so the column the index filters on and the column an occurrences
+# artifact carries cannot come apart.
 _INDEXED_FIELD = occurrences.INDEXED_FIELD
 
 
@@ -435,8 +435,8 @@ def _indexed_paths(schema: pa.Schema = projection.SCHEMA) -> dict[str, str]:
     is silent: a path routed here that no artifact holds is a quantifier answered from
     nothing.
 
-    What this adds is the traversal, which only the compiler knows -- the expression
-    unnesting the level out of the projection, for the paths no artifact covers.
+    What this adds is the traversal, which only the compiler knows: the expression
+    unnesting the level out of the projection, for the paths no pivot artifact covers.
 
     Args:
         schema: The projection schema.
@@ -447,9 +447,10 @@ def _indexed_paths(schema: pa.Schema = projection.SCHEMA) -> dict[str, str]:
 
     Raises:
         ValueError: If a structure-bearing path does not resolve to a repeated
-            expression, so the build cannot unnest it; or whatever
-            ``occurrences.indexed_paths`` refuses. Raised at import, naming the path,
-            because the answer is to change one of these modules rather than to retry.
+            expression, so the build cannot unnest it, or if
+            ``occurrences.indexed_paths`` refuses the schema. Raised at import, naming
+            the path, because the answer is to change one of these modules, not to
+            retry.
     """
     paths: dict[str, str] = {}
     for path in occurrences.indexed_paths(schema):
