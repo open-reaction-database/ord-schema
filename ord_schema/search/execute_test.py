@@ -4395,7 +4395,6 @@ def test_a_corpus_fingerprint_moves_when_only_the_structures_are_rebuilt(
 
 
 def _write_occurrences(
-    root: pathlib.Path,
     pivots: pathlib.Path,
     into: pathlib.Path,
     paths: Sequence[str] = tuple(execute.INDEXED_PATHS),
@@ -4406,8 +4405,6 @@ def _write_occurrences(
     them, mirroring the pivots it descends from.
 
     Args:
-        root: Unused by the derivation, and taken so this reads like ``_write_pivots``
-            at the call site.
         pivots: Holds the pivot artifacts to derive from.
         into: Where to write.
         paths: Which indexed paths to write, every one by default.
@@ -4415,7 +4412,6 @@ def _write_occurrences(
     Returns:
         ``into``.
     """
-    del root
     for path in paths:
         level = occurrences.PATHS[path][0].path
         for pivoted in sorted((pivots / level).glob("*/*.parquet")):
@@ -4429,7 +4425,7 @@ def _write_occurrences(
 def occurrence_dirs(tmp_path, corpus_dir) -> tuple[pathlib.Path, pathlib.Path]:
     """The pivots the occurrences descend from, and the occurrences themselves."""
     pivots = _write_pivots(corpus_dir, _OCCURRENCE_LEVELS, into=tmp_path / "pivots")
-    return pivots, _write_occurrences(corpus_dir, pivots, tmp_path / "occurrences")
+    return pivots, _write_occurrences(pivots, tmp_path / "occurrences")
 
 
 @pytest.mark.parametrize("smarts", ["c1ccncc1", "[OX2H]", "c1ccccc1", "[#6]"])
@@ -4504,10 +4500,7 @@ def test_one_uncovered_path_materializes_the_whole_index(
     # query rather than pay it once, so partial coverage is a table.
     pivots, _ = occurrence_dirs
     partial = _write_occurrences(
-        corpus_dir,
-        pivots,
-        pathlib.Path(str(pivots) + "-partial"),
-        ("outcomes.products",),
+        pivots, pathlib.Path(str(pivots) + "-partial"), ("outcomes.products",)
     )
     with (
         caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
@@ -4527,7 +4520,7 @@ def test_an_uncovered_path_still_answers(corpus_dir, occurrence_dirs):
     # artifact are read the way they were before there were any.
     pivots, _ = occurrence_dirs
     partial = _write_occurrences(
-        corpus_dir, pivots, pathlib.Path(str(pivots) + "-one"), ("outcomes.products",)
+        pivots, pathlib.Path(str(pivots) + "-one"), ("outcomes.products",)
     )
     where = _exists({"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"})
     with _indexed_corpus(corpus_dir, None) as unnested:
@@ -4637,9 +4630,7 @@ def test_requiring_occurrences_refuses_a_partial_directory(
     # A deployment sized for the view is not sized for the table, so the fallback that
     # keeps a corpus answering is the one that gets the container killed.
     pivots, _ = occurrence_dirs
-    partial = _write_occurrences(
-        corpus_dir, pivots, tmp_path / "partial", ("outcomes.products",)
-    )
+    partial = _write_occurrences(pivots, tmp_path / "partial", ("outcomes.products",))
     with pytest.raises(execute.PairingError, match="holds no occurrences artifacts"):
         _indexed_corpus(
             corpus_dir, None, occurrences_dir=str(partial), require_occurrences=True
