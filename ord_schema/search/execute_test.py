@@ -2054,7 +2054,10 @@ def test_a_routed_query_is_bounded_by_the_timeout(corpus, monkeypatch):
     assert _index_spent(body), "expected the index to take the clause"
     request = query.Query.model_validate(body)
     assert _reactions(corpus.search(request, timeout_seconds=60)) == {"ord-aa01"}
-    assert [timeout for _, timeout in seen] == [60]
+    # What reaches the query is what the earlier phases left, not the whole bound: the
+    # screen and the index build come out of the same budget.
+    (spent,) = [timeout for _, timeout in seen]
+    assert 0 < spent <= 60
     assert "FROM occurrences" in seen[0][0]
 
 
@@ -4651,3 +4654,76 @@ def test_requiring_occurrences_accepts_a_covered_directory(corpus_dir, occurrenc
 def test_requiring_occurrences_without_a_directory_is_refused(corpus_dir):
     with pytest.raises(ValueError, match="require_occurrences was set without"):
         _indexed_corpus(corpus_dir, None, require_occurrences=True)
+
+
+# What the timeout covers
+
+
+def test_the_query_is_given_what_the_earlier_phases_left(corpus, monkeypatch):
+    # The bound is over the whole call, so a phase that spends half of it leaves the
+    # query the other half. Passing the full bound down would let a search take twice
+    # what it was allowed and report no error.
+    seen: list[float] = []
+    original = execute._run_with_timeout
+
+    def recording(cursor, sql, parameters, timeout_seconds):
+        seen.append(timeout_seconds)
+        return original(cursor, sql, parameters, timeout_seconds)
+
+    monkeypatch.setattr(execute, "_run_with_timeout", recording)
+    slow = execute.Corpus._matches
+
+    def dawdle(self, cursor, parameter, resolve):
+        time.sleep(0.2)
+        return slow(self, cursor, parameter, resolve)
+
+    monkeypatch.setattr(execute.Corpus, "_matches", dawdle)
+    request = query.Query.model_validate(
+        {
+            "where": _exists(
+                {"op": "substructure", "path": "smiles", "compound": "pyridine"}
+            )
+        }
+    )
+    corpus.search(request, timeout_seconds=10)
+    (left,) = seen
+    assert 0 < left < 10 - 0.2
+
+
+def test_a_phase_that_outlasts_the_bound_raises_naming_itself(corpus, monkeypatch):
+    # The phases that cannot be interrupted -- an external resolver, RDKit with the GIL
+    # released, a build another search is waiting on -- are checked as they finish. The
+    # error says which one, because "the search timed out" over a corpus that answers in
+    # milliseconds is a question rather than an answer.
+    def dawdle(self, cursor, parameter, resolve):
+        time.sleep(0.05)
+        return self._bitmap([])
+
+    monkeypatch.setattr(execute.Corpus, "_matches", dawdle)
+    request = query.Query.model_validate(
+        {
+            "where": _exists(
+                {"op": "substructure", "path": "smiles", "compound": "pyridine"}
+            )
+        }
+    )
+    with pytest.raises(TimeoutError, match="matching substructure"):
+        corpus.search(request, timeout_seconds=0.01)
+
+
+def test_no_timeout_leaves_every_phase_unbounded(corpus, monkeypatch):
+    # None has to stay a real "no bound" rather than a very large one: a phase that
+    # checked a deadline of None would raise on a corpus that is merely slow.
+    def dawdle(self, cursor, parameter, resolve):
+        time.sleep(0.05)
+        return self._bitmap([])
+
+    monkeypatch.setattr(execute.Corpus, "_matches", dawdle)
+    request = query.Query.model_validate(
+        {
+            "where": _exists(
+                {"op": "substructure", "path": "smiles", "compound": "pyridine"}
+            )
+        }
+    )
+    assert corpus.search(request) is not None
