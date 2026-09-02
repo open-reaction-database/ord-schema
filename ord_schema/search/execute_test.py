@@ -4651,3 +4651,34 @@ def test_requiring_occurrences_accepts_a_covered_directory(corpus_dir, occurrenc
 def test_requiring_occurrences_without_a_directory_is_refused(corpus_dir):
     with pytest.raises(ValueError, match="require_occurrences was set without"):
         _indexed_corpus(corpus_dir, None, require_occurrences=True)
+
+
+# The match-set bitmap
+
+
+def test_a_bitmap_packs_eight_structures_to_the_byte(corpus_dir):
+    # The size is the point: one is held per cached match set and marshalled into every
+    # query that binds one, so a character-per-bit string costs eight times over. It
+    # casts to the same BITSTRING either way, which is why nothing downstream changes.
+    with _indexed_corpus(corpus_dir, None) as corpus:
+        bitmap = corpus._bitmap([])
+        assert isinstance(bitmap, bytes)
+        assert len(bitmap) == (corpus._total + 7) // 8 <= corpus._total
+
+
+def test_a_bitmap_sets_the_bit_duckdb_reads_for_that_id(corpus_dir):
+    # DuckDB reads a BLOB cast to BITSTRING most significant bit first, so the packing
+    # has to agree with get_bit rather than merely be self-consistent. A reversed byte
+    # would still round-trip through a Python reader and answer every query wrongly.
+    with _indexed_corpus(corpus_dir, None) as corpus:
+        # In range by construction: _bitmap indexes the byte an ID falls in, so an ID
+        # past the corpus is an IndexError rather than a silently ignored one.
+        matched = sorted({0, corpus._total // 2, corpus._total - 1})
+        bitmap = corpus._bitmap(matched)
+        row = corpus._connection.execute(
+            "SELECT list_transform($probes, i -> "
+            "get_bit(CAST($p AS BITSTRING), i::INTEGER))",
+            {"p": bitmap, "probes": list(range(corpus._total))},
+        ).fetchone()
+        assert row is not None  # A scalar select returns one row.
+        assert [index for index, bit in enumerate(row[0]) if bit] == matched

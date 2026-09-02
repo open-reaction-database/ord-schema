@@ -117,8 +117,8 @@ logger = get_logger(__name__)
 # build without making the per-batch Python overhead matter.
 _BUILD_BATCH = 50_000
 
-# Match sets kept for reuse. Each is a bitmap over the corpus ID space -- 2 MB at ORD's
-# scale -- so this trades a few tens of megabytes for the repeat of a query that costs
+# Match sets kept for reuse. Each is a packed bitmap over the corpus ID space -- 252 KB
+# at ORD's scale -- so this trades a few megabytes for the repeat of a query that costs
 # seconds.
 _CACHED_MATCHES = 16
 
@@ -1050,7 +1050,7 @@ class Corpus:
         self._refused: str | None = None
         self._occurrences_lock = threading.Lock()
         # Recent match sets, most recently used last; see _matches.
-        self._matched: collections.OrderedDict[_MatchKey, str] = (
+        self._matched: collections.OrderedDict[_MatchKey, bytes] = (
             collections.OrderedDict()
         )
         # Match sets a thread is computing, so callers asking the same question while it
@@ -2065,12 +2065,30 @@ class Corpus:
         ).fetchall()
         return [row[0] for row in rows]
 
-    def _bitmap(self, matched: Sequence[int]) -> str:
-        """Returns the match set as a bitmap over the corpus-wide ID space."""
-        bits = bytearray(b"0" * max(self._total, 1))
+    def _bitmap(self, matched: Sequence[int]) -> bytes:
+        """Returns the match set as a bitmap over the corpus-wide ID space.
+
+        Packed eight bits to the byte, which is how DuckDB reads a BLOB cast to
+        BITSTRING -- most significant bit first, so bit ``i`` is ``128 >> (i % 8)`` of
+        byte ``i // 8``. A character-per-bit string casts to the same bitstring and is
+        eight times the size, which is paid twice over: once per cached match set and
+        again marshalling the parameter into every query that binds one.
+
+        The last byte is padded with zeros, so the bitmap answers for a few IDs past the
+        corpus. They are unreachable: an occurrence's ID is its dataset-local one plus
+        an offset, and the corpus refuses a structures artifact whose IDs are not
+        exactly the run from zero.
+
+        Args:
+            matched: The corpus-wide structure IDs that matched, each below ``_total``.
+
+        Returns:
+            The bitmap, ``ceil(_total / 8)`` bytes long and at least one.
+        """
+        bits = bytearray((max(self._total, 1) + 7) // 8)
         for global_id in matched:
-            bits[global_id] = ord("1")
-        return bits.decode()
+            bits[global_id // 8] |= 128 >> (global_id % 8)
+        return bytes(bits)
 
     def _materialize(self, path: str, select: str) -> _Pivot | None:
         """Returns the pivot over ``path``, building it if the cache lacks one.
@@ -2527,7 +2545,7 @@ class Corpus:
         cursor: duckdb.DuckDBPyConnection,
         parameter: query.StructureParameter,
         resolve: Callable[[str], str],
-    ) -> str:
+    ) -> bytes:
         """Returns a structure predicate's match set as a bitmap, reusing a recent one.
 
         The chemistry depends on the query molecule, the operation, and the threshold,
