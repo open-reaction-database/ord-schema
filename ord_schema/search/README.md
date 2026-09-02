@@ -800,8 +800,10 @@ and index builds, screening, and verification all run before that timer starts.
 
 Execution has no sandbox. `enable_external_access=false` cannot be combined with a lazy Parquet
 view — only a materialized table survives it — so running against the full corpus needs
-DuckDB's `allowed_directories` or a separate process. Compiling from an IR removes the reasons
-to fear the *query*; it does not remove the reasons to contain the *process*.
+DuckDB's `allowed_directories` or a separate process. That list is four trees for a corpus
+reading everything it can: the projections, the structures, `pivots_dir`, and
+`occurrences_dir`. Compiling from an IR removes the reasons to fear the *query*; it does not
+remove the reasons to contain the *process*.
 
 **Text search is deferred, not approximated.** `contains`, `starts_with`, and `ends_with` run
 against any of the projection's 234 string leaves, and searching a short one — a `type`, a
