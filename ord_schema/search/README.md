@@ -399,10 +399,21 @@ dataset renumbers every structure after it. Everything keyed by those IDs — th
 index, the `SubstructLibrary` entry mapping, every cached match-set bitmap — is written
 against one such numbering and is silently wrong under another: the IDs stay in range and
 name different molecules. Renumbering always moves `Corpus.fingerprint`, which is what
-makes it a sound guard for anything held outside the corpus. It is conservative in the
-other direction: it digests each artifact's whole stamp, so a rebuild under a new RDKit
-moves it even where every offset comes out the same. Invalidating on it discards more than
-it strictly must, and never less.
+makes it a sound guard for anything held outside the corpus.
+
+That soundness is not free, and it rests on one invariant worth naming. An offset is a
+running total of each dataset's *structures-artifact row count*, in `source_md5` order, so
+renumbering needs either a changed set of source hashes — which moves the fingerprint,
+since it digests every artifact's stamps — or a changed row count for a source and library
+that did not change. The second cannot happen: `structure_id` is assigned in first-seen
+order over the reactions, a pure function of the source bytes, the ord-schema version, and
+the RDKit that canonicalized the SMILES, all three of which are stamped and digested.
+`test_rebuilding_a_projection_assigns_the_same_structure_ids` pins exactly that, and if it
+ever fails the guard fails with it.
+
+It is conservative in the other direction: a rebuild under a new RDKit moves the
+fingerprint even where every offset comes out the same. Invalidating on it discards more
+than it strictly must, and never less.
 
 So a deployment that must pick up new data opens a **second** `Corpus`, waits for it to
 warm, and swaps the reference. Peak memory during the swap is therefore twice the steady
