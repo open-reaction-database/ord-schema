@@ -360,9 +360,31 @@ def glob_root(pattern: str) -> pathlib.PurePath:
     return pathlib.PurePath(*fixed)
 
 
-def output_path(source: str, pattern: str, output_dir: str) -> pathlib.Path:
-    """Maps a source path to its artifact path under ``output_dir``."""
-    relative = pathlib.PurePath(source).relative_to(glob_root(pattern))
+def output_path(
+    source: str,
+    pattern: str,
+    output_dir: str,
+    *,
+    root: str | os.PathLike[str] | None = None,
+) -> pathlib.Path:
+    """Maps a source path to its artifact path under ``output_dir``.
+
+    Args:
+        source: Path the pattern matched.
+        pattern: The glob it matched, whose wildcard-free prefix the output mirrors from
+            when ``root`` is not given.
+        output_dir: Directory to write beneath.
+        root: The directory to mirror from, for a caller that has one. A caller building
+            a pattern around a directory name has to escape it, and an escaped ``[`` is
+            a character class as far as ``glob_root`` can tell -- so the prefix it finds
+            stops short and the mirror carries the source layout twice.
+
+    Returns:
+        Where ``source``'s artifact goes.
+    """
+    relative = pathlib.PurePath(source).relative_to(
+        glob_root(pattern) if root is None else pathlib.PurePath(root)
+    )
     return pathlib.Path(output_dir) / relative
 
 
@@ -477,6 +499,7 @@ def derive_tree(
     schema: pa.Schema | None = None,
     force: bool = False,
     parent_artifact: str | None = None,
+    root: str | os.PathLike[str] | None = None,
 ) -> tuple[int, int, int]:
     """Derives one artifact per file matching ``input_pattern``.
 
@@ -497,6 +520,9 @@ def derive_tree(
         parent_artifact: Artifact the parents hold, for a derivation that reads another
             artifact rather than a source dataset. None means the parents are source
             datasets.
+        root: The directory outputs mirror from, for a caller that has one rather than a
+            pattern. Defaults to ``input_pattern``'s wildcard-free leading directories,
+            which is what a caller who wrote the pattern means by it.
 
     Returns:
         ``(written, skipped, ignored)`` counts: artifacts derived, artifacts already
@@ -529,7 +555,8 @@ def derive_tree(
     # in the source tree maps one dataset onto a *different* one, which a per-source
     # check passes, destroying a source the run had not reached yet.
     destinations = {
-        source: output_path(source, input_pattern, output_dir) for source in sources
+        source: output_path(source, input_pattern, output_dir, root=root)
+        for source in sources
     }
     resolved_sources = {pathlib.Path(source).resolve() for source in sources}
     clobbered = sorted(

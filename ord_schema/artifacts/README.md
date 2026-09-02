@@ -7,16 +7,18 @@ consumer can read cheaply. It adds no information, which is the whole discipline
 artifact is *wrong* if it disagrees with its source, and *stale* if its source has moved
 on. Both have to be detectable without reading a single column of data.
 
-Three artifacts, derived in a chain:
+Four artifacts, derived in a chain:
 
 ```mermaid
 flowchart LR
     D["source dataset<br/>ord-data, wire-format bytes"] --> P["<b>projection</b><br/>every field, as nested Parquet"]
     P --> S["<b>structures</b><br/>one row per distinct molecule<br/>fingerprints + serialized mol"]
     P --> V["<b>pivot</b><br/>one row per element of<br/>one repeated level"]
+    V --> O["<b>occurrences</b><br/>one row per structure occurrence<br/>at one indexed path"]
     S -.->|"paired by source dataset"| C["ord_schema.search.Corpus"]
     P -.-> C
     V -.-> C
+    O -. "not yet" .-> C
 ```
 
 | artifact | one file per | holds | read by |
@@ -24,6 +26,7 @@ flowchart LR
 | [`projection`](projection.py) | source dataset | every field of every message reachable from `Reaction`, as `STRUCT` / `LIST` / `MAP` | any query engine; the compiler in [`ord_schema.search`](../search/) |
 | [`structures`](structures.py) | projection | one row per distinct structure: `pattern_fp`, `morgan_fp`, `morgan_popcount`, `mol_binary`, keyed by `structure_id` | the screen and verify steps of substructure search |
 | [`pivot`](pivot.py) | projection × repeated level | one row per element, carrying `reaction_id`, the ordinal of every enclosing level, and the element's own non-repeated fields | quantifiers, as a semi-join |
+| [`occurrences`](occurrences.py) | pivot × indexed path | one row per structure occurrence: `reaction_id`, `structure_id`, `reaction_role` | *nothing yet* — the corpus assembles these rows in process; reading them is a separate change |
 
 The projection leaves **no field out** — a field left out is a question nobody can ask.
 Its schema is generated from the proto descriptors, so a field added upstream appears
@@ -78,7 +81,7 @@ each match:
   source tree maps one dataset onto a *different* one, which a per-source check passes
   while destroying a source the run has not reached yet.
 
-Three scripts wrap it, in dependency order:
+Four scripts wrap it, in dependency order:
 
 ```bash
 python -m ord_schema.artifacts.scripts.derive_projection \
@@ -89,12 +92,18 @@ python -m ord_schema.artifacts.scripts.derive_structures \
 
 python -m ord_schema.artifacts.scripts.derive_pivots \
     --input_pattern='projections/*/*.parquet' --output_dir=pivots \
-    --levels outcomes.products outcomes.products.measurements
+    --levels $(python -m ord_schema.artifacts.scripts.derive_occurrences --print_levels)
+
+python -m ord_schema.artifacts.scripts.derive_occurrences \
+    --pivots_dir=pivots --output_dir=occurrences
 ```
 
 Each takes `--force` to rewrite what is already current. `derive_pivots` defaults to all
 39 repeated levels, which is far more than a deployment answers questions over; naming
-the levels it does is the cheaper run.
+the levels it does is the cheaper run — and `derive_occurrences --print_levels` names the
+four it reads, which is why the command above asks it rather than spelling them.
+`derive_occurrences` covers every path a structure can sit at, which is not a choice: a
+path left out is one whose structures no query can find.
 
 ## What pairs with what
 
@@ -115,6 +124,17 @@ derivation and are meaningful only together:
 A pivot names its reactions by ID, so one derived from another corpus resolves against
 rows this one does not hold — confidently and wrongly. `Corpus` refuses pivot artifacts
 whose source datasets are not its projections'.
+
+**No artifact carries a corpus-wide ID.** A `structure_id` is local to its dataset; the
+corpus-wide one a bitmap is indexed by is that plus an offset, and the offset is a running
+total over the datasets the corpus opened. It therefore belongs to no artifact: the same
+rows read beside a different set of datasets need a different offset, and one baked into a
+file would stay *in range* while naming another dataset's molecule — passing on the whole
+corpus and failing only on a subset of it, which is the shape of bug that reaches
+production. The corpus assigns offsets at open and joins them on, keyed by the source
+dataset every artifact names. That rule is what lets the occurrence index be an artifact
+at all rather than a relation rebuilt at every startup — which is what
+[`Corpus`](../search/execute.py) does, since nothing reads the artifact yet.
 
 ## Querying a projection
 

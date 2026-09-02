@@ -15,6 +15,7 @@
 """Tests for ord_schema.artifacts.base."""
 
 import dataclasses
+import glob
 import pathlib
 from importlib import metadata
 
@@ -172,6 +173,21 @@ def test_output_path_for_an_exact_filename_writes_into_the_directory():
     assert base.output_path(
         "data/aa/one.parquet", "data/aa/one.parquet", "structures"
     ) == pathlib.Path("structures/one.parquet")
+
+
+def test_an_explicit_root_mirrors_from_where_the_caller_says():
+    # A caller building a pattern around a directory name has to escape it, and the
+    # escape is spelled with the wildcard it is escaping: glob_root stops at "data[[]1]"
+    # and mirrors the source layout a second time beneath output_dir. The caller knows
+    # the directory it meant, so it says so rather than spelling it as a pattern.
+    pattern = glob.escape("data[1]/aa") + "/*.parquet"
+    source = "data[1]/aa/ord_dataset-x.parquet"
+    assert base.output_path(source, pattern, "structures") == pathlib.Path(
+        "structures/data[1]/aa/ord_dataset-x.parquet"
+    )
+    assert base.output_path(
+        source, pattern, "structures", root="data[1]/aa"
+    ) == pathlib.Path("structures/ord_dataset-x.parquet")
 
 
 # Driver
