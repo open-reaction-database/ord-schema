@@ -111,8 +111,13 @@ path left out is one whose structures no query can find.
 one dataset**. The projection and its structures artifact are two statements of one
 derivation and are meaningful only together:
 
-- IDs are not stable across builds, so nothing outside the artifacts should record them.
-  The column is marked internal and stays out of what a model is told it may query.
+- IDs are stable for a fixed source and a fixed library — assignment is first-seen order
+  over the reactions, so the same bytes under the same ord-schema and RDKit give the same
+  numbers, which is what lets an artifact pair with a projection by source hash rather
+  than by which build produced it. They are *not* stable across a library upgrade that
+  changes canonicalization, which is what the version stamps are for. Nothing outside the
+  artifacts should record them either way; the column is marked internal and stays out of
+  what a model is told it may query.
 - A projection rewritten in place needs its structures artifact rederived with it. The
   stamps name the *source dataset* rather than the projection file, so the skip check
   cannot see that the pairing changed — which is why
