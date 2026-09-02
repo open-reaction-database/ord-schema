@@ -193,11 +193,16 @@ class Compiled:
     predicates the caller evaluates against the structures artifact, each bound as a
     bitmap over corpus-wide structure IDs; a query carrying any also references the
     ``STRUCTURE_OFFSET`` column, so it runs only against the executor's relation.
+
+    ``limit`` is the row bound the SQL carries, which is the query's own where it asked
+    for one within ``max_rows`` and ``max_rows`` where it did not. A caller comparing it
+    against ``Query.limit`` learns whether the answer was cut short.
     """
 
     sql: str
     compounds: tuple[str, ...]
     structures: tuple[StructureParameter, ...] = ()
+    limit: int | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1198,6 +1203,7 @@ def compile_query(
     table: str = TABLE,
     index: ElementIndex | None = None,
     pivot: PivotIndex | None = None,
+    max_rows: int | None = None,
 ) -> Compiled:
     """Compiles a query to DuckDB SQL over the projection.
 
@@ -1214,6 +1220,15 @@ def compile_query(
         pivot: Pivoted levels to spend where they can answer a quantifier; see
             ``PivotIndex``. Consulted after ``index``, and for ``forall`` as well as
             ``exists``.
+        max_rows: Most rows the SQL may return, applied whether or not the query asked
+            for a limit and clamping one that asks for more. The grammar leaves
+            ``limit`` optional, and a query without one returns every matching
+            reaction -- millions of rows at corpus scale, materialized in whatever
+            process is executing. A caller serving queries it did not write wants this
+            set; None leaves the query's own limit, or none, exactly as stated. It
+            bounds an aggregated query's *groups*, where a truncated answer is an
+            arbitrary part of a distribution rather than a sample of the matching
+            reactions; ``Corpus.search`` says so when one comes back full.
 
     Returns:
         The SQL, the compound names whose resolved SMILES the caller binds, and the
@@ -1223,9 +1238,18 @@ def compile_query(
         QueryError: If ``table`` is not an identifier, if any path, operator, or
             ordering key cannot be meant against the schema, or if a compound name
             collides with a generated structure parameter.
+        ValueError: If ``max_rows`` is less than one, which is a bound no query can
+            satisfy rather than a small one.
     """
     if not _NAME.match(table):
         raise QueryError(f"table is not an identifier: {table!r}")
+    if max_rows is not None and max_rows < 1:
+        # Zero compiles to a LIMIT no query can satisfy and a negative one to SQL
+        # DuckDB refuses at execution, both of them far from whoever passed it.
+        raise ValueError(
+            f"max_rows is {max_rows}, which no query can return; leave it unset to "
+            "bound nothing"
+        )
     compounds: list[str] = []
     structures: list[StructureParameter] = []
     if query.aggregate:
@@ -1294,6 +1318,12 @@ def compile_query(
                 )
             keys.append(f"{key} DESC" if order.descending else key)
         sql += " ORDER BY " + ", ".join(keys)
-    if query.limit is not None:
-        sql += f" LIMIT {query.limit}"
-    return Compiled(sql, tuple(compounds), tuple(structures))
+    if max_rows is None:
+        limit = query.limit
+    elif query.limit is None:
+        limit = max_rows
+    else:
+        limit = min(query.limit, max_rows)
+    if limit is not None:
+        sql += f" LIMIT {limit}"
+    return Compiled(sql, tuple(compounds), tuple(structures), limit)

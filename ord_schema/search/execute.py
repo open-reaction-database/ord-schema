@@ -491,6 +491,46 @@ def _occurrences_from_projection(path: str, expression: str) -> str:
         """  # noqa: S608
 
 
+def _warn_when_the_bound_was_reached(
+    request: query.Query, compiled: query.Compiled, returned: int
+) -> None:
+    """Says when this corpus's bound, not the query's, may have cut the answer short.
+
+    Said after the query rather than while compiling it, because a bound applied is not
+    an answer cut short: a query the bound never reached is the ordinary case, and
+    warning about it on every generous limit is how a reader learns to skip the line
+    that matters. A result that comes back exactly full is the most a row count can say
+    -- it may hold every match and end there -- and nothing in the table says which.
+
+    An aggregated query is the louder case. A truncated list of reactions is a sample of
+    the matching ones; a truncated list of groups is part of a distribution read as the
+    whole of it, and where the query ordered by nothing it is an arbitrary part.
+
+    Args:
+        request: The query as asked, whose own ``limit`` is not this corpus's doing.
+        compiled: What it compiled to, carrying the limit that reached the SQL.
+        returned: Rows the query returned.
+    """
+    if compiled.limit is None or compiled.limit == request.limit:
+        return
+    if returned < compiled.limit:
+        return
+    if request.aggregate is not None:
+        logger.warning(
+            "this query grouped into at least the %d rows the corpus bounds it at, so "
+            "the groups it returned are %s of the distribution rather than all of it; "
+            "ask for fewer groups, or raise max_rows",
+            compiled.limit,
+            "an arbitrary part" if not request.order_by else "the leading part",
+        )
+    else:
+        logger.warning(
+            "this query returned the %d rows the corpus bounds it at, so there may be "
+            "matches it did not return; raise max_rows to see them",
+            compiled.limit,
+        )
+
+
 def _index_condition(
     path: str,
     fields: dict[str, str],
@@ -823,6 +863,7 @@ class Corpus:
         require_pivots: bool = False,
         memory_limit: str | None = None,
         warm: bool = True,
+        max_rows: int | None = None,
     ) -> None:
         """Pairs the artifacts, checks their stamps, and prepares the relations.
 
@@ -899,6 +940,13 @@ class Corpus:
                 see ``check_index``. A corpus asked only scalar queries needs neither,
                 and one asked scalar and similarity queries needs the index without the
                 library -- ``warm=False`` beside ``check_index`` builds that pair.
+            max_rows: Most rows a search may return, applied whether or not the query
+                asked for a limit and clamping one that asks for more. The grammar
+                leaves ``limit`` optional, so a query without one returns every matching
+                reaction -- at ORD's scale millions of rows, built into an Arrow table
+                in this process, from a query that reads as ordinary. A caller serving
+                queries it did not write wants this set. None leaves every query's own
+                limit, or none, exactly as stated.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
@@ -916,12 +964,19 @@ class Corpus:
             ValueError: If ``require_pivots`` is set beside a ``pivot_budget_bytes``,
                 which budgets for a build it rules out. If ``derive_pivots`` is set
                 beside ``warm``, which reads the levels the index covers before the
-                derivation can complete them. If ``pivot_budget_bytes`` is negative,
-                which no amount of memory is; zero is allowed, and materializes nothing;
-                or if ``derive_pivots`` or ``require_pivots`` is set without a
-                ``pivots_dir``.
+                derivation can complete them. If ``max_rows`` is less than one, which is
+                a bound no query can satisfy rather than a small one. If
+                ``pivot_budget_bytes`` is negative, which no amount of memory is; zero
+                is allowed, and materializes nothing; or if ``derive_pivots`` or
+                ``require_pivots`` is set without a ``pivots_dir``.
         """
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
+        if max_rows is not None and max_rows <= 0:
+            raise ValueError(
+                f"max_rows is {max_rows}, which no query can return; leave it unset to "
+                "bound nothing"
+            )
+        self._max_rows = max_rows
         if pivot_budget_bytes is not None and pivot_budget_bytes < 0:
             raise ValueError(
                 f"pivot_budget_bytes is {pivot_budget_bytes}, which is not an amount "
@@ -2360,7 +2415,10 @@ class Corpus:
 
         Returns:
             The selected columns: ``reaction_id`` for a plain query, the group and
-            measure columns for an aggregated one.
+            measure columns for an aggregated one. At most this corpus's ``max_rows``,
+            where it has one: an answer that reached the bound is logged as possibly
+            cut, and the table itself does not say. ``Compiled.limit`` is what actually
+            reached the SQL, for a caller that wants to check rather than read a log.
 
         Raises:
             query.QueryError: If the query does not compile.
@@ -2403,7 +2461,11 @@ class Corpus:
                     pivoted[path] = reading.enter_context(self._pivoted_table(path))
                 return pivoted[path]
 
-            compiled = query.compile_query(request, index=index, pivot=pivot_table)
+            compiled = query.compile_query(
+                request, index=index, pivot=pivot_table, max_rows=self._max_rows
+            )
+            if compiled.limit != request.limit:
+                logger.info("the corpus bounds this query at %d rows", compiled.limit)
             if indexing:
                 # Built after compiling and before running: the condition names the
                 # table, so the table has to exist by the time the query does. Logged
@@ -2423,9 +2485,12 @@ class Corpus:
                         cursor, parameter, resolve
                     )
                 if timeout_seconds is None:
-                    return cursor.execute(compiled.sql, parameters).to_arrow_table()
-                return _run_with_timeout(
-                    cursor, compiled.sql, parameters, timeout_seconds
-                )
+                    answered = cursor.execute(compiled.sql, parameters).to_arrow_table()
+                else:
+                    answered = _run_with_timeout(
+                        cursor, compiled.sql, parameters, timeout_seconds
+                    )
+                _warn_when_the_bound_was_reached(request, compiled, answered.num_rows)
+                return answered
             finally:
                 cursor.close()

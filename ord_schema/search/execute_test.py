@@ -1691,6 +1691,98 @@ def test_a_cold_corpus_leaves_the_index_to_the_first_query(corpus_dir):
         assert not value._occurrences_built
 
 
+def test_max_rows_bounds_what_a_search_returns(corpus_dir, caplog):
+    # The corpus holds three reactions and the query asks for none of them in
+    # particular, which is the shape that returns everything at corpus scale.
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            max_rows=2,
+        ) as value,
+    ):
+        assert value.search(query.Query.model_validate({})).num_rows == 2
+    assert any("bounds this query at 2 rows" in m for m in _messages(caplog))
+
+
+def test_an_answer_that_reaches_the_bound_says_it_may_be_cut(corpus_dir, caplog):
+    # Cut rather than refused: the answer is nearer what the caller wanted than an
+    # error, and nothing in the result says it was cut, so the log has to.
+    with (
+        caplog.at_level(logging.WARNING, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            max_rows=1,
+        ) as value,
+    ):
+        found = value.search(query.Query.model_validate({"limit": 3}))
+    assert found.num_rows == 1
+    assert any("there may be matches it did not return" in m for m in _messages(caplog))
+
+
+def test_an_answer_the_bound_never_reached_says_nothing(corpus_dir, caplog):
+    # The ordinary case, and the reason the warning waits for the result: warning
+    # wherever the bound was merely applied is how a reader learns to skip the line.
+    with (
+        caplog.at_level(logging.WARNING, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            max_rows=100,
+        ) as value,
+    ):
+        assert value.search(query.Query.model_validate({"limit": 5000})).num_rows == 3
+    assert not _messages(caplog)
+
+
+def test_a_truncated_aggregate_says_the_distribution_is_partial(corpus_dir, caplog):
+    # A truncated list of reactions is a sample of the matching ones; a truncated list
+    # of groups is part of a distribution read as the whole of it, and ordered by
+    # nothing it is an arbitrary part.
+    request = {
+        "aggregate": {
+            "group_by": ["reaction_id"],
+            "measures": [{"fn": "count", "name": "n"}],
+        }
+    }
+    with (
+        caplog.at_level(logging.WARNING, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            max_rows=2,
+        ) as value,
+    ):
+        assert value.search(query.Query.model_validate(request)).num_rows == 2
+    assert any("an arbitrary part of the distribution" in m for m in _messages(caplog))
+
+
+def test_a_search_under_a_smaller_limit_than_max_rows_is_untouched(corpus_dir):
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        max_rows=100,
+    ) as value:
+        assert value.search(query.Query.model_validate({"limit": 2})).num_rows == 2
+
+
+def test_a_max_rows_no_query_can_satisfy_is_refused(corpus_dir):
+    with pytest.raises(ValueError, match="which no query can return"):
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            max_rows=0,
+        )
+
+
 def test_a_corpus_builds_the_substructure_library_at_open(corpus_dir):
     # Warming covers both builds a substructure query needs, so what an open corpus
     # holds is what a container has to be sized for rather than a floor a later query
