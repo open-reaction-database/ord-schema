@@ -44,13 +44,15 @@ def _current_metadata(**overrides):
 def _valid_metadata(**overrides):
     metadata = {
         "ord.artifact": "structures",
-        "ord.artifact_version": base.ARTIFACT_VERSION,
         "ord.source_md5": "0" * 32,
         "ord.ord_schema_version": "9.9.9",
         "ord.rdkit_version": rdBase.rdkitVersion,
         "ord.source_dataset_id": "ord_dataset-1",
     }
     metadata.update(overrides)
+    # Derived from whichever artifact the caller asked for, so a test that overrides one
+    # does not silently get another's chain and pass for the wrong reason.
+    metadata.setdefault("ord.artifact_lineage", base.lineage(metadata["ord.artifact"]))
     return metadata
 
 
@@ -60,7 +62,7 @@ def _valid_metadata(**overrides):
 def test_stamps_carries_the_current_versions():
     value = base.current_stamps("structures", "ord_dataset-1", "abc")
     assert value.artifact == "structures"
-    assert value.artifact_version == base.ARTIFACT_VERSION
+    assert value.artifact_lineage == base.lineage("structures")
     assert value.ord_schema_version
 
 
@@ -91,7 +93,7 @@ def test_load_stamps_tolerates_a_missing_dataset_id(tmp_path):
     "missing",
     [
         "ord.artifact",
-        "ord.artifact_version",
+        "ord.artifact_lineage",
         "ord.source_md5",
         "ord.ord_schema_version",
     ],
@@ -140,7 +142,9 @@ def test_is_current_requires_every_stamp_to_match(tmp_path, monkeypatch):
     monkeypatch.setattr(base.metadata, "version", lambda _: "9.9.10")
     assert not base.is_current(path, "structures", "0" * 32)
     monkeypatch.setattr(base.metadata, "version", lambda _: "9.9.9")
-    monkeypatch.setattr(base, "ARTIFACT_VERSION", "99")
+    monkeypatch.setattr(
+        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"structures": "99"}
+    )
     assert not base.is_current(path, "structures", "0" * 32)
 
 
@@ -442,7 +446,9 @@ def test_derive_tree_refuses_a_stale_parent(tmp_path, monkeypatch):
     (tmp_path / "aa").mkdir()
     parent = tmp_path / "aa" / "projected.parquet"
     _write(parent, _current_metadata(**{"ord.artifact": "projection"}))
-    monkeypatch.setattr(base, "ARTIFACT_VERSION", "next")
+    monkeypatch.setattr(
+        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"projection": "next"}
+    )
     with pytest.raises(ValueError, match="stale projection"):
         base.derive_tree(
             str(tmp_path / "*" / "*.parquet"),
@@ -524,3 +530,61 @@ def test_an_artifact_with_no_rdkit_stamp_reads_stale():
         rdkit_version=None,
     )
     assert not base.stamps_are_current(value, "structures")
+
+
+# Per-artifact versions
+
+
+def test_a_lineage_names_the_artifact_and_every_ancestor():
+    assert base.lineage("projection") == "projection=1"
+    assert base.lineage("structures") == "structures=1,projection=1"
+    assert base.lineage("occurrences") == "occurrences=1,pivot=1,projection=1"
+
+
+def test_every_artifact_reaches_a_source_dataset():
+    # A cycle or a missing parent would hang or raise inside lineage, which is called
+    # for every artifact written and every currency check made.
+    for artifact in base.ARTIFACT_VERSIONS:
+        assert base.lineage(artifact).endswith("projection=1")
+    assert set(base.DERIVED_FROM) == set(base.ARTIFACT_VERSIONS)
+    assert {
+        parent for parent in base.DERIVED_FROM.values() if parent is not None
+    } <= set(base.ARTIFACT_VERSIONS)
+
+
+def test_bumping_an_artifact_leaves_what_it_was_derived_from_alone(monkeypatch):
+    # The whole point of splitting the version. Occurrences are 1.9 seconds to derive
+    # and the projection under them 34.6 minutes, so a change to the cheap one must not
+    # charge the expensive one.
+    before = base.lineage("projection")
+    monkeypatch.setattr(
+        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"occurrences": "2"}
+    )
+    assert base.lineage("projection") == before
+    assert base.lineage("pivot") == "pivot=1,projection=1"
+    assert base.lineage("occurrences") == "occurrences=2,pivot=1,projection=1"
+
+
+def test_bumping_an_artifact_reaches_everything_derived_from_it(monkeypatch):
+    # And the other half: a projection redefined has to invalidate the occurrences three
+    # derivations down, which a stamp naming only the artifact's own version cannot say
+    # and one naming only its parent's cannot either.
+    monkeypatch.setattr(
+        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"projection": "2"}
+    )
+    assert base.lineage("occurrences") == "occurrences=1,pivot=1,projection=2"
+    assert base.lineage("structures") == "structures=1,projection=2"
+
+
+def test_a_grandparent_bump_makes_a_grandchild_stale(tmp_path, monkeypatch):
+    # The case a direct-parent stamp misses: occurrences record the pivot they came
+    # from, and a projection bump moves neither the occurrences' own version nor the
+    # pivot's, so nothing but the lineage can see it.
+    path = tmp_path / "artifact.parquet"
+    _write(path, _valid_metadata(**{"ord.artifact": "occurrences"}))
+    monkeypatch.setattr(base.metadata, "version", lambda _: "9.9.9")
+    assert base.is_current(path, "occurrences", "0" * 32)
+    monkeypatch.setattr(
+        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"projection": "2"}
+    )
+    assert not base.is_current(path, "occurrences", "0" * 32)
