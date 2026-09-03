@@ -384,7 +384,8 @@ no managed service to move this to — Athena and its kin can scan the Parquet, 
 chemistry is not SQL.
 
 **A built index has a floor, and it is not a soft one** — a corpus given a covering
-`occurrences_dir` builds nothing and meets none of what follows. Over ORD the build wants **5–6.5 GB**
+`occurrences_dir` builds nothing and meets none of what follows. Over ORD the build
+wants **5–6.5 GB**
 of DuckDB memory, and below that it raises `OutOfMemoryException` rather than running
 slowly — a block it cannot pin is not one it can spill, so a `temp_directory` does not
 rescue it. Near the floor it also wants 16–25 GiB of scratch disk, which a container may
@@ -399,28 +400,27 @@ over the corpus's datasets in `source_md5` order, so adding, removing, or rewrit
 dataset invalidates IDs elsewhere in the corpus. Adding or removing shifts every dataset
 after the one that moved. Rewriting does two things at once: the dataset's own IDs now name
 different molecules, and its `source_md5` re-sorts it to a different position in the
-ordering, which shifts the offsets of everything between where it was and where it lands —
-whether or not its row count changed. Everything keyed by those IDs — the occurrence
-index, the `SubstructLibrary` entry mapping, every cached match-set bitmap — is written
-against one numbering and is silently wrong under another: the IDs stay in range and
-name different molecules. Renumbering always moves `Corpus.fingerprint`, which is what
-makes it a sound guard for anything held outside the corpus.
+ordering, which shifts the offsets of everything between where it was and where it
+lands — whether or not its row count changed. Everything keyed by those IDs — the
+occurrence index, the `SubstructLibrary` entry mapping, every cached match-set bitmap —
+is written against one numbering and stays *in range* under another, which is what makes
+it silent. Renumbering always moves `Corpus.fingerprint`, which is what makes it a sound
+guard for anything held outside the corpus.
 
-It rests on one invariant, and the invariant took work to secure. An offset is a running
-total of each dataset's *structures-artifact row count*, in `source_md5` order, so
+That soundness rests on one invariant. An offset is a running total of each dataset's
+*structures-artifact row count*, in `source_md5` order, so
 renumbering needs either a changed set of source hashes — which moves the fingerprint,
 since it digests every artifact's stamps — or a changed row count under a source and
 library that did not change.
 
-Determinism is what rules the second out. `structure_id` is assigned in the order the
-projection walk reaches a SMILES, which makes it a function of the source bytes, the
-ord-schema version, and the RDKit that canonicalized the SMILES — all three stamped. It
-was briefly a function of a fourth thing that is stamped nowhere: the walk took protobuf's
-own map iteration order, which protobuf specifies as undefined, so a protobuf upgrade that
-reordered a map could have renumbered a corpus whose stamps all matched. The walk now
-sorts a map's keys, making the order its own. Two tests hold this together:
+Determinism is what rules the second out, and it has four inputs rather than three.
+`structure_id` is assigned in the order the projection walk reaches a SMILES, making it a
+function of the source bytes, the ord-schema version, and the RDKit that canonicalized the
+SMILES — all stamped — and of the order that walk takes through a map field, which is the
+walk's own: it sorts a map's keys, because protobuf specifies its iteration order as
+undefined and the protobuf build is stamped nowhere. Two tests hold this up.
 `test_rebuilding_a_projection_assigns_the_same_structure_ids` pins that a rebuild assigns
-the same IDs, and `test_map_fields_are_walked_in_key_order` pins that the order is not
+the same IDs; `test_map_fields_are_walked_in_key_order` pins that the order is not
 protobuf's to change. If either fails, this guard fails with it.
 
 It is conservative in the other direction: a rebuild under a new RDKit moves the
