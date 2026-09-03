@@ -2054,7 +2054,10 @@ def test_a_routed_query_is_bounded_by_the_timeout(corpus, monkeypatch):
     assert _index_spent(body), "expected the index to take the clause"
     request = query.Query.model_validate(body)
     assert _reactions(corpus.search(request, timeout_seconds=60)) == {"ord-aa01"}
-    assert [timeout for _, timeout in seen] == [60]
+    # What reaches the query is what the earlier phases left, not the whole bound: the
+    # screen and the index build come out of the same budget.
+    (spent,) = [timeout for _, timeout in seen]
+    assert 0 < spent <= 60
     assert "FROM occurrences" in seen[0][0]
 
 
@@ -4651,3 +4654,141 @@ def test_requiring_occurrences_accepts_a_covered_directory(corpus_dir, occurrenc
 def test_requiring_occurrences_without_a_directory_is_refused(corpus_dir):
     with pytest.raises(ValueError, match="require_occurrences was set without"):
         _indexed_corpus(corpus_dir, None, require_occurrences=True)
+
+
+# What the timeout covers
+
+
+def test_the_query_is_given_what_the_earlier_phases_left(corpus, monkeypatch):
+    # The bound is over the whole call, so a phase that spends half of it leaves the
+    # query the other half. Passing the full bound down would let a search take twice
+    # what it was allowed and report no error.
+    seen: list[float] = []
+    original = execute._run_with_timeout
+
+    def recording(cursor, sql, parameters, timeout_seconds):
+        seen.append(timeout_seconds)
+        return original(cursor, sql, parameters, timeout_seconds)
+
+    monkeypatch.setattr(execute, "_run_with_timeout", recording)
+    slow = execute.Corpus._matches
+
+    def dawdle(self, cursor, parameter, resolve):
+        time.sleep(0.2)
+        return slow(self, cursor, parameter, resolve)
+
+    monkeypatch.setattr(execute.Corpus, "_matches", dawdle)
+    request = query.Query.model_validate(
+        {
+            "where": _exists(
+                {"op": "substructure", "path": "smiles", "compound": "pyridine"}
+            )
+        }
+    )
+    corpus.search(request, timeout_seconds=10)
+    (left,) = seen
+    assert 0 < left < 10 - 0.2
+
+
+def test_a_phase_that_outlasts_the_bound_raises_naming_itself(corpus, monkeypatch):
+    # The phases that cannot be interrupted -- an external resolver, RDKit with the GIL
+    # released, a build another search is waiting on -- are checked as they finish. The
+    # error says which one, because "the search timed out" over a corpus that answers in
+    # milliseconds is a question rather than an answer.
+    def dawdle(self, cursor, parameter, resolve):
+        time.sleep(0.05)
+        return self._bitmap([])
+
+    monkeypatch.setattr(execute.Corpus, "_matches", dawdle)
+    request = query.Query.model_validate(
+        {
+            "where": _exists(
+                {"op": "substructure", "path": "smiles", "compound": "pyridine"}
+            )
+        }
+    )
+    # Named by the pattern the caller asked for, not by the compiler's placeholder.
+    with pytest.raises(TimeoutError, match="matching substructure 'pyridine'"):
+        corpus.search(request, timeout_seconds=0.01)
+
+
+def test_no_timeout_leaves_every_phase_unbounded(corpus, monkeypatch):
+    # None has to stay a real "no bound" rather than a very large one: a phase that
+    # checked a deadline of None would raise on a corpus that is merely slow. The
+    # contrast is the assertion -- the same slow phase under a bound does raise, so a
+    # passing unbounded search says something about None rather than about the fixture.
+    def dawdle(self, cursor, parameter, resolve):
+        time.sleep(0.05)
+        return self._bitmap([])
+
+    monkeypatch.setattr(execute.Corpus, "_matches", dawdle)
+    request = query.Query.model_validate(
+        {
+            "where": _exists(
+                {"op": "substructure", "path": "smiles", "compound": "pyridine"}
+            )
+        }
+    )
+    with pytest.raises(TimeoutError):
+        corpus.search(request, timeout_seconds=0.01)
+    assert corpus.search(request).num_rows == 0
+
+
+@pytest.mark.parametrize("spent", [0, -0.5])
+def test_a_bound_spent_before_the_query_starts_does_not_run_it(corpus, spent):
+    # A timer armed for a bound already spent fires while the cursor is idle, and DuckDB
+    # clears an interrupt that arrived with nothing running -- so the query would go on
+    # to run unbounded and answer after the deadline it was given. Refused instead, from
+    # the same value that would have armed the timer, so nothing can expire in between.
+    #
+    # The SQL names a table that does not exist: if it ran at all, what comes back is a
+    # DuckDB binder error rather than the TimeoutError this asserts.
+    cursor = corpus._connection.cursor()
+    try:
+        with pytest.raises(TimeoutError, match="whole bound before the query"):
+            execute._run_with_timeout(cursor, "SELECT * FROM no_such_table", {}, spent)
+    finally:
+        cursor.close()
+
+
+class _LostTimer:
+    """A timer that never fires, standing in for an interrupt DuckDB dropped."""
+
+    def __init__(self, seconds: float, function) -> None:
+        """Accepts and discards what ``threading.Timer`` would act on.
+
+        Args:
+            seconds: Ignored.
+            function: Ignored; never called, which is the point.
+        """
+        del seconds, function
+
+    def start(self) -> None:
+        """Does nothing."""
+
+    def cancel(self) -> None:
+        """Does nothing."""
+
+
+def test_an_answer_that_arrives_past_the_bound_is_a_timeout(corpus, monkeypatch):
+    # The interrupt is not guaranteed to land: a timer armed for a very short bound can
+    # fire while the cursor is still idle, and DuckDB clears an interrupt that arrived
+    # with nothing running -- measured, a bound of a nanosecond loses it about one run
+    # in five, after which the query runs unbounded. So the answer is checked against
+    # the clock rather than trusted because no interrupt arrived.
+    #
+    # The lost interrupt is simulated rather than raced for: a timer that never fires
+    # is what the caller sees either way, and a test that waited for the real race
+    # would pass four times in five while the bug was present.
+    monkeypatch.setattr(execute.threading, "Timer", _LostTimer)
+    cursor = corpus._connection.cursor()
+    try:
+        with pytest.raises(TimeoutError, match=r"past the .* it was given"):
+            execute._run_with_timeout(
+                cursor,
+                "SELECT count(*) FROM range(30_000_000) t(i) WHERE i % 7 = 0",
+                {},
+                0.001,
+            )
+    finally:
+        cursor.close()

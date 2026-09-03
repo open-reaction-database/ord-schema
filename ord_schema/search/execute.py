@@ -69,10 +69,9 @@ Reading the projection at all costs a re-parse of every file's footer, and over 
 it goes on to read. The corpus keeps the parsed footers instead; see ``_cache_footers``.
 
 The grammar bounds what a query can cost (one pass and a sort), and ``search``
-takes a wall-clock timeout that interrupts the final query. Name resolution, the
-one-time library and index builds, screening, and verification all run before the timer
-starts: each is bounded by the corpus rather than by the query, so a slow one is slow
-for every caller and shows up in the logs rather than in a timeout. Both builds happen
+takes a wall-clock timeout over the whole call, bounding when the caller is answered
+rather than when work stops; see ``_Deadline`` for which phases can be interrupted and
+which are only checked. Both builds happen
 at open unless the corpus was given ``warm=False``, which leaves the index to the first
 query taking a clause of it and the library to the first substructure predicate. A
 search that pays for either pays upwards of a minute over the whole corpus, on top of
@@ -783,6 +782,55 @@ def _warn_when_the_cap_leaves_no_headroom(
     )
 
 
+class _Deadline:
+    """When a search has to be finished, and what it may still spend.
+
+    A search is several phases -- compiling, which may build a pivot; the occurrence
+    index; name resolution; screening and verifying a structure predicate; and the query
+    itself -- and only the last is a DuckDB statement a timer can interrupt. The rest is
+    RDKit with the GIL released, an external resolver, or a build another search waits
+    on. So this bounds when the caller gets an answer or an error rather than when work
+    stops: each phase is checked as it finishes, and the query gets whatever is left.
+
+    A shared build is deliberately not interrupted. The occurrence index, the
+    substructure library, and a materialized pivot are built once for the corpus under a
+    lock, so a timer that killed one would fail every search queued behind it -- callers
+    that asked for no bound included.
+    """
+
+    def __init__(self, seconds: float | None) -> None:
+        """Starts the clock.
+
+        Args:
+            seconds: Wall-clock bound, or None for no deadline.
+        """
+        self._at = None if seconds is None else time.monotonic() + seconds
+        self._seconds = seconds
+
+    def remaining(self) -> float | None:
+        """Returns the seconds left, or None where there is no deadline."""
+        if self._at is None:
+            return None
+        return self._at - time.monotonic()
+
+    def check(self, phase: str) -> None:
+        """Raises if the deadline has passed.
+
+        Args:
+            phase: What has just finished, named in the error so the caller learns
+                which part of the search was the slow one.
+
+        Raises:
+            TimeoutError: If the deadline has passed.
+        """
+        left = self.remaining()
+        if left is not None and left <= 0:
+            raise TimeoutError(
+                f"the search exceeded {self._seconds} seconds while {phase}; it ran to "
+                "completion because that phase cannot be interrupted"
+            )
+
+
 def _run_with_timeout(
     cursor: duckdb.DuckDBPyConnection,
     sql: str,
@@ -790,6 +838,10 @@ def _run_with_timeout(
     timeout_seconds: float,
 ) -> pa.Table:
     """Runs ``sql``, interrupting it if it outlasts ``timeout_seconds``.
+
+    The one phase of a search that is interruptible, and the only one whose work is this
+    caller's alone: the cursor is the search's own, so interrupting it fails nothing
+    else.
 
     ``Timer.cancel`` only sets a flag, so a timer that has already passed its own
     check fires anyway. The lock makes the interrupt and the teardown exclusive, so
@@ -806,8 +858,19 @@ def _run_with_timeout(
         The result as an Arrow table.
 
     Raises:
-        TimeoutError: If the query is interrupted by the timer.
+        TimeoutError: If the query is interrupted by the timer, if ``timeout_seconds``
+            has already run out before it starts, or if the query answers after the
+            bound because its interrupt was lost.
     """
+    # Refused rather than armed. A timer set for a bound already spent fires while the
+    # cursor is still idle, and DuckDB clears an interrupt nothing was running when it
+    # arrived -- so the query would then run unbounded and answer after the deadline it
+    # was given. Decided from the same value that would arm the timer, so no time passes
+    # between the test and the arming for the bound to expire in.
+    if timeout_seconds <= 0:
+        raise TimeoutError(
+            "the search spent its whole bound before the query could start"
+        )
     lock = threading.Lock()
     running = True
 
@@ -817,15 +880,30 @@ def _run_with_timeout(
                 cursor.interrupt()
 
     timer = threading.Timer(timeout_seconds, interrupt)
+    started = time.monotonic()
     timer.start()
     try:
-        return cursor.execute(sql, parameters).to_arrow_table()
+        answered = cursor.execute(sql, parameters).to_arrow_table()
     except duckdb.InterruptException as error:
         raise TimeoutError(f"query exceeded {timeout_seconds} seconds") from error
     finally:
         timer.cancel()
         with lock:
             running = False
+    # The interrupt is not guaranteed to land. A timer armed for a very short bound can
+    # fire while the cursor is still idle, and DuckDB clears an interrupt that arrived
+    # with nothing running -- measured, a bound of a nanosecond loses it about one run
+    # in five -- after which the query goes on unbounded. So the answer is checked
+    # against the clock rather than trusted because no interrupt arrived: the bound is a
+    # promise about when the caller is answered, and one kept only when a race goes the
+    # right way is not a promise.
+    elapsed = time.monotonic() - started
+    if elapsed > timeout_seconds:
+        raise TimeoutError(
+            f"the query answered after {elapsed:.3f} seconds, past the "
+            f"{timeout_seconds} it was given; its interrupt did not land"
+        )
+    return answered
 
 
 @dataclasses.dataclass
@@ -2644,10 +2722,11 @@ class Corpus:
 
         Args:
             request: The query to run.
-            timeout_seconds: Wall-clock bound on the final query. Name resolution, the
-                library and index builds, screening, and verification run before the
-                timer starts and are not counted, so a first substructure search can
-                take seconds longer than this allows. None runs unbounded.
+            timeout_seconds: Wall-clock bound on the whole call, not on the final
+                query alone. The query is interrupted; a phase already running is not,
+                and raises when it finishes instead -- so a search can take longer than
+                this and still report the overrun. ``_Deadline`` says which phases those
+                are and why. None runs unbounded.
 
         Returns:
             The selected columns: ``reaction_id`` for a plain query, the group and
@@ -2662,7 +2741,8 @@ class Corpus:
             PairingError: If the corpus IDs do not come out one unbroken run, or the
                 occurrence index refuses the corpus -- a reaction stated by more than
                 one row, or a structure no indexed path reaches.
-            TimeoutError: If the query exceeds ``timeout_seconds``.
+            TimeoutError: If the search exceeds ``timeout_seconds``, naming the phase
+                that was running when the bound passed.
         """
         # Records into this search rather than onto the corpus: two searches share one
         # Corpus, and whether the index answered is a fact about one of them.
@@ -2685,6 +2765,7 @@ class Corpus:
                 resolved[name] = _canonical(self._resolver(name))
             return resolved[name]
 
+        deadline = _Deadline(timeout_seconds)
         with contextlib.ExitStack() as reading:
             pivoted: dict[str, str | None] = {}
 
@@ -2700,6 +2781,9 @@ class Corpus:
             compiled = query.compile_query(
                 request, index=index, pivot=pivot_table, max_rows=self._max_rows
             )
+            # Compiling is cheap, but pivot_table above is not: a level with no artifact
+            # is unnested out of the projection here, which is minutes over a corpus.
+            deadline.check("compiling the query")
             if compiled.limit != request.limit:
                 logger.info("the corpus bounds this query at %d rows", compiled.limit)
             if indexing:
@@ -2708,6 +2792,7 @@ class Corpus:
                 # after the build, so a build that refuses the corpus does not leave a
                 # line claiming the index answered a query nothing ran.
                 self._occurrences()
+                deadline.check("building the occurrence index")
                 logger.info("the occurrence index answers part of this query")
             else:
                 logger.info("the projection answers this query")
@@ -2716,16 +2801,26 @@ class Corpus:
                 parameters: dict[str, Any] = {
                     name: resolve(name) for name in compiled.compounds
                 }
+                # An external service, so how long it takes is not this corpus's to
+                # predict; a resolver that hangs is the likeliest way a search overruns
+                # without a single slow query in it.
+                deadline.check("resolving compound names")
                 for parameter in compiled.structures:
                     parameters[parameter.name] = self._matches(
                         cursor, parameter, resolve
                     )
-                if timeout_seconds is None:
+                    # Per predicate rather than after all of them, so a query with two
+                    # does not pay for the second once the first has spent the budget.
+                    # Named by what the caller wrote rather than by parameter.name,
+                    # which is the compiler's own placeholder and identifies nothing
+                    # outside the SQL it was allocated for.
+                    asked = parameter.pattern or parameter.compound
+                    deadline.check(f"matching {parameter.op} {asked!r}")
+                left = deadline.remaining()
+                if left is None:
                     answered = cursor.execute(compiled.sql, parameters).to_arrow_table()
                 else:
-                    answered = _run_with_timeout(
-                        cursor, compiled.sql, parameters, timeout_seconds
-                    )
+                    answered = _run_with_timeout(cursor, compiled.sql, parameters, left)
                 _warn_when_the_bound_was_reached(request, compiled, answered.num_rows)
                 return answered
             finally:
