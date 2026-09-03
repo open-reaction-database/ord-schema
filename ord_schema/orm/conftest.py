@@ -85,13 +85,45 @@ def _clone(postgres: Postgresql, template: str, name: str) -> None:
             connection.execute(text(f'CREATE DATABASE "{name}" TEMPLATE "{template}"'))
             # Database-scoped settings are keyed by database OID in pg_db_role_setting,
             # which a copy does not carry: the clone gets a new OID and reverts to the
-            # server default. prepare_database pins search_path this way, so a clone
-            # would otherwise resolve the ord schema ahead of public wherever the role
-            # is named "ord". Reapplied here rather than left to the caller, since
-            # every database this module hands out is a clone.
-            connection.execute(
-                text(f'ALTER DATABASE "{name}" SET search_path TO public')
-            )
+            # server defaults. prepare_database pins search_path that way, so without
+            # this a clone resolves the ord schema ahead of public wherever the role is
+            # named "ord".
+            #
+            # Read off the template rather than named here, so whatever
+            # prepare_database sets is carried without a second list of it to keep in
+            # step. A setting it adds later needs no change on this side.
+            settings = connection.execute(
+                text(
+                    "SELECT unnest(setconfig) FROM pg_db_role_setting s "
+                    "JOIN pg_database d ON d.oid = s.setdatabase "
+                    "WHERE d.datname = :template AND s.setrole = 0"
+                ),
+                {"template": template},
+            ).scalars()
+            for setting in settings:
+                key, _, value = setting.partition("=")
+                connection.execute(
+                    text(f'ALTER DATABASE "{name}" SET {key} TO {value}')
+                )
+    finally:
+        admin.dispose()
+
+
+def _drop(postgres: Postgresql, name: str) -> None:
+    """Removes a database the session is done with.
+
+    Args:
+        postgres: The running cluster.
+        name: The database to drop.
+    """
+    admin = create_engine(
+        re.sub("postgresql://", "postgresql+psycopg://", postgres.url()),
+        future=True,
+        isolation_level="AUTOCOMMIT",
+    )
+    try:
+        with admin.connect() as connection:
+            connection.execute(text(f'DROP DATABASE IF EXISTS "{name}"'))
     finally:
         admin.dispose()
 
@@ -141,94 +173,92 @@ def loaded_template_fixture(postgres: Postgresql, prepared_template: str) -> str
     return _LOADED
 
 
-@pytest.fixture(name="database_name")
-def database_name_fixture(request: pytest.FixtureRequest) -> str:
-    """Returns a database name unique to this test.
+@pytest.fixture(name="databases")
+def databases_fixture(
+    postgres: Postgresql, request: pytest.FixtureRequest
+) -> Iterator[Callable[[str], tuple[Engine, str]]]:
+    """Returns a factory cloning a template, and cleans up everything it made.
 
-    Named after the test so a failure says which database it ran against, and prefixed
-    with a serial because PostgreSQL truncates identifiers at 63 bytes and parametrized
-    names collide once truncated. The counter is per process, which is per xdist worker,
-    which is per cluster.
-    """
-    stem = re.sub(r"[^A-Za-z0-9_]", "_", request.node.name)[:40]
-    return f"t{next(_SERIAL)}_{stem}"
-
-
-@pytest.fixture(name="test_engine")
-def test_engine_fixture(postgres: Postgresql, database_name: str) -> Iterator[Engine]:
-    """An engine on an empty database of this session's cluster."""
-    _clone(postgres, "template1", database_name)
-    engine = _engine(postgres, database_name)
-    try:
-        yield engine
-    finally:
-        engine.dispose()
-
-
-@pytest.fixture(name="prepared_engine")
-def prepared_engine_fixture(
-    postgres: Postgresql, prepared_template: str, database_name: str
-) -> Iterator[Engine]:
-    """``test_engine`` with the ORM schema (and RDKit cartridge) installed."""
-    _clone(postgres, prepared_template, database_name)
-    engine = _engine(postgres, database_name)
-    try:
-        yield engine
-    finally:
-        engine.dispose()
-
-
-@pytest.fixture(name="test_session")
-def test_session_fixture(
-    postgres: Postgresql, loaded_template: str, database_name: str
-) -> Iterator[Session]:
-    """A session on a database already holding the example dataset."""
-    _clone(postgres, loaded_template, database_name)
-    engine = _engine(postgres, database_name)
-    try:
-        with Session(engine) as session:
-            yield session
-    finally:
-        engine.dispose()
-
-
-@pytest.fixture(name="prepared_database")
-def prepared_database_fixture(
-    postgres: Postgresql, prepared_template: str, database_name: str
-) -> Iterator[Callable[[], tuple[Engine, str]]]:
-    """Returns a factory making a fresh prepared database, and disposes what it made.
-
-    For a test that needs more than one database at a time -- comparing two ingest paths
-    on identical schemas -- or that hands a URL to a subprocess rather than reusing this
-    process's engine.
-
-    Disposal is here rather than in the test because ``Engine`` is not a context manager
-    and has no ``close``, so every caller would otherwise carry its own ``try/finally``.
-    It is not optional: a pooled connection outlives the test, and a session's worth of
-    them reaches the server's connection limit.
+    Every database a test runs against comes from here, so disposal and dropping happen
+    once rather than in each fixture below. Neither is optional: a pooled connection
+    outlives the test and a session's worth reaches the server's connection limit, and a
+    clone is a full copy -- 11.7 MB for the prepared schema, which over this package
+    would leave most of a gigabyte behind.
 
     Args:
         postgres: The running cluster.
-        prepared_template: The template to clone.
-        database_name: Names the first database; later ones get a suffix.
+        request: Names the databases after the test, so a failure says which one it ran
+            against. Truncated to fit PostgreSQL's 63-byte identifier, with a serial
+            prefix because parametrized names collide once truncated.
 
     Yields:
-        A callable returning ``(engine, url)`` for a database nobody else writes to.
+        A callable taking a template name and returning ``(engine, url)`` for a fresh
+        clone of it.
     """
-    made: list[Engine] = []
+    stem = re.sub(r"[^A-Za-z0-9_]", "_", request.node.name)[:40]
+    made: list[tuple[Engine, str]] = []
 
-    def build() -> tuple[Engine, str]:
-        name = database_name if not made else f"{database_name}_{len(made) + 1}"
-        _clone(postgres, prepared_template, name)
+    def build(template: str) -> tuple[Engine, str]:
+        name = f"t{next(_SERIAL)}_{stem}"
+        _clone(postgres, template, name)
         url = re.sub(
             "postgresql://", "postgresql+psycopg://", postgres.url(database=name)
         )
         engine = create_engine(url, future=True)
-        made.append(engine)
+        made.append((engine, name))
         return engine, url
 
     try:
         yield build
     finally:
-        for engine in made:
+        for engine, name in made:
+            # Dropped only after the engine's pool is closed; PostgreSQL refuses to drop
+            # a database anything is still connected to.
             engine.dispose()
+            _drop(postgres, name)
+
+
+@pytest.fixture(name="test_engine")
+def test_engine_fixture(databases: Callable[[str], tuple[Engine, str]]) -> Engine:
+    """An engine on an empty database of this session's cluster."""
+    engine, _ = databases("template1")
+    return engine
+
+
+@pytest.fixture(name="prepared_engine")
+def prepared_engine_fixture(
+    databases: Callable[[str], tuple[Engine, str]], prepared_template: str
+) -> Engine:
+    """``test_engine`` with the ORM schema (and RDKit cartridge) installed."""
+    engine, _ = databases(prepared_template)
+    return engine
+
+
+@pytest.fixture(name="test_session")
+def test_session_fixture(
+    databases: Callable[[str], tuple[Engine, str]], loaded_template: str
+) -> Iterator[Session]:
+    """A session on a database already holding the example dataset."""
+    engine, _ = databases(loaded_template)
+    with Session(engine) as session:
+        yield session
+
+
+@pytest.fixture(name="prepared_database")
+def prepared_database_fixture(
+    databases: Callable[[str], tuple[Engine, str]], prepared_template: str
+) -> Callable[[], tuple[Engine, str]]:
+    """Returns a factory making a fresh prepared database on each call.
+
+    For a test that needs more than one database at a time -- comparing two ingest paths
+    on identical schemas -- or that hands a URL to a subprocess rather than reusing this
+    process's engine.
+
+    Args:
+        databases: The factory that owns cleanup.
+        prepared_template: The template to clone.
+
+    Returns:
+        A callable returning ``(engine, url)`` for a database nobody else writes to.
+    """
+    return lambda: databases(prepared_template)
