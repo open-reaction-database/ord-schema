@@ -368,7 +368,8 @@ ORD: 1.1 GiB for the relations, 2.2 GiB for the `SubstructLibrary`, 1.19 GiB for
 occurrence index, and DuckDB's own caches on top, which fill whatever `memory_limit`
 allows. An `occurrences_dir` covering every indexed path takes about a gigabyte off that:
 the index becomes a view holding 0.32 GiB rather than a table holding 1.92 GiB, and the
-build floor below goes with it. An open corpus holds all three, since the two builds happen at open unless it
+build floor below goes with it. An open corpus holds all three, since the two builds
+happen at open unless it
 was given `warm=False` — which is what makes the resident figure something to size a
 container against rather than a floor a later query raises it to. `Corpus`
 takes that limit as an argument; left unset, DuckDB claims about 80% of the machine — or
@@ -392,29 +393,35 @@ no `temp_directory`. Three remedies were measured and none moves the floor; a fo
 building per projection file, lowers it to ~2 GB and costs every unconstrained deployment
 68% more time — measured and rejected ([logbook][cache-entry], findings 16–17).
 
-**Nothing supports swapping a corpus in place, and the arithmetic is the reason.** A
+**Nothing supports swapping a corpus in place.** A
 structure's corpus-wide ID is its dataset-local one plus an offset that is a running total
 over the corpus's datasets in `source_md5` order, so adding, removing, or rewriting any
 dataset invalidates IDs elsewhere in the corpus. Adding or removing shifts every dataset
 after the one that moved. Rewriting does two things at once: the dataset's own IDs now name
 different molecules, and its `source_md5` re-sorts it to a different position in the
 ordering, which shifts the offsets of everything between where it was and where it lands —
-whether or not its row count changed. No ID survives any of the three by construction, and
-none should be assumed to. Everything keyed by those IDs — the occurrence
+whether or not its row count changed. Everything keyed by those IDs — the occurrence
 index, the `SubstructLibrary` entry mapping, every cached match-set bitmap — is written
-against one such numbering and is silently wrong under another: the IDs stay in range and
+against one numbering and is silently wrong under another: the IDs stay in range and
 name different molecules. Renumbering always moves `Corpus.fingerprint`, which is what
 makes it a sound guard for anything held outside the corpus.
 
-That soundness is not free, and it rests on one invariant worth naming. An offset is a
-running total of each dataset's *structures-artifact row count*, in `source_md5` order, so
-renumbering needs either a changed set of source hashes — which moves the fingerprint,
-since it digests every artifact's stamps — or a changed row count for a source and library
-that did not change. The second cannot happen: `structure_id` is assigned in first-seen
-order over the reactions, a pure function of the source bytes, the ord-schema version, and
-the RDKit that canonicalized the SMILES, all three of which are stamped and digested.
-`test_rebuilding_a_projection_assigns_the_same_structure_ids` pins exactly that, and if it
-ever fails the guard fails with it.
+It rests on an invariant that is not fully guaranteed, and the gap is worth knowing. An
+offset is a running total of each dataset's *structures-artifact row count*, in
+`source_md5` order, so renumbering needs either a changed set of source hashes — which
+moves the fingerprint, since it digests every artifact's stamps — or a changed row count
+under a source and library that did not change.
+
+The second is what determinism has to rule out. `structure_id` is assigned in first-seen
+order over the reactions, which makes it a function of the source bytes, the ord-schema
+version, the RDKit that canonicalized the SMILES — all stamped — **and the order protobuf
+iterates a map field in**, which is not stamped and which protobuf specifies as
+undefined. Measured, `upb` orders a given serialization identically across processes, so
+the assignment is stable for a fixed protobuf build;
+`test_rebuilding_a_projection_assigns_the_same_structure_ids` pins that much. What is not
+covered is a protobuf upgrade that changes that order: it would renumber a corpus whose
+stamps all match, and the fingerprint would not move. Sorting the map items during
+projection would close it by making the order the derivation's own rather than protobuf's.
 
 It is conservative in the other direction: a rebuild under a new RDKit moves the
 fingerprint even where every offset comes out the same. Invalidating on it discards more
