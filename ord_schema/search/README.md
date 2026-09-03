@@ -406,22 +406,22 @@ against one numbering and is silently wrong under another: the IDs stay in range
 name different molecules. Renumbering always moves `Corpus.fingerprint`, which is what
 makes it a sound guard for anything held outside the corpus.
 
-It rests on an invariant that is not fully guaranteed, and the gap is worth knowing. An
-offset is a running total of each dataset's *structures-artifact row count*, in
-`source_md5` order, so renumbering needs either a changed set of source hashes — which
-moves the fingerprint, since it digests every artifact's stamps — or a changed row count
-under a source and library that did not change.
+It rests on one invariant, and the invariant took work to secure. An offset is a running
+total of each dataset's *structures-artifact row count*, in `source_md5` order, so
+renumbering needs either a changed set of source hashes — which moves the fingerprint,
+since it digests every artifact's stamps — or a changed row count under a source and
+library that did not change.
 
-The second is what determinism has to rule out. `structure_id` is assigned in first-seen
-order over the reactions, which makes it a function of the source bytes, the ord-schema
-version, the RDKit that canonicalized the SMILES — all stamped — **and the order protobuf
-iterates a map field in**, which is not stamped and which protobuf specifies as
-undefined. Measured, `upb` orders a given serialization identically across processes, so
-the assignment is stable for a fixed protobuf build;
-`test_rebuilding_a_projection_assigns_the_same_structure_ids` pins that much. What is not
-covered is a protobuf upgrade that changes that order: it would renumber a corpus whose
-stamps all match, and the fingerprint would not move. Sorting the map items during
-projection would close it by making the order the derivation's own rather than protobuf's.
+Determinism is what rules the second out. `structure_id` is assigned in the order the
+projection walk reaches a SMILES, which makes it a function of the source bytes, the
+ord-schema version, and the RDKit that canonicalized the SMILES — all three stamped. It
+was briefly a function of a fourth thing that is stamped nowhere: the walk took protobuf's
+own map iteration order, which protobuf specifies as undefined, so a protobuf upgrade that
+reordered a map could have renumbered a corpus whose stamps all matched. The walk now
+sorts a map's keys, making the order its own. Two tests hold this together:
+`test_rebuilding_a_projection_assigns_the_same_structure_ids` pins that a rebuild assigns
+the same IDs, and `test_map_fields_are_walked_in_key_order` pins that the order is not
+protobuf's to change. If either fails, this guard fails with it.
 
 It is conservative in the other direction: a rebuild under a new RDKit moves the
 fingerprint even where every offset comes out the same. Invalidating on it discards more
