@@ -293,7 +293,7 @@ def test_derive_tree_refuses_to_write_over_its_own_sources(tmp_path):
     (tmp_path / "aa").mkdir()
     _fake_source(tmp_path / "aa" / "source.parquet")
     calls = []
-    with pytest.raises(ValueError, match="would write over its inputs"):
+    with pytest.raises(ValueError, match="would write over its own inputs"):
         base.derive_tree(
             str(tmp_path / "*" / "*.parquet"),
             str(tmp_path),
@@ -311,7 +311,7 @@ def test_derive_tree_refuses_to_write_over_a_different_source(tmp_path):
     victim = tmp_path / "aa" / "source.parquet"
     _fake_source(victim)
     original = victim.read_bytes()
-    with pytest.raises(ValueError, match="would write over its inputs"):
+    with pytest.raises(ValueError, match="would write over its own inputs"):
         base.derive_tree(
             str(tmp_path / "**" / "*.parquet"),
             str(tmp_path / "aa"),
@@ -473,7 +473,7 @@ def test_derive_tree_refuses_to_write_over_a_file_it_did_not_derive(tmp_path):
     source = tmp_path / "data" / "ds.parquet"
     _fake_source(source)
     before = source.read_bytes()
-    with pytest.raises(ValueError, match="would write over its inputs"):
+    with pytest.raises(ValueError, match="files this library did not write"):
         base.derive_tree(
             str(tmp_path / "projections" / "*.parquet"),
             str(tmp_path / "data"),

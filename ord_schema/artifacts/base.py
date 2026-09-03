@@ -601,7 +601,8 @@ def derive_tree(
 
     Raises:
         ValueError: If the input pattern matches nothing, if any match cannot be read as
-            Parquet, or if any destination would land on a parent.
+            Parquet, if any destination would land on a parent, or if any destination
+            already holds a file this library did not write.
     """
     # Deduplicated: a pattern with more than one ** reaches the same file by more than
     # one route, and a source derived twice is written twice -- the second pass reading
@@ -629,15 +630,25 @@ def derive_tree(
         source: output_path(source, input_pattern, output_dir, root=root)
         for source in sources
     }
+    # Two different mistakes, reported apart: a destination that is one of this run's
+    # own inputs, and one holding a file from outside this library. Naming both "inputs"
+    # sends the reader looking for the input that landed there, and for the second kind
+    # there is none -- the file was already sitting at the destination.
     resolved_sources = {pathlib.Path(source).resolve() for source in sources}
-    clobbered = sorted(
-        str(destination)
-        for destination in destinations.values()
-        if destination.resolve() in resolved_sources or _is_irreplaceable(destination)
-    )
-    if clobbered:
+    over_inputs, over_strangers = [], []
+    for destination in destinations.values():
+        if destination.resolve() in resolved_sources:
+            over_inputs.append(str(destination))
+        elif _is_irreplaceable(destination):
+            over_strangers.append(str(destination))
+    refused = []
+    if over_inputs:
+        refused.append(f"its own inputs: {sorted(over_inputs)}")
+    if over_strangers:
+        refused.append(f"files this library did not write: {sorted(over_strangers)}")
+    if refused:
         raise ValueError(
-            f"output_dir {output_dir!r} would write over its inputs: {clobbered}"
+            f"output_dir {output_dir!r} would write over {' and '.join(refused)}"
         )
     written = skipped = 0
     for source in sources:

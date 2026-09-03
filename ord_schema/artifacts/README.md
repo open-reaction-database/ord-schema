@@ -55,6 +55,12 @@ current:
 A sixth, `ord.source_dataset_id`, is written only when the source records one, and is the
 only key not required to read stamps back.
 
+`ord.artifact` has a second job that the others do not share: nothing outside this library
+writes it, so its presence alone says a file is ours to replace. That is what
+`derive_tree` asks before writing over anything, rather than asking for the whole stamp
+set — a file written before a key was added or renamed reads as no artifact at all, and a
+guard wanting all five would refuse the very re-derive that brings such a tree up to date.
+
 An artifact derived from another artifact **passes `source_md5` through** rather than
 hashing its parent, so every artifact names the dataset it reflects however many
 derivations away it sits, and one comparison answers "is this current for that dataset?"

@@ -117,7 +117,7 @@ def test_an_exact_filename_writes_a_file_not_a_directory(tmp_path):
 
 def test_writing_into_the_source_tree_is_an_error(tmp_path):
     _dataset(tmp_path, "aa", "ord_dataset-a")
-    with pytest.raises(ValueError, match="would write over its inputs"):
+    with pytest.raises(ValueError, match="would write over its own inputs"):
         derive_projection.main(
             derive_projection.parse_args(
                 [
