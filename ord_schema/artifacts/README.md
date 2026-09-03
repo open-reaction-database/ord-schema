@@ -47,7 +47,7 @@ current:
 | key | why it can invalidate |
 | --- | --- |
 | `ord.artifact` | tells one artifact from another without inspecting the schema |
-| `ord.artifact_version` | one version across **all** artifacts, so two artifacts of one dataset cannot disagree while both look current |
+| `ord.artifact_lineage` | this artifact's version and every ancestor's, so a redefinition anywhere up the chain makes the file stale |
 | `ord.source_md5` | the content of the source dataset this restates |
 | `ord.ord_schema_version` | what derived it |
 | `ord.rdkit_version` | RDKit releases have changed both canonicalization and pattern fingerprints, either of which silently breaks a file whose consumers run the newer one |
@@ -60,9 +60,23 @@ hashing its parent, so every artifact names the dataset it reflects however many
 derivations away it sits, and one comparison answers "is this current for that dataset?"
 A chain is invisible to a consumer checking currency.
 
-The version is shared rather than per-artifact because a derivation change usually
-touches shared helpers, and a reader comparing two artifacts to each other needs to know
-they were built by the same definition.
+**Versions are per artifact, and the stamp carries the whole chain.** The derivations
+cost wildly different amounts — measured over the source that is 96% of ORD, a projection
+is 34.6 minutes and its structures 29.6, while the occurrences at every indexed path are
+1.9 seconds — so one shared version would charge the 81-minute rebuild for a change to
+the 1.9-second artifact.
+
+Splitting it alone would break the thing the shared version was doing, which is real: a
+change to how projections are derived has to invalidate everything built *from* a
+projection, and an artifact stamps its **source dataset's** hash rather than its parent's,
+so a child cannot otherwise see that its parent's definition moved. So the stamp is the
+chain — `occurrences=1,pivot=1,projection=1` — and the currency check compares it to what
+the library would write today. A projection bump reaches the occurrences three derivations
+down; an occurrences bump reaches nothing above it.
+
+The direct parent alone is not enough, which is the part worth stating: occurrences record
+the pivot they came from, and a projection bump moves neither the occurrences' own version
+nor the pivot's. Only the full chain says so.
 
 ## Deriving a tree
 
