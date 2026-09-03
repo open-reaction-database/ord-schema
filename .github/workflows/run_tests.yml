@@ -100,7 +100,7 @@ jobs:
           # and the ORM tests are both contiguous in collection order and the slowest here, so
           # a worker that draws them finishes late while the other waits. Work stealing lets an
           # idle worker take queued tests instead. Measured at the two workers a runner gives:
-          # 64s to 56s. It costs one PostgreSQL cluster per worker that ends up with an ORM
+          # 62s to 54s. It costs one PostgreSQL cluster per worker that ends up with an ORM
           # test, which is bounded by the worker count.
           # -ra: summarize all non-passing outcomes (failures, errors, and skip reasons) at the end of the run --
           # e.g. live resolver tests gated off this matrix entry vs. skipped on a PubChem 503.
