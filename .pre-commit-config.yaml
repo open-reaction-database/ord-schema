@@ -25,22 +25,28 @@ repos:
       # docs: ruff and ty are Python, markdownlint is Markdown, clang-format is proto,
       # nbstripout is notebooks. These three are what covers the rest.
       #
-      # The exclusions are the files protoc, pbjs, and pbts write -- see
-      # compile_proto_wrappers.sh. Fixing a generated file means the hook and the
-      # generator disagree on every regeneration, which is a loop rather than a fix. The
-      # hand-written files beside them in js/ are not excluded.
+      # The exclusions are exactly what compile_proto_wrappers.sh writes: protoc's
+      # --python_out and --pyi_out, its --js_out and --ts_out under js/ord-schema/proto,
+      # and the pbjs/pbts pair under js/ord-schema-protobufjs. The test_proto_wrappers
+      # job regenerates all of it and fails on any drift, so a hook that edited one
+      # would fail that job on every run until someone noticed which of the two
+      # authorities over those bytes to believe.
+      #
+      # Nothing else under js/ is generated. The entry points at js/ord-schema/index.js
+      # and index.d.ts are hand-written, as are package.json, webpack.config.js, and the
+      # _pb.test.js suites, so all of them are covered.
       - id: check-toml
       - id: end-of-file-fixer
         exclude: |
           (?x)^(
-            js/[^/]+/index\.(js|d\.ts)
+            js/ord-schema-protobufjs/index\.(js|d\.ts)
             |js/ord-schema/proto/[a-z_]+_pb\.(js|d\.ts)
             |ord_schema/proto/.*_pb2\.pyi?
           )$
       - id: trailing-whitespace
         exclude: |
           (?x)^(
-            js/[^/]+/index\.(js|d\.ts)
+            js/ord-schema-protobufjs/index\.(js|d\.ts)
             |js/ord-schema/proto/[a-z_]+_pb\.(js|d\.ts)
             |ord_schema/proto/.*_pb2\.pyi?
           )$
