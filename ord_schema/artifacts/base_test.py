@@ -556,9 +556,14 @@ def test_every_artifact_reaches_a_source_dataset():
         assert last in roots, artifact
 
 
+@pytest.mark.timeout(15)
 def test_a_cycle_is_refused_rather_than_walked_forever(monkeypatch):
     # An infinite loop where an error belongs: a typo in a four-line literal would
     # otherwise hang every write and every currency check rather than saying so.
+    #
+    # Bounded by the marker, because the failure this guards against is a hang: without
+    # it a regression stops CI rather than failing it, and the run has to be killed by
+    # hand to find out which test never came back.
     monkeypatch.setattr(
         base, "DERIVED_FROM", base.DERIVED_FROM | {"projection": "occurrences"}
     )
