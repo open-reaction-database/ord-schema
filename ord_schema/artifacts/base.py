@@ -490,19 +490,28 @@ def _is_irreplaceable(destination: pathlib.Path) -> bool:
     a mistyped ``output_dir`` aimed at them would replace a corpus that cannot be
     regenerated with artifacts that can.
 
+    The question is who wrote the file, not whether it is current, so ``ord.artifact``
+    alone decides it: nothing but this library writes that key, and a file carrying it
+    is one of ours whatever else its footer says. Requiring the whole stamp set would
+    answer a different question -- whether the file matches *today's* format -- and so
+    would read every artifact written before a key was added or renamed as a stranger's,
+    refusing the very re-derive that would bring it up to date.
+
     Args:
         destination: Path an artifact would be written to.
 
     Returns:
-        True if something is already there and it is not a derived artifact.
+        True if something is already there and this library did not write it.
     """
     if not destination.exists():
         return False
     try:
-        return not is_artifact(destination)
-    except ValueError:
+        with pq.ParquetFile(destination) as parquet_file:
+            raw = parquet_file.schema_arrow.metadata or {}
+    except (OSError, ValueError, pa.ArrowInvalid):
         # Not readable as Parquet at all, so certainly not an artifact this run wrote.
         return True
+    return _META_ARTIFACT.encode() not in raw
 
 
 def _parent_provenance(
@@ -592,7 +601,8 @@ def derive_tree(
 
     Raises:
         ValueError: If the input pattern matches nothing, if any match cannot be read as
-            Parquet, or if any destination would land on a parent.
+            Parquet, if any destination would land on a parent, or if any destination
+            already holds a file this library did not write.
     """
     # Deduplicated: a pattern with more than one ** reaches the same file by more than
     # one route, and a source derived twice is written twice -- the second pass reading
@@ -620,15 +630,25 @@ def derive_tree(
         source: output_path(source, input_pattern, output_dir, root=root)
         for source in sources
     }
+    # Two different mistakes, reported apart: a destination that is one of this run's
+    # own inputs, and one holding a file from outside this library. One message for both
+    # would send the reader looking for the input that landed there, and for the second
+    # kind there is none -- the file was already sitting at the destination.
     resolved_sources = {pathlib.Path(source).resolve() for source in sources}
-    clobbered = sorted(
-        str(destination)
-        for destination in destinations.values()
-        if destination.resolve() in resolved_sources or _is_irreplaceable(destination)
-    )
-    if clobbered:
+    over_inputs, over_strangers = [], []
+    for destination in destinations.values():
+        if destination.resolve() in resolved_sources:
+            over_inputs.append(str(destination))
+        elif _is_irreplaceable(destination):
+            over_strangers.append(str(destination))
+    refused = []
+    if over_inputs:
+        refused.append(f"its own inputs: {sorted(over_inputs)}")
+    if over_strangers:
+        refused.append(f"files this library did not write: {sorted(over_strangers)}")
+    if refused:
         raise ValueError(
-            f"output_dir {output_dir!r} would write over its inputs: {clobbered}"
+            f"output_dir {output_dir!r} would write over {' and '.join(refused)}"
         )
     written = skipped = 0
     for source in sources:

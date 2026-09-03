@@ -293,7 +293,7 @@ def test_derive_tree_refuses_to_write_over_its_own_sources(tmp_path):
     (tmp_path / "aa").mkdir()
     _fake_source(tmp_path / "aa" / "source.parquet")
     calls = []
-    with pytest.raises(ValueError, match="would write over its inputs"):
+    with pytest.raises(ValueError, match="would write over its own inputs"):
         base.derive_tree(
             str(tmp_path / "*" / "*.parquet"),
             str(tmp_path),
@@ -311,7 +311,7 @@ def test_derive_tree_refuses_to_write_over_a_different_source(tmp_path):
     victim = tmp_path / "aa" / "source.parquet"
     _fake_source(victim)
     original = victim.read_bytes()
-    with pytest.raises(ValueError, match="would write over its inputs"):
+    with pytest.raises(ValueError, match="would write over its own inputs"):
         base.derive_tree(
             str(tmp_path / "**" / "*.parquet"),
             str(tmp_path / "aa"),
@@ -473,7 +473,7 @@ def test_derive_tree_refuses_to_write_over_a_file_it_did_not_derive(tmp_path):
     source = tmp_path / "data" / "ds.parquet"
     _fake_source(source)
     before = source.read_bytes()
-    with pytest.raises(ValueError, match="would write over its inputs"):
+    with pytest.raises(ValueError, match="files this library did not write"):
         base.derive_tree(
             str(tmp_path / "projections" / "*.parquet"),
             str(tmp_path / "data"),
@@ -500,6 +500,32 @@ def test_derive_tree_still_rewrites_its_own_artifacts(tmp_path):
         artifact="structures",
         write=lambda *args, **kwargs: 1,
         force=True,
+        parent_artifact="projection",
+    )
+    assert (written, skipped, ignored) == (1, 0, 0)
+
+
+def test_derive_tree_rewrites_an_artifact_stamped_by_an_older_library(tmp_path):
+    # The one case the guard must not refuse and cannot see from the stamp set: a tree
+    # written before a required key existed. Adding or renaming one leaves every file on
+    # disk unreadable as stamps, and a guard that asks for the whole set then reads a
+    # corpus this driver wrote as a stranger's -- refusing the re-derive that is the
+    # only way to bring it up to date, with no --force to override it.
+    (tmp_path / "projections").mkdir()
+    _write(
+        tmp_path / "projections" / "ds.parquet",
+        _current_metadata(**{"ord.artifact": "projection"}),
+    )
+    (tmp_path / "structures").mkdir()
+    superseded = _valid_metadata()
+    del superseded["ord.artifact_lineage"]
+    superseded["ord.artifact_version"] = "1"
+    _write(tmp_path / "structures" / "ds.parquet", superseded)
+    written, skipped, ignored = base.derive_tree(
+        str(tmp_path / "projections" / "*.parquet"),
+        str(tmp_path / "structures"),
+        artifact="structures",
+        write=lambda *args, **kwargs: 1,
         parent_artifact="projection",
     )
     assert (written, skipped, ignored) == (1, 0, 0)
