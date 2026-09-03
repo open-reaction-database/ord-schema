@@ -93,11 +93,18 @@ jobs:
           ORD_LIVE_RESOLVERS: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
         run: |
           uv run coverage erase
-          # -n auto: each ORM test spins up its own testing.postgresql instance, so the suite is
-          # parallel-safe; pytest-cov aggregates coverage across xdist workers.
+          # -n auto: the ORM tests run one PostgreSQL cluster per xdist worker and clone a
+          # database per test, so the suite is parallel-safe; pytest-cov aggregates coverage
+          # across workers.
+          # --dist worksteal: the default scheduler hands each worker a fixed slice up front,
+          # and the ORM tests are both contiguous in collection order and the slowest here, so
+          # a worker that draws them finishes late while the other waits. Work stealing lets an
+          # idle worker take queued tests instead. Measured at the two workers a runner gives:
+          # 64s to 56s. It costs one PostgreSQL cluster per worker that ends up with an ORM
+          # test, which is bounded by the worker count.
           # -ra: summarize all non-passing outcomes (failures, errors, and skip reasons) at the end of the run --
           # e.g. live resolver tests gated off this matrix entry vs. skipped on a PubChem 503.
-          uv run pytest -n auto -vv -ra --cov=ord_schema --durations=20
+          uv run pytest -n auto --dist worksteal -vv -ra --cov=ord_schema --durations=20
           # Print the coverage summary in the job log (no external upload).
           uv run coverage report
 
