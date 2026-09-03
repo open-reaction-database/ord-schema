@@ -490,19 +490,28 @@ def _is_irreplaceable(destination: pathlib.Path) -> bool:
     a mistyped ``output_dir`` aimed at them would replace a corpus that cannot be
     regenerated with artifacts that can.
 
+    The question is who wrote the file, not whether it is current, so ``ord.artifact``
+    alone decides it: nothing but this library writes that key, and a file carrying it
+    is one of ours whatever else its footer says. Requiring the whole stamp set would
+    answer a different question -- whether the file matches *today's* format -- and so
+    would read every artifact written before a key was added or renamed as a stranger's,
+    refusing the very re-derive that would bring it up to date.
+
     Args:
         destination: Path an artifact would be written to.
 
     Returns:
-        True if something is already there and it is not a derived artifact.
+        True if something is already there and this library did not write it.
     """
     if not destination.exists():
         return False
     try:
-        return not is_artifact(destination)
-    except ValueError:
+        with pq.ParquetFile(destination) as parquet_file:
+            raw = parquet_file.schema_arrow.metadata or {}
+    except (OSError, ValueError, pa.ArrowInvalid):
         # Not readable as Parquet at all, so certainly not an artifact this run wrote.
         return True
+    return _META_ARTIFACT.encode() not in raw
 
 
 def _parent_provenance(

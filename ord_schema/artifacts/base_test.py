@@ -505,6 +505,32 @@ def test_derive_tree_still_rewrites_its_own_artifacts(tmp_path):
     assert (written, skipped, ignored) == (1, 0, 0)
 
 
+def test_derive_tree_rewrites_an_artifact_stamped_by_an_older_library(tmp_path):
+    # The one case the guard must not refuse and cannot see from the stamp set: a tree
+    # written before a required key existed. Adding or renaming one leaves every file on
+    # disk unreadable as stamps, and a guard that asks for the whole set then reads a
+    # corpus this driver wrote as a stranger's -- refusing the re-derive that is the
+    # only way to bring it up to date, with no --force to override it.
+    (tmp_path / "projections").mkdir()
+    _write(
+        tmp_path / "projections" / "ds.parquet",
+        _current_metadata(**{"ord.artifact": "projection"}),
+    )
+    (tmp_path / "structures").mkdir()
+    superseded = _valid_metadata()
+    del superseded["ord.artifact_lineage"]
+    superseded["ord.artifact_version"] = "1"
+    _write(tmp_path / "structures" / "ds.parquet", superseded)
+    written, skipped, ignored = base.derive_tree(
+        str(tmp_path / "projections" / "*.parquet"),
+        str(tmp_path / "structures"),
+        artifact="structures",
+        write=lambda *args, **kwargs: 1,
+        parent_artifact="projection",
+    )
+    assert (written, skipped, ignored) == (1, 0, 0)
+
+
 def test_stamps_record_the_rdkit_version():
     value = base.current_stamps("structures", "ord_dataset-1", "abc")
     assert value.rdkit_version == rdBase.rdkitVersion
