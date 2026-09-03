@@ -858,8 +858,18 @@ def _run_with_timeout(
         The result as an Arrow table.
 
     Raises:
-        TimeoutError: If the query is interrupted by the timer.
+        TimeoutError: If the query is interrupted by the timer, or if
+            ``timeout_seconds`` has already run out before it starts.
     """
+    # Refused rather than armed. A timer set for a bound already spent fires while the
+    # cursor is still idle, and DuckDB clears an interrupt nothing was running when it
+    # arrived -- so the query would then run unbounded and answer after the deadline it
+    # was given. Decided from the same value that would arm the timer, so no time passes
+    # between the test and the arming for the bound to expire in.
+    if timeout_seconds <= 0:
+        raise TimeoutError(
+            "the search spent its whole bound before the query could start"
+        )
     lock = threading.Lock()
     running = True
 

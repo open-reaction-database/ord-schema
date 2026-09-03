@@ -4727,3 +4727,20 @@ def test_no_timeout_leaves_every_phase_unbounded(corpus, monkeypatch):
         }
     )
     assert corpus.search(request) is not None
+
+
+@pytest.mark.parametrize("spent", [0, -0.5])
+def test_a_bound_spent_before_the_query_starts_does_not_run_it(corpus, spent):
+    # A timer armed for a bound already spent fires while the cursor is idle, and DuckDB
+    # clears an interrupt that arrived with nothing running -- so the query would go on
+    # to run unbounded and answer after the deadline it was given. Refused instead, from
+    # the same value that would have armed the timer, so nothing can expire in between.
+    #
+    # The SQL names a table that does not exist: if it ran at all, what comes back is a
+    # DuckDB binder error rather than the TimeoutError this asserts.
+    cursor = corpus._connection.cursor()
+    try:
+        with pytest.raises(TimeoutError, match="whole bound before the query"):
+            execute._run_with_timeout(cursor, "SELECT * FROM no_such_table", {}, spent)
+    finally:
+        cursor.close()
