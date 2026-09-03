@@ -4749,3 +4749,46 @@ def test_a_bound_spent_before_the_query_starts_does_not_run_it(corpus, spent):
             execute._run_with_timeout(cursor, "SELECT * FROM no_such_table", {}, spent)
     finally:
         cursor.close()
+
+
+class _LostTimer:
+    """A timer that never fires, standing in for an interrupt DuckDB dropped."""
+
+    def __init__(self, seconds: float, function) -> None:
+        """Accepts and discards what ``threading.Timer`` would act on.
+
+        Args:
+            seconds: Ignored.
+            function: Ignored; never called, which is the point.
+        """
+        del seconds, function
+
+    def start(self) -> None:
+        """Does nothing."""
+
+    def cancel(self) -> None:
+        """Does nothing."""
+
+
+def test_an_answer_that_arrives_past_the_bound_is_a_timeout(corpus, monkeypatch):
+    # The interrupt is not guaranteed to land: a timer armed for a very short bound can
+    # fire while the cursor is still idle, and DuckDB clears an interrupt that arrived
+    # with nothing running -- measured, a bound of a nanosecond loses it about one run
+    # in five, after which the query runs unbounded. So the answer is checked against
+    # the clock rather than trusted because no interrupt arrived.
+    #
+    # The lost interrupt is simulated rather than raced for: a timer that never fires
+    # is what the caller sees either way, and a test that waited for the real race
+    # would pass four times in five while the bug was present.
+    monkeypatch.setattr(execute.threading, "Timer", _LostTimer)
+    cursor = corpus._connection.cursor()
+    try:
+        with pytest.raises(TimeoutError, match=r"past the .* it was given"):
+            execute._run_with_timeout(
+                cursor,
+                "SELECT count(*) FROM range(30_000_000) t(i) WHERE i % 7 = 0",
+                {},
+                0.001,
+            )
+    finally:
+        cursor.close()

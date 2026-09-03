@@ -858,8 +858,9 @@ def _run_with_timeout(
         The result as an Arrow table.
 
     Raises:
-        TimeoutError: If the query is interrupted by the timer, or if
-            ``timeout_seconds`` has already run out before it starts.
+        TimeoutError: If the query is interrupted by the timer, if ``timeout_seconds``
+            has already run out before it starts, or if the query answers after the
+            bound because its interrupt was lost.
     """
     # Refused rather than armed. A timer set for a bound already spent fires while the
     # cursor is still idle, and DuckDB clears an interrupt nothing was running when it
@@ -879,15 +880,30 @@ def _run_with_timeout(
                 cursor.interrupt()
 
     timer = threading.Timer(timeout_seconds, interrupt)
+    started = time.monotonic()
     timer.start()
     try:
-        return cursor.execute(sql, parameters).to_arrow_table()
+        answered = cursor.execute(sql, parameters).to_arrow_table()
     except duckdb.InterruptException as error:
         raise TimeoutError(f"query exceeded {timeout_seconds} seconds") from error
     finally:
         timer.cancel()
         with lock:
             running = False
+    # The interrupt is not guaranteed to land. A timer armed for a very short bound can
+    # fire while the cursor is still idle, and DuckDB clears an interrupt that arrived
+    # with nothing running -- measured, a bound of a nanosecond loses it about one run
+    # in five -- after which the query goes on unbounded. So the answer is checked
+    # against the clock rather than trusted because no interrupt arrived: the bound is a
+    # promise about when the caller is answered, and one kept only when a race goes the
+    # right way is not a promise.
+    elapsed = time.monotonic() - started
+    if elapsed > timeout_seconds:
+        raise TimeoutError(
+            f"the query answered after {elapsed:.3f} seconds, past the "
+            f"{timeout_seconds} it was given; its interrupt did not land"
+        )
+    return answered
 
 
 @dataclasses.dataclass
