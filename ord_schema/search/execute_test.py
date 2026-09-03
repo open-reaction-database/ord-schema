@@ -4707,13 +4707,16 @@ def test_a_phase_that_outlasts_the_bound_raises_naming_itself(corpus, monkeypatc
             )
         }
     )
-    with pytest.raises(TimeoutError, match="matching substructure"):
+    # Named by the pattern the caller asked for, not by the compiler's placeholder.
+    with pytest.raises(TimeoutError, match="matching substructure 'pyridine'"):
         corpus.search(request, timeout_seconds=0.01)
 
 
 def test_no_timeout_leaves_every_phase_unbounded(corpus, monkeypatch):
     # None has to stay a real "no bound" rather than a very large one: a phase that
-    # checked a deadline of None would raise on a corpus that is merely slow.
+    # checked a deadline of None would raise on a corpus that is merely slow. The
+    # contrast is the assertion -- the same slow phase under a bound does raise, so a
+    # passing unbounded search says something about None rather than about the fixture.
     def dawdle(self, cursor, parameter, resolve):
         time.sleep(0.05)
         return self._bitmap([])
@@ -4726,7 +4729,9 @@ def test_no_timeout_leaves_every_phase_unbounded(corpus, monkeypatch):
             )
         }
     )
-    assert corpus.search(request) is not None
+    with pytest.raises(TimeoutError):
+        corpus.search(request, timeout_seconds=0.01)
+    assert corpus.search(request).num_rows == 0
 
 
 @pytest.mark.parametrize("spent", [0, -0.5])

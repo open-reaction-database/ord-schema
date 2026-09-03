@@ -2767,7 +2767,7 @@ class Corpus:
             )
             # Compiling is cheap, but pivot_table above is not: a level with no artifact
             # is unnested out of the projection here, which is minutes over a corpus.
-            deadline.check("building a pivot to compile against")
+            deadline.check("compiling the query")
             if compiled.limit != request.limit:
                 logger.info("the corpus bounds this query at %d rows", compiled.limit)
             if indexing:
@@ -2795,7 +2795,11 @@ class Corpus:
                     )
                     # Per predicate rather than after all of them, so a query with two
                     # does not pay for the second once the first has spent the budget.
-                    deadline.check(f"matching {parameter.op} {parameter.name!r}")
+                    # Named by what the caller wrote rather than by parameter.name,
+                    # which is the compiler's own placeholder and identifies nothing
+                    # outside the SQL it was allocated for.
+                    asked = parameter.pattern or parameter.compound
+                    deadline.check(f"matching {parameter.op} {asked!r}")
                 left = deadline.remaining()
                 if left is None:
                     answered = cursor.execute(compiled.sql, parameters).to_arrow_table()
