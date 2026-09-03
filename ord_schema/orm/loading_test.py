@@ -16,12 +16,10 @@
 
 import logging
 import pathlib
-import re
 
 import pytest
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
-from testing.postgresql import Postgresql
 
 from ord_schema import message_helpers, parquet
 from ord_schema.orm import Base, database, loading
@@ -90,7 +88,7 @@ def _content_digests(engine) -> dict[str, tuple[int, str | None]]:
     return digests
 
 
-def test_parquet_copy_ingest_matches_orm(tmp_path):
+def test_parquet_copy_ingest_matches_orm(prepared_database, tmp_path):
     """COPY parquet ingest yields the same ord.*/public.reactions content as the ORM.
 
     add_parquet_dataset builds the same from_proto trees as add_dataset but streams them
@@ -101,23 +99,20 @@ def test_parquet_copy_ingest_matches_orm(tmp_path):
     parquet_path, dataset = _write_parquet_dataset(tmp_path)
     result: dict[str, dict[str, tuple[int, str | None]]] = {}
     for label in ("copy", "orm"):
-        with Postgresql() as postgres:
-            url = re.sub("postgresql://", "postgresql+psycopg://", postgres.url())
-            engine = create_engine(url, future=True)
-            database.prepare_database(engine)
-            with Session(engine) as session, session.begin():
-                if label == "copy":
-                    database.add_parquet_dataset(parquet_path, session)
-                else:
-                    database.add_dataset(dataset, session)
-            result[label] = _content_digests(engine)
+        engine, _ = prepared_database()
+        with Session(engine) as session, session.begin():
+            if label == "copy":
+                database.add_parquet_dataset(parquet_path, session)
+            else:
+                database.add_dataset(dataset, session)
+        result[label] = _content_digests(engine)
     for table in result["copy"]:
         if table == "public.datasets":
             continue
         assert result["copy"][table] == result["orm"][table], table
 
 
-def test_parquet_sharded_ingest_matches_single_process(tmp_path):
+def test_parquet_sharded_ingest_matches_single_process(prepared_database, tmp_path):
     """Row-group-sharded ingest (n_jobs>1) yields the same content as single-process.
 
     The dataset is written with several small row groups so the sharded path actually
@@ -129,44 +124,38 @@ def test_parquet_sharded_ingest_matches_single_process(tmp_path):
     assert view.num_row_groups > 1  # Sharding is actually exercised.
     result: dict[str, dict[str, tuple[int, str | None]]] = {}
     for label, n_jobs in (("sharded", 2), ("single", 1)):
-        with Postgresql() as postgres:
-            url = re.sub("postgresql://", "postgresql+psycopg://", postgres.url())
-            engine = create_engine(url, future=True)
-            database.prepare_database(engine)
-            loading.load_datasets(parquet_path, url, stages=["ingest"], n_jobs=n_jobs)
-            result[label] = _content_digests(engine)
+        engine, url = prepared_database()
+        loading.load_datasets(parquet_path, url, stages=["ingest"], n_jobs=n_jobs)
+        result[label] = _content_digests(engine)
     assert result["sharded"] == result["single"]
 
 
-def test_parquet_sharded_ingest_skip_and_overwrite(tmp_path):
+def test_parquet_sharded_ingest_skip_and_overwrite(prepared_database, tmp_path):
     """Sharded path skips unchanged, rejects changed, and reloads on overwrite."""
     parquet_path, dataset = _write_parquet_dataset(tmp_path, row_group_size=10)
     expected_count = len(dataset.reactions)
-    with Postgresql() as postgres:
-        url = re.sub("postgresql://", "postgresql+psycopg://", postgres.url())
-        engine = create_engine(url, future=True)
-        database.prepare_database(engine)
+    engine, url = prepared_database()
 
-        def reaction_count() -> int:
-            with Session(engine) as session:
-                return session.query(Mappers.Reaction).count()
+    def reaction_count() -> int:
+        with Session(engine) as session:
+            return session.query(Mappers.Reaction).count()
 
+    loading.load_datasets(parquet_path, url, stages=["ingest"], n_jobs=2)
+    assert reaction_count() == expected_count
+    # An unchanged re-ingest is skipped on the matching md5, not loaded again.
+    loading.load_datasets(parquet_path, url, stages=["ingest"], n_jobs=2)
+    assert reaction_count() == expected_count
+    # Changed content without overwrite fails and leaves the original intact.
+    dataset.reactions[0].outcomes[0].conversion.value = 999.0
+    parquet.save_dataset(dataset, parquet_path, row_group_size=10)
+    with pytest.raises(RuntimeError):
         loading.load_datasets(parquet_path, url, stages=["ingest"], n_jobs=2)
-        assert reaction_count() == expected_count
-        # An unchanged re-ingest is skipped on the matching md5, not loaded again.
-        loading.load_datasets(parquet_path, url, stages=["ingest"], n_jobs=2)
-        assert reaction_count() == expected_count
-        # Changed content without overwrite fails and leaves the original intact.
-        dataset.reactions[0].outcomes[0].conversion.value = 999.0
-        parquet.save_dataset(dataset, parquet_path, row_group_size=10)
-        with pytest.raises(RuntimeError):
-            loading.load_datasets(parquet_path, url, stages=["ingest"], n_jobs=2)
-        assert reaction_count() == expected_count
-        # With overwrite the dataset is deleted and reloaded, still a single copy.
-        loading.load_datasets(
-            parquet_path, url, stages=["ingest"], n_jobs=2, overwrite=True
-        )
-        assert reaction_count() == expected_count
+    assert reaction_count() == expected_count
+    # With overwrite the dataset is deleted and reloaded, still a single copy.
+    loading.load_datasets(
+        parquet_path, url, stages=["ingest"], n_jobs=2, overwrite=True
+    )
+    assert reaction_count() == expected_count
 
 
 def test_load_datasets_parquet_parallel(prepared_engine, tmp_path):
@@ -207,7 +196,7 @@ def test_derived_stage_shards_smiles_and_rdkit(prepared_engine, tmp_path, monkey
         )
 
 
-def test_parquet_sharded_ingest_recovers_from_partial_load(tmp_path):
+def test_parquet_sharded_ingest_recovers_from_partial_load(prepared_database, tmp_path):
     """A crashed shard (dataset row + some reactions, no marker) is cleanly redone.
 
     Simulates the failure the completeness marker guards against: prep inserts the
@@ -216,27 +205,24 @@ def test_parquet_sharded_ingest_recovers_from_partial_load(tmp_path):
     wipe the partial rows, and produce a complete, correct ingest.
     """
     parquet_path, dataset = _write_parquet_dataset(tmp_path, row_group_size=10)
-    with Postgresql() as postgres:
-        url = re.sub("postgresql://", "postgresql+psycopg://", postgres.url())
-        engine = create_engine(url, future=True)
-        database.prepare_database(engine)
-        # Prep inserts the ord.dataset row; load only the first row group; skip
-        # finalize.
-        plan = loading._prep_parquet_dataset(parquet_path, dsn=url, overwrite=False)
-        assert plan.needs_load
-        assert plan.num_row_groups > 1
-        assert plan.dataset_uuid is not None
-        loading._ingest_parquet_shard((plan.filename, plan.dataset_uuid, 0), dsn=url)
-        with Session(engine) as session:
-            # Partial state: some reactions present, but no completeness marker.
-            assert database.get_dataset_md5(dataset.dataset_id, session) is None
-            partial = session.query(Mappers.Reaction).count()
-            assert 0 < partial < len(dataset.reactions)
-        # A fresh run wipes the orphaned rows and reloads to completion, marker and all.
-        loading.load_datasets(parquet_path, url, stages=["ingest"], n_jobs=2)
-        with Session(engine) as session:
-            assert database.get_dataset_md5(dataset.dataset_id, session) is not None
-            assert session.query(Mappers.Reaction).count() == len(dataset.reactions)
+    engine, url = prepared_database()
+    # Prep inserts the ord.dataset row; load only the first row group; skip
+    # finalize.
+    plan = loading._prep_parquet_dataset(parquet_path, dsn=url, overwrite=False)
+    assert plan.needs_load
+    assert plan.num_row_groups > 1
+    assert plan.dataset_uuid is not None
+    loading._ingest_parquet_shard((plan.filename, plan.dataset_uuid, 0), dsn=url)
+    with Session(engine) as session:
+        # Partial state: some reactions present, but no completeness marker.
+        assert database.get_dataset_md5(dataset.dataset_id, session) is None
+        partial = session.query(Mappers.Reaction).count()
+        assert 0 < partial < len(dataset.reactions)
+    # A fresh run wipes the orphaned rows and reloads to completion, marker and all.
+    loading.load_datasets(parquet_path, url, stages=["ingest"], n_jobs=2)
+    with Session(engine) as session:
+        assert database.get_dataset_md5(dataset.dataset_id, session) is not None
+        assert session.query(Mappers.Reaction).count() == len(dataset.reactions)
 
 
 def test_load_datasets(prepared_engine):
