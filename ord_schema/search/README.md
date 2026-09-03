@@ -816,8 +816,15 @@ reader learns to skip the line that matters. On an **aggregated** query the boun
 groups rather than reactions — part of a distribution read as the whole of it, and an
 arbitrary part where the query ordered by nothing — so that one says more.
 
-`search(timeout_seconds=)` bounds the SQL and only the SQL: name resolution, the library
-and index builds, screening, and verification all run before that timer starts.
+`search(timeout_seconds=)` bounds the whole call. What it can interrupt it interrupts —
+the final query, which runs on the search's own cursor — and the query is given what the
+earlier phases left rather than the whole bound. What it cannot interrupt it checks as the
+phase finishes: screening and verification are RDKit with the GIL released, name
+resolution is an external service, and the index, the library, and a pivot are built once
+for the corpus under a lock, where a timer that killed one would fail every search queued
+behind it, callers that asked for no bound included. So a search can outlast its bound and
+report the overrun rather than being stopped at it, and the `TimeoutError` names the phase
+that ran long.
 
 ## Not yet solved
 
