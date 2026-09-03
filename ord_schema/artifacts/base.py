@@ -631,9 +631,9 @@ def derive_tree(
         for source in sources
     }
     # Two different mistakes, reported apart: a destination that is one of this run's
-    # own inputs, and one holding a file from outside this library. Naming both "inputs"
-    # sends the reader looking for the input that landed there, and for the second kind
-    # there is none -- the file was already sitting at the destination.
+    # own inputs, and one holding a file from outside this library. One message for both
+    # would send the reader looking for the input that landed there, and for the second
+    # kind there is none -- the file was already sitting at the destination.
     resolved_sources = {pathlib.Path(source).resolve() for source in sources}
     over_inputs, over_strangers = [], []
     for destination in destinations.values():

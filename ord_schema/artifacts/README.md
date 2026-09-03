@@ -55,7 +55,7 @@ current:
 A sixth, `ord.source_dataset_id`, is written only when the source records one, and is the
 only key not required to read stamps back.
 
-`ord.artifact` has a second job that the others do not share: nothing outside this library
+`ord.artifact` carries a second job the other keys do not: nothing outside this library
 writes it, so its presence alone says a file is ours to replace. That is what
 `derive_tree` asks before writing over anything, rather than asking for the whole stamp
 set — a file written before a key was added or renamed reads as no artifact at all, and a
