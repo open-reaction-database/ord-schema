@@ -46,6 +46,21 @@ _PREPARED = "template_prepared"
 _LOADED = "template_loaded"
 
 
+def _url(postgres: Postgresql, database: str | None = None) -> str:
+    """Returns the psycopg URL for one database of the session's cluster.
+
+    Args:
+        postgres: The running cluster.
+        database: Which database, or None for the cluster's own.
+
+    Returns:
+        The URL, with the driver named. See
+        https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#module-sqlalchemy.dialects.postgresql.psycopg.
+    """
+    raw = postgres.url() if database is None else postgres.url(database=database)
+    return re.sub("postgresql://", "postgresql+psycopg://", raw)
+
+
 def _engine(postgres: Postgresql, database: str) -> Engine:
     """Returns an engine on one database of the session's cluster.
 
@@ -54,15 +69,9 @@ def _engine(postgres: Postgresql, database: str) -> Engine:
         database: Which database to connect to.
 
     Returns:
-        An engine. See
-        https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#module-sqlalchemy.dialects.postgresql.psycopg.
+        An engine.
     """
-    return create_engine(
-        re.sub(
-            "postgresql://", "postgresql+psycopg://", postgres.url(database=database)
-        ),
-        future=True,
-    )
+    return create_engine(_url(postgres, database), future=True)
 
 
 def _clone(postgres: Postgresql, template: str, name: str) -> None:
@@ -75,11 +84,7 @@ def _clone(postgres: Postgresql, template: str, name: str) -> None:
         name: The database to create.
     """
     # AUTOCOMMIT because CREATE DATABASE cannot run inside a transaction block.
-    admin = create_engine(
-        re.sub("postgresql://", "postgresql+psycopg://", postgres.url()),
-        future=True,
-        isolation_level="AUTOCOMMIT",
-    )
+    admin = create_engine(_url(postgres), future=True, isolation_level="AUTOCOMMIT")
     try:
         with admin.connect() as connection:
             connection.execute(text(f'CREATE DATABASE "{name}" TEMPLATE "{template}"'))
@@ -116,11 +121,7 @@ def _drop(postgres: Postgresql, name: str) -> None:
         postgres: The running cluster.
         name: The database to drop.
     """
-    admin = create_engine(
-        re.sub("postgresql://", "postgresql+psycopg://", postgres.url()),
-        future=True,
-        isolation_level="AUTOCOMMIT",
-    )
+    admin = create_engine(_url(postgres), future=True, isolation_level="AUTOCOMMIT")
     try:
         with admin.connect() as connection:
             connection.execute(text(f'DROP DATABASE IF EXISTS "{name}"'))
@@ -201,12 +202,9 @@ def databases_fixture(
     def build(template: str) -> tuple[Engine, str]:
         name = f"t{next(_SERIAL)}_{stem}"
         _clone(postgres, template, name)
-        url = re.sub(
-            "postgresql://", "postgresql+psycopg://", postgres.url(database=name)
-        )
-        engine = create_engine(url, future=True)
+        engine = _engine(postgres, name)
         made.append((engine, name))
-        return engine, url
+        return engine, _url(postgres, name)
 
     try:
         yield build
