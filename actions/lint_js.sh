@@ -14,14 +14,14 @@
 
 # Run the closure compiler, having it lint code and produce warnings during compilation.
 # Takes in one argument: the entry point for the compiler.
-# Assumes that all prerequisite Javascript has been generated, 
+# Assumes that all prerequisite Javascript has been generated,
 # and that the Google Closure compiler has been installed as a Node package,
 # all in the directory that this script is run from.
 
-# In order to compile properly, we must provide all the source files necessary, 
+# In order to compile properly, we must provide all the source files necessary,
 # and make sure the compiler skips over files that aren't needed as dependencies.
 # Because we are only checking code, we skip generating output and running optimizations.
-# We also produce warnings only for our written source code 
+# We also produce warnings only for our written source code
 # (by suppressing warnings for third-party libraries or machine generated code).
 
 set -ex

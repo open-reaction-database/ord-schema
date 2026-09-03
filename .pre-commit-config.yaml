@@ -21,6 +21,29 @@ repos:
     hooks:
       - id: no-commit-to-branch
         args: [--branch, main]
+      # Nothing else here reads pyproject.toml, .clang-format, the CSV fixtures, or the
+      # docs: ruff and ty are Python, markdownlint is Markdown, clang-format is proto,
+      # nbstripout is notebooks. These three are what covers the rest.
+      #
+      # The exclusions are the files protoc, pbjs, and pbts write -- see
+      # compile_proto_wrappers.sh. Fixing a generated file means the hook and the
+      # generator disagree on every regeneration, which is a loop rather than a fix. The
+      # hand-written files beside them in js/ are not excluded.
+      - id: check-toml
+      - id: end-of-file-fixer
+        exclude: |
+          (?x)^(
+            js/[^/]+/index\.(js|d\.ts)
+            |js/ord-schema/proto/[a-z_]+_pb\.(js|d\.ts)
+            |ord_schema/proto/.*_pb2\.pyi?
+          )$
+      - id: trailing-whitespace
+        exclude: |
+          (?x)^(
+            js/[^/]+/index\.(js|d\.ts)
+            |js/ord-schema/proto/[a-z_]+_pb\.(js|d\.ts)
+            |ord_schema/proto/.*_pb2\.pyi?
+          )$
 
   - repo: https://github.com/google/addlicense
     rev: v1.2.0
