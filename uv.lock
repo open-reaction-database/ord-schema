@@ -2036,17 +2036,13 @@ tests = [
     { name = "pydantic" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-timeout" },
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "sqlalchemy" },
     { name = "testing-postgresql" },
     { name = "ty" },
     { name = "uuid6" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest-timeout" },
 ]
 
 [package.metadata]
@@ -2074,6 +2070,7 @@ requires-dist = [
     { name = "pygments", marker = "extra == 'docs'", specifier = ">=2.13.0" },
     { name = "pytest", marker = "extra == 'tests'", specifier = ">=7.1.1" },
     { name = "pytest-cov", marker = "extra == 'tests'", specifier = ">=3.0.0" },
+    { name = "pytest-timeout", marker = "extra == 'tests'", specifier = ">=2.4.0" },
     { name = "pytest-xdist", marker = "extra == 'tests'", specifier = ">=3.0.2" },
     { name = "python-dateutil", specifier = ">=1.10.0" },
     { name = "rdkit", specifier = ">=2025.3.4" },
@@ -2090,9 +2087,6 @@ requires-dist = [
     { name = "uuid6", marker = "extra == 'orm'", specifier = ">=2023" },
 ]
 provides-extras = ["search", "nl", "docs", "examples", "huggingface", "orm", "tests"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest-timeout", specifier = ">=2.4.0" }]
 
 [[package]]
 name = "packaging"

@@ -120,6 +120,9 @@ tests = [
     # to regenerate it; `jupyter execute --inplace` is the command CONTRIBUTING.md points
     # at, and nbval does not pull it in.
     "nbclient>=0.7",
+    # A test whose failure mode is a hang needs a bound, or a regression stops CI
+    # rather than failing it; see test_a_cycle_is_refused_rather_than_walked_forever.
+    "pytest-timeout>=2.4.0",
     # The suite exercises the optional-feature modules, so collecting it needs
     # their extras. Self-reference rather than duplicate the dependencies.
     "ord-schema[search,nl,huggingface,orm]",
@@ -249,7 +252,3 @@ convention = "google"
 [tool.ty.src]
 exclude = ["**/*_pb2.py*"]
 
-[dependency-groups]
-dev = [
-    "pytest-timeout>=2.4.0",
-]
