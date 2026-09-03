@@ -63,8 +63,8 @@ A chain is invisible to a consumer checking currency.
 **Versions are per artifact, and the stamp carries the whole chain.** The derivations
 cost wildly different amounts — measured over the source that is 96% of ORD, a projection
 is 34.6 minutes and its structures 29.6, while the occurrences at every indexed path are
-1.9 seconds — so one shared version charged the 81-minute rebuild for a change to the
-1.9-second artifact.
+1.9 seconds — so one shared version would charge the 81-minute rebuild for a change to
+the 1.9-second artifact.
 
 Splitting it alone would break the thing the shared version was doing, which is real: a
 change to how projections are derived has to invalidate everything built *from* a

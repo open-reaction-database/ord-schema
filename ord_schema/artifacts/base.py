@@ -81,7 +81,7 @@ logger = get_logger(__name__)
 # populated, or a shared helper that feeds it. Per artifact, because a re-derive is not
 # one price: measured over the source that is 96% of ORD, a projection is 34.6 minutes
 # and its structures 29.6, while the occurrences at every indexed path are 1.9 seconds.
-# One version for all of them charged the 81-minute rebuild for a change to the
+# Sharing one version across them would charge the 81-minute rebuild for a change to the
 # 1.9-second artifact.
 ARTIFACT_VERSIONS = {
     "projection": "1",
@@ -122,13 +122,21 @@ def lineage(artifact: str) -> str:
     Raises:
         KeyError: If ``artifact`` is not one this library derives, which is a typo
             rather than a condition to handle.
+        ValueError: If ``DERIVED_FROM`` describes a cycle. Bounded rather than walked to
+            exhaustion because this runs on every artifact written and every currency
+            check made, and a typo in a four-line literal should not hang all of them.
     """
     parts = []
     name: str | None = artifact
-    while name is not None:
+    for _ in range(len(ARTIFACT_VERSIONS)):
+        if name is None:
+            return ",".join(parts)
         parts.append(f"{name}={ARTIFACT_VERSIONS[name]}")
         name = DERIVED_FROM[name]
-    return ",".join(parts)
+    raise ValueError(
+        f"the chain from {artifact} visits {len(parts)} artifacts without reaching a "
+        f"source dataset, so DERIVED_FROM has a cycle: {' -> '.join(parts)}"
+    )
 
 
 _META_ARTIFACT = "ord.artifact"

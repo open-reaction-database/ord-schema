@@ -542,14 +542,28 @@ def test_a_lineage_names_the_artifact_and_every_ancestor():
 
 
 def test_every_artifact_reaches_a_source_dataset():
-    # A cycle or a missing parent would hang or raise inside lineage, which is called
-    # for every artifact written and every currency check made.
-    for artifact in base.ARTIFACT_VERSIONS:
-        assert base.lineage(artifact).endswith("projection=1")
+    # The two tables have to agree about which artifacts exist, and every chain has to
+    # terminate: lineage runs for every artifact written and every currency check made.
     assert set(base.DERIVED_FROM) == set(base.ARTIFACT_VERSIONS)
     assert {
         parent for parent in base.DERIVED_FROM.values() if parent is not None
     } <= set(base.ARTIFACT_VERSIONS)
+    roots = {name for name, parent in base.DERIVED_FROM.items() if parent is None}
+    for artifact in base.ARTIFACT_VERSIONS:
+        # Named by the root rather than by its version, which would make this fail on
+        # the next bump of an artifact it is not about.
+        last = base.lineage(artifact).split(",")[-1].split("=")[0]
+        assert last in roots, artifact
+
+
+def test_a_cycle_is_refused_rather_than_walked_forever(monkeypatch):
+    # An infinite loop where an error belongs: a typo in a four-line literal would
+    # otherwise hang every write and every currency check rather than saying so.
+    monkeypatch.setattr(
+        base, "DERIVED_FROM", base.DERIVED_FROM | {"projection": "occurrences"}
+    )
+    with pytest.raises(ValueError, match="has a cycle"):
+        base.lineage("occurrences")
 
 
 def test_bumping_an_artifact_leaves_what_it_was_derived_from_alone(monkeypatch):
