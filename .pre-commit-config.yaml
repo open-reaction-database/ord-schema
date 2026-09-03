@@ -35,6 +35,11 @@ repos:
       # Nothing else under js/ is generated. The entry points at js/ord-schema/index.js
       # and index.d.ts are hand-written, as are package.json, webpack.config.js, and the
       # _pb.test.js suites, so all of them are covered.
+      #
+      # SVGs are excluded as assets rather than source. Two of the three logos are
+      # minified onto one line, so changing a byte rewrites an 8 KB line: the patch is
+      # unreadable where --stat says one line changed. Nobody hand-edits them, and a
+      # trailing newline changes nothing about how they render.
       - id: check-toml
       - id: end-of-file-fixer
         exclude: |
@@ -42,6 +47,7 @@ repos:
             js/ord-schema-protobufjs/index\.(js|d\.ts)
             |js/ord-schema/proto/[a-z_]+_pb\.(js|d\.ts)
             |ord_schema/proto/.*_pb2\.pyi?
+            |.*\.svg
           )$
       - id: trailing-whitespace
         exclude: |
@@ -49,6 +55,7 @@ repos:
             js/ord-schema-protobufjs/index\.(js|d\.ts)
             |js/ord-schema/proto/[a-z_]+_pb\.(js|d\.ts)
             |ord_schema/proto/.*_pb2\.pyi?
+            |.*\.svg
           )$
 
   - repo: https://github.com/google/addlicense
