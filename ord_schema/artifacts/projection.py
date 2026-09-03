@@ -493,7 +493,13 @@ def message_row(
         message_type = field.message_type
         if message_type is not None and message_type.GetOptions().map_entry:
             value_field = message_type.fields_by_name["value"]
-            items = getattr(message, field.name).items()
+            # Sorted by key, because protobuf leaves a map's iteration order undefined
+            # and structure IDs are assigned in the order this walk reaches a SMILES.
+            # Taking protobuf's order would make the IDs a function of the protobuf
+            # build as well as of the source and the stamped library versions -- and
+            # that build is not stamped, so an upgrade that reordered a map would
+            # renumber a corpus whose artifacts all read as current, silently.
+            items = sorted(getattr(message, field.name).items())
             if value_field.message_type is not None:
                 row[name] = [
                     (key, message_row(value, structure_ids)) for key, value in items
