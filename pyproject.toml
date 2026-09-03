@@ -106,26 +106,26 @@ orm = [
     "uuid6>=2023",
 ]
 tests = [
-    "ruff>=0.9.9",
     "coverage>=5.2.1",
-    "pytest>=7.1.1",
-    "pytest-cov>=3.0.0",
-    "pytest-xdist>=3.0.2",
-    "ty>=0.0.28",
-    "testing-postgresql>=1.3.0",
+    # Comparing a notebook's stored output against a fresh run means a contributor who
+    # changes what one prints has to regenerate it; `jupyter execute --inplace` is the
+    # command CONTRIBUTING.md points at, and nbval does not pull it in.
+    "nbclient>=0.7",
     # Notebooks run under pytest, and nbval can compare each cell's output against the
     # one stored in the file rather than only checking that the cell does not raise.
     "nbval>=0.11",
-    # Comparing stored output means a contributor who changes what a notebook prints has
-    # to regenerate it; `jupyter execute --inplace` is the command CONTRIBUTING.md points
-    # at, and nbval does not pull it in.
-    "nbclient>=0.7",
-    # A test whose failure mode is a hang needs a bound, or a regression stops CI
-    # rather than failing it; see test_a_cycle_is_refused_rather_than_walked_forever.
-    "pytest-timeout>=2.4.0",
     # The suite exercises the optional-feature modules, so collecting it needs
     # their extras. Self-reference rather than duplicate the dependencies.
     "ord-schema[search,nl,huggingface,orm]",
+    "pytest>=7.1.1",
+    "pytest-cov>=3.0.0",
+    # A test whose failure mode is a hang needs a bound, or a regression stops CI
+    # rather than failing it; see test_a_cycle_is_refused_rather_than_walked_forever.
+    "pytest-timeout>=2.4.0",
+    "pytest-xdist>=3.0.2",
+    "ruff>=0.9.9",
+    "testing-postgresql>=1.3.0",
+    "ty>=0.0.28",
 ]
 
 [tool.setuptools.packages.find]
@@ -251,4 +251,3 @@ convention = "google"
 
 [tool.ty.src]
 exclude = ["**/*_pb2.py*"]
-
