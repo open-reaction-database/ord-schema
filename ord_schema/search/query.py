@@ -1260,6 +1260,35 @@ def _measure_argument(
     return f"DISTINCT {argument}" if measure.fn == "count_distinct" else argument
 
 
+def _refuse_quantified(node: "Predicate", over: str | None) -> None:
+    """Raises where an aggregate's element filter tries to bind elements of its own.
+
+    A pivot carries an element's non-repeated fields and drops the rest, so a quantifier
+    here resolves against a type missing the level it names and fails saying the field
+    does not exist -- which is confusing where the field plainly does, one level up in
+    the projection. Said once, here, in terms of what the rows are.
+
+    Args:
+        node: The element filter, or a clause within it.
+        over: The level being grouped, named in the message.
+
+    Raises:
+        QueryError: If the filter quantifies over anything.
+    """
+    if isinstance(node, Quantifier):
+        raise QueryError(
+            f"{node.path}: aggregate.where selects among the elements of {over}, and "
+            "a pivot carries their non-repeated fields only, so there is no level "
+            "here to quantify over; a condition on the reaction is the query's own "
+            "where"
+        )
+    for clause in getattr(node, "clauses", []):
+        _refuse_quantified(clause, over)
+    inner = getattr(node, "clause", None)
+    if inner is not None:
+        _refuse_quantified(inner, over)
+
+
 def _element_relation(
     query: Query, table: str, pivot: PivotIndex | None
 ) -> tuple[str, str, pa.DataType] | None:
@@ -1395,6 +1424,7 @@ def compile_query(
     conditions = []
     if element is not None and query.aggregate is not None:
         if query.aggregate.where is not None:
+            _refuse_quantified(query.aggregate.where, query.aggregate.over)
             conditions.append(
                 _predicate(
                     query.aggregate.where,
