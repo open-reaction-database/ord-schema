@@ -92,6 +92,16 @@ class EvalCase(BaseModel):
             )
         return self
 
+    @model_validator(mode="after")
+    def _reference_is_a_whole_query(self) -> "EvalCase":
+        # A reference is a whole Query, not the bare predicate that sits inside one.
+        # Checked at construction rather than where the case is scored, because scoring
+        # needs a corpus and a model: a case built in code would otherwise carry a
+        # shape nothing rejects until someone runs the eval against the API.
+        if self.reference is not None:
+            query.Query.model_validate(self.reference)
+        return self
+
 
 @dataclasses.dataclass(frozen=True)
 class CaseResult:

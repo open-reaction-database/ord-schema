@@ -27,12 +27,13 @@ import pyarrow as pa
 import pytest
 from anthropic.types import ToolUseBlock
 
+from ord_schema.artifacts import pivot
 from ord_schema.search import execute, nl_eval, nl_log, query
 
 _CASE = nl_eval.EvalCase(
     question="which reactions use pyridine as a solvent?",
     why="two conditions on one element, which a wrong translation splits in two",
-    reference={"op": "not_null", "path": "reaction_id"},
+    reference={"where": {"op": "not_null", "path": "reaction_id"}},
 )
 _INEXPRESSIBLE = nl_eval.EvalCase(
     question="reactions where the temperature exceeds the pressure",
@@ -190,6 +191,83 @@ def test_the_report_names_the_question_and_why_the_case_exists():
     assert "splits in two" in text
 
 
+# Scoring a question that asks for a number
+
+
+def _measured(**columns) -> pa.Table:
+    """Returns a table standing in for what an aggregate query measured."""
+    return pa.table(columns)
+
+
+def test_the_same_measures_under_different_names_pass():
+    # A measure is named by whoever wrote the query, and the question does not say what
+    # to call it. Position identifies a column, which the compiler fixes as the
+    # group_by paths followed by the measures.
+    result = nl_eval.score_measures(
+        _CASE,
+        _measured(is_automated=[True, False], n=[2, 3]),
+        _measured(is_automated=[True, False], reactions=[2, 3]),
+        ordered=False,
+    )
+    assert result.passed
+
+
+def test_the_same_measures_in_another_order_pass():
+    result = nl_eval.score_measures(
+        _CASE,
+        _measured(is_automated=[False, True], reactions=[3, 2]),
+        _measured(is_automated=[True, False], reactions=[2, 3]),
+        ordered=False,
+    )
+    assert result.passed
+
+
+def test_the_same_rows_in_the_wrong_order_fail_an_ordered_question():
+    # "The highest yield" is answered wrongly by the right rows in the wrong order, so
+    # a reference that sorts holds the translation to the sequence.
+    result = nl_eval.score_measures(
+        _CASE,
+        _measured(reaction_id=["ord-bb", "ord-aa"], yield_=[10, 90]),
+        _measured(reaction_id=["ord-aa", "ord-bb"], yield_=[90, 10]),
+        ordered=True,
+    )
+    assert not result.passed
+
+
+def test_a_different_measured_value_fails():
+    result = nl_eval.score_measures(
+        _CASE,
+        _measured(is_automated=[True, False], reactions=[2, 99]),
+        _measured(is_automated=[True, False], reactions=[2, 3]),
+        ordered=False,
+    )
+    assert not result.passed
+    assert "2 rows expected" in result.detail
+
+
+def test_measuring_a_different_number_of_columns_fails():
+    # Caught before the frames are built: relabeling by position needs both sides to
+    # carry the same number of them, and pandas would raise rather than report.
+    result = nl_eval.score_measures(
+        _CASE,
+        _measured(is_automated=[True], reactions=[2]),
+        _measured(is_automated=[True], reactions=[2], mean_yield=[55.0]),
+        ordered=False,
+    )
+    assert not result.passed
+    assert "measured 2 columns where the reference measures 3" in result.detail
+
+
+def test_an_integer_count_and_a_double_one_are_the_same_answer():
+    result = nl_eval.score_measures(
+        _CASE,
+        _measured(is_automated=[True], reactions=pa.array([2.0], pa.float64())),
+        _measured(is_automated=[True], reactions=pa.array([2], pa.int64())),
+        ordered=False,
+    )
+    assert result.passed
+
+
 # The shipped cases
 
 
@@ -202,10 +280,17 @@ def test_the_shipped_cases_load_and_say_why_they_exist():
 
 def test_every_shipped_reference_compiles():
     # A hand-written reference is as able to name a path the schema lacks as a model
-    # is, and a case that cannot run is worse than no case.
+    # is, and a case that cannot run is worse than no case. Compiled with every level
+    # pivoted, which is what a corpus the eval runs against supplies: a reference
+    # grouping over a repeated level is refused without one.
     for case in nl_eval.load_cases():
         if case.reference is not None:
-            query.compile_query(query.Query.model_validate(case.reference))
+            query.compile_query(
+                query.Query.model_validate(case.reference),
+                pivot=lambda path: (
+                    pivot.table_name(path) if path in pivot.LEVELS else None
+                ),
+            )
 
 
 def test_a_case_the_grammar_cannot_express_is_marked_as_such():

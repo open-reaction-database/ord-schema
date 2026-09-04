@@ -122,7 +122,7 @@
     }
   },
   {
-    "question": "reactions using a reagent at least 60% similar to aniline",
+    "question": "reactions using an input with Tanimoto similarity at least 0.6 to aniline",
     "why": "similarity is its own predicate over the fingerprints, not a substructure and not a text match",
     "reference": {
       "where": {
@@ -256,19 +256,6 @@
       "where": {
         "op": "is_null",
         "path": "conditions.temperature.setpoint_kelvin"
-      }
-    }
-  },
-  {
-    "question": "reactions published in an ACS journal",
-    "why": "a substring of a DOI prefix, where a translation that reaches for an equality finds nothing",
-    "reference": {
-      "where": {
-        "op": "contains",
-        "path": "provenance.doi",
-        "value": {
-          "literal": "10.1021"
-        }
       }
     }
   },
@@ -471,8 +458,36 @@
   },
   {
     "question": "what are the three most common solvents?",
-    "why": "group_by has to be scalar, and a solvent sits under a repeated level, so the grammar cannot group by it however natural the question is",
-    "compiles": false
+    "why": "grouping by something a reaction has many of, which needs the rows to be elements rather than reactions",
+    "reference": {
+      "aggregate": {
+        "over": "inputs.components",
+        "where": {
+          "op": "eq",
+          "path": "reaction_role",
+          "value": {
+            "literal": "SOLVENT"
+          }
+        },
+        "group_by": [
+          "smiles"
+        ],
+        "measures": [
+          {
+            "fn": "count_distinct",
+            "path": "reaction_id",
+            "name": "reactions"
+          }
+        ]
+      },
+      "order_by": [
+        {
+          "key": "reactions",
+          "descending": true
+        }
+      ],
+      "limit": 3
+    }
   },
   {
     "question": "reactions published in the last five years",

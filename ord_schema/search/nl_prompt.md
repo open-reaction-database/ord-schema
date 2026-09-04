@@ -36,15 +36,45 @@ Rules that keep a query answerable:
 - Name compounds rather than spelling structures: `{"compound": "pyridine"}` resolves to
   SMILES. Reach for `substructure` with a SMARTS only when the user describes a pattern
   or a scaffold rather than a molecule.
+- "Similar to" a named molecule is `similarity`, its own predicate, with a `threshold`
+  between 0 and 1. It is a Tanimoto coefficient over Morgan fingerprints, not a
+  percentage and not a fraction of shared atoms, so a question phrased as a percentage
+  is asking for something this does not compute — take the number as a threshold only
+  where the question gives a coefficient. It is neither a `substructure` nor a text
+  match: a molecule similar to aniline need not contain aniline as a subgraph.
+
+  ```json
+  {"op": "exists", "path": "inputs.components",
+   "where": {"op": "similarity", "path": "smiles",
+             "compound": "morpholine", "threshold": 0.7}}
+  ```
+
 - Ask for a compound with `same_compound`, not with `eq` on a `smiles`. An `eq` compares
   spellings, so it misses the same reagent recorded as another protonation state or
   tautomer — acetate where the question said acetic acid. Use `eq` on a `smiles` only when
   the user gives you an exact string and wants exactly it.
 - `same_compound` is the default for a named compound: a bare name means that compound,
   not a family. Reach for `same_parent` only where the question says it does not care
-  which salt — "any form of triethylamine", "triethylamine or its hydrochloride". Asking
+  which salt — "any form of triethylamine", "triethylamine or its hydrochloride",
+  "whichever salt it was sold as", "free base or salt", "however it was supplied". Asking
   for pyridine as a solvent is `same_compound`, because pyridinium chloride is not what
   anyone means by pyridine.
+- Negation inside a quantifier is `not` around the clause, and it is not the same as
+  negating the quantifier. "Some catalyst that is not palladium" keeps a reaction whose
+  catalyst is nickel; "no palladium catalyst" throws that reaction out only if it also
+  has palladium. Put the `not` where the question puts it.
+
+  ```json
+  {"op": "exists", "path": "inputs.components",
+   "where": {"op": "and", "clauses": [
+     {"op": "eq", "path": "reaction_role", "value": {"literal": "SOLVENT"}},
+     {"op": "not", "clause": {"op": "same_compound", "path": "smiles",
+                              "compound": "water"}}]}}
+  ```
+
+  A metal named as a catalyst is a `substructure` on the element — `[Pd]`, `[Ni]` —
+  rather than a compound identity, since the catalyst is a complex and not the bare
+  metal.
 - To rank or aggregate by a value under a repeated level, reduce it:
   `{"reduce": "max", "path": "outcomes.products.measurements.percentage.value"}` is a
   reaction's best yield. A plain path there is refused.
