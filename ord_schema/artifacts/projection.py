@@ -569,7 +569,10 @@ def _struct_fields(descriptor: Descriptor, stack: frozenset[str]) -> list[pa.Fie
     if descriptor.name in _STRUCTURAL_TYPES:
         fields.append(pa.field("smiles", pa.string()))
     if descriptor.name in _TIMESTAMP_TYPES:
-        fields.append(pa.field(TIMESTAMP_COLUMN, pa.timestamp("s")))
+        # Microseconds, because the source records them: 1.77M values in the corpus
+        # are str(datetime) output carrying a fractional part, and a second-resolution
+        # column would drop it while still reading as the instant the source wrote.
+        fields.append(pa.field(TIMESTAMP_COLUMN, pa.timestamp("us")))
     if descriptor.name in _STRUCTURE_ID_TYPES:
         fields.append(
             pa.field(
@@ -829,14 +832,20 @@ def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
 
 
 def _recorded_dates(view: parquet.DatasetView) -> Iterator[str | None]:
-    """Yields every date string a dataset records, for inferring its convention.
+    """Yields the date strings a dataset records, for inferring its convention.
+
+    The three provenance positions, not all seven the schema reaches: measured over the
+    corpus, ``instrument_last_calibrated`` is unset in all 226,316 Analysis messages,
+    and the other three sit behind repeated and map fields deep in inputs, workups and
+    outcomes. Walking them would cost that descent on every reaction to find evidence
+    the corpus does not hold. A dataset that populates one is where to look again.
 
     Args:
         view: The source dataset.
 
     Yields:
-        The recorded value of each DateTime a reaction reaches, unparsed. Lazily, so a
-        dataset that settles the question in its first reaction reads no further.
+        The recorded value of each provenance DateTime, unparsed. Lazily, so a dataset
+        that settles the question in its first reaction reads no further.
     """
     for _, reaction in view.iter_reactions():
         provenance = reaction.provenance

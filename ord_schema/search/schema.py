@@ -53,7 +53,7 @@ _SCALARS: dict[pa.DataType, str] = {
     pa.int64(): "BIGINT",
     pa.uint32(): "UINTEGER",
     pa.uint64(): "UBIGINT",
-    pa.timestamp("s"): "TIMESTAMP",
+    pa.timestamp("us"): "TIMESTAMP",
 }
 
 _INDENT = "  "

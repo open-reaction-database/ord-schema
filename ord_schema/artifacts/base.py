@@ -269,6 +269,37 @@ def load_stamps(path: str | os.PathLike[str]) -> Stamps:
     )
 
 
+def _declared_paths(schema: pa.Schema | pa.DataType, prefix: str = "") -> list[str]:
+    """Returns every field a schema declares, dotted, in declaration order.
+
+    A list's or map's own name is not a field a reader binds; what it holds is, so the
+    descent passes through them without adding a segment of its own.
+
+    Args:
+        schema: A schema, or a nested type within one.
+        prefix: What the walk has already named, for the recursion.
+
+    Returns:
+        The dotted paths, outermost first.
+    """
+    if isinstance(schema, pa.Schema):
+        fields: list[pa.Field] = list(schema)
+    elif pa.types.is_struct(schema):
+        fields = [schema.field(index) for index in range(schema.num_fields)]
+    elif pa.types.is_list(schema) or pa.types.is_large_list(schema):
+        return _declared_paths(schema.value_type, prefix)
+    elif pa.types.is_map(schema):
+        return _declared_paths(schema.item_type, prefix)
+    else:
+        return []
+    paths = []
+    for field in fields:
+        name = f"{prefix}.{field.name}" if prefix else field.name
+        paths.append(name)
+        paths.extend(_declared_paths(field.type, name))
+    return paths
+
+
 def missing_columns(path: str | os.PathLike[str], schema: pa.Schema) -> list[str]:
     """Returns the columns ``schema`` declares that ``path`` does not carry.
 
@@ -276,20 +307,30 @@ def missing_columns(path: str | os.PathLike[str], schema: pa.Schema) -> list[str
     an artifact's definition: a file written before it stamps exactly as a file written
     after it, and the difference shows up only in the schema.
 
+    Compared down through structs, lists and maps, not across the top level alone. The
+    projection is one struct per message and nearly every field it has is nested, so a
+    top-level comparison would call a file current that is missing everything added
+    since it was written -- and a reader binding the new column would fail on a file
+    nothing marked stale.
+
     Args:
         path: Path to check. Need not exist.
         schema: The columns this library's version of the artifact carries.
 
     Returns:
-        The declared names the file lacks, in declaration order. A file that cannot be
-        read at all lacks all of them.
+        The declared paths the file lacks, dotted from the top level and in declaration
+        order. A file that cannot be read at all lacks all of them.
     """
     try:
         with pq.ParquetFile(path) as parquet_file:
-            names = set(parquet_file.schema_arrow.names)
+            found = parquet_file.schema_arrow
     except (OSError, ValueError, pa.ArrowInvalid):
-        return list(schema.names)
-    return [name for name in schema.names if name not in names]
+        return _declared_paths(schema)
+    return [
+        path
+        for path in _declared_paths(schema)
+        if path not in set(_declared_paths(found))
+    ]
 
 
 def is_current(
