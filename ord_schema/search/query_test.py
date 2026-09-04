@@ -1524,7 +1524,7 @@ def test_the_elements_being_grouped_cannot_be_quantified_over():
     # Load-bearing, not incidental: a pivot prunes the repeated fields from its element
     # type, so an aggregate's own filter can never bind a variable. That is what lets it
     # and the reaction filter compile at the same depth without their aliases colliding.
-    with pytest.raises(query.QueryError, match="no field named"):
+    with pytest.raises(query.QueryError, match="no level here to quantify over"):
         _over(
             {
                 "aggregate": {
@@ -1576,3 +1576,29 @@ def test_both_filters_allocate_structure_parameters_apart():
     names = [parameter.name for parameter in compiled.structures]
     assert len(names) == 2
     assert len(set(names)) == 2
+
+
+def test_a_quantifier_buried_in_the_element_filter_is_found_too():
+    # Reached through a not, an and, or an or, so the message does not depend on where
+    # in the clause tree the quantifier sits.
+    with pytest.raises(query.QueryError, match="no level here to quantify over"):
+        _over(
+            {
+                "aggregate": {
+                    "over": "outcomes.products",
+                    "where": {
+                        "op": "not",
+                        "clause": {
+                            "op": "exists",
+                            "path": "measurements",
+                            "where": {
+                                "op": "eq",
+                                "path": "type",
+                                "value": {"literal": "YIELD"},
+                            },
+                        },
+                    },
+                    "measures": [{"fn": "count", "name": "n"}],
+                }
+            }
+        )
