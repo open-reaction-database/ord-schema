@@ -192,6 +192,30 @@ def test_a_tree_returned_as_an_object_is_understood_too():
     assert _where(nl.translate("solvent reactions", client=client)).op == "exists"
 
 
+def test_a_query_nested_under_the_tool_s_own_name_is_unwrapped():
+    # Sonnet nests its arguments under the tool's parameter name on most questions, and
+    # repeats it when the failure is handed back. Query declares no "query" field and
+    # refuses undeclared ones, so this payload can mean nothing else.
+    client = _stub({"query": {"where": _SOLVENT}})
+    assert _where(nl.translate("solvent reactions", client=client)).op == "exists"
+
+
+def test_a_nested_query_encoded_as_a_string_is_unwrapped_too():
+    # The two model habits compose: the envelope arrives with the tree inside it still
+    # JSON-encoded.
+    client = _stub({"query": json.dumps({"where": _SOLVENT})})
+    assert _where(nl.translate("solvent reactions", client=client)).op == "exists"
+
+
+def test_a_key_named_query_beside_others_is_not_an_envelope():
+    # Only a payload that is exactly the envelope is unwrapped. Anything else is the
+    # model having gone wrong in a way this cannot read, and belongs in the repair turn
+    # where it is told what failed.
+    client = _stub({"query": {"where": _SOLVENT}, "limit": 5})
+    with pytest.raises(nl.MalformedQueryError):
+        nl.translate("solvent reactions", client=client, repair=False)
+
+
 def test_the_prefix_is_marked_cacheable():
     # Cache reads are most of what a query costs; an uncached prefix is a tenfold bill.
     client = _stub({"where": _SOLVENT})
