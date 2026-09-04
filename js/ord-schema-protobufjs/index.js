@@ -981,6 +981,7 @@ export const ord = $root.ord = (() => {
          * @property {ord.ReactionInput.IAdditionDevice|null} [additionDevice] ReactionInput additionDevice
          * @property {ord.ITemperature|null} [additionTemperature] ReactionInput additionTemperature
          * @property {ord.ITexture|null} [texture] ReactionInput texture
+         * @property {Object.<string,ord.IData>|null} [metadata] ReactionInput metadata
          */
 
         /**
@@ -1013,6 +1014,7 @@ export const ord = $root.ord = (() => {
         function ReactionInput(properties) {
             this.components = [];
             this.crudeComponents = [];
+            this.metadata = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -1100,6 +1102,14 @@ export const ord = $root.ord = (() => {
         ReactionInput.prototype.texture = null;
 
         /**
+         * ReactionInput metadata.
+         * @member {Object.<string,ord.IData>} metadata
+         * @memberof ord.ReactionInput
+         * @instance
+         */
+        ReactionInput.prototype.metadata = $util.emptyObject;
+
+        /**
          * Creates a new ReactionInput instance using the specified properties.
          * @function create
          * @memberof ord.ReactionInput
@@ -1145,6 +1155,11 @@ export const ord = $root.ord = (() => {
                 $root.ord.Temperature.encode(message.additionTemperature, writer.uint32(/* id 9, wireType 2 =*/74).fork()).ldelim();
             if (message.texture != null && Object.hasOwnProperty.call(message, "texture"))
                 $root.ord.Texture.encode(message.texture, writer.uint32(/* id 10, wireType 2 =*/82).fork()).ldelim();
+            if (message.metadata != null && Object.hasOwnProperty.call(message, "metadata"))
+                for (let keys = Object.keys(message.metadata), i = 0; i < keys.length; ++i) {
+                    writer.uint32(/* id 11, wireType 2 =*/90).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
+                    $root.ord.Data.encode(message.metadata[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                }
             return writer;
         };
 
@@ -1175,7 +1190,7 @@ export const ord = $root.ord = (() => {
         ReactionInput.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionInput();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionInput(), key, value;
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 switch (tag >>> 3) {
@@ -1221,6 +1236,29 @@ export const ord = $root.ord = (() => {
                     }
                 case 10: {
                         message.texture = $root.ord.Texture.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 11: {
+                        if (message.metadata === $util.emptyObject)
+                            message.metadata = {};
+                        let end2 = reader.uint32() + reader.pos;
+                        key = "";
+                        value = null;
+                        while (reader.pos < end2) {
+                            let tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.string();
+                                break;
+                            case 2:
+                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7);
+                                break;
+                            }
+                        }
+                        message.metadata[key] = value;
                         break;
                     }
                 default:
@@ -1314,6 +1352,16 @@ export const ord = $root.ord = (() => {
                 if (error)
                     return "texture." + error;
             }
+            if (message.metadata != null && message.hasOwnProperty("metadata")) {
+                if (!$util.isObject(message.metadata))
+                    return "metadata: object expected";
+                let key = Object.keys(message.metadata);
+                for (let i = 0; i < key.length; ++i) {
+                    let error = $root.ord.Data.verify(message.metadata[key[i]]);
+                    if (error)
+                        return "metadata." + error;
+                }
+            }
             return null;
         };
 
@@ -1386,6 +1434,16 @@ export const ord = $root.ord = (() => {
                     throw TypeError(".ord.ReactionInput.texture: object expected");
                 message.texture = $root.ord.Texture.fromObject(object.texture);
             }
+            if (object.metadata) {
+                if (typeof object.metadata !== "object")
+                    throw TypeError(".ord.ReactionInput.metadata: object expected");
+                message.metadata = {};
+                for (let keys = Object.keys(object.metadata), i = 0; i < keys.length; ++i) {
+                    if (typeof object.metadata[keys[i]] !== "object")
+                        throw TypeError(".ord.ReactionInput.metadata: object expected");
+                    message.metadata[keys[i]] = $root.ord.Data.fromObject(object.metadata[keys[i]]);
+                }
+            }
             return message;
         };
 
@@ -1406,6 +1464,8 @@ export const ord = $root.ord = (() => {
                 object.components = [];
                 object.crudeComponents = [];
             }
+            if (options.objects || options.defaults)
+                object.metadata = {};
             if (options.defaults) {
                 object.additionOrder = 0;
                 object.additionTime = null;
@@ -1442,6 +1502,12 @@ export const ord = $root.ord = (() => {
                 object.additionTemperature = $root.ord.Temperature.toObject(message.additionTemperature, options);
             if (message.texture != null && message.hasOwnProperty("texture"))
                 object.texture = $root.ord.Texture.toObject(message.texture, options);
+            let keys2;
+            if (message.metadata && (keys2 = Object.keys(message.metadata)).length) {
+                object.metadata = {};
+                for (let j = 0; j < keys2.length; ++j)
+                    object.metadata[keys2[j]] = $root.ord.Data.toObject(message.metadata[keys2[j]], options);
+            }
             return object;
         };
 
@@ -6752,6 +6818,7 @@ export const ord = $root.ord = (() => {
          * @property {string|null} [automationPlatform] ReactionSetup automationPlatform
          * @property {Object.<string,ord.IData>|null} [automationCode] ReactionSetup automationCode
          * @property {ord.ReactionSetup.IReactionEnvironment|null} [environment] ReactionSetup environment
+         * @property {Object.<string,ord.IData>|null} [metadata] ReactionSetup metadata
          */
 
         /**
@@ -6764,6 +6831,7 @@ export const ord = $root.ord = (() => {
          */
         function ReactionSetup(properties) {
             this.automationCode = {};
+            this.metadata = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -6809,6 +6877,14 @@ export const ord = $root.ord = (() => {
          * @instance
          */
         ReactionSetup.prototype.environment = null;
+
+        /**
+         * ReactionSetup metadata.
+         * @member {Object.<string,ord.IData>} metadata
+         * @memberof ord.ReactionSetup
+         * @instance
+         */
+        ReactionSetup.prototype.metadata = $util.emptyObject;
 
         // OneOf field names bound to virtual getters and setters
         let $oneOfFields;
@@ -6856,6 +6932,11 @@ export const ord = $root.ord = (() => {
                 }
             if (message.environment != null && Object.hasOwnProperty.call(message, "environment"))
                 $root.ord.ReactionSetup.ReactionEnvironment.encode(message.environment, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+            if (message.metadata != null && Object.hasOwnProperty.call(message, "metadata"))
+                for (let keys = Object.keys(message.metadata), i = 0; i < keys.length; ++i) {
+                    writer.uint32(/* id 6, wireType 2 =*/50).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
+                    $root.ord.Data.encode(message.metadata[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                }
             return writer;
         };
 
@@ -6929,6 +7010,29 @@ export const ord = $root.ord = (() => {
                         message.environment = $root.ord.ReactionSetup.ReactionEnvironment.decode(reader, reader.uint32());
                         break;
                     }
+                case 6: {
+                        if (message.metadata === $util.emptyObject)
+                            message.metadata = {};
+                        let end2 = reader.uint32() + reader.pos;
+                        key = "";
+                        value = null;
+                        while (reader.pos < end2) {
+                            let tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.string();
+                                break;
+                            case 2:
+                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7);
+                                break;
+                            }
+                        }
+                        message.metadata[key] = value;
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -6993,6 +7097,16 @@ export const ord = $root.ord = (() => {
                 if (error)
                     return "environment." + error;
             }
+            if (message.metadata != null && message.hasOwnProperty("metadata")) {
+                if (!$util.isObject(message.metadata))
+                    return "metadata: object expected";
+                let key = Object.keys(message.metadata);
+                for (let i = 0; i < key.length; ++i) {
+                    let error = $root.ord.Data.verify(message.metadata[key[i]]);
+                    if (error)
+                        return "metadata." + error;
+                }
+            }
             return null;
         };
 
@@ -7032,6 +7146,16 @@ export const ord = $root.ord = (() => {
                     throw TypeError(".ord.ReactionSetup.environment: object expected");
                 message.environment = $root.ord.ReactionSetup.ReactionEnvironment.fromObject(object.environment);
             }
+            if (object.metadata) {
+                if (typeof object.metadata !== "object")
+                    throw TypeError(".ord.ReactionSetup.metadata: object expected");
+                message.metadata = {};
+                for (let keys = Object.keys(object.metadata), i = 0; i < keys.length; ++i) {
+                    if (typeof object.metadata[keys[i]] !== "object")
+                        throw TypeError(".ord.ReactionSetup.metadata: object expected");
+                    message.metadata[keys[i]] = $root.ord.Data.fromObject(object.metadata[keys[i]]);
+                }
+            }
             return message;
         };
 
@@ -7048,8 +7172,10 @@ export const ord = $root.ord = (() => {
             if (!options)
                 options = {};
             let object = {};
-            if (options.objects || options.defaults)
+            if (options.objects || options.defaults) {
                 object.automationCode = {};
+                object.metadata = {};
+            }
             if (options.defaults) {
                 object.vessel = null;
                 object.automationPlatform = "";
@@ -7072,6 +7198,11 @@ export const ord = $root.ord = (() => {
             }
             if (message.environment != null && message.hasOwnProperty("environment"))
                 object.environment = $root.ord.ReactionSetup.ReactionEnvironment.toObject(message.environment, options);
+            if (message.metadata && (keys2 = Object.keys(message.metadata)).length) {
+                object.metadata = {};
+                for (let j = 0; j < keys2.length; ++j)
+                    object.metadata[keys2[j]] = $root.ord.Data.toObject(message.metadata[keys2[j]], options);
+            }
             return object;
         };
 
@@ -7408,6 +7539,7 @@ export const ord = $root.ord = (() => {
          * @property {number|null} [ph] ReactionConditions ph
          * @property {boolean|null} [conditionsAreDynamic] ReactionConditions conditionsAreDynamic
          * @property {string|null} [details] ReactionConditions details
+         * @property {Object.<string,ord.IData>|null} [metadata] ReactionConditions metadata
          */
 
         /**
@@ -7419,6 +7551,7 @@ export const ord = $root.ord = (() => {
          * @param {ord.IReactionConditions=} [properties] Properties to set
          */
         function ReactionConditions(properties) {
+            this.metadata = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -7505,6 +7638,14 @@ export const ord = $root.ord = (() => {
          */
         ReactionConditions.prototype.details = "";
 
+        /**
+         * ReactionConditions metadata.
+         * @member {Object.<string,ord.IData>} metadata
+         * @memberof ord.ReactionConditions
+         * @instance
+         */
+        ReactionConditions.prototype.metadata = $util.emptyObject;
+
         // OneOf field names bound to virtual getters and setters
         let $oneOfFields;
 
@@ -7570,6 +7711,11 @@ export const ord = $root.ord = (() => {
                 writer.uint32(/* id 9, wireType 0 =*/72).bool(message.conditionsAreDynamic);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 writer.uint32(/* id 10, wireType 2 =*/82).string(message.details);
+            if (message.metadata != null && Object.hasOwnProperty.call(message, "metadata"))
+                for (let keys = Object.keys(message.metadata), i = 0; i < keys.length; ++i) {
+                    writer.uint32(/* id 11, wireType 2 =*/90).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
+                    $root.ord.Data.encode(message.metadata[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                }
             return writer;
         };
 
@@ -7600,7 +7746,7 @@ export const ord = $root.ord = (() => {
         ReactionConditions.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionConditions();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionConditions(), key, value;
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 switch (tag >>> 3) {
@@ -7642,6 +7788,29 @@ export const ord = $root.ord = (() => {
                     }
                 case 10: {
                         message.details = reader.string();
+                        break;
+                    }
+                case 11: {
+                        if (message.metadata === $util.emptyObject)
+                            message.metadata = {};
+                        let end2 = reader.uint32() + reader.pos;
+                        key = "";
+                        value = null;
+                        while (reader.pos < end2) {
+                            let tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.string();
+                                break;
+                            case 2:
+                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7);
+                                break;
+                            }
+                        }
+                        message.metadata[key] = value;
                         break;
                     }
                 default:
@@ -7728,6 +7897,16 @@ export const ord = $root.ord = (() => {
             if (message.details != null && message.hasOwnProperty("details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
+            if (message.metadata != null && message.hasOwnProperty("metadata")) {
+                if (!$util.isObject(message.metadata))
+                    return "metadata: object expected";
+                let key = Object.keys(message.metadata);
+                for (let i = 0; i < key.length; ++i) {
+                    let error = $root.ord.Data.verify(message.metadata[key[i]]);
+                    if (error)
+                        return "metadata." + error;
+                }
+            }
             return null;
         };
 
@@ -7781,6 +7960,16 @@ export const ord = $root.ord = (() => {
                 message.conditionsAreDynamic = Boolean(object.conditionsAreDynamic);
             if (object.details != null)
                 message.details = String(object.details);
+            if (object.metadata) {
+                if (typeof object.metadata !== "object")
+                    throw TypeError(".ord.ReactionConditions.metadata: object expected");
+                message.metadata = {};
+                for (let keys = Object.keys(object.metadata), i = 0; i < keys.length; ++i) {
+                    if (typeof object.metadata[keys[i]] !== "object")
+                        throw TypeError(".ord.ReactionConditions.metadata: object expected");
+                    message.metadata[keys[i]] = $root.ord.Data.fromObject(object.metadata[keys[i]]);
+                }
+            }
             return message;
         };
 
@@ -7797,6 +7986,8 @@ export const ord = $root.ord = (() => {
             if (!options)
                 options = {};
             let object = {};
+            if (options.objects || options.defaults)
+                object.metadata = {};
             if (options.defaults) {
                 object.temperature = null;
                 object.pressure = null;
@@ -7835,6 +8026,12 @@ export const ord = $root.ord = (() => {
             }
             if (message.details != null && message.hasOwnProperty("details"))
                 object.details = message.details;
+            let keys2;
+            if (message.metadata && (keys2 = Object.keys(message.metadata)).length) {
+                object.metadata = {};
+                for (let j = 0; j < keys2.length; ++j)
+                    object.metadata[keys2[j]] = $root.ord.Data.toObject(message.metadata[keys2[j]], options);
+            }
             return object;
         };
 
@@ -7876,6 +8073,7 @@ export const ord = $root.ord = (() => {
          * @property {ord.TemperatureConditions.ITemperatureControl|null} [control] TemperatureConditions control
          * @property {ord.ITemperature|null} [setpoint] TemperatureConditions setpoint
          * @property {Array.<ord.TemperatureConditions.ITemperatureMeasurement>|null} [measurements] TemperatureConditions measurements
+         * @property {Object.<string,ord.IData>|null} [metadata] TemperatureConditions metadata
          */
 
         /**
@@ -7888,6 +8086,7 @@ export const ord = $root.ord = (() => {
          */
         function TemperatureConditions(properties) {
             this.measurements = [];
+            this.metadata = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -7917,6 +8116,14 @@ export const ord = $root.ord = (() => {
          * @instance
          */
         TemperatureConditions.prototype.measurements = $util.emptyArray;
+
+        /**
+         * TemperatureConditions metadata.
+         * @member {Object.<string,ord.IData>} metadata
+         * @memberof ord.TemperatureConditions
+         * @instance
+         */
+        TemperatureConditions.prototype.metadata = $util.emptyObject;
 
         /**
          * Creates a new TemperatureConditions instance using the specified properties.
@@ -7949,6 +8156,11 @@ export const ord = $root.ord = (() => {
             if (message.measurements != null && message.measurements.length)
                 for (let i = 0; i < message.measurements.length; ++i)
                     $root.ord.TemperatureConditions.TemperatureMeasurement.encode(message.measurements[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+            if (message.metadata != null && Object.hasOwnProperty.call(message, "metadata"))
+                for (let keys = Object.keys(message.metadata), i = 0; i < keys.length; ++i) {
+                    writer.uint32(/* id 4, wireType 2 =*/34).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
+                    $root.ord.Data.encode(message.metadata[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                }
             return writer;
         };
 
@@ -7979,7 +8191,7 @@ export const ord = $root.ord = (() => {
         TemperatureConditions.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.TemperatureConditions();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.TemperatureConditions(), key, value;
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 switch (tag >>> 3) {
@@ -7995,6 +8207,29 @@ export const ord = $root.ord = (() => {
                         if (!(message.measurements && message.measurements.length))
                             message.measurements = [];
                         message.measurements.push($root.ord.TemperatureConditions.TemperatureMeasurement.decode(reader, reader.uint32()));
+                        break;
+                    }
+                case 4: {
+                        if (message.metadata === $util.emptyObject)
+                            message.metadata = {};
+                        let end2 = reader.uint32() + reader.pos;
+                        key = "";
+                        value = null;
+                        while (reader.pos < end2) {
+                            let tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.string();
+                                break;
+                            case 2:
+                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7);
+                                break;
+                            }
+                        }
+                        message.metadata[key] = value;
                         break;
                     }
                 default:
@@ -8051,6 +8286,16 @@ export const ord = $root.ord = (() => {
                         return "measurements." + error;
                 }
             }
+            if (message.metadata != null && message.hasOwnProperty("metadata")) {
+                if (!$util.isObject(message.metadata))
+                    return "metadata: object expected";
+                let key = Object.keys(message.metadata);
+                for (let i = 0; i < key.length; ++i) {
+                    let error = $root.ord.Data.verify(message.metadata[key[i]]);
+                    if (error)
+                        return "metadata." + error;
+                }
+            }
             return null;
         };
 
@@ -8086,6 +8331,16 @@ export const ord = $root.ord = (() => {
                     message.measurements[i] = $root.ord.TemperatureConditions.TemperatureMeasurement.fromObject(object.measurements[i]);
                 }
             }
+            if (object.metadata) {
+                if (typeof object.metadata !== "object")
+                    throw TypeError(".ord.TemperatureConditions.metadata: object expected");
+                message.metadata = {};
+                for (let keys = Object.keys(object.metadata), i = 0; i < keys.length; ++i) {
+                    if (typeof object.metadata[keys[i]] !== "object")
+                        throw TypeError(".ord.TemperatureConditions.metadata: object expected");
+                    message.metadata[keys[i]] = $root.ord.Data.fromObject(object.metadata[keys[i]]);
+                }
+            }
             return message;
         };
 
@@ -8104,6 +8359,8 @@ export const ord = $root.ord = (() => {
             let object = {};
             if (options.arrays || options.defaults)
                 object.measurements = [];
+            if (options.objects || options.defaults)
+                object.metadata = {};
             if (options.defaults) {
                 object.control = null;
                 object.setpoint = null;
@@ -8116,6 +8373,12 @@ export const ord = $root.ord = (() => {
                 object.measurements = [];
                 for (let j = 0; j < message.measurements.length; ++j)
                     object.measurements[j] = $root.ord.TemperatureConditions.TemperatureMeasurement.toObject(message.measurements[j], options);
+            }
+            let keys2;
+            if (message.metadata && (keys2 = Object.keys(message.metadata)).length) {
+                object.metadata = {};
+                for (let j = 0; j < keys2.length; ++j)
+                    object.metadata[keys2[j]] = $root.ord.Data.toObject(message.metadata[keys2[j]], options);
             }
             return object;
         };
@@ -8826,6 +9089,7 @@ export const ord = $root.ord = (() => {
          * @property {ord.IPressure|null} [setpoint] PressureConditions setpoint
          * @property {ord.PressureConditions.IAtmosphere|null} [atmosphere] PressureConditions atmosphere
          * @property {Array.<ord.PressureConditions.IPressureMeasurement>|null} [measurements] PressureConditions measurements
+         * @property {Object.<string,ord.IData>|null} [metadata] PressureConditions metadata
          */
 
         /**
@@ -8838,6 +9102,7 @@ export const ord = $root.ord = (() => {
          */
         function PressureConditions(properties) {
             this.measurements = [];
+            this.metadata = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -8877,6 +9142,14 @@ export const ord = $root.ord = (() => {
         PressureConditions.prototype.measurements = $util.emptyArray;
 
         /**
+         * PressureConditions metadata.
+         * @member {Object.<string,ord.IData>} metadata
+         * @memberof ord.PressureConditions
+         * @instance
+         */
+        PressureConditions.prototype.metadata = $util.emptyObject;
+
+        /**
          * Creates a new PressureConditions instance using the specified properties.
          * @function create
          * @memberof ord.PressureConditions
@@ -8909,6 +9182,11 @@ export const ord = $root.ord = (() => {
             if (message.measurements != null && message.measurements.length)
                 for (let i = 0; i < message.measurements.length; ++i)
                     $root.ord.PressureConditions.PressureMeasurement.encode(message.measurements[i], writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+            if (message.metadata != null && Object.hasOwnProperty.call(message, "metadata"))
+                for (let keys = Object.keys(message.metadata), i = 0; i < keys.length; ++i) {
+                    writer.uint32(/* id 5, wireType 2 =*/42).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
+                    $root.ord.Data.encode(message.metadata[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                }
             return writer;
         };
 
@@ -8939,7 +9217,7 @@ export const ord = $root.ord = (() => {
         PressureConditions.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.PressureConditions();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.PressureConditions(), key, value;
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 switch (tag >>> 3) {
@@ -8959,6 +9237,29 @@ export const ord = $root.ord = (() => {
                         if (!(message.measurements && message.measurements.length))
                             message.measurements = [];
                         message.measurements.push($root.ord.PressureConditions.PressureMeasurement.decode(reader, reader.uint32()));
+                        break;
+                    }
+                case 5: {
+                        if (message.metadata === $util.emptyObject)
+                            message.metadata = {};
+                        let end2 = reader.uint32() + reader.pos;
+                        key = "";
+                        value = null;
+                        while (reader.pos < end2) {
+                            let tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.string();
+                                break;
+                            case 2:
+                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7);
+                                break;
+                            }
+                        }
+                        message.metadata[key] = value;
                         break;
                     }
                 default:
@@ -9020,6 +9321,16 @@ export const ord = $root.ord = (() => {
                         return "measurements." + error;
                 }
             }
+            if (message.metadata != null && message.hasOwnProperty("metadata")) {
+                if (!$util.isObject(message.metadata))
+                    return "metadata: object expected";
+                let key = Object.keys(message.metadata);
+                for (let i = 0; i < key.length; ++i) {
+                    let error = $root.ord.Data.verify(message.metadata[key[i]]);
+                    if (error)
+                        return "metadata." + error;
+                }
+            }
             return null;
         };
 
@@ -9060,6 +9371,16 @@ export const ord = $root.ord = (() => {
                     message.measurements[i] = $root.ord.PressureConditions.PressureMeasurement.fromObject(object.measurements[i]);
                 }
             }
+            if (object.metadata) {
+                if (typeof object.metadata !== "object")
+                    throw TypeError(".ord.PressureConditions.metadata: object expected");
+                message.metadata = {};
+                for (let keys = Object.keys(object.metadata), i = 0; i < keys.length; ++i) {
+                    if (typeof object.metadata[keys[i]] !== "object")
+                        throw TypeError(".ord.PressureConditions.metadata: object expected");
+                    message.metadata[keys[i]] = $root.ord.Data.fromObject(object.metadata[keys[i]]);
+                }
+            }
             return message;
         };
 
@@ -9078,6 +9399,8 @@ export const ord = $root.ord = (() => {
             let object = {};
             if (options.arrays || options.defaults)
                 object.measurements = [];
+            if (options.objects || options.defaults)
+                object.metadata = {};
             if (options.defaults) {
                 object.control = null;
                 object.setpoint = null;
@@ -9093,6 +9416,12 @@ export const ord = $root.ord = (() => {
                 object.measurements = [];
                 for (let j = 0; j < message.measurements.length; ++j)
                     object.measurements[j] = $root.ord.PressureConditions.PressureMeasurement.toObject(message.measurements[j], options);
+            }
+            let keys2;
+            if (message.metadata && (keys2 = Object.keys(message.metadata)).length) {
+                object.metadata = {};
+                for (let j = 0; j < keys2.length; ++j)
+                    object.metadata[keys2[j]] = $root.ord.Data.toObject(message.metadata[keys2[j]], options);
             }
             return object;
         };
@@ -10090,6 +10419,7 @@ export const ord = $root.ord = (() => {
          * @property {ord.StirringConditions.StirringMethodType|null} [type] StirringConditions type
          * @property {string|null} [details] StirringConditions details
          * @property {ord.StirringConditions.IStirringRate|null} [rate] StirringConditions rate
+         * @property {Object.<string,ord.IData>|null} [metadata] StirringConditions metadata
          */
 
         /**
@@ -10101,6 +10431,7 @@ export const ord = $root.ord = (() => {
          * @param {ord.IStirringConditions=} [properties] Properties to set
          */
         function StirringConditions(properties) {
+            this.metadata = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -10132,6 +10463,14 @@ export const ord = $root.ord = (() => {
         StirringConditions.prototype.rate = null;
 
         /**
+         * StirringConditions metadata.
+         * @member {Object.<string,ord.IData>} metadata
+         * @memberof ord.StirringConditions
+         * @instance
+         */
+        StirringConditions.prototype.metadata = $util.emptyObject;
+
+        /**
          * Creates a new StirringConditions instance using the specified properties.
          * @function create
          * @memberof ord.StirringConditions
@@ -10161,6 +10500,11 @@ export const ord = $root.ord = (() => {
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.details);
             if (message.rate != null && Object.hasOwnProperty.call(message, "rate"))
                 $root.ord.StirringConditions.StirringRate.encode(message.rate, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+            if (message.metadata != null && Object.hasOwnProperty.call(message, "metadata"))
+                for (let keys = Object.keys(message.metadata), i = 0; i < keys.length; ++i) {
+                    writer.uint32(/* id 4, wireType 2 =*/34).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
+                    $root.ord.Data.encode(message.metadata[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                }
             return writer;
         };
 
@@ -10191,7 +10535,7 @@ export const ord = $root.ord = (() => {
         StirringConditions.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.StirringConditions();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.StirringConditions(), key, value;
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 switch (tag >>> 3) {
@@ -10205,6 +10549,29 @@ export const ord = $root.ord = (() => {
                     }
                 case 3: {
                         message.rate = $root.ord.StirringConditions.StirringRate.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 4: {
+                        if (message.metadata === $util.emptyObject)
+                            message.metadata = {};
+                        let end2 = reader.uint32() + reader.pos;
+                        key = "";
+                        value = null;
+                        while (reader.pos < end2) {
+                            let tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.string();
+                                break;
+                            case 2:
+                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7);
+                                break;
+                            }
+                        }
+                        message.metadata[key] = value;
                         break;
                     }
                 default:
@@ -10263,6 +10630,16 @@ export const ord = $root.ord = (() => {
                 let error = $root.ord.StirringConditions.StirringRate.verify(message.rate);
                 if (error)
                     return "rate." + error;
+            }
+            if (message.metadata != null && message.hasOwnProperty("metadata")) {
+                if (!$util.isObject(message.metadata))
+                    return "metadata: object expected";
+                let key = Object.keys(message.metadata);
+                for (let i = 0; i < key.length; ++i) {
+                    let error = $root.ord.Data.verify(message.metadata[key[i]]);
+                    if (error)
+                        return "metadata." + error;
+                }
             }
             return null;
         };
@@ -10326,6 +10703,16 @@ export const ord = $root.ord = (() => {
                     throw TypeError(".ord.StirringConditions.rate: object expected");
                 message.rate = $root.ord.StirringConditions.StirringRate.fromObject(object.rate);
             }
+            if (object.metadata) {
+                if (typeof object.metadata !== "object")
+                    throw TypeError(".ord.StirringConditions.metadata: object expected");
+                message.metadata = {};
+                for (let keys = Object.keys(object.metadata), i = 0; i < keys.length; ++i) {
+                    if (typeof object.metadata[keys[i]] !== "object")
+                        throw TypeError(".ord.StirringConditions.metadata: object expected");
+                    message.metadata[keys[i]] = $root.ord.Data.fromObject(object.metadata[keys[i]]);
+                }
+            }
             return message;
         };
 
@@ -10342,6 +10729,8 @@ export const ord = $root.ord = (() => {
             if (!options)
                 options = {};
             let object = {};
+            if (options.objects || options.defaults)
+                object.metadata = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
                 object.details = "";
@@ -10353,6 +10742,12 @@ export const ord = $root.ord = (() => {
                 object.details = message.details;
             if (message.rate != null && message.hasOwnProperty("rate"))
                 object.rate = $root.ord.StirringConditions.StirringRate.toObject(message.rate, options);
+            let keys2;
+            if (message.metadata && (keys2 = Object.keys(message.metadata)).length) {
+                object.metadata = {};
+                for (let j = 0; j < keys2.length; ++j)
+                    object.metadata[keys2[j]] = $root.ord.Data.toObject(message.metadata[keys2[j]], options);
+            }
             return object;
         };
 
@@ -10719,6 +11114,7 @@ export const ord = $root.ord = (() => {
          * @property {ord.IWavelength|null} [peakWavelength] IlluminationConditions peakWavelength
          * @property {string|null} [color] IlluminationConditions color
          * @property {ord.ILength|null} [distanceToVessel] IlluminationConditions distanceToVessel
+         * @property {Object.<string,ord.IData>|null} [metadata] IlluminationConditions metadata
          */
 
         /**
@@ -10730,6 +11126,7 @@ export const ord = $root.ord = (() => {
          * @param {ord.IIlluminationConditions=} [properties] Properties to set
          */
         function IlluminationConditions(properties) {
+            this.metadata = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -10777,6 +11174,14 @@ export const ord = $root.ord = (() => {
         IlluminationConditions.prototype.distanceToVessel = null;
 
         /**
+         * IlluminationConditions metadata.
+         * @member {Object.<string,ord.IData>} metadata
+         * @memberof ord.IlluminationConditions
+         * @instance
+         */
+        IlluminationConditions.prototype.metadata = $util.emptyObject;
+
+        /**
          * Creates a new IlluminationConditions instance using the specified properties.
          * @function create
          * @memberof ord.IlluminationConditions
@@ -10810,6 +11215,11 @@ export const ord = $root.ord = (() => {
                 writer.uint32(/* id 4, wireType 2 =*/34).string(message.color);
             if (message.distanceToVessel != null && Object.hasOwnProperty.call(message, "distanceToVessel"))
                 $root.ord.Length.encode(message.distanceToVessel, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+            if (message.metadata != null && Object.hasOwnProperty.call(message, "metadata"))
+                for (let keys = Object.keys(message.metadata), i = 0; i < keys.length; ++i) {
+                    writer.uint32(/* id 6, wireType 2 =*/50).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
+                    $root.ord.Data.encode(message.metadata[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                }
             return writer;
         };
 
@@ -10840,7 +11250,7 @@ export const ord = $root.ord = (() => {
         IlluminationConditions.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.IlluminationConditions();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.IlluminationConditions(), key, value;
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 switch (tag >>> 3) {
@@ -10862,6 +11272,29 @@ export const ord = $root.ord = (() => {
                     }
                 case 5: {
                         message.distanceToVessel = $root.ord.Length.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 6: {
+                        if (message.metadata === $util.emptyObject)
+                            message.metadata = {};
+                        let end2 = reader.uint32() + reader.pos;
+                        key = "";
+                        value = null;
+                        while (reader.pos < end2) {
+                            let tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.string();
+                                break;
+                            case 2:
+                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7);
+                                break;
+                            }
+                        }
+                        message.metadata[key] = value;
                         break;
                     }
                 default:
@@ -10929,6 +11362,16 @@ export const ord = $root.ord = (() => {
                 let error = $root.ord.Length.verify(message.distanceToVessel);
                 if (error)
                     return "distanceToVessel." + error;
+            }
+            if (message.metadata != null && message.hasOwnProperty("metadata")) {
+                if (!$util.isObject(message.metadata))
+                    return "metadata: object expected";
+                let key = Object.keys(message.metadata);
+                for (let i = 0; i < key.length; ++i) {
+                    let error = $root.ord.Data.verify(message.metadata[key[i]]);
+                    if (error)
+                        return "metadata." + error;
+                }
             }
             return null;
         };
@@ -11003,6 +11446,16 @@ export const ord = $root.ord = (() => {
                     throw TypeError(".ord.IlluminationConditions.distanceToVessel: object expected");
                 message.distanceToVessel = $root.ord.Length.fromObject(object.distanceToVessel);
             }
+            if (object.metadata) {
+                if (typeof object.metadata !== "object")
+                    throw TypeError(".ord.IlluminationConditions.metadata: object expected");
+                message.metadata = {};
+                for (let keys = Object.keys(object.metadata), i = 0; i < keys.length; ++i) {
+                    if (typeof object.metadata[keys[i]] !== "object")
+                        throw TypeError(".ord.IlluminationConditions.metadata: object expected");
+                    message.metadata[keys[i]] = $root.ord.Data.fromObject(object.metadata[keys[i]]);
+                }
+            }
             return message;
         };
 
@@ -11019,6 +11472,8 @@ export const ord = $root.ord = (() => {
             if (!options)
                 options = {};
             let object = {};
+            if (options.objects || options.defaults)
+                object.metadata = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
                 object.details = "";
@@ -11036,6 +11491,12 @@ export const ord = $root.ord = (() => {
                 object.color = message.color;
             if (message.distanceToVessel != null && message.hasOwnProperty("distanceToVessel"))
                 object.distanceToVessel = $root.ord.Length.toObject(message.distanceToVessel, options);
+            let keys2;
+            if (message.metadata && (keys2 = Object.keys(message.metadata)).length) {
+                object.metadata = {};
+                for (let j = 0; j < keys2.length; ++j)
+                    object.metadata[keys2[j]] = $root.ord.Data.toObject(message.metadata[keys2[j]], options);
+            }
             return object;
         };
 
@@ -11111,6 +11572,7 @@ export const ord = $root.ord = (() => {
          * @property {ord.ILength|null} [electrodeSeparation] ElectrochemistryConditions electrodeSeparation
          * @property {Array.<ord.ElectrochemistryConditions.IElectrochemistryMeasurement>|null} [measurements] ElectrochemistryConditions measurements
          * @property {ord.ElectrochemistryConditions.IElectrochemistryCell|null} [cell] ElectrochemistryConditions cell
+         * @property {Object.<string,ord.IData>|null} [metadata] ElectrochemistryConditions metadata
          */
 
         /**
@@ -11123,6 +11585,7 @@ export const ord = $root.ord = (() => {
          */
         function ElectrochemistryConditions(properties) {
             this.measurements = [];
+            this.metadata = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -11202,6 +11665,14 @@ export const ord = $root.ord = (() => {
         ElectrochemistryConditions.prototype.cell = null;
 
         /**
+         * ElectrochemistryConditions metadata.
+         * @member {Object.<string,ord.IData>} metadata
+         * @memberof ord.ElectrochemistryConditions
+         * @instance
+         */
+        ElectrochemistryConditions.prototype.metadata = $util.emptyObject;
+
+        /**
          * Creates a new ElectrochemistryConditions instance using the specified properties.
          * @function create
          * @memberof ord.ElectrochemistryConditions
@@ -11244,6 +11715,11 @@ export const ord = $root.ord = (() => {
                     $root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.encode(message.measurements[i], writer.uint32(/* id 8, wireType 2 =*/66).fork()).ldelim();
             if (message.cell != null && Object.hasOwnProperty.call(message, "cell"))
                 $root.ord.ElectrochemistryConditions.ElectrochemistryCell.encode(message.cell, writer.uint32(/* id 9, wireType 2 =*/74).fork()).ldelim();
+            if (message.metadata != null && Object.hasOwnProperty.call(message, "metadata"))
+                for (let keys = Object.keys(message.metadata), i = 0; i < keys.length; ++i) {
+                    writer.uint32(/* id 10, wireType 2 =*/82).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
+                    $root.ord.Data.encode(message.metadata[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                }
             return writer;
         };
 
@@ -11274,7 +11750,7 @@ export const ord = $root.ord = (() => {
         ElectrochemistryConditions.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ElectrochemistryConditions();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ElectrochemistryConditions(), key, value;
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 switch (tag >>> 3) {
@@ -11314,6 +11790,29 @@ export const ord = $root.ord = (() => {
                     }
                 case 9: {
                         message.cell = $root.ord.ElectrochemistryConditions.ElectrochemistryCell.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 10: {
+                        if (message.metadata === $util.emptyObject)
+                            message.metadata = {};
+                        let end2 = reader.uint32() + reader.pos;
+                        key = "";
+                        value = null;
+                        while (reader.pos < end2) {
+                            let tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.string();
+                                break;
+                            case 2:
+                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7);
+                                break;
+                            }
+                        }
+                        message.metadata[key] = value;
                         break;
                     }
                 default:
@@ -11399,6 +11898,16 @@ export const ord = $root.ord = (() => {
                 if (error)
                     return "cell." + error;
             }
+            if (message.metadata != null && message.hasOwnProperty("metadata")) {
+                if (!$util.isObject(message.metadata))
+                    return "metadata: object expected";
+                let key = Object.keys(message.metadata);
+                for (let i = 0; i < key.length; ++i) {
+                    let error = $root.ord.Data.verify(message.metadata[key[i]]);
+                    if (error)
+                        return "metadata." + error;
+                }
+            }
             return null;
         };
 
@@ -11474,6 +11983,16 @@ export const ord = $root.ord = (() => {
                     throw TypeError(".ord.ElectrochemistryConditions.cell: object expected");
                 message.cell = $root.ord.ElectrochemistryConditions.ElectrochemistryCell.fromObject(object.cell);
             }
+            if (object.metadata) {
+                if (typeof object.metadata !== "object")
+                    throw TypeError(".ord.ElectrochemistryConditions.metadata: object expected");
+                message.metadata = {};
+                for (let keys = Object.keys(object.metadata), i = 0; i < keys.length; ++i) {
+                    if (typeof object.metadata[keys[i]] !== "object")
+                        throw TypeError(".ord.ElectrochemistryConditions.metadata: object expected");
+                    message.metadata[keys[i]] = $root.ord.Data.fromObject(object.metadata[keys[i]]);
+                }
+            }
             return message;
         };
 
@@ -11492,6 +12011,8 @@ export const ord = $root.ord = (() => {
             let object = {};
             if (options.arrays || options.defaults)
                 object.measurements = [];
+            if (options.objects || options.defaults)
+                object.metadata = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
                 object.details = "";
@@ -11523,6 +12044,12 @@ export const ord = $root.ord = (() => {
             }
             if (message.cell != null && message.hasOwnProperty("cell"))
                 object.cell = $root.ord.ElectrochemistryConditions.ElectrochemistryCell.toObject(message.cell, options);
+            let keys2;
+            if (message.metadata && (keys2 = Object.keys(message.metadata)).length) {
+                object.metadata = {};
+                for (let j = 0; j < keys2.length; ++j)
+                    object.metadata[keys2[j]] = $root.ord.Data.toObject(message.metadata[keys2[j]], options);
+            }
             return object;
         };
 
@@ -12122,6 +12649,7 @@ export const ord = $root.ord = (() => {
          * @property {string|null} [details] FlowConditions details
          * @property {string|null} [pumpType] FlowConditions pumpType
          * @property {ord.FlowConditions.ITubing|null} [tubing] FlowConditions tubing
+         * @property {Object.<string,ord.IData>|null} [metadata] FlowConditions metadata
          */
 
         /**
@@ -12133,6 +12661,7 @@ export const ord = $root.ord = (() => {
          * @param {ord.IFlowConditions=} [properties] Properties to set
          */
         function FlowConditions(properties) {
+            this.metadata = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -12172,6 +12701,14 @@ export const ord = $root.ord = (() => {
         FlowConditions.prototype.tubing = null;
 
         /**
+         * FlowConditions metadata.
+         * @member {Object.<string,ord.IData>} metadata
+         * @memberof ord.FlowConditions
+         * @instance
+         */
+        FlowConditions.prototype.metadata = $util.emptyObject;
+
+        /**
          * Creates a new FlowConditions instance using the specified properties.
          * @function create
          * @memberof ord.FlowConditions
@@ -12203,6 +12740,11 @@ export const ord = $root.ord = (() => {
                 writer.uint32(/* id 3, wireType 2 =*/26).string(message.pumpType);
             if (message.tubing != null && Object.hasOwnProperty.call(message, "tubing"))
                 $root.ord.FlowConditions.Tubing.encode(message.tubing, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+            if (message.metadata != null && Object.hasOwnProperty.call(message, "metadata"))
+                for (let keys = Object.keys(message.metadata), i = 0; i < keys.length; ++i) {
+                    writer.uint32(/* id 5, wireType 2 =*/42).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
+                    $root.ord.Data.encode(message.metadata[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                }
             return writer;
         };
 
@@ -12233,7 +12775,7 @@ export const ord = $root.ord = (() => {
         FlowConditions.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.FlowConditions();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.FlowConditions(), key, value;
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 switch (tag >>> 3) {
@@ -12251,6 +12793,29 @@ export const ord = $root.ord = (() => {
                     }
                 case 4: {
                         message.tubing = $root.ord.FlowConditions.Tubing.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 5: {
+                        if (message.metadata === $util.emptyObject)
+                            message.metadata = {};
+                        let end2 = reader.uint32() + reader.pos;
+                        key = "";
+                        value = null;
+                        while (reader.pos < end2) {
+                            let tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.string();
+                                break;
+                            case 2:
+                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7);
+                                break;
+                            }
+                        }
+                        message.metadata[key] = value;
                         break;
                     }
                 default:
@@ -12310,6 +12875,16 @@ export const ord = $root.ord = (() => {
                 if (error)
                     return "tubing." + error;
             }
+            if (message.metadata != null && message.hasOwnProperty("metadata")) {
+                if (!$util.isObject(message.metadata))
+                    return "metadata: object expected";
+                let key = Object.keys(message.metadata);
+                for (let i = 0; i < key.length; ++i) {
+                    let error = $root.ord.Data.verify(message.metadata[key[i]]);
+                    if (error)
+                        return "metadata." + error;
+                }
+            }
             return null;
         };
 
@@ -12362,6 +12937,16 @@ export const ord = $root.ord = (() => {
                     throw TypeError(".ord.FlowConditions.tubing: object expected");
                 message.tubing = $root.ord.FlowConditions.Tubing.fromObject(object.tubing);
             }
+            if (object.metadata) {
+                if (typeof object.metadata !== "object")
+                    throw TypeError(".ord.FlowConditions.metadata: object expected");
+                message.metadata = {};
+                for (let keys = Object.keys(object.metadata), i = 0; i < keys.length; ++i) {
+                    if (typeof object.metadata[keys[i]] !== "object")
+                        throw TypeError(".ord.FlowConditions.metadata: object expected");
+                    message.metadata[keys[i]] = $root.ord.Data.fromObject(object.metadata[keys[i]]);
+                }
+            }
             return message;
         };
 
@@ -12378,6 +12963,8 @@ export const ord = $root.ord = (() => {
             if (!options)
                 options = {};
             let object = {};
+            if (options.objects || options.defaults)
+                object.metadata = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
                 object.details = "";
@@ -12392,6 +12979,12 @@ export const ord = $root.ord = (() => {
                 object.pumpType = message.pumpType;
             if (message.tubing != null && message.hasOwnProperty("tubing"))
                 object.tubing = $root.ord.FlowConditions.Tubing.toObject(message.tubing, options);
+            let keys2;
+            if (message.metadata && (keys2 = Object.keys(message.metadata)).length) {
+                object.metadata = {};
+                for (let j = 0; j < keys2.length; ++j)
+                    object.metadata[keys2[j]] = $root.ord.Data.toObject(message.metadata[keys2[j]], options);
+            }
             return object;
         };
 
@@ -12817,6 +13410,7 @@ export const ord = $root.ord = (() => {
          * @property {boolean|null} [isSensitiveToLight] ReactionNotes isSensitiveToLight
          * @property {string|null} [safetyNotes] ReactionNotes safetyNotes
          * @property {string|null} [procedureDetails] ReactionNotes procedureDetails
+         * @property {Object.<string,ord.IData>|null} [metadata] ReactionNotes metadata
          */
 
         /**
@@ -12828,6 +13422,7 @@ export const ord = $root.ord = (() => {
          * @param {ord.IReactionNotes=} [properties] Properties to set
          */
         function ReactionNotes(properties) {
+            this.metadata = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -12905,6 +13500,14 @@ export const ord = $root.ord = (() => {
          * @instance
          */
         ReactionNotes.prototype.procedureDetails = "";
+
+        /**
+         * ReactionNotes metadata.
+         * @member {Object.<string,ord.IData>} metadata
+         * @memberof ord.ReactionNotes
+         * @instance
+         */
+        ReactionNotes.prototype.metadata = $util.emptyObject;
 
         // OneOf field names bound to virtual getters and setters
         let $oneOfFields;
@@ -12993,6 +13596,11 @@ export const ord = $root.ord = (() => {
                 writer.uint32(/* id 8, wireType 2 =*/66).string(message.safetyNotes);
             if (message.procedureDetails != null && Object.hasOwnProperty.call(message, "procedureDetails"))
                 writer.uint32(/* id 9, wireType 2 =*/74).string(message.procedureDetails);
+            if (message.metadata != null && Object.hasOwnProperty.call(message, "metadata"))
+                for (let keys = Object.keys(message.metadata), i = 0; i < keys.length; ++i) {
+                    writer.uint32(/* id 10, wireType 2 =*/82).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
+                    $root.ord.Data.encode(message.metadata[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                }
             return writer;
         };
 
@@ -13023,7 +13631,7 @@ export const ord = $root.ord = (() => {
         ReactionNotes.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionNotes();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionNotes(), key, value;
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 switch (tag >>> 3) {
@@ -13061,6 +13669,29 @@ export const ord = $root.ord = (() => {
                     }
                 case 9: {
                         message.procedureDetails = reader.string();
+                        break;
+                    }
+                case 10: {
+                        if (message.metadata === $util.emptyObject)
+                            message.metadata = {};
+                        let end2 = reader.uint32() + reader.pos;
+                        key = "";
+                        value = null;
+                        while (reader.pos < end2) {
+                            let tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.string();
+                                break;
+                            case 2:
+                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7);
+                                break;
+                            }
+                        }
+                        message.metadata[key] = value;
                         break;
                     }
                 default:
@@ -13140,6 +13771,16 @@ export const ord = $root.ord = (() => {
             if (message.procedureDetails != null && message.hasOwnProperty("procedureDetails"))
                 if (!$util.isString(message.procedureDetails))
                     return "procedureDetails: string expected";
+            if (message.metadata != null && message.hasOwnProperty("metadata")) {
+                if (!$util.isObject(message.metadata))
+                    return "metadata: object expected";
+                let key = Object.keys(message.metadata);
+                for (let i = 0; i < key.length; ++i) {
+                    let error = $root.ord.Data.verify(message.metadata[key[i]]);
+                    if (error)
+                        return "metadata." + error;
+                }
+            }
             return null;
         };
 
@@ -13173,6 +13814,16 @@ export const ord = $root.ord = (() => {
                 message.safetyNotes = String(object.safetyNotes);
             if (object.procedureDetails != null)
                 message.procedureDetails = String(object.procedureDetails);
+            if (object.metadata) {
+                if (typeof object.metadata !== "object")
+                    throw TypeError(".ord.ReactionNotes.metadata: object expected");
+                message.metadata = {};
+                for (let keys = Object.keys(object.metadata), i = 0; i < keys.length; ++i) {
+                    if (typeof object.metadata[keys[i]] !== "object")
+                        throw TypeError(".ord.ReactionNotes.metadata: object expected");
+                    message.metadata[keys[i]] = $root.ord.Data.fromObject(object.metadata[keys[i]]);
+                }
+            }
             return message;
         };
 
@@ -13189,6 +13840,8 @@ export const ord = $root.ord = (() => {
             if (!options)
                 options = {};
             let object = {};
+            if (options.objects || options.defaults)
+                object.metadata = {};
             if (options.defaults) {
                 object.safetyNotes = "";
                 object.procedureDetails = "";
@@ -13232,6 +13885,12 @@ export const ord = $root.ord = (() => {
                 object.safetyNotes = message.safetyNotes;
             if (message.procedureDetails != null && message.hasOwnProperty("procedureDetails"))
                 object.procedureDetails = message.procedureDetails;
+            let keys2;
+            if (message.metadata && (keys2 = Object.keys(message.metadata)).length) {
+                object.metadata = {};
+                for (let j = 0; j < keys2.length; ++j)
+                    object.metadata[keys2[j]] = $root.ord.Data.toObject(message.metadata[keys2[j]], options);
+            }
             return object;
         };
 
@@ -13540,6 +14199,7 @@ export const ord = $root.ord = (() => {
          * @property {ord.IStirringConditions|null} [stirring] ReactionWorkup stirring
          * @property {number|null} [targetPh] ReactionWorkup targetPh
          * @property {boolean|null} [isAutomated] ReactionWorkup isAutomated
+         * @property {Object.<string,ord.IData>|null} [metadata] ReactionWorkup metadata
          */
 
         /**
@@ -13551,6 +14211,7 @@ export const ord = $root.ord = (() => {
          * @param {ord.IReactionWorkup=} [properties] Properties to set
          */
         function ReactionWorkup(properties) {
+            this.metadata = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -13637,6 +14298,14 @@ export const ord = $root.ord = (() => {
          */
         ReactionWorkup.prototype.isAutomated = null;
 
+        /**
+         * ReactionWorkup metadata.
+         * @member {Object.<string,ord.IData>} metadata
+         * @memberof ord.ReactionWorkup
+         * @instance
+         */
+        ReactionWorkup.prototype.metadata = $util.emptyObject;
+
         // OneOf field names bound to virtual getters and setters
         let $oneOfFields;
 
@@ -13696,6 +14365,11 @@ export const ord = $root.ord = (() => {
                 writer.uint32(/* id 9, wireType 5 =*/77).float(message.targetPh);
             if (message.isAutomated != null && Object.hasOwnProperty.call(message, "isAutomated"))
                 writer.uint32(/* id 10, wireType 0 =*/80).bool(message.isAutomated);
+            if (message.metadata != null && Object.hasOwnProperty.call(message, "metadata"))
+                for (let keys = Object.keys(message.metadata), i = 0; i < keys.length; ++i) {
+                    writer.uint32(/* id 11, wireType 2 =*/90).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
+                    $root.ord.Data.encode(message.metadata[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                }
             return writer;
         };
 
@@ -13726,7 +14400,7 @@ export const ord = $root.ord = (() => {
         ReactionWorkup.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionWorkup();
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionWorkup(), key, value;
             while (reader.pos < end) {
                 let tag = reader.uint32();
                 switch (tag >>> 3) {
@@ -13768,6 +14442,29 @@ export const ord = $root.ord = (() => {
                     }
                 case 10: {
                         message.isAutomated = reader.bool();
+                        break;
+                    }
+                case 11: {
+                        if (message.metadata === $util.emptyObject)
+                            message.metadata = {};
+                        let end2 = reader.uint32() + reader.pos;
+                        key = "";
+                        value = null;
+                        while (reader.pos < end2) {
+                            let tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.string();
+                                break;
+                            case 2:
+                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7);
+                                break;
+                            }
+                        }
+                        message.metadata[key] = value;
                         break;
                     }
                 default:
@@ -13871,6 +14568,16 @@ export const ord = $root.ord = (() => {
                 properties._isAutomated = 1;
                 if (typeof message.isAutomated !== "boolean")
                     return "isAutomated: boolean expected";
+            }
+            if (message.metadata != null && message.hasOwnProperty("metadata")) {
+                if (!$util.isObject(message.metadata))
+                    return "metadata: object expected";
+                let key = Object.keys(message.metadata);
+                for (let i = 0; i < key.length; ++i) {
+                    let error = $root.ord.Data.verify(message.metadata[key[i]]);
+                    if (error)
+                        return "metadata." + error;
+                }
             }
             return null;
         };
@@ -14004,6 +14711,16 @@ export const ord = $root.ord = (() => {
                 message.targetPh = Number(object.targetPh);
             if (object.isAutomated != null)
                 message.isAutomated = Boolean(object.isAutomated);
+            if (object.metadata) {
+                if (typeof object.metadata !== "object")
+                    throw TypeError(".ord.ReactionWorkup.metadata: object expected");
+                message.metadata = {};
+                for (let keys = Object.keys(object.metadata), i = 0; i < keys.length; ++i) {
+                    if (typeof object.metadata[keys[i]] !== "object")
+                        throw TypeError(".ord.ReactionWorkup.metadata: object expected");
+                    message.metadata[keys[i]] = $root.ord.Data.fromObject(object.metadata[keys[i]]);
+                }
+            }
             return message;
         };
 
@@ -14020,6 +14737,8 @@ export const ord = $root.ord = (() => {
             if (!options)
                 options = {};
             let object = {};
+            if (options.objects || options.defaults)
+                object.metadata = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
                 object.details = "";
@@ -14055,6 +14774,12 @@ export const ord = $root.ord = (() => {
                 object.isAutomated = message.isAutomated;
                 if (options.oneofs)
                     object._isAutomated = "isAutomated";
+            }
+            let keys2;
+            if (message.metadata && (keys2 = Object.keys(message.metadata)).length) {
+                object.metadata = {};
+                for (let j = 0; j < keys2.length; ++j)
+                    object.metadata[keys2[j]] = $root.ord.Data.toObject(message.metadata[keys2[j]], options);
             }
             return object;
         };

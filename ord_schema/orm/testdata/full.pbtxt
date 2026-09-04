@@ -90,6 +90,13 @@ reactions {
         precision: 24.0
         units: FAHRENHEIT
       }
+      metadata {
+        key: "input_meta"
+        value {
+          string_value: "input_meta_value"
+          description: "input section metadata"
+        }
+      }
     }
   }
   inputs {
@@ -162,6 +169,13 @@ reactions {
       type: FUME_HOOD
       details: "30"
     }
+    metadata {
+      key: "setup_meta"
+      value {
+        string_value: "setup_meta_value"
+        description: "setup section metadata"
+      }
+    }
   }
   conditions {
     temperature {
@@ -186,6 +200,12 @@ reactions {
           value: 40.0
           precision: 41.0
           units: CELSIUS
+        }
+      }
+      metadata {
+        key: "temp_meta"
+        value {
+          string_value: "temp_meta_value"
         }
       }
     }
@@ -217,6 +237,12 @@ reactions {
           units: PASCAL
         }
       }
+      metadata {
+        key: "pressure_meta"
+        value {
+          string_value: "pressure_meta_value"
+        }
+      }
     }
     stirring {
       type: OVERHEAD_MIXER
@@ -225,6 +251,12 @@ reactions {
         type: MEDIUM
         details: "55"
         rpm: 56
+      }
+      metadata {
+        key: "stirring_meta"
+        value {
+          string_value: "stirring_meta_value"
+        }
       }
     }
     illumination {
@@ -240,6 +272,12 @@ reactions {
         value: 60.0
         precision: 61.0
         units: FOOT
+      }
+      metadata {
+        key: "illum_meta"
+        value {
+          string_value: "illum_meta_value"
+        }
       }
     }
     electrochemistry {
@@ -266,6 +304,12 @@ reactions {
         type: DIVIDED_CELL
         details: "72"
       }
+      metadata {
+        key: "electro_meta"
+        value {
+          string_value: "electro_meta_value"
+        }
+      }
     }
     flow {
       type: PLUG_FLOW_REACTOR
@@ -280,11 +324,24 @@ reactions {
           units: MILLIMETER
         }
       }
+      metadata {
+        key: "flow_meta"
+        value {
+          string_value: "flow_meta_value"
+        }
+      }
     }
     reflux: true
     ph: 78.0
     conditions_are_dynamic: false
     details: "79"
+    metadata {
+      key: "conditions_meta"
+      value {
+        string_value: "conditions_meta_value"
+        description: "cross-cutting conditions metadata"
+      }
+    }
   }
   notes {
     is_heterogeneous: true
@@ -294,6 +351,12 @@ reactions {
     is_sensitive_to_light: true
     safety_notes: "80"
     procedure_details: "81"
+    metadata {
+      key: "notes_meta"
+      value {
+        string_value: "notes_meta_value"
+      }
+    }
   }
   observations {
     time {
@@ -378,6 +441,12 @@ reactions {
           units: CELSIUS
         }
       }
+      metadata {
+        key: "workup_temp_meta"
+        value {
+          string_value: "workup_temp_meta_value"
+        }
+      }
     }
     keep_phase: "88"
     stirring {
@@ -388,9 +457,21 @@ reactions {
         details: "111"
         rpm: 112
       }
+      metadata {
+        key: "workup_stirring_meta"
+        value {
+          string_value: "workup_stirring_meta_value"
+        }
+      }
     }
     target_ph: 89.0
     is_automated: true
+    metadata {
+      key: "workup_meta"
+      value {
+        string_value: "workup_meta_value"
+      }
+    }
   }
   outcomes {
     reaction_time {
