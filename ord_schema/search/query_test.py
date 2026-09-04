@@ -393,6 +393,41 @@ def test_rejected_before_compilation(payload):
         query.Query.model_validate(payload)
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        # A misspelled top-level key: dropped, this is Query() and matches everything.
+        {"structure": {"path": "inputs.components.smiles", "smarts": "c1ccccc1"}},
+        {"wehre": {"op": "is_null", "path": "reaction_id"}},
+        # Misspelled inside a predicate, where the surviving model is still valid: the
+        # quantifier keeps its body but loses the pattern, and the substructure node
+        # then has neither smarts nor compound.
+        {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {"op": "substructure", "path": "smiles", "smart": "c1ccccc1"},
+            }
+        },
+        {"where": {"op": "eq", "path": "reaction_id", "value": {"literl": "a"}}},
+        {"limit": 10, "ordr_by": []},
+    ],
+)
+def test_an_unknown_key_is_refused_rather_than_dropped(payload):
+    # Dropping one does not fail here, it widens: every narrowing field is optional or
+    # sits under a discriminated union, so the survivor is a valid query missing the
+    # clause the caller wrote -- and a Query with no ``where`` is every reaction in the
+    # corpus, returned without a warning.
+    with pytest.raises(ValidationError, match=r"[Ee]xtra"):
+        query.Query.model_validate(payload)
+
+
+def test_a_query_with_no_where_matches_everything():
+    # What the payloads above validate to once their unknown key is dropped, and why
+    # refusing them is more than typo-catching: no predicate compiles to no WHERE.
+    assert "WHERE" not in query.compile_query(query.Query()).sql
+
+
 # Reductions over a repeated level
 
 
