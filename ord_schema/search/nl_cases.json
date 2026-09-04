@@ -1,0 +1,101 @@
+[
+  {
+    "question": "which reactions use pyridine as a solvent?",
+    "why": "two conditions on one element, which a wrong translation splits in two",
+    "reference": {
+      "op": "exists",
+      "path": "inputs.components",
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "eq",
+            "path": "reaction_role",
+            "value": {
+              "literal": "SOLVENT"
+            }
+          },
+          {
+            "op": "same_compound",
+            "path": "smiles",
+            "smiles": "c1ccncc1"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "reactions run above 350 K",
+    "why": "a scalar comparison needing no quantifier at all",
+    "reference": {
+      "op": "gt",
+      "path": "conditions.temperature.setpoint_kelvin",
+      "value": {
+        "literal": 350
+      }
+    }
+  },
+  {
+    "question": "reactions where a desired product has a yield above 50%",
+    "why": "correlation: the yield has to belong to the desired product, not to whichever product happens to carry one",
+    "reference": {
+      "op": "exists",
+      "path": "outcomes.products",
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "eq",
+            "path": "is_desired_product",
+            "value": {
+              "literal": true
+            }
+          },
+          {
+            "op": "exists",
+            "path": "measurements",
+            "where": {
+              "op": "and",
+              "clauses": [
+                {
+                  "op": "eq",
+                  "path": "type",
+                  "value": {
+                    "literal": "YIELD"
+                  }
+                },
+                {
+                  "op": "gt",
+                  "path": "percentage.value",
+                  "value": {
+                    "literal": 50
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "reactions with no solvent at all",
+    "why": "a forall, which the occurrence index cannot answer",
+    "reference": {
+      "op": "forall",
+      "path": "inputs.components",
+      "where": {
+        "op": "ne",
+        "path": "reaction_role",
+        "value": {
+          "literal": "SOLVENT"
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions that ran longer than their workup took",
+    "why": "comparing two columns, which the grammar cannot express: a value is a literal or a compound, never another column",
+    "compiles": false
+  }
+]

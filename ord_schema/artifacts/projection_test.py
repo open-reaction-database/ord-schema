@@ -419,7 +419,7 @@ def test_write_projection_stamps_the_footer(tmp_path):
     projection.write_projection(source, output)
     stamps = base.load_stamps(output)
     assert stamps.artifact == projection.ARTIFACT
-    assert stamps.artifact_version == base.ARTIFACT_VERSION
+    assert stamps.artifact_lineage == base.lineage(projection.ARTIFACT)
     assert stamps.source_dataset_id == "ord_dataset-1"
 
 
@@ -599,6 +599,63 @@ def test_write_projection_stamps_one_id_space_per_dataset(tmp_path):
         (product,) = row["outcomes"][0]["products"]
         assert component["structure_id"] == 0
         assert product["structure_id"] == 1
+
+
+def test_map_fields_are_walked_in_key_order(tmp_path):
+    # Structure IDs are assigned in the order this walk reaches a SMILES, and protobuf
+    # leaves a map's iteration order undefined. Taking protobuf's order would make the
+    # IDs a function of the protobuf build as well as of the source and the stamped
+    # library versions -- and that build is stamped nowhere, so an upgrade that
+    # reordered a map would renumber a corpus whose artifacts all read as current.
+    keys = ["zeta", "alpha", "mike", "bravo", "yankee", "delta", "oscar", "kilo"]
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
+    for index, key in enumerate(keys):
+        component = reaction.inputs[key].components.add()
+        component.identifiers.add(type="SMILES", value="C" * (index + 1) + "O")
+    assert list(reaction.inputs.keys()) != sorted(keys), (
+        "protobuf now iterates this map in key order, so this test proves nothing; "
+        "choose keys it orders differently or drop it"
+    )
+    source = _source(tmp_path, [reaction])
+    output = tmp_path / "projection.parquet"
+    projection.write_projection(source, output)
+    (row,) = pq.read_table(output, columns=["inputs"]).to_pylist()
+    assigned = {
+        key: value["components"][0]["structure_id"] for key, value in row["inputs"]
+    }
+    assert assigned == {key: rank for rank, key in enumerate(sorted(keys))}
+
+
+def test_rebuilding_a_projection_assigns_the_same_structure_ids(tmp_path):
+    # The invariant every derived artifact rests on. A pivot or occurrences artifact
+    # names its structures by the ID its projection assigned, and pairs with that
+    # projection by source hash rather than by which build produced it -- so if a
+    # rebuild from the same source renumbered, an artifact that is current by every
+    # stamp would point every one of its rows at a different molecule. Nothing
+    # downstream could see it: the count of distinct IDs is unchanged by a permutation,
+    # and every ID stays in range.
+    smiles = ["CCO", "c1ccncc1", "CCOCC", "Cc1ccccc1", "OC(=O)C"]
+    reactions = []
+    for index in range(len(smiles)):
+        reaction = reaction_pb2.Reaction(reaction_id=f"ord-{index:04d}")
+        # Reversed, so first-seen order is not also alphabetical or insertion order:
+        # an assignment that happened to sort would pass a same-order comparison.
+        for structure in reversed(smiles[: index + 1]):
+            component = reaction.inputs["in"].components.add()
+            component.identifiers.add(type="SMILES", value=structure)
+        reactions.append(reaction)
+    source = _source(tmp_path, reactions)
+    assignments = []
+    for run in range(2):
+        output = tmp_path / f"projection-{run}.parquet"
+        projection.write_projection(source, output)
+        seen: dict[int, str] = {}
+        for row in pq.read_table(output, columns=["inputs"]).to_pylist():
+            for component in row["inputs"][0][1]["components"]:
+                seen[component["structure_id"]] = component["smiles"]
+        assignments.append(seen)
+    assert len(assignments[0]) == len(smiles)
+    assert assignments[0] == assignments[1]
 
 
 def test_structure_ids_span_source_row_groups(tmp_path):

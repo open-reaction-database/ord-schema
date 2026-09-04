@@ -199,7 +199,7 @@ To load multiple datasets from disk (e.g., from a clone of
 
 ```shell
 python scripts/add_datasets.py \
-    --pattern "path/to/ord-data/data/fc/*.pb.gz" \
+    --pattern "path/to/ord-data/data/fc/*.parquet" \
     --username <username> \
     --host <host> \
     --database <database>

@@ -47,6 +47,39 @@ verification at all: Tanimoto is defined on the Morgan fingerprint, so the scree
 the answer, and ``morgan_popcount`` bounds it (``popcount(B)`` must lie within ``[t *
 popcount(A), popcount(A) / t]`` for Tanimoto ``>= t``).
 
+Beside the SMILES the projection derived, a row carries a ``mol_hash``: an identity
+for the molecule that ignores how it was drawn. Equality on the stored spelling is
+exact and answers the wrong question surprisingly often -- acetic acid and acetate, an
+amine and its ammonium, a 2-pyridone and its 2-hydroxypyridine tautomer are each one
+reagent written two ways, and each compares unequal.
+
+It is RDKit's registration hash, taken of the uncharged molecule. Uncharging is what
+makes the scheme insensitive to protonation as well as to tautomer: one of its layers
+is the molecular formula, and a formula states the charge. Registration is the right
+API rather than a bare tautomer hash because it normalizes what a bare hash does not --
+atom-map labels, unnecessary explicit hydrogens, enhanced stereo, S-group data -- so a
+compound written with atom maps is the same compound. It is a hash rather than a
+canonical tautomer because canonicalizing one costs what the corpus does not have:
+measured over ORD's own molecules, RDKit's tautomer enumerator runs at ~500 structures
+a second against ~2,600 for this hash, which is an hour against thirteen minutes over
+the two million distinct structures here, before the per-file parallelism the build
+already has. The stored SMILES beside it is what a reader looks at; the hash is only
+ever compared.
+
+Fragments are left alone, so sodium acetate stays distinct from acetic acid. The
+question that counts a reagent and the salt it was sold as as one is a different one,
+and it gets its own column: a ``parent_hash``, the same hash taken of the molecule with
+its recognized counterions removed. Two columns rather than one choice between them,
+because either answer is wrong for the other question -- sodium and potassium carbonate
+are one reagent to a query about carbonate and two to a query about the sodium -- and a
+corpus-wide column is the wrong place to guess which was meant. See ``salt_parent`` for
+which counterions are recognized and where stripping stops.
+
+The hash is RDKit's and moves with it, which is why ``base`` stamps the RDKit version
+and ``is_current`` refuses an artifact built by another one. Without that stamp an
+RDKit upgrade would silently change what a stored column means while every query kept
+running.
+
 A structure whose SMILES RDKit cannot parse keeps its row -- the ID space must stay
 dense -- with every derived column null. It can never match a structure query, and the
 count of such rows is logged per dataset.
@@ -59,7 +92,8 @@ from typing import Any
 import pyarrow as pa
 import pyarrow.parquet as pq
 from rdkit import Chem, DataStructs
-from rdkit.Chem import rdFingerprintGenerator
+from rdkit.Chem import RegistrationHash, SaltRemover, rdFingerprintGenerator
+from rdkit.Chem.MolStandardize import rdMolStandardize
 
 from ord_schema import atomic_io
 from ord_schema.artifacts import base, projection
@@ -106,6 +140,12 @@ SCHEMA = pa.schema(
         # carries one, and rows here are numbered 0..n-1 in the same first-seen order.
         pa.field("structure_id", pa.uint32(), nullable=False),
         pa.field("smiles", pa.string(), nullable=False),
+        # What an equality compares when the question is "the same compound" rather
+        # than "the same drawing of one"; see the module docstring.
+        pa.field("mol_hash", pa.string()),
+        # The same, of the molecule without its counterions, for the question that
+        # counts a reagent and the salt it was sold as as one.
+        pa.field("parent_hash", pa.string()),
         pa.field(
             "pattern_fp",
             pa.binary(),
@@ -273,6 +313,132 @@ def _collect(source: str | os.PathLike[str]) -> list[str]:
     return [smiles_by_id[structure_id] for structure_id in range(len(smiles_by_id))]
 
 
+# Built once: constructing an uncharger per molecule dominates the work it does, and
+# it carries no per-molecule state.
+_UNCHARGER = rdMolStandardize.Uncharger()
+# The registration hash's tautomer-insensitive scheme drops the two layers that spell a
+# structure exactly and keeps the formula, the tautomer hash, and the S-group data.
+_SCHEME = RegistrationHash.HashScheme.TAUTOMER_INSENSITIVE_LAYERS
+
+
+# The standard counterion list: chloride, bromide, sodium, potassium, TFA and the rest
+# of what a reagent is sold as. Not the largest fragment, which is the other way to
+# spell "parent" and answers palladium acetate with acetic acid.
+_SALTS = SaltRemover.SaltRemover()
+
+
+def _molecule(structure: Chem.Mol | str) -> Chem.Mol | None:
+    """Returns a molecule from either a molecule or SMILES, or None if it does not read.
+
+    Args:
+        structure: A parsed molecule, or SMILES to read one from.
+
+    Returns:
+        The molecule, or None where RDKit cannot parse the string.
+    """
+    return Chem.MolFromSmiles(structure) if isinstance(structure, str) else structure
+
+
+def salt_parent(molecule: Chem.Mol) -> Chem.Mol:
+    """Returns the molecule without the counterions it was sold as.
+
+    Sodium acetate becomes acetate and triethylamine hydrochloride becomes
+    triethylamine, so a reagent recorded with a spectator counterion and the same
+    reagent recorded without one come out the same.
+
+    "Recognized" is RDKit's own list and no wider: the halides, lithium, sodium,
+    potassium, calcium and magnesium, and the usual acid counterions -- nitrate,
+    sulfate, phosphate, hexafluorophosphate, mesylate, tosylate, acetate,
+    trifluoroacetate, oxalate, tartrate, fumarate and maleate. A counterion off that
+    list is not a counterion here: cesium carbonate keeps its cesium and so does not
+    share a parent with the potassium carbonate that loses its potassium. Widening the
+    list is not obviously right -- the metals a corpus of reactions carries beside an
+    anion are mostly reagents rather than spectators, and 1,500 of this corpus's
+    multi-fragment structures hold iron, zinc, copper, silver or aluminium -- so the
+    list stays RDKit's, and the RDKit version the artifact stamps says which one.
+
+    Stripping stops where the molecule *is* the salt: nothing is removed unless what
+    survives still holds carbon, which leaves sodium hydride whole rather than turning
+    it into hydrogen, and palladium acetate whole rather than into palladium. That rule
+    is why this is not RDKit's fragment parent, which keeps the largest fragment and
+    would answer palladium acetate with acetic acid.
+
+    Args:
+        molecule: A parsed molecule.
+
+    Returns:
+        The stripped molecule, or the original where stripping would leave no carbon.
+    """
+    stripped = _SALTS.StripMol(molecule, dontRemoveEverything=True)
+    if stripped.GetNumAtoms() and any(
+        atom.GetAtomicNum() == 6 for atom in stripped.GetAtoms()
+    ):
+        return stripped
+    return molecule
+
+
+def parent_hash(structure: Chem.Mol | str) -> str | None:
+    """Returns the hash of a molecule's salt parent.
+
+    What ``mol_hash`` ignores, this ignores too, and counterions besides. Two reagents
+    whose parents differ still differ: potassium and sodium carbonate share a parent and
+    hash alike, while sodium carbonate and sodium acetate do not.
+
+    Args:
+        structure: A parsed molecule, or SMILES to read one from.
+
+    Returns:
+        The hash, or None where RDKit cannot read, strip, or hash the structure, which
+        leaves the column null rather than storing a value the query side would not
+        reproduce.
+    """
+    molecule = _molecule(structure)
+    if molecule is None:
+        return None
+    try:
+        parent = salt_parent(molecule)
+    except (Chem.AtomValenceException, Chem.KekulizeException, RuntimeError):
+        return None
+    return mol_hash(parent)
+
+
+def mol_hash(structure: Chem.Mol | str) -> str | None:
+    """Returns an identity for a molecule that ignores tautomer and protonation state.
+
+    Two drawings of one reagent hash the same: acetic acid and acetate, an amine and
+    its ammonium, a 2-pyridone and its 2-hydroxypyridine tautomer, a compound written
+    with atom-map labels and the same compound without them. Fragments are left alone,
+    so sodium acetate hashes differently from acetic acid, and so is stereochemistry,
+    so enantiomers stay apart.
+
+    The molecule is uncharged before it is hashed, which is what makes the scheme
+    insensitive to protonation as well: one of its layers is the molecular formula, and
+    a formula states the charge.
+
+    Args:
+        structure: A parsed molecule, or SMILES to read one from.
+
+    Returns:
+        The hash, or None where RDKit cannot read or hash the structure, which leaves
+        the column null rather than storing a value the query side would not reproduce.
+    """
+    molecule = _molecule(structure)
+    if molecule is None:
+        return None
+    try:
+        layers = RegistrationHash.GetMolLayers(
+            _UNCHARGER.uncharge(molecule), enable_tautomer_hash_v2=True
+        )
+        return RegistrationHash.GetMolHash(layers, _SCHEME)
+    except (
+        Chem.AtomValenceException,
+        Chem.KekulizeException,
+        RuntimeError,
+        ValueError,
+    ):
+        return None
+
+
 def _row(structure_id: int, smiles: str) -> dict[str, Any]:
     """Featurizes one structure into a row matching ``SCHEMA``.
 
@@ -287,6 +453,8 @@ def _row(structure_id: int, smiles: str) -> dict[str, Any]:
     row: dict[str, Any] = {
         "structure_id": structure_id,
         "smiles": smiles,
+        "mol_hash": None,
+        "parent_hash": None,
         "pattern_fp": None,
         "morgan_fp": None,
         "morgan_popcount": None,
@@ -295,6 +463,8 @@ def _row(structure_id: int, smiles: str) -> dict[str, Any]:
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return row
+    row["mol_hash"] = mol_hash(mol)
+    row["parent_hash"] = parent_hash(mol)
     morgan = morgan_fingerprint(mol)
     row["pattern_fp"] = DataStructs.BitVectToBinaryText(
         Chem.PatternFingerprint(mol, fpSize=PATTERN_FP_SIZE)

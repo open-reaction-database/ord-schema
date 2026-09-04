@@ -28,8 +28,10 @@ nothing here.
 Two things the compiler settles that SQL leaves to whoever writes it:
 
 * **Quantifiers are stated, never assumed.** A path crossing a repeated level is
-  refused unless an ``exists`` or ``forall`` binds it. The same intent in SQL is spelled
-  ``UNNEST``, which silently means "any" *and* multiplies the row count.
+  refused in a predicate unless an ``exists`` or ``forall`` binds it. The same intent in
+  SQL is spelled ``UNNEST``, which silently means "any" *and* multiplies the row count.
+  A ``Reduction`` is the one reading that needs no quantifier, because it names what to
+  do with the elements instead of asking which of them match.
 * **Repeated levels compile to list lambdas**, never to ``UNNEST`` in a ``FROM`` clause
   -- measured at 27-200x the cost for identical answers, and the idiom every SQL
   tutorial teaches. A compiler cannot reach for the wrong one.
@@ -63,7 +65,7 @@ from collections.abc import Callable
 from typing import Annotated, Any, Literal
 
 import pyarrow as pa
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from rdkit import Chem
 
 # Aliased because ``pivot`` is the parameter name a caller passes an index under, and a
@@ -191,11 +193,16 @@ class Compiled:
     predicates the caller evaluates against the structures artifact, each bound as a
     bitmap over corpus-wide structure IDs; a query carrying any also references the
     ``STRUCTURE_OFFSET`` column, so it runs only against the executor's relation.
+
+    ``limit`` is the row bound the SQL carries, which is the query's own where it asked
+    for one within ``max_rows`` and ``max_rows`` where it did not. A caller comparing it
+    against ``Query.limit`` learns whether the answer was cut short.
     """
 
     sql: str
     compounds: tuple[str, ...]
     structures: tuple[StructureParameter, ...] = ()
+    limit: int | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -297,7 +304,21 @@ def resolve(
     return _Resolved(expression or "", repeated, current)
 
 
-class Value(BaseModel):
+class _Node(BaseModel):
+    """Base of every model below, refusing keys the model does not declare.
+
+    Dropping an unknown key is the wrong default here because these models are how a
+    query arrives from outside -- a dict, a JSON body, a tool call. Every field that
+    narrows a query is optional or lives under a discriminated union, so a misspelled
+    key does not fail: it validates to a query missing the clause the caller wrote,
+    which for a top-level ``where`` is every reaction in the corpus. The caller sees a
+    plausible answer to a question they did not ask, with nothing logged.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class Value(_Node):
     """A comparison operand: a literal, or a compound to resolve and bind."""
 
     literal: bool | int | float | str | None = None
@@ -312,28 +333,28 @@ class Value(BaseModel):
         return self
 
 
-class And(BaseModel):
+class And(_Node):
     """Every clause holds."""
 
     op: Literal["and"]
     clauses: list["Predicate"] = Field(min_length=1)
 
 
-class Or(BaseModel):
+class Or(_Node):
     """At least one clause holds."""
 
     op: Literal["or"]
     clauses: list["Predicate"] = Field(min_length=1)
 
 
-class Not(BaseModel):
+class Not(_Node):
     """The clause does not hold."""
 
     op: Literal["not"]
     clause: "Predicate"
 
 
-class Quantifier(BaseModel):
+class Quantifier(_Node):
     """Some, or every, element at a repeated level satisfies ``where``.
 
     Paths inside ``where`` are relative to the element bound here, which is what lets a
@@ -345,7 +366,7 @@ class Quantifier(BaseModel):
     where: "Predicate"
 
 
-class Comparison(BaseModel):
+class Comparison(_Node):
     """A leaf compared against a literal or a resolved compound."""
 
     op: Literal[
@@ -355,14 +376,14 @@ class Comparison(BaseModel):
     value: Value
 
 
-class NullCheck(BaseModel):
+class NullCheck(_Node):
     """Whether the source recorded the leaf at all."""
 
     op: Literal["is_null", "not_null"]
     path: str
 
 
-class Substructure(BaseModel):
+class Substructure(_Node):
     """The element's structure contains the query as a subgraph.
 
     ``path`` names a compound's ``smiles``. The query is a SMARTS pattern, or a
@@ -415,7 +436,7 @@ class Substructure(BaseModel):
         return self
 
 
-class Similarity(BaseModel):
+class Similarity(_Node):
     """The element's structure is Tanimoto-similar to the query molecule.
 
     Similarity is defined on the Morgan fingerprints in the structures artifact, so
@@ -447,8 +468,104 @@ class Similarity(BaseModel):
         return self
 
 
+def _check_molecule_query(node: "SameCompound | SameParent") -> None:
+    """Raises unless a node names exactly one query molecule RDKit can read.
+
+    Args:
+        node: The predicate to check.
+
+    Raises:
+        ValueError: If it names both a SMILES and a compound or neither, if the
+            compound name is not an identifier, or if the SMILES does not parse or
+            holds no atoms. An empty molecule hashes to something no real structure
+            carries: a guaranteed-empty answer that still costs a pass over the corpus.
+    """
+    if (node.smiles is None) == (node.compound is None):
+        raise ValueError("a compound query is a smiles or a compound, not both")
+    if node.compound is not None and not _NAME.match(node.compound):
+        raise ValueError(f"compound name is not an identifier: {node.compound!r}")
+    if node.smiles is not None:
+        molecule = Chem.MolFromSmiles(node.smiles)
+        if molecule is None:
+            raise ValueError(f"SMILES does not parse: {node.smiles!r}")
+        if not molecule.GetNumAtoms():
+            raise ValueError(f"SMILES has no atoms: {node.smiles!r}")
+
+
+class SameCompound(_Node):
+    """The element's structure is the same compound, however either was drawn.
+
+    An ``eq`` on a ``smiles`` compares spellings, and two drawings of one reagent are
+    unequal: acetic acid and acetate, an amine and its ammonium, a 2-pyridone and its
+    2-hydroxypyridine tautomer. This compares the ``mol_hash`` the structures artifact
+    derives, which ignores protonation state, tautomer, and atom-map labels, so those
+    match. Fragments and stereochemistry are not ignored: sodium acetate stays distinct
+    from acetic acid, and enantiomers from each other.
+
+    ``path`` names a compound's ``smiles``. The query is a SMILES, or a compound name
+    resolved at execution; exactly one is given.
+    """
+
+    op: Literal["same_compound"]
+    path: str
+    smiles: str | None = None
+    compound: str | None = None
+
+    @model_validator(mode="after")
+    def _check(self) -> "SameCompound":
+        _check_molecule_query(self)
+        return self
+
+
+class SameParent(_Node):
+    """The element's structure is the same compound once counterions are set aside.
+
+    What ``same_compound`` ignores, this ignores too, and the salt a reagent was sold
+    as besides: sodium acetate matches acetic acid, and triethylamine hydrochloride
+    matches triethylamine. Reagents whose parents differ still differ, so sodium
+    carbonate does not match sodium acetate; reagents that *are* the salt are left
+    whole, so sodium hydride does not match hydrogen and palladium acetate does not
+    match acetic acid.
+
+    It is the looser question of the two, and the looseness is the point: sodium and
+    potassium carbonate share a parent and match here, which is right for "which
+    reactions used carbonate" and wrong for a question about the sodium. Ask
+    ``same_compound`` for that one.
+
+    Only the counterions RDKit recognizes are set aside -- the halides, lithium,
+    sodium, potassium, calcium, magnesium, and the usual acid counterions. A salt of
+    something else, cesium carbonate among them, is left whole and matches only itself.
+
+    ``path`` names a compound's ``smiles``. The query is a SMILES, or a compound name
+    resolved at execution; exactly one is given.
+    """
+
+    op: Literal["same_parent"]
+    path: str
+    smiles: str | None = None
+    compound: str | None = None
+
+    @model_validator(mode="after")
+    def _check(self) -> "SameParent":
+        _check_molecule_query(self)
+        return self
+
+
+# The predicates the executor answers by evaluating chemistry outside the query and
+# binding the match set as a bitmap over structure IDs; see ``_structure``.
+StructurePredicate = Substructure | Similarity | SameCompound | SameParent
+
 Predicate = Annotated[
-    And | Or | Not | Quantifier | Comparison | NullCheck | Substructure | Similarity,
+    And
+    | Or
+    | Not
+    | Quantifier
+    | Comparison
+    | NullCheck
+    | Substructure
+    | Similarity
+    | SameCompound
+    | SameParent,
     Field(discriminator="op"),
 ]
 
@@ -458,11 +575,45 @@ Not.model_rebuild()
 Quantifier.model_rebuild()
 
 
-class Measure(BaseModel):
+# DuckDB's list aggregates, which ignore the nulls a list may hold. `count` filters
+# rather than taking len(), which would count them.
+_REDUCERS = {
+    "min": "list_min({expression})",
+    "max": "list_max({expression})",
+    "avg": "list_avg({expression})",
+    "sum": "list_sum({expression})",
+    "count": "len(list_filter({expression}, value -> value IS NOT NULL))",
+}
+
+# Reducers and aggregates that arithmetic has to carry. The grammar already holds
+# ordered comparisons to numbers, and a sum over text is a DuckDB error rather than an
+# answer, so both are refused where the query is compiled rather than where it runs.
+_ARITHMETIC = frozenset({"min", "max", "avg", "sum"})
+
+
+class Reduction(_Node):
+    """One value per reaction, reduced from a path that crosses a repeated level.
+
+    An ordering key and an aggregate's argument both have to be scalar, which leaves
+    "the highest-yielding reactions" unwritable: a yield lives under outcomes, products,
+    and measurements, so the path resolves to a list rather than a number. This reduces
+    that list to the one value the reaction is judged by, leaving the aggregate to
+    combine those across reactions.
+
+    Attributes:
+        reduce: How to reduce the list. ``count`` counts the values that are present.
+        path: A dotted path crossing at least one repeated level.
+    """
+
+    reduce: Literal["min", "max", "avg", "sum", "count"]
+    path: str
+
+
+class Measure(_Node):
     """One aggregate over the matching rows."""
 
     fn: Literal["count", "count_distinct", "sum", "avg", "min", "max"]
-    path: str | None = None
+    path: str | Reduction | None = None
     name: str
 
     @model_validator(mode="after")
@@ -474,7 +625,7 @@ class Measure(BaseModel):
         return self
 
 
-class Aggregate(BaseModel):
+class Aggregate(_Node):
     """Group the matching rows and measure each group.
 
     ``group_by`` paths must be scalar, so the number of groups is bounded by the values
@@ -485,14 +636,14 @@ class Aggregate(BaseModel):
     measures: list[Measure] = Field(min_length=1)
 
 
-class Order(BaseModel):
+class Order(_Node):
     """How to sort the result."""
 
-    key: str
+    key: str | Reduction
     descending: bool = False
 
 
-class Query(BaseModel):
+class Query(_Node):
     """A whole query: which reactions, optionally grouped and measured."""
 
     where: Predicate | None = None
@@ -562,7 +713,8 @@ def _leaf(node: Any, resolved: _Resolved, compounds: list[str]) -> str:
 
 
 def _structure_parameter(
-    node: "Substructure | Similarity", structures: list[StructureParameter]
+    node: "StructurePredicate",
+    structures: list[StructureParameter],
 ) -> str:
     """Returns the parameter name for a structure predicate, reusing an equal one.
 
@@ -598,7 +750,7 @@ def _structure_parameter(
 
 
 def _structure(
-    node: "Substructure | Similarity",
+    node: "StructurePredicate",
     scope: str | None,
     schema: Any,
     structures: list[StructureParameter],
@@ -652,7 +804,7 @@ def _structure(
 
 def _element_terms(
     node: "Quantifier",
-) -> "tuple[Substructure | Similarity, dict[str, str]] | None":
+) -> "tuple[StructurePredicate, dict[str, str]] | None":
     """Returns what an ``exists`` body asks of one element, or None if it asks more.
 
     The shape an element index can answer, stated without knowing what any index holds:
@@ -672,10 +824,10 @@ def _element_terms(
     if node.op != "exists":
         return None
     clauses = node.where.clauses if isinstance(node.where, And) else [node.where]
-    structure: Substructure | Similarity | None = None
+    structure: StructurePredicate | None = None
     fields: dict[str, str] = {}
     for clause in clauses:
-        if isinstance(clause, Substructure | Similarity):
+        if isinstance(clause, StructurePredicate):
             if structure is not None or clause.path != "smiles":
                 return None
             structure = clause
@@ -969,7 +1121,7 @@ def _predicate(
         return f"(NOT {inner})"
     if isinstance(node, Quantifier):
         return _quantifier(node, scope, schema, compounds, structures, depth, routing)
-    if isinstance(node, Substructure | Similarity):
+    if isinstance(node, StructurePredicate):
         return _structure(node, scope, schema, structures)
     resolved = resolve(node.path, schema=schema, root=scope)
     if resolved.repeated:
@@ -980,12 +1132,82 @@ def _predicate(
     return _leaf(node, resolved, compounds)
 
 
-def _scalar(path: str, schema: pa.Schema, what: str) -> str:
-    """Returns the expression for a path that has to be scalar."""
+def _scalar(path: str, schema: pa.Schema, what: str) -> _Resolved:
+    """Returns where a path that has to be scalar landed."""
     resolved = resolve(path, schema=schema)
     if resolved.repeated:
         raise QueryError(f"{path}: {what} needs a scalar column, not a repeated level")
-    return resolved.expression
+    return resolved
+
+
+def _check_numeric(path: str, leaf: pa.DataType, what: str) -> None:
+    """Raises unless a leaf holds numbers.
+
+    Args:
+        path: The path, named in the message.
+        leaf: The type that path reaches.
+        what: The reducer or aggregate asking, named in the message.
+
+    Raises:
+        QueryError: If the leaf is neither an integer nor a floating-point type.
+    """
+    if not (pa.types.is_integer(leaf) or pa.types.is_floating(leaf)):
+        raise QueryError(f"{path}: {what} needs a numeric column, not {leaf}")
+
+
+def _reduced(reduction: Reduction, schema: pa.Schema) -> str:
+    """Returns the expression reducing a repeated path to one value per reaction.
+
+    Args:
+        reduction: What to reduce, and how.
+        schema: Schema the path resolves against.
+
+    Returns:
+        A DuckDB expression yielding one scalar per reaction. An arithmetic reducer
+        yields NULL for a reaction holding no elements under that path; ``count``
+        yields zero there, and NULL only where the repeated level itself is absent.
+
+    Raises:
+        QueryError: If the path is already scalar, which needs no reduction (accepting
+            one would give the same query two spellings), or if an arithmetic reducer
+            reaches a leaf that does not hold numbers.
+    """
+    resolved = resolve(reduction.path, schema=schema)
+    if not resolved.repeated:
+        raise QueryError(
+            f"{reduction.path}: {reduction.reduce} reduces a repeated level, and this "
+            f"path is already scalar; order by the path itself"
+        )
+    if reduction.reduce in _ARITHMETIC:
+        _check_numeric(reduction.path, resolved.type, reduction.reduce)
+    return _REDUCERS[reduction.reduce].format(expression=resolved.expression)
+
+
+def _measure_argument(measure: Measure, schema: pa.Schema) -> str:
+    """Returns the expression a measure aggregates over.
+
+    Args:
+        measure: The measure being compiled.
+        schema: Schema its path resolves against.
+
+    Returns:
+        ``*`` for a bare count, a reduced expression where the path crosses a repeated
+        level, and the resolved column otherwise, prefixed with ``DISTINCT`` for
+        ``count_distinct``.
+
+    Raises:
+        QueryError: If the path cannot be meant as this measure's argument.
+    """
+    if measure.path is None:
+        return "*"
+    if isinstance(measure.path, Reduction):
+        argument = _reduced(measure.path, schema)
+    else:
+        resolved = _scalar(measure.path, schema, measure.fn)
+        if measure.fn in _ARITHMETIC:
+            _check_numeric(measure.path, resolved.type, measure.fn)
+        argument = resolved.expression
+    return f"DISTINCT {argument}" if measure.fn == "count_distinct" else argument
 
 
 def compile_query(
@@ -995,6 +1217,7 @@ def compile_query(
     table: str = TABLE,
     index: ElementIndex | None = None,
     pivot: PivotIndex | None = None,
+    max_rows: int | None = None,
 ) -> Compiled:
     """Compiles a query to DuckDB SQL over the projection.
 
@@ -1011,6 +1234,15 @@ def compile_query(
         pivot: Pivoted levels to spend where they can answer a quantifier; see
             ``PivotIndex``. Consulted after ``index``, and for ``forall`` as well as
             ``exists``.
+        max_rows: Most rows the SQL may return, applied whether or not the query asked
+            for a limit and clamping one that asks for more. The grammar leaves
+            ``limit`` optional, and a query without one returns every matching
+            reaction -- millions of rows at corpus scale, materialized in whatever
+            process is executing. A caller serving queries it did not write wants this
+            set; None leaves the query's own limit, or none, exactly as stated. It
+            bounds an aggregated query's *groups*, where a truncated answer is an
+            arbitrary part of a distribution rather than a sample of the matching
+            reactions; ``Corpus.search`` says so when one comes back full.
 
     Returns:
         The SQL, the compound names whose resolved SMILES the caller binds, and the
@@ -1020,23 +1252,28 @@ def compile_query(
         QueryError: If ``table`` is not an identifier, if any path, operator, or
             ordering key cannot be meant against the schema, or if a compound name
             collides with a generated structure parameter.
+        ValueError: If ``max_rows`` is less than one, which is a bound no query can
+            satisfy rather than a small one.
     """
     if not _NAME.match(table):
         raise QueryError(f"table is not an identifier: {table!r}")
+    if max_rows is not None and max_rows < 1:
+        # Zero compiles to a LIMIT no query can satisfy and a negative one to SQL
+        # DuckDB refuses at execution, both of them far from whoever passed it.
+        raise ValueError(
+            f"max_rows is {max_rows}, which no query can return; leave it unset to "
+            "bound nothing"
+        )
     compounds: list[str] = []
     structures: list[StructureParameter] = []
     if query.aggregate:
         groups = [
-            _scalar(path, schema, "group_by") for path in query.aggregate.group_by
+            _scalar(path, schema, "group_by").expression
+            for path in query.aggregate.group_by
         ]
         selected = list(groups)
         for measure in query.aggregate.measures:
-            if measure.path is None:
-                argument = "*"
-            else:
-                argument = _scalar(measure.path, schema, measure.fn)
-                if measure.fn == "count_distinct":
-                    argument = f"DISTINCT {argument}"
+            argument = _measure_argument(measure, schema)
             selected.append(f"{_AGGREGATES[measure.fn]}({argument}) AS {measure.name}")
         names = {measure.name for measure in query.aggregate.measures}
         orderable = names | set(query.aggregate.group_by)
@@ -1071,11 +1308,22 @@ def compile_query(
     if query.order_by:
         keys = []
         for order in query.order_by:
-            if orderable is None:
-                key = _scalar(order.key, schema, "order_by")
+            if isinstance(order.key, Reduction):
+                if orderable is not None:
+                    # After grouping there is no reaction left to reduce over: the
+                    # reduction is one input to a measure, not a key beside it.
+                    raise QueryError(
+                        "an aggregated query orders by a measure name or a group_by "
+                        "path; reduce inside a measure instead"
+                    )
+                key = _reduced(order.key, schema)
+            elif orderable is None:
+                key = _scalar(order.key, schema, "order_by").expression
             elif order.key in orderable:
                 key = (
-                    order.key if order.key in names else _scalar(order.key, schema, "")
+                    order.key
+                    if order.key in names
+                    else _scalar(order.key, schema, "").expression
                 )
             else:
                 raise QueryError(
@@ -1084,6 +1332,12 @@ def compile_query(
                 )
             keys.append(f"{key} DESC" if order.descending else key)
         sql += " ORDER BY " + ", ".join(keys)
-    if query.limit is not None:
-        sql += f" LIMIT {query.limit}"
-    return Compiled(sql, tuple(compounds), tuple(structures))
+    if max_rows is None:
+        limit = query.limit
+    elif query.limit is None:
+        limit = max_rows
+    else:
+        limit = min(query.limit, max_rows)
+    if limit is not None:
+        sql += f" LIMIT {limit}"
+    return Compiled(sql, tuple(compounds), tuple(structures), limit)

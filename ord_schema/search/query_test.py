@@ -25,8 +25,8 @@ from ord_schema.artifacts import pivot, projection
 from ord_schema.search import query, sql
 
 
-def _compile(payload):
-    return query.compile_query(query.Query.model_validate(payload))
+def _compile(payload, **kwargs):
+    return query.compile_query(query.Query.model_validate(payload), **kwargs)
 
 
 def _run(compiled, parameters=None):
@@ -391,6 +391,283 @@ def test_refused(payload, match):
 def test_rejected_before_compilation(payload):
     with pytest.raises(ValidationError):
         query.Query.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        # A misspelled top-level key: dropped, this is Query() and matches everything.
+        {"structure": {"path": "inputs.components.smiles", "smarts": "c1ccccc1"}},
+        {"wehre": {"op": "is_null", "path": "reaction_id"}},
+        # Misspelled inside a predicate, where the surviving model is still valid: the
+        # quantifier keeps its body but loses the pattern, and the substructure node
+        # then has neither smarts nor compound.
+        {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {"op": "substructure", "path": "smiles", "smart": "c1ccccc1"},
+            }
+        },
+        {"where": {"op": "eq", "path": "reaction_id", "value": {"literl": "a"}}},
+        {"limit": 10, "ordr_by": []},
+    ],
+)
+def test_an_unknown_key_is_refused_rather_than_dropped(payload):
+    # Dropping one does not fail here, it widens: every narrowing field is optional or
+    # sits under a discriminated union, so the survivor is a valid query missing the
+    # clause the caller wrote -- and a Query with no ``where`` is every reaction in the
+    # corpus, returned without a warning.
+    with pytest.raises(ValidationError, match=r"[Ee]xtra"):
+        query.Query.model_validate(payload)
+
+
+def test_a_query_with_no_where_matches_everything():
+    # What the payloads above validate to once their unknown key is dropped, and why
+    # refusing them is more than typo-catching: no predicate compiles to no WHERE.
+    assert "WHERE" not in query.compile_query(query.Query()).sql
+
+
+# Reductions over a repeated level
+
+
+def test_ordering_by_a_reduction_over_a_repeated_path():
+    # A yield lives under outcomes, products, and measurements, so ordering by it needs
+    # the list reduced to the one number the reaction is judged by.
+    compiled = _compile(
+        {
+            "order_by": [
+                {
+                    "key": {
+                        "reduce": "max",
+                        "path": "outcomes.products.measurements.percentage.value",
+                    },
+                    "descending": True,
+                }
+            ],
+            "limit": 10,
+        }
+    )
+    assert "list_max(" in compiled.sql
+    assert compiled.sql.endswith("DESC LIMIT 10")
+
+
+def test_max_rows_bounds_a_query_that_asked_for_no_limit():
+    # The grammar leaves limit optional, so the unbounded query is the ordinary one: a
+    # predicate matching much of the corpus returns millions of rows to whoever ran it.
+    compiled = _compile({}, max_rows=100)
+    assert compiled.sql.endswith(" LIMIT 100")
+    assert compiled.limit == 100
+
+
+def test_max_rows_clamps_a_query_asking_for_more():
+    # A bound an explicit limit can exceed bounds nothing.
+    compiled = _compile({"limit": 5000}, max_rows=100)
+    assert compiled.sql.endswith(" LIMIT 100")
+    assert compiled.limit == 100
+
+
+def test_max_rows_leaves_a_smaller_limit_alone():
+    compiled = _compile({"limit": 10}, max_rows=100)
+    assert compiled.sql.endswith(" LIMIT 10")
+    assert compiled.limit == 10
+
+
+def test_a_limit_of_zero_is_not_read_as_no_limit():
+    # The trap in `query.limit or max_rows`: a falsy limit reads as absent, so a query
+    # asking for no rows would be served max_rows of them. Held off by the model's
+    # gt=0 today, which is not where the compiler should rest.
+    compiled = query.compile_query(query.Query.model_construct(limit=0), max_rows=100)
+    assert compiled.limit == 0
+
+
+def test_a_max_rows_no_query_can_satisfy_is_refused():
+    # Zero compiles to a LIMIT nothing satisfies and a negative one to SQL DuckDB
+    # refuses at execution, both far from whoever passed it.
+    for value in (0, -5):
+        with pytest.raises(ValueError, match="which no query can return"):
+            _compile({}, max_rows=value)
+
+
+def test_without_max_rows_a_query_is_as_stated():
+    assert _compile({}).limit is None
+    assert " LIMIT " not in _compile({}).sql
+    assert _compile({"limit": 5000}).limit == 5000
+
+
+def test_a_reduction_reaches_the_same_rows_the_elements_do():
+    # The reduction is over the reaction's own elements, so it agrees with the list the
+    # projection holds rather than with a corpus-wide aggregate.
+    compiled = _compile(
+        {
+            "order_by": [
+                {
+                    "key": {
+                        "reduce": "max",
+                        "path": "outcomes.products.measurements.percentage.value",
+                    }
+                }
+            ]
+        }
+    )
+    resolved = query.resolve("outcomes.products.measurements.percentage.value")
+    assert resolved.expression in compiled.sql
+
+
+def test_a_measure_may_reduce_a_repeated_path():
+    compiled = _compile(
+        {
+            "aggregate": {
+                "group_by": ["conditions.temperature.setpoint_kelvin"],
+                "measures": [
+                    {
+                        "fn": "avg",
+                        "path": {
+                            "reduce": "max",
+                            "path": "outcomes.products.measurements.percentage.value",
+                        },
+                        "name": "best_yield",
+                    }
+                ],
+            }
+        }
+    )
+    assert "avg(list_max(" in compiled.sql
+
+
+@pytest.mark.parametrize(
+    ("reducer", "expected"),
+    [
+        ("min", "list_min("),
+        ("max", "list_max("),
+        ("avg", "list_avg("),
+        ("sum", "list_sum("),
+        # Counting what is there means filtering the nulls a list may hold, since len()
+        # would count them.
+        ("count", "len(list_filter("),
+    ],
+)
+def test_each_reducer_compiles_to_its_list_aggregate(reducer, expected):
+    compiled = _compile(
+        {
+            "order_by": [
+                {
+                    "key": {
+                        "reduce": reducer,
+                        "path": "outcomes.products.measurements.percentage.value",
+                    }
+                }
+            ]
+        }
+    )
+    assert expected in compiled.sql
+
+
+def test_a_reduction_over_a_scalar_path_is_refused():
+    # A scalar needs no reducing, and accepting one would give the same query two
+    # spellings, one of which wraps a value in a single-element list.
+    with pytest.raises(query.QueryError, match="already scalar"):
+        _compile(
+            {
+                "order_by": [
+                    {
+                        "key": {
+                            "reduce": "max",
+                            "path": "conditions.temperature.setpoint_kelvin",
+                        }
+                    }
+                ]
+            }
+        )
+
+
+@pytest.mark.parametrize("reducer", ["min", "max", "avg", "sum"])
+def test_an_arithmetic_reduction_over_text_is_refused(reducer):
+    # Summing a list of strings is a DuckDB error rather than an answer, and a query
+    # that cannot mean anything is worth refusing where it is compiled.
+    with pytest.raises(query.QueryError, match="needs a numeric column"):
+        _compile(
+            {
+                "order_by": [
+                    {
+                        "key": {
+                            "reduce": reducer,
+                            "path": "outcomes.products.identifiers.value",
+                        }
+                    }
+                ]
+            }
+        )
+
+
+def test_counting_a_repeated_text_path_is_allowed():
+    # How many identifiers a reaction's products carry is a number, whatever the
+    # identifiers themselves hold.
+    compiled = _compile(
+        {
+            "order_by": [
+                {
+                    "key": {
+                        "reduce": "count",
+                        "path": "outcomes.products.identifiers.value",
+                    }
+                }
+            ]
+        }
+    )
+    assert "len(list_filter(" in compiled.sql
+
+
+def test_an_arithmetic_measure_over_text_is_refused():
+    # The same rule reaches a measure that names a scalar column directly.
+    with pytest.raises(query.QueryError, match="needs a numeric column"):
+        _compile(
+            {
+                "aggregate": {
+                    "measures": [
+                        {"fn": "avg", "path": "reaction_id", "name": "mean_id"}
+                    ]
+                }
+            }
+        )
+
+
+def test_an_aggregated_query_cannot_order_by_a_reduction():
+    # After grouping there is no reaction left to reduce over; the reduction belongs
+    # inside a measure, where it is one input to the aggregate.
+    with pytest.raises(query.QueryError, match="reduce inside a measure"):
+        _compile(
+            {
+                "aggregate": {"measures": [{"fn": "count", "name": "n"}]},
+                "order_by": [
+                    {
+                        "key": {
+                            "reduce": "max",
+                            "path": "outcomes.products.measurements.percentage.value",
+                        }
+                    }
+                ],
+            }
+        )
+
+
+def test_a_reduction_runs():
+    # The expression has to be DuckDB the planner accepts, not merely a string.
+    compiled = _compile(
+        {
+            "order_by": [
+                {
+                    "key": {
+                        "reduce": "max",
+                        "path": "outcomes.products.measurements.percentage.value",
+                    },
+                    "descending": True,
+                }
+            ],
+            "limit": 5,
+        }
+    )
+    assert _run(compiled) == []
 
 
 # The whole point
@@ -938,3 +1215,159 @@ def test_a_singular_struct_routes_to_its_ancestor_level_s_pivot():
     )
     assert "FROM pivot_outcomes_products_measurements AS x0" in sql
     assert "x0.element.authentic_standard.smiles" in sql
+
+
+# Comparing compounds rather than spellings
+
+
+def test_same_compound_compiles_to_a_bitmap_test():
+    compiled = _compile(
+        {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {
+                    "op": "same_compound",
+                    "path": "smiles",
+                    "smiles": "CC(=O)O",
+                },
+            }
+        }
+    )
+    assert "get_bit" in compiled.sql
+    assert [(p.op, p.pattern) for p in compiled.structures] == [
+        ("same_compound", "CC(=O)O")
+    ]
+
+
+def test_same_compound_by_name_is_bound_rather_than_spelled():
+    compiled = _compile(
+        {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {
+                    "op": "same_compound",
+                    "path": "smiles",
+                    "compound": "pyridine",
+                },
+            }
+        }
+    )
+    assert [(p.op, p.compound) for p in compiled.structures] == [
+        ("same_compound", "pyridine")
+    ]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        # Neither a smiles nor a compound, or both at once.
+        {"op": "same_compound", "path": "smiles"},
+        {
+            "op": "same_compound",
+            "path": "smiles",
+            "smiles": "CC(=O)O",
+            "compound": "pyridine",
+        },
+        {"op": "same_compound", "path": "smiles", "smiles": "not a molecule"},
+        # An empty molecule matches nothing and still costs a pass over the corpus.
+        {"op": "same_compound", "path": "smiles", "smiles": ""},
+        {"op": "same_compound", "path": "smiles", "compound": "not an identifier"},
+    ],
+)
+def test_a_malformed_same_compound_is_refused_before_compilation(payload):
+    with pytest.raises(ValidationError):
+        query.Query.model_validate(
+            {"where": {"op": "exists", "path": "inputs.components", "where": payload}}
+        )
+
+
+def test_same_compound_needs_a_compound_smiles_column():
+    # The hash lives beside a structure, and reaction_id has none.
+    with pytest.raises(query.QueryError, match="applies to a compound"):
+        _compile(
+            {
+                "where": {
+                    "op": "same_compound",
+                    "path": "reaction_id",
+                    "smiles": "CC(=O)O",
+                }
+            }
+        )
+
+
+def test_same_parent_compiles_to_a_bitmap_test():
+    compiled = _compile(
+        {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {
+                    "op": "same_parent",
+                    "path": "smiles",
+                    "smiles": "CC(=O)O",
+                },
+            }
+        }
+    )
+    assert "get_bit" in compiled.sql
+    assert [(p.op, p.pattern) for p in compiled.structures] == [
+        ("same_parent", "CC(=O)O")
+    ]
+
+
+def test_the_two_compound_operators_bind_separate_parameters():
+    # They ask different questions of the same molecule, so one bitmap cannot serve
+    # both however alike the predicates look.
+    compiled = _compile(
+        {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {
+                    "op": "and",
+                    "clauses": [
+                        {"op": "same_compound", "path": "smiles", "smiles": "CC(=O)O"},
+                        {"op": "same_parent", "path": "smiles", "smiles": "CC(=O)O"},
+                    ],
+                },
+            }
+        }
+    )
+    assert [p.op for p in compiled.structures] == ["same_compound", "same_parent"]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"op": "same_parent", "path": "smiles"},
+        {
+            "op": "same_parent",
+            "path": "smiles",
+            "smiles": "CC(=O)O",
+            "compound": "pyridine",
+        },
+        {"op": "same_parent", "path": "smiles", "smiles": "not a molecule"},
+        {"op": "same_parent", "path": "smiles", "smiles": ""},
+        {"op": "same_parent", "path": "smiles", "compound": "not an identifier"},
+    ],
+)
+def test_a_malformed_same_parent_is_refused_before_compilation(payload):
+    with pytest.raises(ValidationError):
+        query.Query.model_validate(
+            {"where": {"op": "exists", "path": "inputs.components", "where": payload}}
+        )
+
+
+def test_same_parent_needs_a_compound_smiles_column():
+    with pytest.raises(query.QueryError, match="applies to a compound"):
+        _compile(
+            {
+                "where": {
+                    "op": "same_parent",
+                    "path": "reaction_id",
+                    "smiles": "CC(=O)O",
+                }
+            }
+        )

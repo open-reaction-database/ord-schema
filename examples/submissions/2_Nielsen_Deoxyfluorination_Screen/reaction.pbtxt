@@ -1,5 +1,5 @@
 identifiers {
-  type: NAME
+  type: REACTION_TYPE
   value: "deoxyfluorination"
 }
 inputs {
@@ -10,9 +10,11 @@ inputs {
         type: SMILES
         value: "$alcohol_smiles$"
       }
-      moles {
-        value: 0.1
-        units: MILLIMOLE
+      amount {
+        moles {
+          value: 0.1
+          units: MILLIMOLE
+        }
       }
       reaction_role: REACTANT
       is_limiting: true
@@ -22,15 +24,17 @@ inputs {
         type: SMILES
         value: "C1CCOC1"
       }
-      volume {
-        value: 125.0
-        units: MICROLITER
+      amount {
+        volume {
+          value: 125.0
+          units: MICROLITER
+        }
+        volume_includes_solutes: true
       }
       reaction_role: SOLVENT
       preparations {
         type: DRIED
       }
-      volume_includes_solutes: true
     }
     addition_order: 1
   }
@@ -43,9 +47,11 @@ inputs {
         type: SMILES
         value: "$base_smiles$"
       }
-      moles {
-        value: 0.15
-        units: MILLIMOLE
+      amount {
+        moles {
+          value: 0.15
+          units: MILLIMOLE
+        }
       }
       reaction_role: REAGENT
     }
@@ -60,9 +66,11 @@ inputs {
         type: SMILES
         value: "$sulfonyl_fluoride_smiles$"
       }
-      moles {
-        value: 0.11
-        units: MILLIMOLE
+      amount {
+        moles {
+          value: 0.11
+          units: MILLIMOLE
+        }
       }
       reaction_role: REACTANT
       is_limiting: false
@@ -72,24 +80,24 @@ inputs {
         type: SMILES
         value: "C1CCOC1"
       }
-      volume {
-        value: 125.0
-        units: MICROLITER
+      amount {
+        volume {
+          value: 125.0
+          units: MICROLITER
+        }
+        volume_includes_solutes: true
       }
       reaction_role: SOLVENT
       preparations {
         type: DRIED
       }
-      volume_includes_solutes: true
     }
     addition_order: 2
   }
 }
 setup {
   vessel {
-    type {
-      type: VIAL
-    }
+    type: VIAL
     material {
       type: GLASS
     }
@@ -123,16 +131,14 @@ conditions {
     }
   }
   stirring {
-    method {
-      type: STIR_BAR
-    }
+    type: STIR_BAR
     rate {
       type: HIGH
       rpm: 600
     }
   }
 }
-workup {
+workups {
   type: ADDITION
   input {
     components {
@@ -144,9 +150,11 @@ workup {
         type: SMILES
         value: "C1=CC=C2C(=C1)C=CC=C2F"
       }
-      moles {
-        value: 0.1
-        units: MILLIMOLE
+      amount {
+        moles {
+          value: 0.1
+          units: MILLIMOLE
+        }
       }
       reaction_role: INTERNAL_STANDARD
     }
@@ -159,12 +167,14 @@ workup {
         type: SMILES
         value: "[2H]C(Cl)(Cl)Cl"
       }
-      volume {
-        value: 250.0
-        units: MICROLITER
+      amount {
+        volume {
+          value: 250.0
+          units: MICROLITER
+        }
+        volume_includes_solutes: true
       }
       reaction_role: WORKUP
-      volume_includes_solutes: true
     }
   }
 }
@@ -174,19 +184,24 @@ outcomes {
     units: HOUR
   }
   products {
-    compound {
-      identifiers {
-        type: SMILES
-        value: "$product_smiles$"
-      }
+    identifiers {
+      type: SMILES
+      value: "$product_smiles$"
     }
     is_desired_product: true
-    compound_yield {
-      value: $product_yield$
-      precision: 4.8
+    measurements {
+      analysis_key: "19f nmr of crude"
+      type: IDENTITY
     }
-    analysis_identity: "19f nmr of crude"
-    analysis_yield: "19f nmr of crude"
+    measurements {
+      analysis_key: "19f nmr of crude"
+      type: YIELD
+      uses_internal_standard: true
+      percentage {
+        value: $product_yield$
+        precision: 4.8
+      }
+    }
   }
   analyses {
     key: "19f nmr of crude"
@@ -194,7 +209,6 @@ outcomes {
       type: NMR_OTHER
       details: "19F NMR using 1 equiv 1-fluoronaphthalene in chloroform as internal standard"
       instrument_manufacturer: "Bruker"
-      uses_internal_standard: true
     }
   }
 }

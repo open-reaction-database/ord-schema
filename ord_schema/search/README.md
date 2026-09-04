@@ -50,19 +50,28 @@ Predicate  = { op: "and" | "or", clauses: [Predicate] }
            | { op: "substructure", path: Path, smarts?: string, compound?: <name> }
            | { op: "similarity", path: Path, smiles?: string, compound?: <name>,
                threshold: float }
+           | { op: "same_compound", path: Path, smiles?: string, compound?: <name> }
+           | { op: "same_parent", path: Path, smiles?: string, compound?: <name> }
 
 Value      = { literal: <scalar> } | { compound: <name> }
 
 Aggregate  = { group_by: [Path],
                measures: [{ fn: "count"|"count_distinct"|"sum"|"avg"|"min"|"max",
-                            path?: Path, name: string }] }
+                            path?: Path | Reduction, name: string }] }
 
-Order      = { key: string, descending?: bool }
+Reduction  = { reduce: "min"|"max"|"avg"|"sum"|"count", path: Path }
+
+Order      = { key: string | Reduction, descending?: bool }
 ```
 
 A `Path` is a dotted column path such as `conditions.temperature.setpoint_kelvin`. Inside an
 `exists` or `forall` it is **relative to the bound element**, which is what lets one component
 be required to satisfy several conditions at once.
+
+A key the grammar does not name is refused rather than dropped. Every field that narrows a
+query is optional, so an ignored key would leave a query missing the clause it was meant to
+carry — and a `Query` with no `where` is every reaction in the corpus, returned as an answer
+rather than as a failure.
 
 Every rule below is enforced against `projection.SCHEMA` before any SQL exists, so a bad query
 is a compile error rather than a wrong answer:
@@ -76,10 +85,36 @@ is a compile error rather than a wrong answer:
 - Operators must suit the leaf type — `contains` is text-only, ordering is numeric-only.
 - `group_by` paths must be scalar, so the number of groups is bounded by the values a column
   holds rather than by an explosion over a repeated level.
+- A `Reduction` is the one place a repeated path is read without a quantifier: it reduces
+  that reaction's own elements to a single value, so `max` over `outcomes.products.measurements.percentage.value`
+  is the reaction's best yield rather than the corpus's. Its path must cross a repeated level;
+  a scalar one is refused, since it would give the same query two spellings.
+- `min`, `max`, `avg`, and `sum` need a numeric column, whether they reduce a repeated path
+  or aggregate a scalar one; `count` takes any. Arithmetic over text is refused where the
+  query is compiled rather than left to fail where it runs.
 - A `{"compound": ...}` value is resolved through [`ord_schema.resolvers`](../resolvers.py) and
   **bound as a parameter**, so the model names compounds and never spells structures.
-- A `substructure`/`similarity` path must name a compound's `smiles`, inside a
-  quantifier like any other element predicate.
+- A `substructure`/`similarity`/`same_compound`/`same_parent` path must name a compound's
+  `smiles`, inside a quantifier like any other element predicate.
+- `same_compound` asks "the same compound, however either was drawn"; an `eq` on a `smiles`
+  asks "the same spelling". Acetic acid and acetate, an amine and its ammonium, a 2-pyridone
+  and its 2-hydroxypyridine tautomer are each one reagent written two ways, and each compares
+  unequal under `eq`. It matches on the `mol_hash` the structures artifact derives — RDKit's
+  registration hash of the uncharged molecule — so protonation state, tautomer, and atom-map
+  labels are ignored. Fragments and stereochemistry are not: sodium acetate is still a
+  different reagent from acetic acid, and enantiomers are still different compounds. Prefer
+  it to `eq` whenever the question names a compound rather than a string.
+- `same_parent` is the looser question, and the one to reach for only when a question says
+  it does not care which salt: what `same_compound` ignores, plus the counterions a reagent
+  was sold as, so sodium acetate matches acetic acid and triethylamine hydrochloride matches
+  triethylamine. A bare compound name is `same_compound`. Stripping stops where the molecule *is* the salt —
+  what survives must still hold carbon — so sodium hydride does not match hydrogen and
+  palladium acetate does not match acetic acid. It is looser on purpose and that is
+  sometimes wrong: sodium and potassium carbonate share a parent, which is right for
+  "reactions using carbonate" and wrong for a question about the sodium. Ask
+  `same_compound` for that one. Only the counterions RDKit recognizes are set aside — the
+  halides, Li/Na/K/Ca/Mg, and the usual acid counterions — so a salt of anything else,
+  cesium carbonate among them, is left whole and matches only itself.
 - A SMARTS naming a hydrogen the corpus stores implicitly is rewritten, with a warning,
   rather than run as written: stored molecules come from SMILES, so `[H]OC` matches no
   methanol and would return empty without saying why. `MergeQueryHs` folds it to
@@ -131,6 +166,7 @@ in what they read. Worked examples, with the route each clause takes:
 | solvent-free: no component is a solvent | `forall inputs.components` | pivot — the index shows which elements match, never that all of them do |
 | pyridine **and** a boronic acid in one component | `exists inputs.components` | pivot — two structure predicates is one more than an occurrence row can carry |
 | a desired product with a yield above 50% | `exists outcomes.products`, nested `exists measurements` | both levels' pivots, joined on the ordinal prefix |
+| the ten highest-yielding reactions | `order_by` a `reduce` over `outcomes.products.measurements` | no quantifier: a list aggregate over the projection |
 
 Every pivot row above falls to the elements when no pivot is available — a level the
 budget refused, or one with neither an artifact nor room to build. The answer does not
@@ -144,8 +180,8 @@ Substructure runs through an RDKit `SubstructLibrary` built over the corpus: a
 fingerprint **screen** — complete but not exact — over every distinct molecule in the
 corpus, then exact subgraph **verification** of the survivors. It runs on RDKit's own
 threads with the GIL released, so one `Corpus` serves concurrent requests without
-forking; the library is built on the first substructure query and costs seconds and
-about 1.5 GB for the full corpus.
+forking; the library is built at open, which `Corpus(warm=False)` defers to the first
+substructure query, and costs seconds and about 1.5 GB for the full corpus.
 Each search takes its own DuckDB cursor, since a connection holds the pending result of
 its last `execute` and concurrent searches sharing one would read each other's rows.
 `threads` is per search rather than per corpus, so a server expecting several at once
@@ -172,9 +208,28 @@ authentic standards — is a level with no elements: nothing satisfies an `exist
 and nothing contradicts a `forall`, so "reactions **without** pyridine in the workup"
 includes every reaction that has no workup at all.
 
-The index is built by the first query that spends it, one pass over the projections per
-indexed path, so a server wanting its first real query to be fast should issue a
-throwaway structure query at startup.
+Three ways to reach those rows, cheapest first, decided per path.
+
+`Corpus(..., occurrences_dir=...)` reads an **occurrences artifact**, which is the rows
+themselves: the read adds only the corpus-wide offset. Where the directory covers every
+indexed path the index is published as a **view over Parquet** and nothing is built —
+0.13s and 0.32 GiB resident over ORD, against 2.9s and 1.92 GiB for the table, with
+DuckDB holding 28 MiB where it held 1.66 GiB — at about the same per-query cost, and less
+on the narrow paths, where reading one path's files beats filtering `path = ?` across
+every occurrence in the corpus. `require_occurrences=True` refuses a directory that does
+not cover every path, which is worth setting wherever the container was sized for the
+view.
+
+Failing that, a **pivot artifact** over the path's level holds one row per element, which
+is what the build would otherwise unnest the projection to produce — over ORD **3.3s
+against 59.4s** for the same 18,847,978 occurrences. Failing both, the projection is
+unnested.
+
+One uncovered path materializes the whole index rather than leaving a view whose branches
+unnest the projection, which would repeat that traversal on every query rather than pay it
+once. Either way the index is built at open, which `Corpus(warm=False)` defers to the
+first query that spends it — and with a covering `occurrences_dir` there is little left
+for `warm` to do but check that the index reaches every structure the corpus holds.
 
 ## Pivoted levels
 
@@ -257,6 +312,10 @@ answers against rows this corpus does not hold, confidently and wrongly. A level
 artifacts is still built in process, so a partial set is a partial speedup rather than a
 missing answer.
 
+The occurrence index reads them too, one indexed path at a time, where no occurrences
+artifact covers that path: a pivot holds one row per element of the nearest repeated
+level, which is what the build would otherwise unnest the projection to produce.
+
 `Corpus(..., pivots_dir=..., derive_pivots=True)` writes the missing ones instead of
 building them: the same pass, spent where it outlives the process and costs no budget,
 and holding a projection at a time rather than the whole level — so a level too large for
@@ -264,7 +323,8 @@ the budget is still derivable this way. Artifacts already current are skipped, s
 interrupted run is finished by the next rather than started again. It is off by default,
 and `check_pivots()` never triggers it: that call reaches all 39 levels, and deriving
 there would unnest the projection 39 times at startup for a deployment that asks about
-two.
+two. It needs `warm=False`, since deriving a level has to precede the read that would
+refuse it half-derived and warming reads the levels the occurrence index covers.
 
 ## What a projection query costs
 
@@ -309,8 +369,14 @@ derived artifacts spends none of it: those are views over Parquet, not tables.
 ## Sizing a deployment
 
 Budget **about 8 GiB of resident memory** for a corpus serving substructure search over
-ORD: 1.1 GiB to open, 2.2 GiB for the `SubstructLibrary`, 1.19 GiB for the occurrence
-index, and DuckDB's own caches on top, which fill whatever `memory_limit` allows. `Corpus`
+ORD: 1.1 GiB for the relations, 2.2 GiB for the `SubstructLibrary`, 1.19 GiB for the
+occurrence index, and DuckDB's own caches on top, which fill whatever `memory_limit`
+allows. An `occurrences_dir` covering every indexed path takes about a gigabyte off that:
+the index becomes a view holding 0.32 GiB rather than a table holding 1.92 GiB, and the
+build floor below goes with it. An open corpus holds all three, since the two builds
+happen at open unless it
+was given `warm=False` — which is what makes the resident figure something to size a
+container against rather than a floor a later query raises it to. `Corpus`
 takes that limit as an argument; left unset, DuckDB claims about 80% of the machine — or
 of the container's cap, which it does read. The step-by-step breakdown is in
 [the logbook entry][cache-entry], finding 16.
@@ -322,7 +388,9 @@ the projection, in seconds rather than the tens of milliseconds a pivot takes. T
 no managed service to move this to — Athena and its kin can scan the Parquet, but the
 chemistry is not SQL.
 
-**The index build has a floor, and it is not a soft one.** Over ORD it wants **5–6.5 GB**
+**A built index has a floor, and it is not a soft one** — a corpus given a covering
+`occurrences_dir` builds nothing and meets none of what follows. Over ORD the build
+wants **5–6.5 GB**
 of DuckDB memory, and below that it raises `OutOfMemoryException` rather than running
 slowly — a block it cannot pin is not one it can spill, so a `temp_directory` does not
 rescue it. Near the floor it also wants 16–25 GiB of scratch disk, which a container may
@@ -330,6 +398,46 @@ not have: a Fargate task carries 20 GB of ephemeral storage by default, and `Cor
 no `temp_directory`. Three remedies were measured and none moves the floor; a fourth,
 building per projection file, lowers it to ~2 GB and costs every unconstrained deployment
 68% more time — measured and rejected ([logbook][cache-entry], findings 16–17).
+
+**Nothing supports swapping a corpus in place.** A
+structure's corpus-wide ID is its dataset-local one plus an offset that is a running total
+over the corpus's datasets in `source_md5` order, so adding, removing, or rewriting any
+dataset invalidates IDs elsewhere in the corpus. Adding or removing shifts every dataset
+after the one that moved. Rewriting does two things at once: the dataset's own IDs now name
+different molecules, and its `source_md5` re-sorts it to a different position in the
+ordering, which shifts the offsets of everything between where it was and where it
+lands — whether or not its row count changed. Everything keyed by those IDs — the
+occurrence index, the `SubstructLibrary` entry mapping, every cached match-set bitmap —
+is written against one numbering and stays *in range* under another, which is what makes
+it silent. Renumbering always moves `Corpus.fingerprint`, which is what makes it a sound
+guard for anything held outside the corpus.
+
+That soundness rests on one invariant. An offset is a running total of each dataset's
+*structures-artifact row count*, in `source_md5` order, so
+renumbering needs either a changed set of source hashes — which moves the fingerprint,
+since it digests every artifact's stamps — or a changed row count under a source and
+library that did not change.
+
+Determinism is what rules the second out, and it has four inputs rather than three.
+`structure_id` is assigned in the order the projection walk reaches a SMILES, making it a
+function of the source bytes, the ord-schema version, and the RDKit that canonicalized the
+SMILES — all stamped — and of the order that walk takes through a map field, which is the
+walk's own: it sorts a map's keys, because protobuf specifies its iteration order as
+undefined and the protobuf build is stamped nowhere. Two tests hold this up.
+`test_rebuilding_a_projection_assigns_the_same_structure_ids` pins that a rebuild assigns
+the same IDs; `test_map_fields_are_walked_in_key_order` pins that the order is not
+protobuf's to change. If either fails, this guard fails with it.
+
+It is conservative in the other direction: a rebuild under a new RDKit moves the
+fingerprint even where every offset comes out the same. Invalidating on it discards more
+than it strictly must, and never less.
+
+So a deployment that must pick up new data opens a **second** `Corpus`, waits for it to
+warm, and swaps the reference. Peak memory during the swap is therefore twice the steady
+state — about 16 GiB over ORD, or 14 with a covering `occurrences_dir` — which is the
+figure a container has to be sized against if it is ever to take an update without a
+restart. There is no in-place refresh, and adding one would mean making every ID-keyed
+structure versioned rather than replaced.
 
 **Under a container cap, state the limit rather than letting DuckDB pick it.** Its default
 is sized from the cgroup and not from the host, which is the right input, but the limit
@@ -339,13 +447,16 @@ on DuckDB's own 6.3 GiB default was killed 85s in; a 12 GiB container holding Du
 `6500MiB` finished, peaking at 9.3 GB resident. `Corpus` warns at open when a cap it can
 read leaves less than 4 GB above the limit ([logbook][cache-entry], finding 19).
 
-Which is survivable but should not be discovered by a user. The index is built by the
-first query that can spend it, so a container short of the floor starts cleanly, passes
-`check_pivots()`, answers scalar queries, and then raises at whoever runs the first
-substructure search. `Corpus.check_index()` moves that to startup, where it is a failed
-deployment rather than a failed request. It is opt-in for the same reason the build is
-lazy — a minute and 1.19 GB that a corpus asked only for scalar or similarity queries
-never needs to spend.
+Which is survivable but should not be discovered by a user. A corpus opened with
+`warm=False` builds the index on the first query that can spend it, so a container short
+of the floor starts cleanly, passes `check_pivots()`, answers scalar queries, and then
+raises at whoever runs the first substructure search. Warming puts both builds at open,
+where falling short is a failed deployment rather than a failed request;
+`Corpus.check_index()` does the same for the index alone over a cold corpus, which is
+what a deployment answering scalar and similarity queries wants — those spend the index
+but never the library. What a cold corpus buys is the memory floor above, the 1.19 GB
+the index holds, and the 2.2 GB the library holds, none of which a scalar-only corpus
+needs to spend.
 
 Across a mixed workload pairing an indexed structure clause with one the index cannot
 carry, the index is **2–24× ahead** of the same corpus answering every quantifier from
@@ -428,6 +539,146 @@ not share a layout. Structure IDs are dataset-local; the executor's relation
 carries a per-file offset column (`structure_offset`), which is why compiled SQL with a
 structure predicate runs only there — validate it against `query.executable_schema()`
 rather than the bare projection schema.
+
+### Ask in English
+
+```python
+from ord_schema.search import execute, nl
+
+corpus = execute.Corpus("projections/*/*.parquet", "structures/*/*.parquet")
+answer = nl.ask("which reactions use pyridine as a solvent?", corpus)
+print(answer.query, answer.table.num_rows, answer.text)
+```
+
+Needs the `nl` extra (`pip install "ord-schema[nl]"`) and a key in
+`ORD_ANTHROPIC_API_KEY`, which is read in preference to `ANTHROPIC_API_KEY` so a key held
+for general use does not quietly pay for a corpus search. The model
+**cannot** be constrained to emit a valid query — the grammar is recursive, and structured
+outputs and strict tools share a validator that rejects circular references, then rejects
+what is left once the recursion is removed as too large. So a translation is checked
+rather than guaranteed: the predicate tree usually arrives JSON-encoded in a string and is
+coerced back, a query that does not compile is handed back once carrying the compiler's
+own "did you mean", and a second failure raises `MalformedQueryError`. A query that asks
+*nothing* — no `where`, no `aggregate`, no `limit` — is handed back the same way rather
+than run: it compiles, and it answers every question with the whole corpus.
+
+The model is also given a way to decline. Forcing `build_query` would leave it no way to
+say a question cannot be put to this grammar — comparing two columns, say — and a model
+with no way to decline invents a query rather than refusing, which is the failure that
+looks most like an answer. Declining raises `UnanswerableError`, carrying the model's
+reason, and is never repaired: nothing was wrong with its reasoning.
+
+The ~15k-token prefix — these rules plus `describe()` plus the grammar — is cached, which
+is most of what a query costs. `answer.query` is the query that ran, so a caller can show
+what was searched and offer to run it again.
+
+### Keep the questions
+
+```python
+from ord_schema.search import nl, nl_log
+
+sink = nl_log.JsonlSink("nl-log/today.jsonl")          # or S3Sink(boto3.client("s3"), bucket=...)
+answer = nl.ask(question, corpus, sink=sink, session_id=session_id)
+...
+nl_log.write(sink, nl_log.thumb(answer.record_id, "down", comment="wrong solvent"))
+```
+
+Recording is off until a caller opts in. `ask()` without a `sink` records nothing, and
+nothing here builds an `S3Sink` -- a deployment hands one its own client and bucket, so
+no bucket name lives in this package. `nl_log.write()` is the single path each event
+takes, so an unreachable sink costs the record rather than the answer whether the event
+is the ask this package writes or the thumb a caller builds.
+
+The questions people ask are the only material that can refine a translator, so they are
+recorded rather than discarded. The log is an **append-only stream of events**, not a
+table: an `ask` written by the library, a `thumb` a reader leaves, and a `label` a
+maintainer applies all share a `record_id`, because they are three assertions by three
+parties at three times and one mutable row would lose which was which. Each carries its
+own `event_id` as well, which is what an object store keys on — a key built from the
+shared `record_id` would have the thumb overwrite the question it judges.
+
+Every ending is recorded, not only the one where everything worked. `nl_log.Outcome` is
+`ANSWERED`, `EMPTY`, `DECLINED`, `MALFORMED`, or the rest of the error taxonomy — and the
+first three self-label: a question that translated and matched nothing, or that the model
+declined, is a failure that needs no human to recognize it. Grouped by `session_id`, a
+rephrasing reads as the reader's own correction of the question before it. The caller
+mints that identifier and decides what it spans.
+
+`source` names the surface a question arrived from — `web`, `eval`, `api`. One prefix
+holds all of them, and nothing else in a record separates a person rephrasing from a
+harness working through a case file.
+
+Results are **not** stored; `translation` plus `corpus_fingerprint` reproduce them.
+`prompt_fingerprint` names the translator that wrote a record, and moves exactly when the
+cached prefix does.
+
+A record is a typed envelope around an opaque payload: identifiers, outcome, usage, and
+timings are fields, while the question and the whole `attempts` list — not only the query
+inside it — are strings. They stay strings because a `Query` is recursive and differently
+shaped record to record, and because a month in which everything compiled writes
+`"error": null` throughout and infers that field as JSON where a month holding one
+rejection infers it as text. Either way DuckDB would be inferring a struct from whichever
+shapes a month happened to hold, and whether two months read back together would depend
+on what it can coerce. As strings they reconcile by construction.
+
+Identifiers are minted as hex rather than as dashed UUIDs for the same reason: a source
+whose `session_id`s are all dashed UUIDs infers `UUID` and one holding opaque tokens
+infers `VARCHAR`, and a read spanning both would refuse to union them. `read()` casts
+them anyway, which is what covers a client that minted its own.
+
+Read it with `nl_log.read()`, which folds the verdicts onto their asks and derives
+`translation` and `repaired` from the attempts:
+
+```python
+nl_log.read("nl-log/parquet/*.parquet", "nl-log/raw/dt=*/*.json",
+            statement="SELECT question, outcome, usage.input FROM log WHERE thumb = 'down'")
+```
+
+JSON and Parquet mix freely, so `nl_log.compact()` can fold a stretch into one file
+whenever volume asks for it rather than as a migration. It leaves what it folded in
+place, and `read()` counts an event once however many sources carry it, so a compacted
+month and the raw days inside it can be read together until whoever owns the prefix
+decides the days can go. `compact(redact=True)`, off by default, empties every
+free-text column — the question, the answer, the thumb's comment, the label's note —
+rather than dropping them, so a file written either way keeps one schema and a query
+spanning both binds.
+
+A thumb and a label are spelled from `nl_log.Thumb` and `nl_log.Verdict` rather than
+free strings: the log is append-only, so a verdict typed `"Down"` can be superseded but
+never corrected, and it is invisible to the query above.
+
+Writes are best-effort: an unreachable bucket costs the record, never the answer, and so
+does an artifact that has gone unreadable when the record's fingerprint is taken. The
+eval harness records too — `nl_eval --log run.jsonl` — which is why the log has to be
+writable from a laptop.
+
+### Measure how good a translation is
+
+```bash
+python -m ord_schema.search.nl_eval \
+    --projections 'projections/**/*.parquet' \
+    --structures 'structures/**/*.parquet' \
+    --model claude-haiku-4-5
+```
+
+A case states the question and **one query that answers it**. Both run against whatever
+corpus you point the command at, and the reactions have to match as sets. That is not the
+same as pinning the query: several spellings are right, and pinning one would fail a better
+translation than the one written the day the case was added. `forall(components, role != SOLVENT)`
+and `not exists(components, role == SOLVENT)` share no structure at all and return the same
+885,972 reactions, so the reactions are what a case can fairly hold a model to and the query
+is not.
+
+Comparing sets catches both directions, which is what makes a case hard to pass by accident:
+a translation that misscopes two conditions into two quantifiers returns reactions the
+reference does not, and one that drops a condition entirely returns the corpus. A case
+carries no reaction IDs, so nothing in it goes stale when the corpus is rebuilt.
+
+Cases carry a `why`, printed with any failure, and one is marked `compiles: false`: a
+question the grammar cannot express, which the layer has to refuse rather than answer
+approximately, and which therefore has no reference. Refusing *outright* is what passes it —
+a model that writes a query, is told it does not compile, and only then declines has answered
+the caller correctly while failing what the case measures.
 
 ### Tell the model what it may query
 
@@ -560,12 +811,34 @@ It is a check on the compiler's own output; the guard is the grammar. It **does 
 cost**, and says so: a caller running arbitrary SQL against a real corpus needs its own
 statement timeout, row cap, or memory limit.
 
+The grammar leaves `limit` optional, so the unbounded query is the ordinary one — a
+predicate matching much of the corpus returns millions of rows, built into an Arrow table
+in the executing process. `Corpus(..., max_rows=...)` bounds every search, filling in a
+limit where the query states none and clamping one that asks for more. An answer that
+comes back *at* the bound is logged as possibly cut, since nothing in the table says so;
+one the bound never reached is not, because a warning on every generous limit is how a
+reader learns to skip the line that matters. On an **aggregated** query the bound cuts
+groups rather than reactions — part of a distribution read as the whole of it, and an
+arbitrary part where the query ordered by nothing — so that one says more.
+
+`search(timeout_seconds=)` bounds the whole call. What it can interrupt it interrupts —
+the final query, which runs on the search's own cursor — and the query is given what the
+earlier phases left rather than the whole bound. What it cannot interrupt it checks as the
+phase finishes: screening and verification are RDKit with the GIL released, name
+resolution is an external service, and the index, the library, and a pivot are built once
+for the corpus under a lock, where a timer that killed one would fail every search queued
+behind it, callers that asked for no bound included. So a search can outlast its bound and
+report the overrun rather than being stopped at it, and the `TimeoutError` names the phase
+that ran long.
+
 ## Not yet solved
 
 Execution has no sandbox. `enable_external_access=false` cannot be combined with a lazy Parquet
 view — only a materialized table survives it — so running against the full corpus needs
-DuckDB's `allowed_directories` or a separate process. Compiling from an IR removes the reasons
-to fear the *query*; it does not remove the reasons to contain the *process*.
+DuckDB's `allowed_directories` or a separate process. That list is four trees for a corpus
+reading everything it can: the projections, the structures, `pivots_dir`, and
+`occurrences_dir`. Compiling from an IR removes the reasons to fear the *query*; it does not
+remove the reasons to contain the *process*.
 
 **Text search is deferred, not approximated.** `contains`, `starts_with`, and `ends_with` run
 against any of the projection's 234 string leaves, and searching a short one — a `type`, a

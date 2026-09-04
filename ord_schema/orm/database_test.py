@@ -1011,3 +1011,30 @@ def test_rederive_drops_a_row_that_no_longer_derives(
             ).scalar_one()
         assert after == 0, f"{derived_table} kept {after} stale rows"
         assert nulls == 0
+
+
+def test_a_finished_test_leaves_no_database_behind(test_session):
+    """Databases this session made are dropped, not merely disconnected from.
+
+    A clone is a full copy -- 11.7 MB for the prepared schema -- so without the drop a
+    run of this package leaves most of a gigabyte in the cluster's data directory.
+    Nothing else asserts it, and the leak would be invisible until a runner filled up.
+
+    Order-independent by construction: every worker has its own cluster, and if teardown
+    stopped dropping, whichever tests ran before this one on this worker would still be
+    listed here.
+    """
+    listed = set(
+        test_session.execute(
+            text(
+                "SELECT datname FROM pg_database "
+                "WHERE NOT datistemplate AND datname <> 'postgres'"
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # The cluster's own database, the two templates, and whatever this test is using.
+    expected = {"test", "template_prepared", "template_loaded"}
+    current = test_session.execute(text("SELECT current_database()")).scalar()
+    assert listed <= expected | {current}, sorted(listed - expected - {current})
