@@ -109,7 +109,7 @@ def test_unnamed_leaf_type_raises():
     # A leaf the projection cannot currently hold, so the description would silently
     # hand a model an Arrow spelling no DuckDB query can use.
     with pytest.raises(KeyError):
-        schema.describe(pa.schema([pa.field("when", pa.timestamp("s"))]))
+        schema.describe(pa.schema([pa.field("when", pa.duration("s"))]))
 
 
 def test_projection_schema_renders():

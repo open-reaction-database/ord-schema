@@ -29,7 +29,8 @@ That works only because the message graph is acyclic: no message reaches itself,
 recursion terminates. ``build_schema`` enforces this rather than assuming it -- a
 recursive message added upstream would otherwise recurse forever at import time.
 
-Two normalizations are applied, and only two. Both cost no query and remove a real trap:
+Three normalizations are applied, and only three. Each costs no query and removes a
+real trap:
 
 * **United messages become canonical floats.** A ``{value, precision, units}`` triple
   projected verbatim means ``WHERE temperature > 350`` silently misses every row
@@ -38,6 +39,21 @@ Two normalizations are applied, and only two. Both cost no query and remove a re
   stays expressible while the mixed-unit comparison that would quietly return the wrong
   rows does not. The source records precision in the same units as the value, so it
   converts with the value and is null under the same conditions.
+* **Dates become instants.** ``DateTime`` is a bare string the depositor wrote, and the
+  corpus holds fifteen shapes of it in nine families, so comparing the text answers
+  arbitrarily: over ORD a prefix match on ``2021`` finds none of that year's 490,412
+  records while one on ``2022`` matches 1.77 million from a dataset whose stamps merely
+  begin with it. Each ``DateTime`` gains a ``timestamp`` beside the recorded string,
+  which stays: the projection adds a reading rather than replacing what the source says,
+  and a shape none of the formats cover is a visible null.
+
+  ``NN/NN/NNNN`` is the part that needs more than a format list, since the string never
+  says which field is the month. It is settled per dataset and before any row is
+  written -- the convention belongs to the depositor, not to a value -- from
+  ``_SLASH_ORIENTATION`` where the question has been answered and from the dataset's own
+  unambiguous values otherwise. Where neither settles it the timestamp is null, because
+  a guess written here is indistinguishable afterwards from a date the source recorded.
+
 * **Structural identifiers collapse to one ``smiles``.** ``SMILES``, ``CXSMILES``,
   ``INCHI``, and ``MOLBLOCK`` all answer "what is this molecule," so the projection
   answers it once, through ``message_helpers.smiles_from_compound`` -- the same
@@ -97,7 +113,9 @@ reproducible from the projection alone.
 """
 
 import os
-from collections.abc import Iterator, MutableMapping
+import re
+from collections.abc import Iterable, Iterator, MutableMapping
+from datetime import datetime
 from typing import Any, cast, get_args
 
 import pyarrow as pa
@@ -154,6 +172,91 @@ _STRUCTURAL_TYPES: dict[str, frozenset[int]] = {
 # ``structure_id``. Reaction is structural but its smiles is a reaction;
 # reaction-level structure search is a different operation and no ID is assigned there.
 _STRUCTURE_ID_TYPES = frozenset({"Compound", "ProductCompound"})
+
+# Messages whose free-text date gains a parsed ``timestamp`` beside it.
+_TIMESTAMP_TYPES = frozenset({"DateTime"})
+TIMESTAMP_COLUMN = "timestamp"
+
+# The shapes ORD's dates are recorded in, tried in order. DateTime.value is a string the
+# depositor wrote, so there is no format to rely on: seven appear across the corpus, and
+# a reader comparing the text instead answers arbitrarily -- over ORD, a prefix match on
+# "2021" finds none of the 490,412 records from that year while one on "2022" matches
+# 1.77 million from a dataset whose stamps merely begin with it.
+#
+# Slash dates are listed month-first here and read day-first where the dataset says so;
+# see ``day_first_dates``.
+_DATE_FORMATS = (
+    "%Y-%m-%d %H:%M:%S.%f",
+    "%Y-%m-%dT%H:%M:%S.%f",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d",
+    "%m/%d/%Y, %I:%M:%S %p",
+    "%m/%d/%Y, %H:%M:%S",
+    "%m/%d/%Y %H:%M:%S",
+    "%m/%d/%Y",
+    "%a %b %d %H:%M:%S %Y",
+)
+# Written day-first for a dataset that records dates that way; same order, so a value
+# matches the same shape either way and only the two leading numbers swap meaning.
+_DAY_FIRST_FORMATS = tuple(shape.replace("%m/%d/", "%d/%m/") for shape in _DATE_FORMATS)
+_SLASH_DATE = re.compile(r"^(\d{1,2})/(\d{1,2})/")
+
+# Which way each dataset writes its slash dates, where something settles it. A value
+# alone settles only 28 of the 41 datasets that write one -- those holding a number
+# above twelve -- and the rest need evidence outside any single value: an upper bound
+# from the reaction's own record_modified events, a co-submitted sibling in the same
+# shape, the en-US 12-hour rendering no day-first locale produces, and the supplemental
+# data on two submission pull requests. That work is the ord-logbook entry "Date and
+# time formats across the corpus" (2026-09-03), where the reasoning per dataset lives.
+#
+# Two datasets are deliberately absent: 5c9a1032 and 5e8318f0, which no evidence settles
+# and whose submitters have been asked. Absent means their ambiguous dates project as
+# null, which is the point -- writing a guess would freeze it into the artifact and
+# destroy the record that it was ever a guess.
+_SLASH_ORIENTATION: dict[str, bool] = {
+    "ord_dataset-172039a759a440219a68af62d203b79b": True,  # witness
+    "ord_dataset-2be11f57f3304e678ea8469baf6dd1bc": True,  # sibling
+    "ord_dataset-3b8a2ef300e145468579027f206a3ac8": True,  # witness
+    "ord_dataset-c5b00523487a4211a194160edf45e9ab": True,  # witness
+    "ord_dataset-00005539a1e04c809a9a78647bea649c": False,  # witness
+    "ord_dataset-0316886541d9435489859c2ad7edc863": False,  # witness
+    "ord_dataset-0c75d67751634f0594b24b9f498b77c2": False,  # bound
+    "ord_dataset-10b940e7982c4622b1e1ac879394aba6": False,  # witness
+    "ord_dataset-1d3a1a6fb70d46c084602d0688967afc": False,  # witness
+    # ord-data#86 supplemental data
+    "ord_dataset-35a5a513f1dd44a3a97c88da99f81a00": False,
+    "ord_dataset-3b5db90e337942ea886b8f5bc5e3aa72": False,  # bound
+    "ord_dataset-46ff9a32d9e04016b9380b1b1ef949c3": False,  # format
+    "ord_dataset-488402f6ec0d441ca2f7d6fabea7c220": False,  # witness
+    "ord_dataset-4d431564f3ef4e9c91d8da5836f4eae6": False,  # format
+    "ord_dataset-52bd3b0ec72c443aab113bcea09bf3f4": False,  # witness
+    "ord_dataset-5481550056a14935b76e031fb94b88be": False,  # witness
+    "ord_dataset-5540e162c09f4c04905ddc8ba9c931c6": False,  # witness
+    "ord_dataset-55de08a995554f558c25fc43eac62359": False,  # witness
+    "ord_dataset-5eb7f2689f4a42eba63ad9e37e49a5cd": False,  # witness
+    "ord_dataset-675eddcaa6674ce3ae61e79bbc1e1c08": False,  # bound
+    "ord_dataset-68cb8b4b2b384e3d85b5b1efae58b203": False,  # witness
+    "ord_dataset-6a0bfcdf53a64c07987822162ae591e2": False,  # witness
+    "ord_dataset-7acd6ad2bf4d4cff841cad008ab726d5": False,  # witness
+    "ord_dataset-7d8f5fd922d4497d91cb81489b052746": False,  # witness
+    "ord_dataset-805ad863feef48579d95d86a728035f4": False,  # witness
+    "ord_dataset-89b083710e2d441aa0040c361d63359f": False,  # bound
+    "ord_dataset-8d1e28ec1f6b4ee8ad372e0b5ed7a62e": False,  # witness
+    "ord_dataset-9b8aa9a7835143ef8ce3f70abfab7545": False,  # witness
+    "ord_dataset-a12fa15d036d489c971b0b514caeae52": False,  # witness
+    "ord_dataset-ac78456835404910b3a4c840248b6ac9": False,  # witness
+    "ord_dataset-b440f8c90b6343189093770060fc4098": False,  # witness
+    "ord_dataset-cbcc4048add7468e850b6ec42549c70d": False,  # format
+    "ord_dataset-ce5045aceb214cfc8bfd0ef3031e2737": False,  # witness
+    "ord_dataset-d26118acda314269becc35db5c22dc59": False,  # bound
+    "ord_dataset-d319c2a22ecf4ce59db1a18ae71d529c": False,  # witness
+    # ord-data#188 supplemental data
+    "ord_dataset-d92976309c3a48a3a64a4cf5e7048086": False,
+    "ord_dataset-e7830cd6b11158b43994ccfb5ee9acb3": False,  # witness
+    "ord_dataset-eeba974d3c284aed86d1c1d442260a1e": False,  # witness
+    "ord_dataset-fc83743b978f4deea7d6856deacbfe53": False,  # witness
+}
 
 # An ID rides beside the collapsed smiles and cannot exist without it: the schema
 # would gain a structure_id with no sibling smiles, and message_row would KeyError.
@@ -247,6 +350,114 @@ def _reachable_fields() -> Iterator[FieldDescriptor]:
             yield field
             if field.message_type is not None:
                 stack.append(field.message_type)
+
+
+def day_first_dates(values: Iterable[str | None]) -> bool | None:
+    """Returns whether a dataset writes slash dates day first, or None if it cannot say.
+
+    The convention is a property of the depositor rather than of a value, and a value
+    only reveals it where one of the two leading numbers exceeds twelve. Measured over
+    ORD no dataset carries evidence both ways, so one answer per dataset is the right
+    shape -- and thirteen carry none at all, which is what None is for: those hold one
+    bulk-import stamp repeated across every row, so a date guessed for them would be
+    guessed for tens of thousands of reactions at once.
+
+    Args:
+        values: Every date string the dataset records, in any order. Nones and values in
+            other formats are ignored, since only a slash date is ambiguous.
+
+    Returns:
+        True where the dataset writes day/month, False where it writes month/day, and
+        None where no value settles it.
+    """
+    for value in values:
+        if value is None:
+            continue
+        matched = _SLASH_DATE.match(value)
+        if matched is None:
+            continue
+        first, second = int(matched.group(1)), int(matched.group(2))
+        if first > 12:
+            return True
+        if second > 12:
+            return False
+    return None
+
+
+def slash_orientation(
+    dataset_id: str | None, values: Iterable[str | None]
+) -> bool | None:
+    """Returns whether a dataset writes slash dates day first, preferring what is known.
+
+    ``_SLASH_ORIENTATION`` wins where it names the dataset, because it holds evidence a
+    value cannot carry -- a bound, a sibling submission, a locale's rendering, a
+    submission's supplemental data. The scan is what answers for a dataset nobody has
+    looked at yet, which is every dataset added after that table was written.
+
+    Args:
+        dataset_id: The source's ``ord_dataset-`` ID, or None where it records none.
+        values: Every date string the dataset records, for the fallback scan. Read only
+            where the table does not name the dataset, and lazily even then.
+
+    Returns:
+        True for day first, False for month first, and None where neither settles it --
+        which leaves an ambiguous date unparsed rather than guessed.
+
+    Raises:
+        ValueError: If a witness in the data contradicts the recorded verdict. One of
+            the two is then wrong about the dataset, and projecting either reading would
+            record a date this library has evidence against.
+    """
+    recorded = _SLASH_ORIENTATION.get(dataset_id or "")
+    if recorded is None:
+        return day_first_dates(values)
+    witnessed = day_first_dates(values)
+    if witnessed is not None and witnessed != recorded:
+        raise ValueError(
+            f"{dataset_id} is recorded as "
+            f"{'day' if recorded else 'month'}-first, but its own values witness "
+            f"{'day' if witnessed else 'month'}-first"
+        )
+    return recorded
+
+
+def parse_timestamp(value: str, *, day_first: bool | None = None) -> datetime | None:
+    """Returns the instant a recorded date names, or None where none of the shapes fit.
+
+    Args:
+        value: The string a depositor wrote.
+        day_first: Whether this dataset writes slash dates day first, from
+            ``day_first_dates``. None leaves an ambiguous slash date unparsed rather
+            than guessing, which is the difference between a null a reader can see and
+            a date that is silently the wrong month.
+
+    Returns:
+        The parsed instant, or None where no format matched or the value is ambiguous
+        and the dataset does not say which way to read it.
+    """
+    matched = _SLASH_DATE.match(value)
+    if matched is not None:
+        first, second = int(matched.group(1)), int(matched.group(2))
+        if first <= 12 and second <= 12 and day_first is None:
+            return None
+        formats = _DAY_FIRST_FORMATS if day_first else _DATE_FORMATS
+        # An unambiguous value reads the same under either table, so the dataset's
+        # convention decides only the values that need it.
+        if first > 12:
+            formats = _DAY_FIRST_FORMATS
+        elif second > 12:
+            formats = _DATE_FORMATS
+    else:
+        formats = _DATE_FORMATS
+    for shape in formats:
+        try:
+            # DTZ007: naive on purpose. None of the recorded shapes carries an offset,
+            # so the zone is not in the data; attaching one would state a fact the
+            # source never recorded, and shift every instant by it.
+            return datetime.strptime(value, shape)  # noqa: DTZ007
+        except ValueError:
+            continue
+    return None
 
 
 def _canonical_unit(field: FieldDescriptor) -> tuple[str, str] | None:
@@ -353,6 +564,8 @@ def _struct_fields(descriptor: Descriptor, stack: frozenset[str]) -> list[pa.Fie
     fields = []
     if descriptor.name in _STRUCTURAL_TYPES:
         fields.append(pa.field("smiles", pa.string()))
+    if descriptor.name in _TIMESTAMP_TYPES:
+        fields.append(pa.field(TIMESTAMP_COLUMN, pa.timestamp("s")))
     if descriptor.name in _STRUCTURE_ID_TYPES:
         fields.append(
             pa.field(
@@ -446,7 +659,10 @@ def _enum_name(field: FieldDescriptor, number: int) -> str:
 
 
 def message_row(
-    message: Message, structure_ids: MutableMapping[str, int] | None = None
+    message: Message,
+    structure_ids: MutableMapping[str, int] | None = None,
+    *,
+    day_first: bool | None = None,
 ) -> dict[str, Any]:
     """Projects ``message`` to a dict matching its struct type in ``SCHEMA``.
 
@@ -459,6 +675,9 @@ def message_row(
             order as compounds are projected. None -- the default, for a message
             projected outside a dataset -- leaves every ``structure_id`` null, since an
             ID is meaningful only against the artifact that shares the mapping.
+        day_first: Whether this dataset writes slash dates day first, from
+            ``day_first_dates``. None leaves an ambiguous one unparsed; see
+            ``parse_timestamp``.
 
     Returns:
         A dict keyed by projected column name.
@@ -473,6 +692,11 @@ def message_row(
         row["smiles"] = smiles
         if smiles is not None:
             collapsed = _STRUCTURAL_TYPES[descriptor.name]
+    if descriptor.name in _TIMESTAMP_TYPES:
+        recorded = getattr(message, "value", "")
+        row[TIMESTAMP_COLUMN] = (
+            parse_timestamp(recorded, day_first=day_first) if recorded else None
+        )
     if descriptor.name in _STRUCTURE_ID_TYPES:
         if row["smiles"] is not None and structure_ids is not None:
             row["structure_id"] = structure_ids.setdefault(
@@ -502,7 +726,8 @@ def message_row(
             items = sorted(getattr(message, field.name).items())
             if value_field.message_type is not None:
                 row[name] = [
-                    (key, message_row(value, structure_ids)) for key, value in items
+                    (key, message_row(value, structure_ids, day_first=day_first))
+                    for key, value in items
                 ] or None
             else:
                 row[name] = list(items) or None
@@ -513,7 +738,8 @@ def message_row(
                 values = _kept_identifiers(values, collapsed)
             if message_type is not None:
                 row[name] = [
-                    message_row(value, structure_ids) for value in values
+                    message_row(value, structure_ids, day_first=day_first)
+                    for value in values
                 ] or None
             elif field.type == FieldDescriptor.TYPE_ENUM:
                 row[name] = [_enum_name(field, value) for value in values] or None
@@ -522,7 +748,9 @@ def message_row(
             continue
         if message_type is not None:
             row[name] = (
-                message_row(getattr(message, field.name), structure_ids)
+                message_row(
+                    getattr(message, field.name), structure_ids, day_first=day_first
+                )
                 if message.HasField(field.name)
                 else None
             )
@@ -546,6 +774,8 @@ def reaction_row(
     reaction: reaction_pb2.Reaction,
     reaction_id: str | None,
     structure_ids: MutableMapping[str, int] | None = None,
+    *,
+    day_first: bool | None = None,
 ) -> dict[str, Any]:
     """Projects one row of a source dataset to a dict matching ``SCHEMA``.
 
@@ -565,6 +795,9 @@ def reaction_row(
         structure_ids: Mapping from SMILES to ``structure_id``, shared across a
             dataset's rows and extended in first-seen order. None leaves every
             ``structure_id`` null.
+        day_first: Whether this dataset writes slash dates day first, from
+            ``day_first_dates``. None leaves an ambiguous one unparsed; see
+            ``parse_timestamp``.
 
     Returns:
         A dict keyed by projected column name.
@@ -583,12 +816,30 @@ def reaction_row(
             f"reaction_id column {reaction_id!r} disagrees with the reaction's own "
             f"{reaction.reaction_id!r}"
         )
-    return message_row(reaction, structure_ids)
+    return message_row(reaction, structure_ids, day_first=day_first)
 
 
 def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
     """Returns whether ``path`` is a projection of ``source_md5`` by this library."""
     return base.is_current(path, ARTIFACT, source_md5)
+
+
+def _recorded_dates(view: parquet.DatasetView) -> Iterator[str | None]:
+    """Yields every date string a dataset records, for inferring its convention.
+
+    Args:
+        view: The source dataset.
+
+    Yields:
+        The recorded value of each DateTime a reaction reaches, unparsed. Lazily, so a
+        dataset that settles the question in its first reaction reads no further.
+    """
+    for _, reaction in view.iter_reactions():
+        provenance = reaction.provenance
+        yield provenance.experiment_start.value
+        yield provenance.record_created.time.value
+        for modified in provenance.record_modified:
+            yield modified.time.value
 
 
 def write_projection(
@@ -638,6 +889,13 @@ def write_projection(
     # artifact derived from this file. The order follows protobuf map iteration, which
     # is unspecified, so IDs are a fact about this file rather than about the dataset.
     structure_ids: dict[str, int] = {}
+    # Which way this dataset writes slash dates, settled before any row is projected.
+    # The convention belongs to the depositor rather than to a value, so it cannot be
+    # read off the rows as they stream past and a row group's worth of them is not the
+    # dataset. Where the answer is not already recorded this costs a pass that parses
+    # the protos without projecting them: measured at ~7 seconds over the source that is
+    # 96% of ORD, against the 34.6 minutes the projection itself takes.
+    day_first = slash_orientation(source_dataset_id, _recorded_dates(view))
     with (
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,
@@ -646,7 +904,9 @@ def write_projection(
             batch = []
             for reaction_id, reaction in view.iter_reactions(row_group=row_group):
                 try:
-                    row = reaction_row(reaction, reaction_id, structure_ids)
+                    row = reaction_row(
+                        reaction, reaction_id, structure_ids, day_first=day_first
+                    )
                 except ValueError as error:
                     raise ValueError(f"{view.path}: {error}") from error
                 unreadable += _unreadable_structures(row)
