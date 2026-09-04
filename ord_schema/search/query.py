@@ -65,7 +65,7 @@ from collections.abc import Callable
 from typing import Annotated, Any, Literal
 
 import pyarrow as pa
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from rdkit import Chem
 
 # Aliased because ``pivot`` is the parameter name a caller passes an index under, and a
@@ -304,7 +304,21 @@ def resolve(
     return _Resolved(expression or "", repeated, current)
 
 
-class Value(BaseModel):
+class _Node(BaseModel):
+    """Base of every model below, refusing keys the model does not declare.
+
+    Dropping an unknown key is the wrong default here because these models are how a
+    query arrives from outside -- a dict, a JSON body, a tool call. Every field that
+    narrows a query is optional or lives under a discriminated union, so a misspelled
+    key does not fail: it validates to a query missing the clause the caller wrote,
+    which for a top-level ``where`` is every reaction in the corpus. The caller sees a
+    plausible answer to a question they did not ask, with nothing logged.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class Value(_Node):
     """A comparison operand: a literal, or a compound to resolve and bind."""
 
     literal: bool | int | float | str | None = None
@@ -319,28 +333,28 @@ class Value(BaseModel):
         return self
 
 
-class And(BaseModel):
+class And(_Node):
     """Every clause holds."""
 
     op: Literal["and"]
     clauses: list["Predicate"] = Field(min_length=1)
 
 
-class Or(BaseModel):
+class Or(_Node):
     """At least one clause holds."""
 
     op: Literal["or"]
     clauses: list["Predicate"] = Field(min_length=1)
 
 
-class Not(BaseModel):
+class Not(_Node):
     """The clause does not hold."""
 
     op: Literal["not"]
     clause: "Predicate"
 
 
-class Quantifier(BaseModel):
+class Quantifier(_Node):
     """Some, or every, element at a repeated level satisfies ``where``.
 
     Paths inside ``where`` are relative to the element bound here, which is what lets a
@@ -352,7 +366,7 @@ class Quantifier(BaseModel):
     where: "Predicate"
 
 
-class Comparison(BaseModel):
+class Comparison(_Node):
     """A leaf compared against a literal or a resolved compound."""
 
     op: Literal[
@@ -362,14 +376,14 @@ class Comparison(BaseModel):
     value: Value
 
 
-class NullCheck(BaseModel):
+class NullCheck(_Node):
     """Whether the source recorded the leaf at all."""
 
     op: Literal["is_null", "not_null"]
     path: str
 
 
-class Substructure(BaseModel):
+class Substructure(_Node):
     """The element's structure contains the query as a subgraph.
 
     ``path`` names a compound's ``smiles``. The query is a SMARTS pattern, or a
@@ -422,7 +436,7 @@ class Substructure(BaseModel):
         return self
 
 
-class Similarity(BaseModel):
+class Similarity(_Node):
     """The element's structure is Tanimoto-similar to the query molecule.
 
     Similarity is defined on the Morgan fingerprints in the structures artifact, so
@@ -478,7 +492,7 @@ def _check_molecule_query(node: "SameCompound | SameParent") -> None:
             raise ValueError(f"SMILES has no atoms: {node.smiles!r}")
 
 
-class SameCompound(BaseModel):
+class SameCompound(_Node):
     """The element's structure is the same compound, however either was drawn.
 
     An ``eq`` on a ``smiles`` compares spellings, and two drawings of one reagent are
@@ -503,7 +517,7 @@ class SameCompound(BaseModel):
         return self
 
 
-class SameParent(BaseModel):
+class SameParent(_Node):
     """The element's structure is the same compound once counterions are set aside.
 
     What ``same_compound`` ignores, this ignores too, and the salt a reagent was sold
@@ -577,7 +591,7 @@ _REDUCERS = {
 _ARITHMETIC = frozenset({"min", "max", "avg", "sum"})
 
 
-class Reduction(BaseModel):
+class Reduction(_Node):
     """One value per reaction, reduced from a path that crosses a repeated level.
 
     An ordering key and an aggregate's argument both have to be scalar, which leaves
@@ -595,7 +609,7 @@ class Reduction(BaseModel):
     path: str
 
 
-class Measure(BaseModel):
+class Measure(_Node):
     """One aggregate over the matching rows."""
 
     fn: Literal["count", "count_distinct", "sum", "avg", "min", "max"]
@@ -611,7 +625,7 @@ class Measure(BaseModel):
         return self
 
 
-class Aggregate(BaseModel):
+class Aggregate(_Node):
     """Group the matching rows and measure each group.
 
     ``group_by`` paths must be scalar, so the number of groups is bounded by the values
@@ -622,14 +636,14 @@ class Aggregate(BaseModel):
     measures: list[Measure] = Field(min_length=1)
 
 
-class Order(BaseModel):
+class Order(_Node):
     """How to sort the result."""
 
     key: str | Reduction
     descending: bool = False
 
 
-class Query(BaseModel):
+class Query(_Node):
     """A whole query: which reactions, optionally grouped and measured."""
 
     where: Predicate | None = None
