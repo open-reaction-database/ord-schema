@@ -396,8 +396,12 @@ def slash_orientation(
 
     Args:
         dataset_id: The source's ``ord_dataset-`` ID, or None where it records none.
-        values: Every date string the dataset records, for the fallback scan. Read only
-            where the table does not name the dataset, and lazily even then.
+        values: Every date string the dataset records. Read whether or not the table
+            names the dataset, since a recorded verdict is checked against any witness
+            among them -- but read lazily, so a dataset that produces one stops there.
+            A dataset the table settles by something other than a witness has none to
+            find, and that scan runs to the end: ~7 seconds over the source that is 96%
+            of ORD, against the 34.6 minutes the projection itself takes.
 
     Returns:
         True for day first, False for month first, and None where neither settles it --
