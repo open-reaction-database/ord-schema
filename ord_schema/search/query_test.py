@@ -1518,3 +1518,61 @@ def test_a_reduction_is_refused_where_the_rows_are_already_elements():
                 }
             }
         )
+
+
+def test_the_elements_being_grouped_cannot_be_quantified_over():
+    # Load-bearing, not incidental: a pivot prunes the repeated fields from its element
+    # type, so an aggregate's own filter can never bind a variable. That is what lets it
+    # and the reaction filter compile at the same depth without their aliases colliding.
+    with pytest.raises(query.QueryError, match="no field named"):
+        _over(
+            {
+                "aggregate": {
+                    "over": "outcomes.products",
+                    "where": {
+                        "op": "exists",
+                        "path": "measurements",
+                        "where": {
+                            "op": "eq",
+                            "path": "type",
+                            "value": {"literal": "YIELD"},
+                        },
+                    },
+                    "measures": [{"fn": "count", "name": "n"}],
+                }
+            }
+        )
+
+
+def test_both_filters_allocate_structure_parameters_apart():
+    # They append to one list, so a name taken by the element filter is not offered to
+    # the reaction filter -- two bitmaps bound under one name would silently be one.
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "over": "inputs.components",
+                    "where": {
+                        "op": "substructure",
+                        "path": "smiles",
+                        "smarts": "c1ccccc1",
+                    },
+                    "group_by": ["smiles"],
+                    "measures": [{"fn": "count", "name": "n"}],
+                },
+                "where": {
+                    "op": "exists",
+                    "path": "inputs.components",
+                    "where": {
+                        "op": "substructure",
+                        "path": "smiles",
+                        "smarts": "[Pd]",
+                    },
+                },
+            }
+        ),
+        pivot=_every_level,
+    )
+    names = [parameter.name for parameter in compiled.structures]
+    assert len(names) == 2
+    assert len(set(names)) == 2
