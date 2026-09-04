@@ -55,7 +55,7 @@ Predicate  = { op: "and" | "or", clauses: [Predicate] }
 
 Value      = { literal: <scalar> } | { compound: <name> }
 
-Aggregate  = { group_by: [Path],
+Aggregate  = { over?: Path, where?: Predicate, group_by: [Path],
                measures: [{ fn: "count"|"count_distinct"|"sum"|"avg"|"min"|"max",
                             path?: Path | Reduction, name: string }] }
 
@@ -85,6 +85,15 @@ is a compile error rather than a wrong answer:
 - Operators must suit the leaf type — `contains` is text-only, ordering is numeric-only.
 - `group_by` paths must be scalar, so the number of groups is bounded by the values a column
   holds rather than by an explosion over a repeated level.
+- `aggregate.over` names a repeated level and makes the rows its elements rather than
+  reactions, which is the only way to group by something a reaction has many of — "the most
+  common solvent" is not a column of a reaction. Paths inside are relative to the element,
+  `aggregate.where` selects the elements grouped and the query's own `where` selects the
+  reactions whose elements are counted, and `count_distinct` over `reaction_id` is what
+  answers about reactions rather than occurrences. One level, never nested, so the rows are
+  that level's own cardinality and the query stays one pass and a sort. It reads the pivot
+  artifact for the level and is refused without one: reaching the elements otherwise means
+  the `UNNEST` this grammar exists to make unwritable.
 - A `Reduction` is the one place a repeated path is read without a quantifier: it reduces
   that reaction's own elements to a single value, so `max` over `outcomes.products.measurements.percentage.value`
   is the reaction's best yield rather than the corpus's. Its path must cross a repeated level;

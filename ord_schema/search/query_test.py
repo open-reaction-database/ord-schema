@@ -1371,3 +1371,150 @@ def test_same_parent_needs_a_compound_smiles_column():
                 }
             }
         )
+
+
+# Aggregating over a repeated level
+
+
+def _over(body, pivot=_every_level):
+    return _pivot_sql(body, pivot=pivot)
+
+
+_SOLVENT_COUNTS = {
+    "aggregate": {
+        "over": "inputs.components",
+        "where": {"op": "eq", "path": "reaction_role", "value": {"literal": "SOLVENT"}},
+        "group_by": ["smiles"],
+        "measures": [{"fn": "count_distinct", "path": "reaction_id", "name": "n"}],
+    },
+    "order_by": [{"key": "n", "descending": True}],
+    "limit": 3,
+}
+
+
+def test_an_aggregate_over_a_level_reads_the_pivot_rather_than_the_reactions():
+    # The rows are elements, so the relation is the pivot and the group_by path is
+    # relative to the element -- the shape "the most common solvent" needs, which no
+    # grouping of reactions can express.
+    sql = _over(_SOLVENT_COUNTS)
+    assert "FROM pivot_inputs_components AS x0" in sql
+    assert "x0.element.smiles" in sql
+    assert "count(DISTINCT x0.reaction_id) AS n" in sql
+    assert "FROM reactions" not in sql
+
+
+def test_the_aggregate_s_where_filters_the_elements_not_the_reactions():
+    sql = _over(_SOLVENT_COUNTS)
+    assert "WHERE x0.element.reaction_role = 'SOLVENT'" in sql
+    assert "EXISTS" not in sql
+
+
+def test_the_query_s_where_still_selects_reactions():
+    # Two filters because there are two things to filter, and neither can say what the
+    # other says: the elements grouped, and whose elements are counted.
+    sql = _over(
+        _SOLVENT_COUNTS
+        | {
+            "where": {
+                "op": "gt",
+                "path": "conditions.temperature.setpoint_kelvin",
+                "value": {"literal": 350},
+            }
+        }
+    )
+    assert "x0.element.reaction_role = 'SOLVENT'" in sql
+    assert (
+        "EXISTS (SELECT 1 FROM reactions WHERE reactions.reaction_id = x0.reaction_id"
+        in sql
+    )
+    assert "setpoint_kelvin > 350" in sql
+
+
+def test_a_quantifier_in_the_reaction_filter_does_not_take_the_grouped_alias():
+    # Both relations are the same pivot, so a shared alias would leave the inner
+    # correlation binding to the rows being grouped.
+    sql = _over(
+        _SOLVENT_COUNTS
+        | {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {
+                    "op": "eq",
+                    "path": "reaction_role",
+                    "value": {"literal": "CATALYST"},
+                },
+            }
+        }
+    )
+    assert "AS x1 WHERE x1.reaction_id = reactions.reaction_id" in sql
+    assert "AS x0" in sql
+
+
+def test_grouping_elements_needs_a_pivot_for_the_level():
+    # No fallback: reaching the elements without one is UNNEST in a FROM clause, which
+    # is the spelling this grammar exists to make unwritable.
+    with pytest.raises(query.QueryError, match="does not hold"):
+        _over(_SOLVENT_COUNTS, pivot=lambda path: None)
+
+
+def test_over_must_name_a_repeated_level():
+    with pytest.raises(query.QueryError, match="no such level"):
+        _over(
+            {
+                "aggregate": {
+                    "over": "conditions.temperature.setpoint_kelvin",
+                    "measures": [{"fn": "count", "name": "n"}],
+                }
+            }
+        )
+
+
+def test_over_names_the_level_itself_not_a_field_below_it():
+    # reach() descends singular fields past a level, which a quantifier wants and this
+    # cannot use: the rows would be that struct rather than the level named.
+    with pytest.raises(query.QueryError, match="descends past"):
+        _over(
+            {
+                "aggregate": {
+                    "over": "outcomes.products.measurements.authentic_standard",
+                    "measures": [{"fn": "count", "name": "n"}],
+                }
+            }
+        )
+
+
+def test_an_element_filter_without_a_level_is_refused():
+    with pytest.raises(ValidationError, match="needs an over"):
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "where": {"op": "not_null", "path": "reaction_id"},
+                    "measures": [{"fn": "count", "name": "n"}],
+                }
+            }
+        )
+
+
+def test_a_reduction_is_refused_where_the_rows_are_already_elements():
+    # A reduction folds a reaction's own list to one value; a row that is already one
+    # element has no list to fold.
+    with pytest.raises(query.QueryError, match="already elements"):
+        _over(
+            {
+                "aggregate": {
+                    "over": "outcomes.products",
+                    "measures": [
+                        {
+                            "fn": "max",
+                            "path": {
+                                "reduce": "max",
+                                "path": "outcomes.products.measurements."
+                                "percentage.value",
+                            },
+                            "name": "n",
+                        }
+                    ],
+                }
+            }
+        )

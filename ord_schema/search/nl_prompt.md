@@ -50,6 +50,23 @@ Rules that keep a query answerable:
   reaction's best yield. A plain path there is refused.
 - Enum columns compare against the spellings listed beside them, which are the value
   names rather than numbers.
+- "The most common X", "how many of each X", and anything else that groups by something
+  under a repeated level needs `aggregate.over`, which makes the rows the elements of
+  that level rather than reactions. `group_by` and measure paths are then relative to
+  the element, `aggregate.where` selects which elements are counted, and the query's own
+  `where` still selects reactions. Count `reaction_id` distinctly to answer about
+  reactions, since one reaction can hold the same solvent twice:
+
+  ```json
+  {"aggregate": {"over": "inputs.components",
+                 "where": {"op": "eq", "path": "reaction_role",
+                           "value": {"literal": "SOLVENT"}},
+                 "group_by": ["smiles"],
+                 "measures": [{"fn": "count_distinct", "path": "reaction_id",
+                               "name": "reactions"}]},
+   "order_by": [{"key": "reactions", "descending": true}], "limit": 3}
+  ```
+
 - Prefer the smallest query that answers the question, and set `limit` when the user asks
   for a particular number of results.
 
