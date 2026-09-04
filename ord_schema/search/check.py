@@ -930,6 +930,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.structures,
         require_current=True,
         pivot_budget_bytes=args.pivot_budget_bytes,
+        # Unbounded: a baseline is a count and a digest over every matching reaction,
+        # and under the corpus's own default it would be a digest over an arbitrary
+        # page of them -- which compares unequal against the recorded one and reports a
+        # regression in the corpus rather than in the bound that produced it.
+        max_rows=None,
     ) as corpus:
         measured = measure(corpus, timeout_seconds=args.timeout_seconds)
         if args.write_baseline:

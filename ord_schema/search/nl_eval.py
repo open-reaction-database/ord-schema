@@ -400,6 +400,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         require_current=args.require_current,
         pivots_dir=args.pivots_dir,
         pivot_budget_bytes=args.pivot_budget_bytes,
+        # Unbounded: a case is scored by comparing the reactions a translation returns
+        # against the reference's. Bounded, both sides are arbitrary pages of their
+        # match sets -- SQL leaves an unordered LIMIT free to pick any rows -- so two
+        # queries that agree would be scored as disagreeing.
+        max_rows=None,
     ) as corpus:
         results = [
             run_case(
