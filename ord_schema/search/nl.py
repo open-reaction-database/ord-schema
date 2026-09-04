@@ -55,6 +55,7 @@ from anthropic.types import (
     ToolUseBlock,
 )
 
+from ord_schema.artifacts import pivot as pivot_levels
 from ord_schema.logging import get_logger
 from ord_schema.search import execute, nl_log, query, schema
 
@@ -327,7 +328,16 @@ def _validated(coerced: Any) -> query.Query:
             "the query asks nothing: it has no where, no aggregate, and no limit, so "
             "it would return every reaction in the corpus"
         )
-    query.compile_query(parsed)
+    # Every level offered as pivoted, because this asks whether the query is
+    # well-formed, not how it would be planned. Which levels a corpus actually holds is
+    # a property of that corpus, and refusing here on this process's answer would reject
+    # a query the corpus about to run it can serve.
+    query.compile_query(
+        parsed,
+        pivot=lambda path: (
+            pivot_levels.table_name(path) if path in pivot_levels.LEVELS else None
+        ),
+    )
     return parsed
 
 

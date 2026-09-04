@@ -630,10 +630,39 @@ class Aggregate(_Node):
 
     ``group_by`` paths must be scalar, so the number of groups is bounded by the values
     a column holds rather than by an explosion over a repeated level.
+
+    ``over`` changes what a row is. Without it the rows are reactions, and "how many
+    reactions are automated" is a count of them. With it the rows are the elements of
+    one repeated level, which is what "the most common solvent" asks for: solvents are
+    not a column of a reaction, and no grouping of reactions can name one. Paths inside
+    are then relative to the element, as they are inside a quantifier.
+
+    Two filters, because there are two things to filter. This ``where`` selects the
+    elements grouped -- the components that are solvents. The *query's* ``where``
+    selects reactions, and says which reactions' elements are counted at all. "The most
+    common solvents in reactions run above 350 K" needs both, and neither can say what
+    the other says.
+
+    One level, never nested, so the rows are that level's own cardinality rather than a
+    product: the query stays one pass and a sort, over the pivot instead of over the
+    projection. ``reaction_id`` is reachable as a measure path and is how a question
+    about reactions is answered from a relation of elements -- a reaction using THF
+    twice is one reaction and two rows.
     """
 
+    over: str | None = None
+    where: "Predicate | None" = None
     group_by: list[str] = Field(default_factory=list)
     measures: list[Measure] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _element_filter_needs_elements(self) -> "Aggregate":
+        if self.where is not None and self.over is None:
+            raise ValueError(
+                "aggregate.where selects the elements being grouped, so it needs an "
+                "over; a condition on reactions is the query's own where"
+            )
+        return self
 
 
 class Order(_Node):
@@ -1132,9 +1161,11 @@ def _predicate(
     return _leaf(node, resolved, compounds)
 
 
-def _scalar(path: str, schema: pa.Schema, what: str) -> _Resolved:
+def _scalar(
+    path: str, schema: pa.Schema, what: str, root: str | None = None
+) -> _Resolved:
     """Returns where a path that has to be scalar landed."""
-    resolved = resolve(path, schema=schema)
+    resolved = resolve(path, schema=schema, root=root)
     if resolved.repeated:
         raise QueryError(f"{path}: {what} needs a scalar column, not a repeated level")
     return resolved
@@ -1183,12 +1214,17 @@ def _reduced(reduction: Reduction, schema: pa.Schema) -> str:
     return _REDUCERS[reduction.reduce].format(expression=resolved.expression)
 
 
-def _measure_argument(measure: Measure, schema: pa.Schema) -> str:
+def _measure_argument(
+    measure: Measure, schema: pa.Schema, element: str | None = None
+) -> str:
     """Returns the expression a measure aggregates over.
 
     Args:
         measure: The measure being compiled.
         schema: Schema its path resolves against.
+        element: The bound element paths are relative to, for an aggregate over a
+            repeated level; None where the rows are reactions. A ``Reduction`` needs
+            none, since a level's elements hold no list to reduce.
 
     Returns:
         ``*`` for a bare count, a reduced expression where the path crosses a repeated
@@ -1201,13 +1237,75 @@ def _measure_argument(measure: Measure, schema: pa.Schema) -> str:
     if measure.path is None:
         return "*"
     if isinstance(measure.path, Reduction):
+        if element is not None:
+            raise QueryError(
+                f"{measure.path.path}: a reduction reads a reaction's own elements, "
+                "and this aggregate's rows are already elements"
+            )
         argument = _reduced(measure.path, schema)
+    elif element is not None and measure.path == pivot_levels.REACTION_ID:
+        # The one path a pivot row carries outside its element, and what makes a count
+        # of elements answerable as a count of reactions.
+        argument = f"{element}.{pivot_levels.REACTION_ID}"
     else:
-        resolved = _scalar(measure.path, schema, measure.fn)
+        resolved = _scalar(
+            measure.path,
+            schema,
+            measure.fn,
+            None if element is None else f"{element}.{pivot_levels.ELEMENT}",
+        )
         if measure.fn in _ARITHMETIC:
             _check_numeric(measure.path, resolved.type, measure.fn)
         argument = resolved.expression
     return f"DISTINCT {argument}" if measure.fn == "count_distinct" else argument
+
+
+def _element_relation(
+    query: Query, table: str, pivot: PivotIndex | None
+) -> tuple[str, str, pa.DataType] | None:
+    """Returns the relation an aggregate's rows come from, where they are not reactions.
+
+    Args:
+        query: The query being compiled.
+        table: The relation of reactions, named in the message where the level is not
+            one this grammar can group over.
+        pivot: Pivoted levels; the only relation of elements there is.
+
+    Returns:
+        ``(alias, relation, element type)`` for an ``aggregate.over``, or None where the
+        rows are reactions.
+
+    Raises:
+        QueryError: If the path names no repeated level, or no pivot covers it. There
+            is no fallback: reaching the elements without one means ``UNNEST`` in a
+            ``FROM`` clause, measured at 27-200x for the same answer and the one
+            spelling this grammar exists to make unwritable.
+    """
+    if query.aggregate is None or query.aggregate.over is None:
+        return None
+    over = query.aggregate.over
+    reached = pivot_levels.reach(over)
+    if reached is None:
+        raise QueryError(
+            f"{over}: aggregate.over names a repeated level to group the elements of, "
+            f"and this reaches no such level of {table}"
+        )
+    level, remainder, element_type = reached
+    if remainder:
+        # reach() descends singular fields past a level, which a quantifier wants and
+        # this cannot use: the rows would be that struct, and group_by paths relative to
+        # it would silently mean something narrower than the level named.
+        raise QueryError(
+            f"{over}: aggregate.over names the level itself, and this descends past "
+            f"{level.path} into {'.'.join(remainder)}"
+        )
+    relation = None if pivot is None else pivot(level.path)
+    if relation is None:
+        raise QueryError(
+            f"{over}: grouping elements reads the pivot artifact for {level.path}, "
+            "which this corpus does not hold"
+        )
+    return "x0", relation, element_type
 
 
 def compile_query(
@@ -1266,14 +1364,22 @@ def compile_query(
         )
     compounds: list[str] = []
     structures: list[StructureParameter] = []
+    element = _element_relation(query, table, pivot)
     if query.aggregate:
+        alias = None if element is None else element[0]
+        element_schema = schema if element is None else element[2]
         groups = [
-            _scalar(path, schema, "group_by").expression
+            _scalar(
+                path,
+                element_schema,
+                "group_by",
+                None if alias is None else f"{alias}.{pivot_levels.ELEMENT}",
+            ).expression
             for path in query.aggregate.group_by
         ]
         selected = list(groups)
         for measure in query.aggregate.measures:
-            argument = _measure_argument(measure, schema)
+            argument = _measure_argument(measure, element_schema, alias)
             selected.append(f"{_AGGREGATES[measure.fn]}({argument}) AS {measure.name}")
         names = {measure.name for measure in query.aggregate.measures}
         orderable = names | set(query.aggregate.group_by)
@@ -1284,17 +1390,47 @@ def compile_query(
     # either an expression resolved against the schema or a measure name already held to
     # an identifier shape, `table` is this module's constant, and every model-supplied
     # value reached the string as a bound parameter or a quoted literal.
-    sql = f"SELECT {', '.join(selected)} FROM {table}"  # noqa: S608
+    source = table if element is None else f"{element[1]} AS {element[0]}"
+    sql = f"SELECT {', '.join(selected)} FROM {source}"  # noqa: S608
+    conditions = []
+    if element is not None and query.aggregate is not None:
+        if query.aggregate.where is not None:
+            conditions.append(
+                _predicate(
+                    query.aggregate.where,
+                    f"{element[0]}.{pivot_levels.ELEMENT}",
+                    element[2],
+                    compounds,
+                    structures,
+                    1,
+                    _Routing(table, index, pivot),
+                )
+            )
     if query.where is not None:
-        sql += " WHERE " + _predicate(
+        condition = _predicate(
             query.where,
             None,
             schema,
             compounds,
             structures,
-            0,
+            # Past the alias this aggregate's own relation took, so a quantifier inside
+            # does not bind its variable to the elements being grouped.
+            0 if element is None else 1,
             _Routing(table, index, pivot),
         )
+        if element is not None:
+            # ``where`` selects reactions whatever the rows are, so over a relation of
+            # elements it is a semi-join back to them rather than a filter here: the
+            # predicate is written against reaction columns, which a pivot row does not
+            # carry.
+            condition = (
+                f"EXISTS (SELECT 1 FROM {table} WHERE "  # noqa: S608
+                f"{table}.{pivot_levels.REACTION_ID} = "
+                f"{element[0]}.{pivot_levels.REACTION_ID} AND {condition})"
+            )
+        conditions.append(condition)
+    if conditions:
+        sql += " WHERE " + " AND ".join(conditions)
     taken = {parameter.name for parameter in structures}
     collisions = sorted(taken & set(compounds))
     if collisions:
