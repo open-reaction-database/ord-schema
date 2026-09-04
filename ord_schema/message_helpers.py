@@ -1092,7 +1092,8 @@ def set_dative_bonds(
             # excedes its default valence
             elif nbr_atom in from_atoms and nbr_atom != "C":
                 if (
-                    nbr.GetExplicitValence() > p_table.GetDefaultValence(nbr_atom)
+                    nbr.GetValence(Chem.ValenceType.EXPLICIT)
+                    > p_table.GetDefaultValence(nbr_atom)
                     and edit_mol.GetBondBetweenAtoms(
                         nbr.GetIdx(), metal.GetIdx()
                     ).GetBondType()

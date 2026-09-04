@@ -15,6 +15,7 @@
 """Tests for ord_schema.artifacts.base."""
 
 import dataclasses
+import glob
 import pathlib
 from importlib import metadata
 
@@ -43,13 +44,15 @@ def _current_metadata(**overrides):
 def _valid_metadata(**overrides):
     metadata = {
         "ord.artifact": "structures",
-        "ord.artifact_version": base.ARTIFACT_VERSION,
         "ord.source_md5": "0" * 32,
         "ord.ord_schema_version": "9.9.9",
         "ord.rdkit_version": rdBase.rdkitVersion,
         "ord.source_dataset_id": "ord_dataset-1",
     }
     metadata.update(overrides)
+    # Derived from whichever artifact the caller asked for, so a test that overrides one
+    # does not silently get another's chain and pass for the wrong reason.
+    metadata.setdefault("ord.artifact_lineage", base.lineage(metadata["ord.artifact"]))
     return metadata
 
 
@@ -59,7 +62,7 @@ def _valid_metadata(**overrides):
 def test_stamps_carries_the_current_versions():
     value = base.current_stamps("structures", "ord_dataset-1", "abc")
     assert value.artifact == "structures"
-    assert value.artifact_version == base.ARTIFACT_VERSION
+    assert value.artifact_lineage == base.lineage("structures")
     assert value.ord_schema_version
 
 
@@ -90,7 +93,7 @@ def test_load_stamps_tolerates_a_missing_dataset_id(tmp_path):
     "missing",
     [
         "ord.artifact",
-        "ord.artifact_version",
+        "ord.artifact_lineage",
         "ord.source_md5",
         "ord.ord_schema_version",
     ],
@@ -139,7 +142,9 @@ def test_is_current_requires_every_stamp_to_match(tmp_path, monkeypatch):
     monkeypatch.setattr(base.metadata, "version", lambda _: "9.9.10")
     assert not base.is_current(path, "structures", "0" * 32)
     monkeypatch.setattr(base.metadata, "version", lambda _: "9.9.9")
-    monkeypatch.setattr(base, "ARTIFACT_VERSION", "99")
+    monkeypatch.setattr(
+        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"structures": "99"}
+    )
     assert not base.is_current(path, "structures", "0" * 32)
 
 
@@ -172,6 +177,21 @@ def test_output_path_for_an_exact_filename_writes_into_the_directory():
     assert base.output_path(
         "data/aa/one.parquet", "data/aa/one.parquet", "structures"
     ) == pathlib.Path("structures/one.parquet")
+
+
+def test_an_explicit_root_mirrors_from_where_the_caller_says():
+    # A caller building a pattern around a directory name has to escape it, and the
+    # escape is spelled with the wildcard it is escaping: glob_root stops at "data[[]1]"
+    # and mirrors the source layout a second time beneath output_dir. The caller knows
+    # the directory it meant, so it says so rather than spelling it as a pattern.
+    pattern = glob.escape("data[1]/aa") + "/*.parquet"
+    source = "data[1]/aa/ord_dataset-x.parquet"
+    assert base.output_path(source, pattern, "structures") == pathlib.Path(
+        "structures/data[1]/aa/ord_dataset-x.parquet"
+    )
+    assert base.output_path(
+        source, pattern, "structures", root="data[1]/aa"
+    ) == pathlib.Path("structures/ord_dataset-x.parquet")
 
 
 # Driver
@@ -224,6 +244,30 @@ def test_derive_tree_writes_one_artifact_per_source(tmp_path):
     assert {path.parent.name for path in written_paths} == {"aa", "bb"}
 
 
+def test_derive_tree_derives_a_source_reached_twice_only_once(tmp_path):
+    # A pattern with more than one ** reaches the same file by more than one route.
+    # Derived twice, the second pass reads what the first wrote and the counts returned
+    # say two sources where the tree holds one -- which a caller comparing them against
+    # the artifacts on disk reads as artifacts having gone missing.
+    (tmp_path / "aa").mkdir()
+    _fake_source(tmp_path / "aa" / "source.parquet")
+    seen = []
+
+    def _write_one(path, output, *, source_md5, source_dataset_id):
+        seen.append(str(path))
+        pathlib.Path(output).write_bytes(b"")
+        return 1
+
+    written, skipped, _ = base.derive_tree(
+        str(tmp_path / "**" / "**" / "*.parquet"),
+        str(tmp_path / "out"),
+        artifact="structures",
+        write=_write_one,
+    )
+    assert len(seen) == 1
+    assert (written, skipped) == (1, 0)
+
+
 def test_derive_tree_hands_the_writer_the_source_and_its_provenance(tmp_path):
     (tmp_path / "aa").mkdir()
     source = tmp_path / "aa" / "source.parquet"
@@ -249,7 +293,7 @@ def test_derive_tree_refuses_to_write_over_its_own_sources(tmp_path):
     (tmp_path / "aa").mkdir()
     _fake_source(tmp_path / "aa" / "source.parquet")
     calls = []
-    with pytest.raises(ValueError, match="would write over its inputs"):
+    with pytest.raises(ValueError, match="would write over its own inputs"):
         base.derive_tree(
             str(tmp_path / "*" / "*.parquet"),
             str(tmp_path),
@@ -267,7 +311,7 @@ def test_derive_tree_refuses_to_write_over_a_different_source(tmp_path):
     victim = tmp_path / "aa" / "source.parquet"
     _fake_source(victim)
     original = victim.read_bytes()
-    with pytest.raises(ValueError, match="would write over its inputs"):
+    with pytest.raises(ValueError, match="would write over its own inputs"):
         base.derive_tree(
             str(tmp_path / "**" / "*.parquet"),
             str(tmp_path / "aa"),
@@ -402,7 +446,9 @@ def test_derive_tree_refuses_a_stale_parent(tmp_path, monkeypatch):
     (tmp_path / "aa").mkdir()
     parent = tmp_path / "aa" / "projected.parquet"
     _write(parent, _current_metadata(**{"ord.artifact": "projection"}))
-    monkeypatch.setattr(base, "ARTIFACT_VERSION", "next")
+    monkeypatch.setattr(
+        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"projection": "next"}
+    )
     with pytest.raises(ValueError, match="stale projection"):
         base.derive_tree(
             str(tmp_path / "*" / "*.parquet"),
@@ -427,7 +473,7 @@ def test_derive_tree_refuses_to_write_over_a_file_it_did_not_derive(tmp_path):
     source = tmp_path / "data" / "ds.parquet"
     _fake_source(source)
     before = source.read_bytes()
-    with pytest.raises(ValueError, match="would write over its inputs"):
+    with pytest.raises(ValueError, match="files this library did not write"):
         base.derive_tree(
             str(tmp_path / "projections" / "*.parquet"),
             str(tmp_path / "data"),
@@ -459,6 +505,32 @@ def test_derive_tree_still_rewrites_its_own_artifacts(tmp_path):
     assert (written, skipped, ignored) == (1, 0, 0)
 
 
+def test_derive_tree_rewrites_an_artifact_stamped_by_an_older_library(tmp_path):
+    # The one case the guard must not refuse and cannot see from the stamp set: a tree
+    # written before a required key existed. Adding or renaming one leaves every file on
+    # disk unreadable as stamps, and a guard that asks for the whole set then reads a
+    # corpus this driver wrote as a stranger's -- refusing the re-derive that is the
+    # only way to bring it up to date, with no --force to override it.
+    (tmp_path / "projections").mkdir()
+    _write(
+        tmp_path / "projections" / "ds.parquet",
+        _current_metadata(**{"ord.artifact": "projection"}),
+    )
+    (tmp_path / "structures").mkdir()
+    superseded = _valid_metadata()
+    del superseded["ord.artifact_lineage"]
+    superseded["ord.artifact_version"] = "1"
+    _write(tmp_path / "structures" / "ds.parquet", superseded)
+    written, skipped, ignored = base.derive_tree(
+        str(tmp_path / "projections" / "*.parquet"),
+        str(tmp_path / "structures"),
+        artifact="structures",
+        write=lambda *args, **kwargs: 1,
+        parent_artifact="projection",
+    )
+    assert (written, skipped, ignored) == (1, 0, 0)
+
+
 def test_stamps_record_the_rdkit_version():
     value = base.current_stamps("structures", "ord_dataset-1", "abc")
     assert value.rdkit_version == rdBase.rdkitVersion
@@ -484,3 +556,80 @@ def test_an_artifact_with_no_rdkit_stamp_reads_stale():
         rdkit_version=None,
     )
     assert not base.stamps_are_current(value, "structures")
+
+
+# Per-artifact versions
+
+
+def test_a_lineage_names_the_artifact_and_every_ancestor():
+    assert base.lineage("projection") == "projection=1"
+    assert base.lineage("structures") == "structures=1,projection=1"
+    assert base.lineage("occurrences") == "occurrences=1,pivot=1,projection=1"
+
+
+def test_every_artifact_reaches_a_source_dataset():
+    # The two tables have to agree about which artifacts exist, and every chain has to
+    # terminate: lineage runs for every artifact written and every currency check made.
+    assert set(base.DERIVED_FROM) == set(base.ARTIFACT_VERSIONS)
+    assert {
+        parent for parent in base.DERIVED_FROM.values() if parent is not None
+    } <= set(base.ARTIFACT_VERSIONS)
+    roots = {name for name, parent in base.DERIVED_FROM.items() if parent is None}
+    for artifact in base.ARTIFACT_VERSIONS:
+        # Named by the root rather than by its version, which would make this fail on
+        # the next bump of an artifact it is not about.
+        last = base.lineage(artifact).split(",")[-1].split("=")[0]
+        assert last in roots, artifact
+
+
+@pytest.mark.timeout(15)
+def test_a_cycle_is_refused_rather_than_walked_forever(monkeypatch):
+    # An infinite loop where an error belongs: a typo in a four-line literal would
+    # otherwise hang every write and every currency check rather than saying so.
+    #
+    # Bounded by the marker, because the failure this guards against is a hang: without
+    # it a regression stops CI rather than failing it, and the run has to be killed by
+    # hand to find out which test never came back.
+    monkeypatch.setattr(
+        base, "DERIVED_FROM", base.DERIVED_FROM | {"projection": "occurrences"}
+    )
+    with pytest.raises(ValueError, match="has a cycle"):
+        base.lineage("occurrences")
+
+
+def test_bumping_an_artifact_leaves_what_it_was_derived_from_alone(monkeypatch):
+    # The whole point of splitting the version. Occurrences are 1.9 seconds to derive
+    # and the projection under them 34.6 minutes, so a change to the cheap one must not
+    # charge the expensive one.
+    before = base.lineage("projection")
+    monkeypatch.setattr(
+        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"occurrences": "2"}
+    )
+    assert base.lineage("projection") == before
+    assert base.lineage("pivot") == "pivot=1,projection=1"
+    assert base.lineage("occurrences") == "occurrences=2,pivot=1,projection=1"
+
+
+def test_bumping_an_artifact_reaches_everything_derived_from_it(monkeypatch):
+    # And the other half: a projection redefined has to invalidate the occurrences three
+    # derivations down, which a stamp naming only the artifact's own version cannot say
+    # and one naming only its parent's cannot either.
+    monkeypatch.setattr(
+        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"projection": "2"}
+    )
+    assert base.lineage("occurrences") == "occurrences=1,pivot=1,projection=2"
+    assert base.lineage("structures") == "structures=1,projection=2"
+
+
+def test_a_grandparent_bump_makes_a_grandchild_stale(tmp_path, monkeypatch):
+    # The case a direct-parent stamp misses: occurrences record the pivot they came
+    # from, and a projection bump moves neither the occurrences' own version nor the
+    # pivot's, so nothing but the lineage can see it.
+    path = tmp_path / "artifact.parquet"
+    _write(path, _valid_metadata(**{"ord.artifact": "occurrences"}))
+    monkeypatch.setattr(base.metadata, "version", lambda _: "9.9.9")
+    assert base.is_current(path, "occurrences", "0" * 32)
+    monkeypatch.setattr(
+        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"projection": "2"}
+    )
+    assert not base.is_current(path, "occurrences", "0" * 32)

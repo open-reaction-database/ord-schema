@@ -7,16 +7,18 @@ consumer can read cheaply. It adds no information, which is the whole discipline
 artifact is *wrong* if it disagrees with its source, and *stale* if its source has moved
 on. Both have to be detectable without reading a single column of data.
 
-Three artifacts, derived in a chain:
+Four artifacts, derived in a chain:
 
 ```mermaid
 flowchart LR
     D["source dataset<br/>ord-data, wire-format bytes"] --> P["<b>projection</b><br/>every field, as nested Parquet"]
     P --> S["<b>structures</b><br/>one row per distinct molecule<br/>fingerprints + serialized mol"]
     P --> V["<b>pivot</b><br/>one row per element of<br/>one repeated level"]
+    V --> O["<b>occurrences</b><br/>one row per structure occurrence<br/>at one indexed path"]
     S -.->|"paired by source dataset"| C["ord_schema.search.Corpus"]
     P -.-> C
     V -.-> C
+    O -.-> C
 ```
 
 | artifact | one file per | holds | read by |
@@ -24,6 +26,7 @@ flowchart LR
 | [`projection`](projection.py) | source dataset | every field of every message reachable from `Reaction`, as `STRUCT` / `LIST` / `MAP` | any query engine; the compiler in [`ord_schema.search`](../search/) |
 | [`structures`](structures.py) | projection | one row per distinct structure: `pattern_fp`, `morgan_fp`, `morgan_popcount`, `mol_binary`, keyed by `structure_id` | the screen and verify steps of substructure search |
 | [`pivot`](pivot.py) | projection × repeated level | one row per element, carrying `reaction_id`, the ordinal of every enclosing level, and the element's own non-repeated fields | quantifiers, as a semi-join |
+| [`occurrences`](occurrences.py) | pivot × indexed path | one row per structure occurrence: `reaction_id`, `structure_id`, `reaction_role` | the semi-join a structure query is routed to, as a view rather than a table the corpus builds |
 
 The projection leaves **no field out** — a field left out is a question nobody can ask.
 Its schema is generated from the proto descriptors, so a field added upstream appears
@@ -44,7 +47,7 @@ current:
 | key | why it can invalidate |
 | --- | --- |
 | `ord.artifact` | tells one artifact from another without inspecting the schema |
-| `ord.artifact_version` | one version across **all** artifacts, so two artifacts of one dataset cannot disagree while both look current |
+| `ord.artifact_lineage` | this artifact's version and every ancestor's, so a redefinition anywhere up the chain makes the file stale |
 | `ord.source_md5` | the content of the source dataset this restates |
 | `ord.ord_schema_version` | what derived it |
 | `ord.rdkit_version` | RDKit releases have changed both canonicalization and pattern fingerprints, either of which silently breaks a file whose consumers run the newer one |
@@ -52,14 +55,34 @@ current:
 A sixth, `ord.source_dataset_id`, is written only when the source records one, and is the
 only key not required to read stamps back.
 
+`ord.artifact` carries a second job the other keys do not: nothing outside this library
+writes it, so its presence alone says a file is ours to replace. That is what
+`derive_tree` asks before writing over anything, rather than asking for the whole stamp
+set — a file written before a key was added or renamed reads as no artifact at all, and a
+guard wanting all five would refuse the very re-derive that brings such a tree up to date.
+
 An artifact derived from another artifact **passes `source_md5` through** rather than
 hashing its parent, so every artifact names the dataset it reflects however many
 derivations away it sits, and one comparison answers "is this current for that dataset?"
 A chain is invisible to a consumer checking currency.
 
-The version is shared rather than per-artifact because a derivation change usually
-touches shared helpers, and a reader comparing two artifacts to each other needs to know
-they were built by the same definition.
+**Versions are per artifact, and the stamp carries the whole chain.** The derivations
+cost wildly different amounts — measured over the source that is 96% of ORD, a projection
+is 34.6 minutes and its structures 29.6, while the occurrences at every indexed path are
+1.9 seconds — so one shared version would charge the 81-minute rebuild for a change to
+the 1.9-second artifact.
+
+Splitting it alone would break the thing the shared version was doing, which is real: a
+change to how projections are derived has to invalidate everything built *from* a
+projection, and an artifact stamps its **source dataset's** hash rather than its parent's,
+so a child cannot otherwise see that its parent's definition moved. So the stamp is the
+chain — `occurrences=1,pivot=1,projection=1` — and the currency check compares it to what
+the library would write today. A projection bump reaches the occurrences three derivations
+down; an occurrences bump reaches nothing above it.
+
+The direct parent alone is not enough, which is the part worth stating: occurrences record
+the pivot they came from, and a projection bump moves neither the occurrences' own version
+nor the pivot's. Only the full chain says so.
 
 ## Deriving a tree
 
@@ -78,7 +101,7 @@ each match:
   source tree maps one dataset onto a *different* one, which a per-source check passes
   while destroying a source the run has not reached yet.
 
-Three scripts wrap it, in dependency order:
+Four scripts wrap it, in dependency order:
 
 ```bash
 python -m ord_schema.artifacts.scripts.derive_projection \
@@ -89,12 +112,18 @@ python -m ord_schema.artifacts.scripts.derive_structures \
 
 python -m ord_schema.artifacts.scripts.derive_pivots \
     --input_pattern='projections/*/*.parquet' --output_dir=pivots \
-    --levels outcomes.products outcomes.products.measurements
+    --levels $(python -m ord_schema.artifacts.scripts.derive_occurrences --print_levels)
+
+python -m ord_schema.artifacts.scripts.derive_occurrences \
+    --pivots_dir=pivots --output_dir=occurrences
 ```
 
 Each takes `--force` to rewrite what is already current. `derive_pivots` defaults to all
 39 repeated levels, which is far more than a deployment answers questions over; naming
-the levels it does is the cheaper run.
+the levels it does is the cheaper run — and `derive_occurrences --print_levels` names the
+four it reads, which is why the command above asks it rather than spelling them.
+`derive_occurrences` covers every path a structure can sit at, which is not a choice: a
+path left out is one whose structures no query can find.
 
 ## What pairs with what
 
@@ -102,8 +131,13 @@ the levels it does is the cheaper run.
 one dataset**. The projection and its structures artifact are two statements of one
 derivation and are meaningful only together:
 
-- IDs are not stable across builds, so nothing outside the artifacts should record them.
-  The column is marked internal and stays out of what a model is told it may query.
+- IDs are stable for a fixed source and a fixed library — assignment is first-seen order
+  over the reactions, so the same bytes under the same ord-schema and RDKit give the same
+  numbers, which is what lets an artifact pair with a projection by source hash rather
+  than by which build produced it. They are *not* stable across a library upgrade that
+  changes canonicalization, which is what the version stamps are for. Nothing outside the
+  artifacts should record them either way; the column is marked internal and stays out of
+  what a model is told it may query.
 - A projection rewritten in place needs its structures artifact rederived with it. The
   stamps name the *source dataset* rather than the projection file, so the skip check
   cannot see that the pairing changed — which is why
@@ -115,6 +149,22 @@ derivation and are meaningful only together:
 A pivot names its reactions by ID, so one derived from another corpus resolves against
 rows this one does not hold — confidently and wrongly. `Corpus` refuses pivot artifacts
 whose source datasets are not its projections'.
+
+**No artifact carries a corpus-wide ID.** A `structure_id` is local to its dataset; the
+corpus-wide one a bitmap is indexed by is that plus an offset, and the offset is a running
+total over the datasets the corpus opened. It therefore belongs to no artifact: the same
+rows read beside a different set of datasets need a different offset, and one baked into a
+file would stay *in range* while naming another dataset's molecule — passing on the whole
+corpus and failing only on a subset of it, which is the shape of bug that reaches
+production. The corpus assigns offsets at open and joins them on, keyed by the source
+dataset every artifact names. That rule is what lets the occurrence index be an artifact
+at all rather than a relation rebuilt at every startup: given an `occurrences_dir`
+covering every indexed path, [`Corpus`](../search/execute.py) publishes it as a view over
+those files and builds nothing. Measured over the full corpus that is 0.13 s and 0.32 GiB
+resident against 2.9 s and 1.92 GiB for the table, and DuckDB holds 28 MiB where it held
+1.66 GiB. A path with no artifact is read from a pivot or unnested from the projection as
+before, and one uncovered path materializes the whole index — a view whose branches unnest
+the projection would repeat that traversal on every query rather than pay it once.
 
 ## Querying a projection
 

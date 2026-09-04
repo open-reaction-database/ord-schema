@@ -25,8 +25,8 @@ from ord_schema.artifacts import pivot, projection
 from ord_schema.search import query, sql
 
 
-def _compile(payload):
-    return query.compile_query(query.Query.model_validate(payload))
+def _compile(payload, **kwargs):
+    return query.compile_query(query.Query.model_validate(payload), **kwargs)
 
 
 def _run(compiled, parameters=None):
@@ -393,6 +393,41 @@ def test_rejected_before_compilation(payload):
         query.Query.model_validate(payload)
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        # A misspelled top-level key: dropped, this is Query() and matches everything.
+        {"structure": {"path": "inputs.components.smiles", "smarts": "c1ccccc1"}},
+        {"wehre": {"op": "is_null", "path": "reaction_id"}},
+        # Misspelled inside a predicate, where the surviving model is still valid: the
+        # quantifier keeps its body but loses the pattern, and the substructure node
+        # then has neither smarts nor compound.
+        {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {"op": "substructure", "path": "smiles", "smart": "c1ccccc1"},
+            }
+        },
+        {"where": {"op": "eq", "path": "reaction_id", "value": {"literl": "a"}}},
+        {"limit": 10, "ordr_by": []},
+    ],
+)
+def test_an_unknown_key_is_refused_rather_than_dropped(payload):
+    # Dropping one does not fail here, it widens: every narrowing field is optional or
+    # sits under a discriminated union, so the survivor is a valid query missing the
+    # clause the caller wrote -- and a Query with no ``where`` is every reaction in the
+    # corpus, returned without a warning.
+    with pytest.raises(ValidationError, match=r"[Ee]xtra"):
+        query.Query.model_validate(payload)
+
+
+def test_a_query_with_no_where_matches_everything():
+    # What the payloads above validate to once their unknown key is dropped, and why
+    # refusing them is more than typo-catching: no predicate compiles to no WHERE.
+    assert "WHERE" not in query.compile_query(query.Query()).sql
+
+
 # Reductions over a repeated level
 
 
@@ -415,6 +450,49 @@ def test_ordering_by_a_reduction_over_a_repeated_path():
     )
     assert "list_max(" in compiled.sql
     assert compiled.sql.endswith("DESC LIMIT 10")
+
+
+def test_max_rows_bounds_a_query_that_asked_for_no_limit():
+    # The grammar leaves limit optional, so the unbounded query is the ordinary one: a
+    # predicate matching much of the corpus returns millions of rows to whoever ran it.
+    compiled = _compile({}, max_rows=100)
+    assert compiled.sql.endswith(" LIMIT 100")
+    assert compiled.limit == 100
+
+
+def test_max_rows_clamps_a_query_asking_for_more():
+    # A bound an explicit limit can exceed bounds nothing.
+    compiled = _compile({"limit": 5000}, max_rows=100)
+    assert compiled.sql.endswith(" LIMIT 100")
+    assert compiled.limit == 100
+
+
+def test_max_rows_leaves_a_smaller_limit_alone():
+    compiled = _compile({"limit": 10}, max_rows=100)
+    assert compiled.sql.endswith(" LIMIT 10")
+    assert compiled.limit == 10
+
+
+def test_a_limit_of_zero_is_not_read_as_no_limit():
+    # The trap in `query.limit or max_rows`: a falsy limit reads as absent, so a query
+    # asking for no rows would be served max_rows of them. Held off by the model's
+    # gt=0 today, which is not where the compiler should rest.
+    compiled = query.compile_query(query.Query.model_construct(limit=0), max_rows=100)
+    assert compiled.limit == 0
+
+
+def test_a_max_rows_no_query_can_satisfy_is_refused():
+    # Zero compiles to a LIMIT nothing satisfies and a negative one to SQL DuckDB
+    # refuses at execution, both far from whoever passed it.
+    for value in (0, -5):
+        with pytest.raises(ValueError, match="which no query can return"):
+            _compile({}, max_rows=value)
+
+
+def test_without_max_rows_a_query_is_as_stated():
+    assert _compile({}).limit is None
+    assert " LIMIT " not in _compile({}).sql
+    assert _compile({"limit": 5000}).limit == 5000
 
 
 def test_a_reduction_reaches_the_same_rows_the_elements_do():

@@ -342,7 +342,7 @@ def test_a_stale_projection_is_refused(tmp_path):
         source_dataset_id="ord_dataset-1",
         source_md5="0" * 32,
         ord_schema_version="0.0.0",
-        artifact_version=base.ARTIFACT_VERSION,
+        artifact_lineage=base.lineage(structures.ARTIFACT),
         rdkit_version="0000.00.0",
     )
     schema = projection.SCHEMA.with_metadata(base.to_metadata(stamps))

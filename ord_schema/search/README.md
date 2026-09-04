@@ -68,6 +68,11 @@ A `Path` is a dotted column path such as `conditions.temperature.setpoint_kelvin
 `exists` or `forall` it is **relative to the bound element**, which is what lets one component
 be required to satisfy several conditions at once.
 
+A key the grammar does not name is refused rather than dropped. Every field that narrows a
+query is optional, so an ignored key would leave a query missing the clause it was meant to
+carry — and a `Query` with no `where` is every reaction in the corpus, returned as an answer
+rather than as a failure.
+
 Every rule below is enforced against `projection.SCHEMA` before any SQL exists, so a bad query
 is a compile error rather than a wrong answer:
 
@@ -175,8 +180,8 @@ Substructure runs through an RDKit `SubstructLibrary` built over the corpus: a
 fingerprint **screen** — complete but not exact — over every distinct molecule in the
 corpus, then exact subgraph **verification** of the survivors. It runs on RDKit's own
 threads with the GIL released, so one `Corpus` serves concurrent requests without
-forking; the library is built on the first substructure query and costs seconds and
-about 1.5 GB for the full corpus.
+forking; the library is built at open, which `Corpus(warm=False)` defers to the first
+substructure query, and costs seconds and about 1.5 GB for the full corpus.
 Each search takes its own DuckDB cursor, since a connection holds the pending result of
 its last `execute` and concurrent searches sharing one would read each other's rows.
 `threads` is per search rather than per corpus, so a server expecting several at once
@@ -203,9 +208,28 @@ authentic standards — is a level with no elements: nothing satisfies an `exist
 and nothing contradicts a `forall`, so "reactions **without** pyridine in the workup"
 includes every reaction that has no workup at all.
 
-The index is built by the first query that spends it, one pass over the projections per
-indexed path, so a server wanting its first real query to be fast should issue a
-throwaway structure query at startup.
+Three ways to reach those rows, cheapest first, decided per path.
+
+`Corpus(..., occurrences_dir=...)` reads an **occurrences artifact**, which is the rows
+themselves: the read adds only the corpus-wide offset. Where the directory covers every
+indexed path the index is published as a **view over Parquet** and nothing is built —
+0.13s and 0.32 GiB resident over ORD, against 2.9s and 1.92 GiB for the table, with
+DuckDB holding 28 MiB where it held 1.66 GiB — at about the same per-query cost, and less
+on the narrow paths, where reading one path's files beats filtering `path = ?` across
+every occurrence in the corpus. `require_occurrences=True` refuses a directory that does
+not cover every path, which is worth setting wherever the container was sized for the
+view.
+
+Failing that, a **pivot artifact** over the path's level holds one row per element, which
+is what the build would otherwise unnest the projection to produce — over ORD **3.3s
+against 59.4s** for the same 18,847,978 occurrences. Failing both, the projection is
+unnested.
+
+One uncovered path materializes the whole index rather than leaving a view whose branches
+unnest the projection, which would repeat that traversal on every query rather than pay it
+once. Either way the index is built at open, which `Corpus(warm=False)` defers to the
+first query that spends it — and with a covering `occurrences_dir` there is little left
+for `warm` to do but check that the index reaches every structure the corpus holds.
 
 ## Pivoted levels
 
@@ -288,6 +312,10 @@ answers against rows this corpus does not hold, confidently and wrongly. A level
 artifacts is still built in process, so a partial set is a partial speedup rather than a
 missing answer.
 
+The occurrence index reads them too, one indexed path at a time, where no occurrences
+artifact covers that path: a pivot holds one row per element of the nearest repeated
+level, which is what the build would otherwise unnest the projection to produce.
+
 `Corpus(..., pivots_dir=..., derive_pivots=True)` writes the missing ones instead of
 building them: the same pass, spent where it outlives the process and costs no budget,
 and holding a projection at a time rather than the whole level — so a level too large for
@@ -295,7 +323,8 @@ the budget is still derivable this way. Artifacts already current are skipped, s
 interrupted run is finished by the next rather than started again. It is off by default,
 and `check_pivots()` never triggers it: that call reaches all 39 levels, and deriving
 there would unnest the projection 39 times at startup for a deployment that asks about
-two.
+two. It needs `warm=False`, since deriving a level has to precede the read that would
+refuse it half-derived and warming reads the levels the occurrence index covers.
 
 ## What a projection query costs
 
@@ -340,8 +369,14 @@ derived artifacts spends none of it: those are views over Parquet, not tables.
 ## Sizing a deployment
 
 Budget **about 8 GiB of resident memory** for a corpus serving substructure search over
-ORD: 1.1 GiB to open, 2.2 GiB for the `SubstructLibrary`, 1.19 GiB for the occurrence
-index, and DuckDB's own caches on top, which fill whatever `memory_limit` allows. `Corpus`
+ORD: 1.1 GiB for the relations, 2.2 GiB for the `SubstructLibrary`, 1.19 GiB for the
+occurrence index, and DuckDB's own caches on top, which fill whatever `memory_limit`
+allows. An `occurrences_dir` covering every indexed path takes about a gigabyte off that:
+the index becomes a view holding 0.32 GiB rather than a table holding 1.92 GiB, and the
+build floor below goes with it. An open corpus holds all three, since the two builds
+happen at open unless it
+was given `warm=False` — which is what makes the resident figure something to size a
+container against rather than a floor a later query raises it to. `Corpus`
 takes that limit as an argument; left unset, DuckDB claims about 80% of the machine — or
 of the container's cap, which it does read. The step-by-step breakdown is in
 [the logbook entry][cache-entry], finding 16.
@@ -353,7 +388,9 @@ the projection, in seconds rather than the tens of milliseconds a pivot takes. T
 no managed service to move this to — Athena and its kin can scan the Parquet, but the
 chemistry is not SQL.
 
-**The index build has a floor, and it is not a soft one.** Over ORD it wants **5–6.5 GB**
+**A built index has a floor, and it is not a soft one** — a corpus given a covering
+`occurrences_dir` builds nothing and meets none of what follows. Over ORD the build
+wants **5–6.5 GB**
 of DuckDB memory, and below that it raises `OutOfMemoryException` rather than running
 slowly — a block it cannot pin is not one it can spill, so a `temp_directory` does not
 rescue it. Near the floor it also wants 16–25 GiB of scratch disk, which a container may
@@ -361,6 +398,46 @@ not have: a Fargate task carries 20 GB of ephemeral storage by default, and `Cor
 no `temp_directory`. Three remedies were measured and none moves the floor; a fourth,
 building per projection file, lowers it to ~2 GB and costs every unconstrained deployment
 68% more time — measured and rejected ([logbook][cache-entry], findings 16–17).
+
+**Nothing supports swapping a corpus in place.** A
+structure's corpus-wide ID is its dataset-local one plus an offset that is a running total
+over the corpus's datasets in `source_md5` order, so adding, removing, or rewriting any
+dataset invalidates IDs elsewhere in the corpus. Adding or removing shifts every dataset
+after the one that moved. Rewriting does two things at once: the dataset's own IDs now name
+different molecules, and its `source_md5` re-sorts it to a different position in the
+ordering, which shifts the offsets of everything between where it was and where it
+lands — whether or not its row count changed. Everything keyed by those IDs — the
+occurrence index, the `SubstructLibrary` entry mapping, every cached match-set bitmap —
+is written against one numbering and stays *in range* under another, which is what makes
+it silent. Renumbering always moves `Corpus.fingerprint`, which is what makes it a sound
+guard for anything held outside the corpus.
+
+That soundness rests on one invariant. An offset is a running total of each dataset's
+*structures-artifact row count*, in `source_md5` order, so
+renumbering needs either a changed set of source hashes — which moves the fingerprint,
+since it digests every artifact's stamps — or a changed row count under a source and
+library that did not change.
+
+Determinism is what rules the second out, and it has four inputs rather than three.
+`structure_id` is assigned in the order the projection walk reaches a SMILES, making it a
+function of the source bytes, the ord-schema version, and the RDKit that canonicalized the
+SMILES — all stamped — and of the order that walk takes through a map field, which is the
+walk's own: it sorts a map's keys, because protobuf specifies its iteration order as
+undefined and the protobuf build is stamped nowhere. Two tests hold this up.
+`test_rebuilding_a_projection_assigns_the_same_structure_ids` pins that a rebuild assigns
+the same IDs; `test_map_fields_are_walked_in_key_order` pins that the order is not
+protobuf's to change. If either fails, this guard fails with it.
+
+It is conservative in the other direction: a rebuild under a new RDKit moves the
+fingerprint even where every offset comes out the same. Invalidating on it discards more
+than it strictly must, and never less.
+
+So a deployment that must pick up new data opens a **second** `Corpus`, waits for it to
+warm, and swaps the reference. Peak memory during the swap is therefore twice the steady
+state — about 16 GiB over ORD, or 14 with a covering `occurrences_dir` — which is the
+figure a container has to be sized against if it is ever to take an update without a
+restart. There is no in-place refresh, and adding one would mean making every ID-keyed
+structure versioned rather than replaced.
 
 **Under a container cap, state the limit rather than letting DuckDB pick it.** Its default
 is sized from the cgroup and not from the host, which is the right input, but the limit
@@ -370,13 +447,16 @@ on DuckDB's own 6.3 GiB default was killed 85s in; a 12 GiB container holding Du
 `6500MiB` finished, peaking at 9.3 GB resident. `Corpus` warns at open when a cap it can
 read leaves less than 4 GB above the limit ([logbook][cache-entry], finding 19).
 
-Which is survivable but should not be discovered by a user. The index is built by the
-first query that can spend it, so a container short of the floor starts cleanly, passes
-`check_pivots()`, answers scalar queries, and then raises at whoever runs the first
-substructure search. `Corpus.check_index()` moves that to startup, where it is a failed
-deployment rather than a failed request. It is opt-in for the same reason the build is
-lazy — a minute and 1.19 GB that a corpus asked only for scalar or similarity queries
-never needs to spend.
+Which is survivable but should not be discovered by a user. A corpus opened with
+`warm=False` builds the index on the first query that can spend it, so a container short
+of the floor starts cleanly, passes `check_pivots()`, answers scalar queries, and then
+raises at whoever runs the first substructure search. Warming puts both builds at open,
+where falling short is a failed deployment rather than a failed request;
+`Corpus.check_index()` does the same for the index alone over a cold corpus, which is
+what a deployment answering scalar and similarity queries wants — those spend the index
+but never the library. What a cold corpus buys is the memory floor above, the 1.19 GB
+the index holds, and the 2.2 GB the library holds, none of which a scalar-only corpus
+needs to spend.
 
 Across a mixed workload pairing an indexed structure clause with one the index cannot
 carry, the index is **2–24× ahead** of the same corpus answering every quantifier from
@@ -731,12 +811,34 @@ It is a check on the compiler's own output; the guard is the grammar. It **does 
 cost**, and says so: a caller running arbitrary SQL against a real corpus needs its own
 statement timeout, row cap, or memory limit.
 
+The grammar leaves `limit` optional, so the unbounded query is the ordinary one — a
+predicate matching much of the corpus returns millions of rows, built into an Arrow table
+in the executing process. `Corpus(..., max_rows=...)` bounds every search, filling in a
+limit where the query states none and clamping one that asks for more. An answer that
+comes back *at* the bound is logged as possibly cut, since nothing in the table says so;
+one the bound never reached is not, because a warning on every generous limit is how a
+reader learns to skip the line that matters. On an **aggregated** query the bound cuts
+groups rather than reactions — part of a distribution read as the whole of it, and an
+arbitrary part where the query ordered by nothing — so that one says more.
+
+`search(timeout_seconds=)` bounds the whole call. What it can interrupt it interrupts —
+the final query, which runs on the search's own cursor — and the query is given what the
+earlier phases left rather than the whole bound. What it cannot interrupt it checks as the
+phase finishes: screening and verification are RDKit with the GIL released, name
+resolution is an external service, and the index, the library, and a pivot are built once
+for the corpus under a lock, where a timer that killed one would fail every search queued
+behind it, callers that asked for no bound included. So a search can outlast its bound and
+report the overrun rather than being stopped at it, and the `TimeoutError` names the phase
+that ran long.
+
 ## Not yet solved
 
 Execution has no sandbox. `enable_external_access=false` cannot be combined with a lazy Parquet
 view — only a materialized table survives it — so running against the full corpus needs
-DuckDB's `allowed_directories` or a separate process. Compiling from an IR removes the reasons
-to fear the *query*; it does not remove the reasons to contain the *process*.
+DuckDB's `allowed_directories` or a separate process. That list is four trees for a corpus
+reading everything it can: the projections, the structures, `pivots_dir`, and
+`occurrences_dir`. Compiling from an IR removes the reasons to fear the *query*; it does not
+remove the reasons to contain the *process*.
 
 **Text search is deferred, not approximated.** `contains`, `starts_with`, and `ends_with` run
 against any of the projection's 234 string leaves, and searching a short one — a `type`, a

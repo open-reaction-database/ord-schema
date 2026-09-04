@@ -65,7 +65,7 @@ from collections.abc import Callable
 from typing import Annotated, Any, Literal
 
 import pyarrow as pa
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from rdkit import Chem
 
 # Aliased because ``pivot`` is the parameter name a caller passes an index under, and a
@@ -193,11 +193,16 @@ class Compiled:
     predicates the caller evaluates against the structures artifact, each bound as a
     bitmap over corpus-wide structure IDs; a query carrying any also references the
     ``STRUCTURE_OFFSET`` column, so it runs only against the executor's relation.
+
+    ``limit`` is the row bound the SQL carries, which is the query's own where it asked
+    for one within ``max_rows`` and ``max_rows`` where it did not. A caller comparing it
+    against ``Query.limit`` learns whether the answer was cut short.
     """
 
     sql: str
     compounds: tuple[str, ...]
     structures: tuple[StructureParameter, ...] = ()
+    limit: int | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -299,7 +304,21 @@ def resolve(
     return _Resolved(expression or "", repeated, current)
 
 
-class Value(BaseModel):
+class _Node(BaseModel):
+    """Base of every model below, refusing keys the model does not declare.
+
+    Dropping an unknown key is the wrong default here because these models are how a
+    query arrives from outside -- a dict, a JSON body, a tool call. Every field that
+    narrows a query is optional or lives under a discriminated union, so a misspelled
+    key does not fail: it validates to a query missing the clause the caller wrote,
+    which for a top-level ``where`` is every reaction in the corpus. The caller sees a
+    plausible answer to a question they did not ask, with nothing logged.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class Value(_Node):
     """A comparison operand: a literal, or a compound to resolve and bind."""
 
     literal: bool | int | float | str | None = None
@@ -314,28 +333,28 @@ class Value(BaseModel):
         return self
 
 
-class And(BaseModel):
+class And(_Node):
     """Every clause holds."""
 
     op: Literal["and"]
     clauses: list["Predicate"] = Field(min_length=1)
 
 
-class Or(BaseModel):
+class Or(_Node):
     """At least one clause holds."""
 
     op: Literal["or"]
     clauses: list["Predicate"] = Field(min_length=1)
 
 
-class Not(BaseModel):
+class Not(_Node):
     """The clause does not hold."""
 
     op: Literal["not"]
     clause: "Predicate"
 
 
-class Quantifier(BaseModel):
+class Quantifier(_Node):
     """Some, or every, element at a repeated level satisfies ``where``.
 
     Paths inside ``where`` are relative to the element bound here, which is what lets a
@@ -347,7 +366,7 @@ class Quantifier(BaseModel):
     where: "Predicate"
 
 
-class Comparison(BaseModel):
+class Comparison(_Node):
     """A leaf compared against a literal or a resolved compound."""
 
     op: Literal[
@@ -357,14 +376,14 @@ class Comparison(BaseModel):
     value: Value
 
 
-class NullCheck(BaseModel):
+class NullCheck(_Node):
     """Whether the source recorded the leaf at all."""
 
     op: Literal["is_null", "not_null"]
     path: str
 
 
-class Substructure(BaseModel):
+class Substructure(_Node):
     """The element's structure contains the query as a subgraph.
 
     ``path`` names a compound's ``smiles``. The query is a SMARTS pattern, or a
@@ -417,7 +436,7 @@ class Substructure(BaseModel):
         return self
 
 
-class Similarity(BaseModel):
+class Similarity(_Node):
     """The element's structure is Tanimoto-similar to the query molecule.
 
     Similarity is defined on the Morgan fingerprints in the structures artifact, so
@@ -473,7 +492,7 @@ def _check_molecule_query(node: "SameCompound | SameParent") -> None:
             raise ValueError(f"SMILES has no atoms: {node.smiles!r}")
 
 
-class SameCompound(BaseModel):
+class SameCompound(_Node):
     """The element's structure is the same compound, however either was drawn.
 
     An ``eq`` on a ``smiles`` compares spellings, and two drawings of one reagent are
@@ -498,7 +517,7 @@ class SameCompound(BaseModel):
         return self
 
 
-class SameParent(BaseModel):
+class SameParent(_Node):
     """The element's structure is the same compound once counterions are set aside.
 
     What ``same_compound`` ignores, this ignores too, and the salt a reagent was sold
@@ -572,7 +591,7 @@ _REDUCERS = {
 _ARITHMETIC = frozenset({"min", "max", "avg", "sum"})
 
 
-class Reduction(BaseModel):
+class Reduction(_Node):
     """One value per reaction, reduced from a path that crosses a repeated level.
 
     An ordering key and an aggregate's argument both have to be scalar, which leaves
@@ -590,7 +609,7 @@ class Reduction(BaseModel):
     path: str
 
 
-class Measure(BaseModel):
+class Measure(_Node):
     """One aggregate over the matching rows."""
 
     fn: Literal["count", "count_distinct", "sum", "avg", "min", "max"]
@@ -606,7 +625,7 @@ class Measure(BaseModel):
         return self
 
 
-class Aggregate(BaseModel):
+class Aggregate(_Node):
     """Group the matching rows and measure each group.
 
     ``group_by`` paths must be scalar, so the number of groups is bounded by the values
@@ -617,14 +636,14 @@ class Aggregate(BaseModel):
     measures: list[Measure] = Field(min_length=1)
 
 
-class Order(BaseModel):
+class Order(_Node):
     """How to sort the result."""
 
     key: str | Reduction
     descending: bool = False
 
 
-class Query(BaseModel):
+class Query(_Node):
     """A whole query: which reactions, optionally grouped and measured."""
 
     where: Predicate | None = None
@@ -1198,6 +1217,7 @@ def compile_query(
     table: str = TABLE,
     index: ElementIndex | None = None,
     pivot: PivotIndex | None = None,
+    max_rows: int | None = None,
 ) -> Compiled:
     """Compiles a query to DuckDB SQL over the projection.
 
@@ -1214,6 +1234,15 @@ def compile_query(
         pivot: Pivoted levels to spend where they can answer a quantifier; see
             ``PivotIndex``. Consulted after ``index``, and for ``forall`` as well as
             ``exists``.
+        max_rows: Most rows the SQL may return, applied whether or not the query asked
+            for a limit and clamping one that asks for more. The grammar leaves
+            ``limit`` optional, and a query without one returns every matching
+            reaction -- millions of rows at corpus scale, materialized in whatever
+            process is executing. A caller serving queries it did not write wants this
+            set; None leaves the query's own limit, or none, exactly as stated. It
+            bounds an aggregated query's *groups*, where a truncated answer is an
+            arbitrary part of a distribution rather than a sample of the matching
+            reactions; ``Corpus.search`` says so when one comes back full.
 
     Returns:
         The SQL, the compound names whose resolved SMILES the caller binds, and the
@@ -1223,9 +1252,18 @@ def compile_query(
         QueryError: If ``table`` is not an identifier, if any path, operator, or
             ordering key cannot be meant against the schema, or if a compound name
             collides with a generated structure parameter.
+        ValueError: If ``max_rows`` is less than one, which is a bound no query can
+            satisfy rather than a small one.
     """
     if not _NAME.match(table):
         raise QueryError(f"table is not an identifier: {table!r}")
+    if max_rows is not None and max_rows < 1:
+        # Zero compiles to a LIMIT no query can satisfy and a negative one to SQL
+        # DuckDB refuses at execution, both of them far from whoever passed it.
+        raise ValueError(
+            f"max_rows is {max_rows}, which no query can return; leave it unset to "
+            "bound nothing"
+        )
     compounds: list[str] = []
     structures: list[StructureParameter] = []
     if query.aggregate:
@@ -1294,6 +1332,12 @@ def compile_query(
                 )
             keys.append(f"{key} DESC" if order.descending else key)
         sql += " ORDER BY " + ", ".join(keys)
-    if query.limit is not None:
-        sql += f" LIMIT {query.limit}"
-    return Compiled(sql, tuple(compounds), tuple(structures))
+    if max_rows is None:
+        limit = query.limit
+    elif query.limit is None:
+        limit = max_rows
+    else:
+        limit = min(query.limit, max_rows)
+    if limit is not None:
+        sql += f" LIMIT {limit}"
+    return Compiled(sql, tuple(compounds), tuple(structures), limit)

@@ -65,10 +65,20 @@ jobs:
           uv run ruff check .
           uv run ruff format --check .
       # ty: ord_schema only. Under examples/ we ship notebooks (no .py); those are exercised in
-      # test_notebooks (treon), not static type-checking here.
+      # test_notebooks (nbval), not static type-checking here.
       - name: Run ty
         run: |
           uv run ty check ord_schema
+      - name: Check notebooks
+        # Pinned to the same version as the pre-commit hook so CI and local runs agree.
+        # --verify reports without rewriting, so this fails on a notebook an author
+        # committed without the hook installed rather than quietly fixing it.
+        #
+        # File list from git rather than a glob, as in check_markdown: tracked files
+        # exclude .venv/ and any notebook a run left behind.
+        run: >
+          git ls-files -z '*.ipynb' | xargs -0
+          uv run --with nbstripout==0.9.1 nbstripout --verify --keep-output --keep-count --keep-id
 
   check_proto:
     runs-on: ubuntu-latest

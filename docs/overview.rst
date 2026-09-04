@@ -131,8 +131,8 @@ database repository::
 Hugging Face
 ======
 
-A copy of the Open Reaction Database repository is also kept on Hugging Face 
-`here <https://huggingface.co/datasets/open-reaction-database/ord-data>`__. This can be 
+A copy of the Open Reaction Database repository is also kept on Hugging Face
+`here <https://huggingface.co/datasets/open-reaction-database/ord-data>`__. This can be
 cloned using Git LFS ::
 
    $ git clone https://huggingface.co/datasets/open-reaction-database/ord-data
@@ -247,10 +247,10 @@ How is the Open Reaction Database being used?
 We have a `public Zotero Group <https://www.zotero.org/groups/5973704/open-reaction-database>`_ and `library <https://www.zotero.org/groups/5973704/open-reaction-database/library>`_ where we keep track of Open Reaction Database citations, and also the publications which have reactions in the database.
 
 .. NOTE::
-   Have we missed something? Please email help@open-reaction-database.org if 
-   you find published work which employed the Open Reaction Database data, 
+   Have we missed something? Please email help@open-reaction-database.org if
+   you find published work which employed the Open Reaction Database data,
    schema, or other tools, and is not already included in the library.
-  
+
 .. NOTE::
-   The Datasets sub-collection does not include the individual USPTO patents 
+   The Datasets sub-collection does not include the individual USPTO patents
    (there is over 13k of them) for clarity.
