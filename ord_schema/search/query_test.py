@@ -422,9 +422,9 @@ def test_an_unknown_key_is_refused_rather_than_dropped(payload):
         query.Query.model_validate(payload)
 
 
-def test_a_dropped_top_level_key_would_have_matched_everything():
-    # Why the test above is about more than typo-catching: this is what the refused
-    # payload compiles to when the key is dropped instead.
+def test_a_query_with_no_where_matches_everything():
+    # What the payloads above validate to once their unknown key is dropped, and why
+    # refusing them is more than typo-catching: no predicate compiles to no WHERE.
     assert "WHERE" not in query.compile_query(query.Query()).sql
 
 

@@ -68,6 +68,11 @@ A `Path` is a dotted column path such as `conditions.temperature.setpoint_kelvin
 `exists` or `forall` it is **relative to the bound element**, which is what lets one component
 be required to satisfy several conditions at once.
 
+A key the grammar does not name is refused rather than dropped. Every field that narrows a
+query is optional, so an ignored key would leave a query missing the clause it was meant to
+carry — and a `Query` with no `where` is every reaction in the corpus, returned as an answer
+rather than as a failure.
+
 Every rule below is enforced against `projection.SCHEMA` before any SQL exists, so a bad query
 is a compile error rather than a wrong answer:
 
