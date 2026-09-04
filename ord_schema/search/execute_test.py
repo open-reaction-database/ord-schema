@@ -1708,7 +1708,8 @@ def test_max_rows_bounds_what_a_search_returns(corpus_dir, caplog):
 
 def test_an_answer_that_reaches_the_bound_says_it_may_be_cut(corpus_dir, caplog):
     # Cut rather than refused: the answer is nearer what the caller wanted than an
-    # error, and nothing in the result says it was cut, so the log has to.
+    # error, so the log says it may be short, and the table carries TRUNCATED for a
+    # reader who never sees the log.
     with (
         caplog.at_level(logging.WARNING, logger="ord_schema.search.execute"),
         execute.Corpus(
@@ -4792,3 +4793,55 @@ def test_an_answer_that_arrives_past_the_bound_is_a_timeout(corpus, monkeypatch)
             )
     finally:
         cursor.close()
+
+
+def test_a_corpus_bounds_what_it_returns_without_being_asked(corpus_dir):
+    # The grammar leaves limit optional, so an unbounded default builds every matching
+    # reaction into an Arrow table in whatever process asked -- millions of them at
+    # corpus scale, from a query that reads as ordinary.
+    assert execute.DEFAULT_MAX_ROWS == 1000
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        assert value._max_rows == execute.DEFAULT_MAX_ROWS
+
+
+def test_a_caller_computing_over_every_match_can_still_ask_for_one(corpus_dir):
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        max_rows=None,
+    ) as value:
+        answer = value.search(query.Query.model_validate({}))
+    assert answer.num_rows == 3
+    assert execute.TRUNCATED.encode() not in (answer.schema.metadata or {})
+
+
+def test_an_answer_the_bound_may_have_cut_says_so_on_the_table(corpus_dir):
+    # On the table rather than logged alone: whoever reads the answer is often not
+    # whoever reads the log, and a summary saying "2 reactions" is wrong in a way
+    # nothing in the rows shows.
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        max_rows=2,
+    ) as value:
+        answer = value.search(query.Query.model_validate({}))
+    assert answer.num_rows == 2
+    assert (answer.schema.metadata or {})[execute.TRUNCATED.encode()] == b"true"
+
+
+def test_an_answer_the_bound_did_not_reach_carries_no_stamp(corpus_dir):
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        max_rows=100,
+    ) as value:
+        answer = value.search(query.Query.model_validate({}))
+    assert answer.num_rows == 3
+    assert execute.TRUNCATED.encode() not in (answer.schema.metadata or {})

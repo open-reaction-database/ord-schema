@@ -134,6 +134,19 @@ _CACHED_MATCHES = 16
 # its size whether or not it is kept.
 _PIVOT_BUDGET_BYTES = 4 * 1024**3
 
+# Most rows a search returns where the caller states no bound. The grammar leaves
+# ``limit`` optional and a question like "reactions above 350 K" matches hundreds of
+# thousands, so an unbounded default builds an Arrow table of them in whatever process
+# asked -- from a query that reads as ordinary. A thousand is a page of reactions to
+# look at rather than a dataset to compute over; a caller that wants the whole match set
+# says so with max_rows=None, and one that wants a different page says so with a number.
+DEFAULT_MAX_ROWS = 1000
+
+# Stamped on a result the corpus's own bound may have cut short. On the table rather
+# than logged alone, because whoever reads the answer is often not whoever reads the
+# log: a summary saying "1000 reactions" is wrong in a way nothing in the rows shows.
+TRUNCATED = "ord.truncated"
+
 
 # What the process holds beside DuckDB's own accounting while the occurrence index
 # builds: about 1.4 GB resident before it starts -- the interpreter, RDKit, the paired
@@ -494,7 +507,7 @@ def _occurrences_from_projection(path: str, expression: str) -> str:
 
 def _warn_when_the_bound_was_reached(
     request: query.Query, compiled: query.Compiled, returned: int
-) -> None:
+) -> bool:
     """Says when this corpus's bound, not the query's, may have cut the answer short.
 
     Said after the query rather than while compiling it, because a bound applied is not
@@ -511,11 +524,14 @@ def _warn_when_the_bound_was_reached(
         request: The query as asked, whose own ``limit`` is not this corpus's doing.
         compiled: What it compiled to, carrying the limit that reached the SQL.
         returned: Rows the query returned.
+
+    Returns:
+        Whether the answer may be short of the matches, for stamping on the table.
     """
     if compiled.limit is None or compiled.limit == request.limit:
-        return
+        return False
     if returned < compiled.limit:
-        return
+        return False
     if request.aggregate is not None:
         logger.warning(
             "this query grouped into at least the %d rows the corpus bounds it at, so "
@@ -530,6 +546,7 @@ def _warn_when_the_bound_was_reached(
             "matches it did not return; raise max_rows to see them",
             compiled.limit,
         )
+    return True
 
 
 def _index_condition(
@@ -945,7 +962,7 @@ class Corpus:
         require_occurrences: bool = False,
         memory_limit: str | None = None,
         warm: bool = True,
-        max_rows: int | None = None,
+        max_rows: int | None = DEFAULT_MAX_ROWS,
     ) -> None:
         """Pairs the artifacts, checks their stamps, and prepares the relations.
 
@@ -1049,9 +1066,12 @@ class Corpus:
                 asked for a limit and clamping one that asks for more. The grammar
                 leaves ``limit`` optional, so a query without one returns every matching
                 reaction -- at ORD's scale millions of rows, built into an Arrow table
-                in this process, from a query that reads as ordinary. A caller serving
-                queries it did not write wants this set. None leaves every query's own
-                limit, or none, exactly as stated.
+                in this process, from a query that reads as ordinary. Defaults to
+                ``DEFAULT_MAX_ROWS``; None leaves every query's own limit, or none,
+                exactly as stated, which is what a caller computing over the whole match
+                set wants. A result this bound may have cut short carries
+                ``TRUNCATED`` in its schema metadata, since nothing in the rows tells a
+                short answer from a complete one.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
@@ -2731,9 +2751,10 @@ class Corpus:
         Returns:
             The selected columns: ``reaction_id`` for a plain query, the group and
             measure columns for an aggregated one. At most this corpus's ``max_rows``,
-            where it has one: an answer that reached the bound is logged as possibly
-            cut, and the table itself does not say. ``Compiled.limit`` is what actually
-            reached the SQL, for a caller that wants to check rather than read a log.
+            where it has one: an answer that reached the bound is logged as possibly cut
+            and carries ``TRUNCATED`` in its schema metadata. ``Compiled.limit`` is what
+            actually reached the SQL, for a caller that wants the number rather than the
+            flag.
 
         Raises:
             query.QueryError: If the query does not compile.
@@ -2821,7 +2842,12 @@ class Corpus:
                     answered = cursor.execute(compiled.sql, parameters).to_arrow_table()
                 else:
                     answered = _run_with_timeout(cursor, compiled.sql, parameters, left)
-                _warn_when_the_bound_was_reached(request, compiled, answered.num_rows)
+                if _warn_when_the_bound_was_reached(
+                    request, compiled, answered.num_rows
+                ):
+                    answered = answered.replace_schema_metadata(
+                        (answered.schema.metadata or {}) | {TRUNCATED: b"true"}
+                    )
                 return answered
             finally:
                 cursor.close()
