@@ -3,24 +3,26 @@
     "question": "which reactions use pyridine as a solvent?",
     "why": "two conditions on one element, which a wrong translation splits in two",
     "reference": {
-      "op": "exists",
-      "path": "inputs.components",
       "where": {
-        "op": "and",
-        "clauses": [
-          {
-            "op": "eq",
-            "path": "reaction_role",
-            "value": {
-              "literal": "SOLVENT"
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "and",
+          "clauses": [
+            {
+              "op": "eq",
+              "path": "reaction_role",
+              "value": {
+                "literal": "SOLVENT"
+              }
+            },
+            {
+              "op": "same_compound",
+              "path": "smiles",
+              "smiles": "c1ccncc1"
             }
-          },
-          {
-            "op": "same_compound",
-            "path": "smiles",
-            "smiles": "c1ccncc1"
-          }
-        ]
+          ]
+        }
       }
     }
   },
@@ -28,10 +30,12 @@
     "question": "reactions run above 350 K",
     "why": "a scalar comparison needing no quantifier at all",
     "reference": {
-      "op": "gt",
-      "path": "conditions.temperature.setpoint_kelvin",
-      "value": {
-        "literal": 350
+      "where": {
+        "op": "gt",
+        "path": "conditions.temperature.setpoint_kelvin",
+        "value": {
+          "literal": 350
+        }
       }
     }
   },
@@ -39,42 +43,44 @@
     "question": "reactions where a desired product has a yield above 50%",
     "why": "correlation: the yield has to belong to the desired product, not to whichever product happens to carry one",
     "reference": {
-      "op": "exists",
-      "path": "outcomes.products",
       "where": {
-        "op": "and",
-        "clauses": [
-          {
-            "op": "eq",
-            "path": "is_desired_product",
-            "value": {
-              "literal": true
-            }
-          },
-          {
-            "op": "exists",
-            "path": "measurements",
-            "where": {
-              "op": "and",
-              "clauses": [
-                {
-                  "op": "eq",
-                  "path": "type",
-                  "value": {
-                    "literal": "YIELD"
+        "op": "exists",
+        "path": "outcomes.products",
+        "where": {
+          "op": "and",
+          "clauses": [
+            {
+              "op": "eq",
+              "path": "is_desired_product",
+              "value": {
+                "literal": true
+              }
+            },
+            {
+              "op": "exists",
+              "path": "measurements",
+              "where": {
+                "op": "and",
+                "clauses": [
+                  {
+                    "op": "eq",
+                    "path": "type",
+                    "value": {
+                      "literal": "YIELD"
+                    }
+                  },
+                  {
+                    "op": "gt",
+                    "path": "percentage.value",
+                    "value": {
+                      "literal": 50
+                    }
                   }
-                },
-                {
-                  "op": "gt",
-                  "path": "percentage.value",
-                  "value": {
-                    "literal": 50
-                  }
-                }
-              ]
+                ]
+              }
             }
-          }
-        ]
+          ]
+        }
       }
     }
   },
@@ -82,13 +88,15 @@
     "question": "reactions with no solvent at all",
     "why": "a forall, which the occurrence index cannot answer",
     "reference": {
-      "op": "forall",
-      "path": "inputs.components",
       "where": {
-        "op": "ne",
-        "path": "reaction_role",
-        "value": {
-          "literal": "SOLVENT"
+        "op": "forall",
+        "path": "inputs.components",
+        "where": {
+          "op": "ne",
+          "path": "reaction_role",
+          "value": {
+            "literal": "SOLVENT"
+          }
         }
       }
     }
@@ -96,6 +104,394 @@
   {
     "question": "reactions that ran longer than their workup took",
     "why": "comparing two columns, which the grammar cannot express: a value is a literal or a compound, never another column",
+    "compiles": false
+  },
+  {
+    "question": "reactions with a nitro group on any input",
+    "why": "a substructure query, which a translation that filters SMILES text with contains gets wrong in both directions",
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "substructure",
+          "path": "smiles",
+          "smarts": "[N+](=O)[O-]"
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions using an input with Tanimoto similarity at least 0.6 to aniline",
+    "why": "similarity is its own predicate over the fingerprints, not a substructure and not a text match",
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "similarity",
+          "path": "smiles",
+          "smiles": "Nc1ccccc1",
+          "threshold": 0.6
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions using triethylamine, whichever salt it was sold as",
+    "why": "same_parent, not same_compound: the hydrochloride has to match, which an eq on smiles and a same_compound both miss",
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "same_parent",
+          "path": "smiles",
+          "smiles": "CCN(CC)CC"
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions run in either DMSO or DMF",
+    "why": "an or, which a translation that writes and returns nothing for: one component is not two solvents at once",
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "and",
+          "clauses": [
+            {
+              "op": "eq",
+              "path": "reaction_role",
+              "value": {
+                "literal": "SOLVENT"
+              }
+            },
+            {
+              "op": "or",
+              "clauses": [
+                {
+                  "op": "same_compound",
+                  "path": "smiles",
+                  "smiles": "CS(C)=O"
+                },
+                {
+                  "op": "same_compound",
+                  "path": "smiles",
+                  "smiles": "CN(C)C=O"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions that used no palladium catalyst",
+    "why": "negation outside the quantifier: no catalyst on the reaction is palladium. Its pair below is the counterexample, and a reaction running palladium alongside nickel is what separates them",
+    "reference": {
+      "where": {
+        "op": "not",
+        "clause": {
+          "op": "exists",
+          "path": "inputs.components",
+          "where": {
+            "op": "and",
+            "clauses": [
+              {
+                "op": "eq",
+                "path": "reaction_role",
+                "value": {
+                  "literal": "CATALYST"
+                }
+              },
+              {
+                "op": "substructure",
+                "path": "smiles",
+                "smarts": "[Pd]"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions that used a non-palladium catalyst",
+    "why": "negation inside the quantifier: some catalyst is not palladium, which the reaction above excludes and this one keeps",
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "and",
+          "clauses": [
+            {
+              "op": "eq",
+              "path": "reaction_role",
+              "value": {
+                "literal": "CATALYST"
+              }
+            },
+            {
+              "op": "not",
+              "clause": {
+                "op": "substructure",
+                "path": "smiles",
+                "smarts": "[Pd]"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions where nobody recorded a temperature",
+    "why": "absence, not zero: an eq on 0 K finds nothing and a translation that writes one looks right",
+    "reference": {
+      "where": {
+        "op": "is_null",
+        "path": "conditions.temperature.setpoint_kelvin"
+      }
+    }
+  },
+  {
+    "question": "reactions whose workup included an extraction",
+    "why": "workups are their own repeated level, easily confused with inputs or with a WORKUP reaction_role",
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "workups",
+        "where": {
+          "op": "eq",
+          "path": "type",
+          "value": {
+            "literal": "EXTRACTION"
+          }
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions run on an automated platform",
+    "why": "a scalar boolean under setup, a region nothing else in the case file touches",
+    "reference": {
+      "where": {
+        "op": "eq",
+        "path": "setup.is_automated",
+        "value": {
+          "literal": true
+        }
+      }
+    }
+  },
+  {
+    "question": "exothermic reactions",
+    "why": "a boolean note, which a translation looks for in the procedure text instead",
+    "reference": {
+      "where": {
+        "op": "eq",
+        "path": "notes.is_exothermic",
+        "value": {
+          "literal": true
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions with conversion above 90%",
+    "why": "conversion is not yield: they sit in different places and a translation that reaches for the yield answers a different question",
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "outcomes",
+        "where": {
+          "op": "gt",
+          "path": "conversion.value",
+          "value": {
+            "literal": 90
+          }
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions using more than 10 grams of a reactant",
+    "why": "the mass has to belong to the reactant, and the units are in the column name rather than the question",
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "and",
+          "clauses": [
+            {
+              "op": "eq",
+              "path": "reaction_role",
+              "value": {
+                "literal": "REACTANT"
+              }
+            },
+            {
+              "op": "gt",
+              "path": "amount.mass_grams",
+              "value": {
+                "literal": 10
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions with a yield between 60 and 70%",
+    "why": "both bounds have to hold of one measurement; a translation that puts them on separate measurements keeps a reaction yielding 20% and 90%",
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "outcomes.products",
+        "where": {
+          "op": "exists",
+          "path": "measurements",
+          "where": {
+            "op": "and",
+            "clauses": [
+              {
+                "op": "eq",
+                "path": "type",
+                "value": {
+                  "literal": "YIELD"
+                }
+              },
+              {
+                "op": "ge",
+                "path": "percentage.value",
+                "value": {
+                  "literal": 60
+                }
+              },
+              {
+                "op": "le",
+                "path": "percentage.value",
+                "value": {
+                  "literal": 70
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "question": "how many reactions were run on an automated platform, and how many were not?",
+    "why": "a count grouped by a boolean, which asks for measured rows rather than reactions",
+    "reference": {
+      "aggregate": {
+        "group_by": [
+          "setup.is_automated"
+        ],
+        "measures": [
+          {
+            "fn": "count",
+            "name": "reactions"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "how many different people recorded these reactions?",
+    "why": "count_distinct over a scalar, which a plain count answers wrongly and convincingly",
+    "reference": {
+      "aggregate": {
+        "measures": [
+          {
+            "fn": "count_distinct",
+            "path": "provenance.experimenter.username",
+            "name": "people"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "what is the highest yield recorded on any product?",
+    "why": "a yield lives under three repeated levels, so it has to be reduced to one value per reaction before an aggregate can combine them",
+    "reference": {
+      "aggregate": {
+        "measures": [
+          {
+            "fn": "max",
+            "path": {
+              "reduce": "max",
+              "path": "outcomes.products.measurements.percentage.value"
+            },
+            "name": "highest"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "what is the average setpoint temperature, for automated and manual reactions separately?",
+    "why": "an average crossing two regions, where a count of rows and an average of values look alike in the answer",
+    "reference": {
+      "aggregate": {
+        "group_by": [
+          "setup.is_automated"
+        ],
+        "measures": [
+          {
+            "fn": "avg",
+            "path": "conditions.temperature.setpoint_kelvin",
+            "name": "kelvin"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "what are the three most common solvents?",
+    "why": "grouping by something a reaction has many of, which needs the rows to be elements rather than reactions",
+    "reference": {
+      "aggregate": {
+        "over": "inputs.components",
+        "where": {
+          "op": "eq",
+          "path": "reaction_role",
+          "value": {
+            "literal": "SOLVENT"
+          }
+        },
+        "group_by": [
+          "smiles"
+        ],
+        "measures": [
+          {
+            "fn": "count_distinct",
+            "path": "reaction_id",
+            "name": "reactions"
+          }
+        ]
+      },
+      "order_by": [
+        {
+          "key": "reactions",
+          "descending": true
+        }
+      ],
+      "limit": 3
+    }
+  },
+  {
+    "question": "reactions published in the last five years",
+    "why": "no date arithmetic and no notion of today: a translation that hardcodes a year looks right and rots",
     "compiles": false
   }
 ]

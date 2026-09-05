@@ -42,7 +42,9 @@ from collections.abc import Sequence
 from typing import Any
 
 import anthropic
+import pandas as pd
 import pyarrow as pa
+from pandas.testing import assert_frame_equal
 from pydantic import BaseModel, model_validator
 
 from ord_schema.logging import get_logger
@@ -66,9 +68,11 @@ class EvalCase(BaseModel):
     Attributes:
         question: The question, in English.
         why: What this case is here to catch, for whoever reads a failure.
-        reference: One query that answers the question, whose reactions a translation's
-            have to match. Not what a translation has to produce -- several spellings
-            are right -- but the definition of which reactions the right ones return.
+        reference: One whole query that answers the question, whose result a
+            translation's has to match. Not what a translation has to produce --
+            several spellings are right -- but the definition of what the right ones
+            return: the reactions, or, where the question asks for a number, the
+            measured rows.
         compiles: Whether the question should translate at all. False marks one the
             grammar cannot express, which the layer must refuse rather than fudge, and
             which therefore has no reference.
@@ -86,6 +90,16 @@ class EvalCase(BaseModel):
                 f"{self.question}: a case the grammar can express needs a reference "
                 "query, and one it cannot express has no answer to reference"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _reference_is_a_whole_query(self) -> "EvalCase":
+        # A reference is a whole Query, not the bare predicate that sits inside one.
+        # Checked at construction rather than where the case is scored, because scoring
+        # needs a corpus and a model: a case built in code would otherwise carry a
+        # shape nothing rejects until someone runs the eval against the API.
+        if self.reference is not None:
+            query.Query.model_validate(self.reference)
         return self
 
 
@@ -122,6 +136,70 @@ def _sample(reaction_ids: set[str], limit: int = 3) -> str:
     shown = ", ".join(sorted(reaction_ids)[:limit])
     rest = len(reaction_ids) - limit
     return f"{shown} and {rest} more" if rest > 0 else shown
+
+
+def _frame(table: pa.Table, columns: pd.Index, *, ordered: bool) -> pd.DataFrame:
+    """Returns a result as a frame comparable against another with ``columns``.
+
+    Args:
+        table: What a query returned.
+        columns: The labels to compare under, taken from the reference so that both
+            sides carry them. A measure is named by whoever wrote the query, and two
+            queries measuring the same thing under different names are the same answer;
+            position is what identifies a column, which the compiler fixes as the
+            group_by paths followed by the measures.
+        ordered: Whether row order is part of the answer. Where it is not, the rows are
+            sorted so that two queries returning the same rows compare equal.
+
+    Returns:
+        The frame, relabeled and ordered.
+    """
+    frame = table.to_pandas().set_axis(columns, axis=1)
+    if ordered:
+        return frame.reset_index(drop=True)
+    return frame.sort_values(list(columns)).reset_index(drop=True)
+
+
+def score_measures(
+    case: EvalCase, returned: pa.Table, expected: pa.Table, *, ordered: bool
+) -> CaseResult:
+    """Returns whether a translation measured what the reference measures.
+
+    Args:
+        case: The case.
+        returned: What the translated query returned.
+        expected: What the reference query returned.
+        ordered: Whether the reference sorts, in which case the sequence has to match
+            and not only the rows. A question asking for the highest of something is
+            answered wrongly by the right rows in the wrong order.
+
+    Returns:
+        The result. Values compare within pandas' default relative tolerance, which is
+        what lets two spellings of one average agree, and dtypes are not compared: a
+        count is the same answer whether it arrives as an integer or a double.
+    """
+    if returned.num_columns != expected.num_columns:
+        return CaseResult(
+            case,
+            passed=False,
+            detail=(
+                f"measured {returned.num_columns} columns where the reference "
+                f"measures {expected.num_columns}"
+            ),
+        )
+    columns = expected.to_pandas().columns
+    try:
+        assert_frame_equal(
+            _frame(returned, columns, ordered=ordered),
+            _frame(expected, columns, ordered=ordered),
+            check_dtype=False,
+        )
+    except AssertionError as difference:
+        first = str(difference).strip().splitlines()[0]
+        return CaseResult(
+            case, passed=False, detail=f"{expected.num_rows} rows expected; {first}"
+        )
+    return CaseResult(case, passed=True, detail=f"{expected.num_rows} rows")
 
 
 def score(
@@ -169,19 +247,29 @@ def _score_against_reference(
         timeout_seconds: Bounds the reference search.
 
     Returns:
-        The result. A reference query that will not run fails its own case rather than
-        the run: that is the case file being wrong, and the other cases still have
-        something to say.
+        The result. A question that asks for reactions is scored on the reactions, and
+        one that asks for a number is scored on the measured rows -- the reference says
+        which by whether it aggregates or sorts. A reference query that will not run
+        fails its own case rather than the run: that is the case file being wrong, and
+        the other cases still have something to say.
     """
     assert case.reference is not None  # A case that compiles carries one.
+    reference = query.Query.model_validate(case.reference)
     try:
-        expected = corpus.search(
-            query.Query.model_validate({"where": case.reference}),
-            timeout_seconds=timeout_seconds,
-        )
+        expected = corpus.search(reference, timeout_seconds=timeout_seconds)
     except Exception as error:  # noqa: BLE001
         return CaseResult(
             case, passed=False, detail=f"the reference query failed: {error}"
+        )
+    if reference.aggregate is not None or reference.order_by:
+        return score_measures(case, table, expected, ordered=bool(reference.order_by))
+    if "reaction_id" not in table.schema.names:
+        # The reference asks which reactions; a translation that grouped them answered
+        # a different question, and there is nothing to compare it against.
+        return CaseResult(
+            case,
+            passed=False,
+            detail="measured the reactions where the question asks which ones",
         )
     return score(
         case,
