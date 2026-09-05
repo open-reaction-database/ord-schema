@@ -306,3 +306,26 @@ def test_the_baseline_is_measured_over_every_match(monkeypatch):
     with pytest.raises(_RecordedError):
         check.main(["--projections=x", "--structures=y"])
     assert seen["max_rows"] is None
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [([], None), (["--pivots=/artifacts/pivots"], "/artifacts/pivots")],
+)
+def test_the_pivots_directory_reaches_the_corpus(monkeypatch, argv, expected):
+    # A reduction routes to a pivot only where the corpus holds one, so a baseline
+    # recorded without this argument measures the list spelling and says nothing about
+    # the pivoted route -- for either the answers or the coverage counts.
+    seen = {}
+
+    class _RecordedError(Exception):
+        pass
+
+    def _corpus(*args, **kwargs):
+        seen.update(kwargs)
+        raise _RecordedError
+
+    monkeypatch.setattr(check.execute, "Corpus", _corpus)
+    with pytest.raises(_RecordedError):
+        check.main(["--projections=x", "--structures=y", *argv])
+    assert seen["pivots_dir"] == expected

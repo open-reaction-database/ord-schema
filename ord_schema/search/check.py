@@ -910,6 +910,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=0,
         help="What pivots built in process may hold; zero builds none",
     )
+    parser.add_argument(
+        "--pivots",
+        default=None,
+        help=(
+            "Directory holding pivot artifacts. Without it a reduction reads the "
+            "projection's lists, which answers the same but leaves the pivoted route "
+            "unmeasured"
+        ),
+    )
     args = parser.parse_args(argv)
     # Re-projecting a sampled reaction runs the same RDKit the derivation did, and it
     # says the same things about atom maps it said then.
@@ -930,6 +939,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.structures,
         require_current=True,
         pivot_budget_bytes=args.pivot_budget_bytes,
+        pivots_dir=args.pivots,
         # Unbounded: a baseline is a count and a digest over every matching reaction,
         # and under the corpus's own default it would be a digest over an arbitrary
         # page of them -- which compares unequal against the recorded one and reports a

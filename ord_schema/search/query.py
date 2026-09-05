@@ -576,14 +576,23 @@ Quantifier.model_rebuild()
 
 
 # DuckDB's list aggregates, which ignore the nulls a list may hold. `count` filters
-# rather than taking len(), which would count them.
+# rather than taking len(), which would count them, and coalesces because the
+# projection spells an absent repeated level NULL rather than empty -- 788,334
+# reactions record no workups this way -- and len(NULL) is NULL, which would answer
+# "how many does this reaction have" with "unknown" where the answer is none.
 _REDUCERS = {
     "min": "list_min({expression})",
     "max": "list_max({expression})",
     "avg": "list_avg({expression})",
     "sum": "list_sum({expression})",
-    "count": "len(list_filter({expression}, value -> value IS NOT NULL))",
+    "count": "coalesce(len(list_filter({expression}, value -> value IS NOT NULL)), 0)",
 }
+
+# The relation a pivoted reduction reads its elements from. A reduction is only ever
+# compiled where the rows are reactions, and each subquery scopes its own alias, so one
+# name serves every reduction in a query without shadowing the reactions it correlates
+# to.
+_REDUCTION_ALIAS = "r0"
 
 # Reducers and aggregates that arithmetic has to carry. The grammar already holds
 # ordered comparisons to numbers, and a sum over text is a DuckDB error rather than an
@@ -600,13 +609,24 @@ class Reduction(_Node):
     that list to the one value the reaction is judged by, leaving the aggregate to
     combine those across reactions.
 
+    ``where`` selects which elements are reduced, and is what separates "the highest
+    yield" from "the highest percentage anything was measured at": a percentage is
+    recorded for selectivity and purity too, so a reduction over the bare path answers
+    a broader question than the one asked. Its paths are relative to the element, as
+    they are inside a quantifier, and the element is the deepest repeated level the
+    path crosses -- for
+    ``outcomes.products.measurements.percentage.value`` that is a measurement, so
+    ``type`` there means the measurement's own.
+
     Attributes:
         reduce: How to reduce the list. ``count`` counts the values that are present.
         path: A dotted path crossing at least one repeated level.
+        where: Selects the elements to reduce; all of them when absent.
     """
 
     reduce: Literal["min", "max", "avg", "sum", "count"]
     path: str
+    where: "Predicate | None" = None
 
 
 class Measure(_Node):
@@ -1186,23 +1206,154 @@ def _check_numeric(path: str, leaf: pa.DataType, what: str) -> None:
         raise QueryError(f"{path}: {what} needs a numeric column, not {leaf}")
 
 
-def _reduced(reduction: Reduction, schema: pa.Schema) -> str:
+def _reduced_element(reduction: Reduction) -> tuple[Any, tuple[str, ...], Any]:
+    """Returns the level a reduction's elements come from, and the descent past it.
+
+    Args:
+        reduction: What to reduce, and how.
+
+    Returns:
+        The level, the segments from its element down to the reduced value, and that
+        element's type.
+
+    Raises:
+        QueryError: If no repeated level covers the path, which leaves a ``where``
+            nothing to bind its paths to.
+    """
+    reached = pivot_levels.reach(reduction.path)
+    if reached is None:
+        raise QueryError(
+            f"{reduction.path}: a reduction's where selects among the elements of a "
+            "repeated level, and this path crosses none this grammar names"
+        )
+    level, remainder, _ = reached
+    return level, remainder, level.element_type
+
+
+def _pivoted_reduction(
+    reduction: Reduction,
+    table: str,
+    compounds: list[str],
+    structures: list["StructureParameter"],
+    routing: "_Routing",
+) -> str | None:
+    """Returns the reduction as an aggregate over a pivot, where one covers the path.
+
+    Reading the elements as rows costs a scan of the narrow pivot rather than a walk of
+    the nested lists the projection holds, measured at 2.5s against 0.76s for a corpus
+    ranking -- which is the cost of reading ``reaction_id`` alone, so the reduction
+    itself becomes free.
+
+    Args:
+        reduction: What to reduce, and how.
+        table: The relation of reactions the subquery correlates to.
+        compounds: Compound names collected so far, appended to as they are met.
+        structures: Structure parameters collected so far, appended to as they are met.
+        routing: Where a filter's own clauses may be answered. See ``_Routing``.
+
+    Returns:
+        A correlated scalar subquery over the pivot, or None where no pivot covers the
+        path and the projection has to answer it.
+    """
+    if routing.pivot is None:
+        return None
+    reached = pivot_levels.reach(reduction.path)
+    if reached is None:
+        return None
+    level, remainder, _ = reached
+    relation = routing.pivot(level.path)
+    if relation is None:
+        return None
+    column = ".".join([_REDUCTION_ALIAS, pivot_levels.ELEMENT, *remainder])
+    condition = (
+        f"{_REDUCTION_ALIAS}.{pivot_levels.REACTION_ID} = "
+        f"{table}.{pivot_levels.REACTION_ID}"
+    )
+    if reduction.where is not None:
+        condition += " AND " + _predicate(
+            reduction.where,
+            f"{_REDUCTION_ALIAS}.{pivot_levels.ELEMENT}",
+            level.element_type,
+            compounds,
+            structures,
+            1,
+            routing,
+        )
+    return (
+        f"(SELECT {_AGGREGATES[reduction.reduce]}({column}) "  # noqa: S608
+        f"FROM {relation} AS {_REDUCTION_ALIAS} WHERE {condition})"
+    )
+
+
+def _filtered_elements(
+    reduction: Reduction,
+    schema: pa.Schema,
+    compounds: list[str],
+    structures: list["StructureParameter"],
+    routing: "_Routing",
+) -> str:
+    """Returns the projection's list of reduced values, narrowed to matching elements.
+
+    Args:
+        reduction: What to reduce, and how. Its ``where`` is compiled here.
+        schema: Schema the level's own path resolves against.
+        compounds: Compound names collected so far, appended to as they are met.
+        structures: Structure parameters collected so far, appended to as they are met.
+        routing: Where a filter's own clauses may be answered. See ``_Routing``.
+
+    Returns:
+        A DuckDB list expression holding the values the reducer combines.
+    """
+    level, remainder, element_type = _reduced_element(reduction)
+    elements = resolve(level.path, schema=schema)
+    body = _predicate(
+        reduction.where,
+        _REDUCTION_ALIAS,
+        element_type,
+        compounds,
+        structures,
+        1,
+        routing,
+    )
+    expression = f"list_filter({elements.expression}, {_REDUCTION_ALIAS} -> {body})"
+    for segment in remainder:
+        expression = f"list_transform({expression}, x -> x.{segment})"
+    return expression
+
+
+def _reduced(
+    reduction: Reduction,
+    schema: pa.Schema,
+    *,
+    compounds: list[str] | None = None,
+    structures: list["StructureParameter"] | None = None,
+    routing: "_Routing | None" = None,
+) -> str:
     """Returns the expression reducing a repeated path to one value per reaction.
 
     Args:
         reduction: What to reduce, and how.
         schema: Schema the path resolves against.
+        compounds: Compound names collected so far, appended to as a ``where`` meets
+            them; a fresh list where the caller compiles no filter.
+        structures: Structure parameters, collected the same way.
+        routing: Where the elements may be read besides the projection's lists, and
+            the relation a pivoted reduction correlates to. See ``_Routing``.
 
     Returns:
         A DuckDB expression yielding one scalar per reaction. An arithmetic reducer
         yields NULL for a reaction holding no elements under that path; ``count``
-        yields zero there, and NULL only where the repeated level itself is absent.
+        yields zero there.
 
     Raises:
         QueryError: If the path is already scalar, which needs no reduction (accepting
-            one would give the same query two spellings), or if an arithmetic reducer
-            reaches a leaf that does not hold numbers.
+            one would give the same query two spellings), if an arithmetic reducer
+            reaches a leaf that does not hold numbers, or if a ``where`` quantifies
+            over a level of its own.
     """
+    collected_compounds = [] if compounds is None else compounds
+    collected_structures = [] if structures is None else structures
+    where_to_look = _Routing(TABLE) if routing is None else routing
     resolved = resolve(reduction.path, schema=schema)
     if not resolved.repeated:
         raise QueryError(
@@ -1211,11 +1362,40 @@ def _reduced(reduction: Reduction, schema: pa.Schema) -> str:
         )
     if reduction.reduce in _ARITHMETIC:
         _check_numeric(reduction.path, resolved.type, reduction.reduce)
-    return _REDUCERS[reduction.reduce].format(expression=resolved.expression)
+    if reduction.where is not None:
+        level, _, _ = _reduced_element(reduction)
+        _refuse_quantified(reduction.where, level.path, "a reduction's where")
+    pivoted = _pivoted_reduction(
+        reduction,
+        where_to_look.table,
+        collected_compounds,
+        collected_structures,
+        where_to_look,
+    )
+    if pivoted is not None:
+        return pivoted
+    expression = (
+        resolved.expression
+        if reduction.where is None
+        else _filtered_elements(
+            reduction,
+            schema,
+            collected_compounds,
+            collected_structures,
+            where_to_look,
+        )
+    )
+    return _REDUCERS[reduction.reduce].format(expression=expression)
 
 
 def _measure_argument(
-    measure: Measure, schema: pa.Schema, element: str | None = None
+    measure: Measure,
+    schema: pa.Schema,
+    element: str | None = None,
+    *,
+    compounds: list[str] | None = None,
+    structures: list["StructureParameter"] | None = None,
+    routing: "_Routing | None" = None,
 ) -> str:
     """Returns the expression a measure aggregates over.
 
@@ -1225,6 +1405,11 @@ def _measure_argument(
         element: The bound element paths are relative to, for an aggregate over a
             repeated level; None where the rows are reactions. A ``Reduction`` needs
             none, since a level's elements hold no list to reduce.
+        compounds: Compound names collected so far, appended to as a reduction's
+            ``where`` meets them.
+        structures: Structure parameters, collected the same way.
+        routing: Where a reduction's elements may be read besides the projection's
+            lists. See ``_Routing``.
 
     Returns:
         ``*`` for a bare count, a reduced expression where the path crosses a repeated
@@ -1242,7 +1427,13 @@ def _measure_argument(
                 f"{measure.path.path}: a reduction reads a reaction's own elements, "
                 "and this aggregate's rows are already elements"
             )
-        argument = _reduced(measure.path, schema)
+        argument = _reduced(
+            measure.path,
+            schema,
+            compounds=compounds,
+            structures=structures,
+            routing=routing,
+        )
     elif element is not None and measure.path == pivot_levels.REACTION_ID:
         # The one path a pivot row carries outside its element, and what makes a count
         # of elements answerable as a count of reactions.
@@ -1260,33 +1451,38 @@ def _measure_argument(
     return f"DISTINCT {argument}" if measure.fn == "count_distinct" else argument
 
 
-def _refuse_quantified(node: "Predicate", over: str | None) -> None:
-    """Raises where an aggregate's element filter tries to bind elements of its own.
+def _refuse_quantified(
+    node: "Predicate", over: str | None, what: str = "aggregate.where"
+) -> None:
+    """Raises where an element filter tries to bind elements of its own.
 
     A pivot carries an element's non-repeated fields and drops the rest, so a quantifier
     here resolves against a type missing the level it names and fails saying the field
     does not exist -- which is confusing where the field plainly does, one level up in
-    the projection. Said once, here, in terms of what the rows are.
+    the projection. Said once, here, in terms of what the rows are. Refused whichever
+    route reads the elements, so that a filter compiling at all does not depend on
+    whether the corpus holds the pivot.
 
     Args:
         node: The element filter, or a clause within it.
-        over: The level being grouped, named in the message.
+        over: The level whose elements are filtered, named in the message.
+        what: The clause doing the filtering, named in the message.
 
     Raises:
         QueryError: If the filter quantifies over anything.
     """
     if isinstance(node, Quantifier):
         raise QueryError(
-            f"{node.path}: aggregate.where selects among the elements of {over}, and "
+            f"{node.path}: {what} selects among the elements of {over}, and "
             "a pivot carries their non-repeated fields only, so there is no level "
             "here to quantify over; a condition on the reaction is the query's own "
             "where"
         )
     for clause in getattr(node, "clauses", []):
-        _refuse_quantified(clause, over)
+        _refuse_quantified(clause, over, what)
     inner = getattr(node, "clause", None)
     if inner is not None:
-        _refuse_quantified(inner, over)
+        _refuse_quantified(inner, over, what)
 
 
 def _element_relation(
@@ -1408,7 +1604,14 @@ def compile_query(
         ]
         selected = list(groups)
         for measure in query.aggregate.measures:
-            argument = _measure_argument(measure, element_schema, alias)
+            argument = _measure_argument(
+                measure,
+                element_schema,
+                alias,
+                compounds=compounds,
+                structures=structures,
+                routing=_Routing(table, index, pivot),
+            )
             selected.append(f"{_AGGREGATES[measure.fn]}({argument}) AS {measure.name}")
         names = {measure.name for measure in query.aggregate.measures}
         orderable = names | set(query.aggregate.group_by)
@@ -1482,7 +1685,13 @@ def compile_query(
                         "an aggregated query orders by a measure name or a group_by "
                         "path; reduce inside a measure instead"
                     )
-                key = _reduced(order.key, schema)
+                key = _reduced(
+                    order.key,
+                    schema,
+                    compounds=compounds,
+                    structures=structures,
+                    routing=_Routing(table, index, pivot),
+                )
             elif orderable is None:
                 key = _scalar(order.key, schema, "order_by").expression
             elif order.key in orderable:
