@@ -242,8 +242,10 @@ convention = "google"
 # Tests trip a couple of flake8-bugbear (the "B" rules) checks -- B011 (`assert False`)
 # and B017 (overly broad `pytest.raises(Exception)`); type annotations (ANN) also add
 # little value on test functions/fixtures, and SLF001 (private-member access)
-# is fine in tests. Skip these in tests.
-"**/*_test.py" = ["B011", "B017", "ANN", "SLF001", "S603", "S607", "D"]
+# is fine in tests. DTZ001 wants a tzinfo on every datetime, but the dates ORD records
+# carry no offset and project as naive, so a test asserting what one parses to has to
+# build a naive one. Skip these in tests.
+"**/*_test.py" = ["B011", "B017", "ANN", "SLF001", "S603", "S607", "D", "DTZ001"]
 # conftest.py holds pytest fixtures/hooks; docstrings add little there.
 "**/conftest.py" = ["D"]
 # Tutorial notebooks legitimately show commented-out alternative code.

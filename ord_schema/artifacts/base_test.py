@@ -633,3 +633,50 @@ def test_a_grandparent_bump_makes_a_grandchild_stale(tmp_path, monkeypatch):
         base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"projection": "2"}
     )
     assert not base.is_current(path, "occurrences", "0" * 32)
+
+
+def test_missing_columns_sees_a_field_added_inside_a_struct(tmp_path):
+    # Nearly every field the projection has is nested, so a top-level comparison would
+    # call a file current that is missing everything added since it was written -- and a
+    # reader binding the new column would fail on a file nothing marked stale.
+    path = tmp_path / "artifact.parquet"
+    inner = pa.struct([pa.field("value", pa.string())])
+    pq.write_table(pa.table({"provenance": pa.array([{"value": "x"}], inner)}), path)
+    widened = pa.schema(
+        [
+            pa.field(
+                "provenance",
+                pa.struct(
+                    [
+                        pa.field("value", pa.string()),
+                        pa.field("timestamp", pa.timestamp("us")),
+                    ]
+                ),
+            )
+        ]
+    )
+    assert base.missing_columns(path, widened) == ["provenance.timestamp"]
+
+
+def test_missing_columns_descends_through_lists_and_maps(tmp_path):
+    # A list's own name is not a field a reader binds; what it holds is.
+    path = tmp_path / "artifact.parquet"
+    held = pa.list_(pa.struct([pa.field("a", pa.string())]))
+    pq.write_table(pa.table({"items": pa.array([[{"a": "x"}]], held)}), path)
+    widened = pa.schema(
+        [
+            pa.field(
+                "items",
+                pa.list_(
+                    pa.struct([pa.field("a", pa.string()), pa.field("b", pa.int64())])
+                ),
+            )
+        ]
+    )
+    assert base.missing_columns(path, widened) == ["items.b"]
+
+
+def test_a_file_carrying_every_nested_field_lacks_nothing(tmp_path):
+    path = tmp_path / "artifact.parquet"
+    _write(path, _valid_metadata())
+    assert base.missing_columns(path, pa.schema([pa.field("x", pa.int32())])) == []

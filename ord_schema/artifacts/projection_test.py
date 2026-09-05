@@ -15,6 +15,7 @@
 """Tests for ord_schema.artifacts.projection."""
 
 import pathlib
+from datetime import datetime
 from types import SimpleNamespace
 from typing import cast
 
@@ -683,3 +684,136 @@ def test_structure_ids_span_source_row_groups(tmp_path):
                 (product,) = row["outcomes"][0]["products"]
                 assert component["structure_id"] == 0
                 assert product["structure_id"] == 1
+
+
+# Dates
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        # Every shape the corpus records, with its share of ORD beside it.
+        ("2022-01-01 00:00:00.0", datetime(2022, 1, 1)),  # 1,771,416
+        ("2025-06-30T05:22:18", datetime(2025, 6, 30, 5, 22, 18)),  # 48,498
+        ("2/25/2021, 1:05:42 PM", datetime(2021, 2, 25, 13, 5, 42)),  # 20,745
+        ("18/08/2024 02:10:09", datetime(2024, 8, 18, 2, 10, 9)),  # 1,430
+        ("2024-07-30", datetime(2024, 7, 30)),  # 1,241
+        ("Thu Jul 18 18:22:17 2024", datetime(2024, 7, 18, 18, 22, 17)),  # 48
+        ("not a date", None),
+        ("", None),
+    ],
+)
+def test_every_recorded_date_shape_parses(value, expected):
+    assert projection.parse_timestamp(value) == (expected if value else None)
+
+
+def test_an_unambiguous_slash_date_needs_no_convention():
+    # A number above twelve can only be the day, so the dataset's habit decides nothing.
+    for day_first in (None, True, False):
+        assert projection.parse_timestamp(
+            "18/08/2024 02:10:09", day_first=day_first
+        ) == datetime(2024, 8, 18, 2, 10, 9)
+        assert projection.parse_timestamp(
+            "2/25/2021, 1:05:42 PM", day_first=day_first
+        ) == datetime(2021, 2, 25, 13, 5, 42)
+
+
+def test_an_ambiguous_slash_date_follows_the_dataset():
+    value = "07/06/2024, 23:25:41"
+    assert projection.parse_timestamp(value, day_first=False) == datetime(
+        2024, 7, 6, 23, 25, 41
+    )
+    assert projection.parse_timestamp(value, day_first=True) == datetime(
+        2024, 6, 7, 23, 25, 41
+    )
+
+
+def test_an_ambiguous_date_with_no_convention_is_left_unparsed():
+    # A null a reader can see, rather than a date that is silently the wrong month.
+    assert projection.parse_timestamp("07/06/2024, 23:25:41") is None
+
+
+@pytest.mark.parametrize(
+    ("values", "expected"),
+    [
+        (["07/06/2024", "15/11/2023"], True),
+        (["07/06/2024", "2/25/2021"], False),
+        (["07/06/2024", "01/02/2020"], None),
+        (["2025-06-30T05:22:18", None, ""], None),
+        ([], None),
+    ],
+)
+def test_a_dataset_s_convention_is_read_from_its_unambiguous_dates(values, expected):
+    assert projection.day_first_dates(values) is expected
+
+
+def test_the_convention_is_settled_without_reading_every_value():
+    # Lazily, so a dataset that answers on its first date does not pay for the rest.
+    seen = []
+
+    def _values():
+        for value in ["15/11/2023", "07/06/2024"]:
+            seen.append(value)
+            yield value
+
+    assert projection.day_first_dates(_values()) is True
+    assert seen == ["15/11/2023"]
+
+
+def test_a_projected_date_carries_both_the_text_and_the_instant():
+    reaction = reaction_pb2.Reaction()
+    reaction.provenance.record_created.time.value = "2025-06-30T05:22:18"
+    row = projection.message_row(reaction)
+    recorded = row["provenance"]["record_created"]["time"]
+    assert recorded["value"] == "2025-06-30T05:22:18"
+    assert recorded[projection.TIMESTAMP_COLUMN] == datetime(2025, 6, 30, 5, 22, 18)
+
+
+def test_a_projected_date_the_shapes_do_not_cover_is_null():
+    reaction = reaction_pb2.Reaction()
+    reaction.provenance.record_created.time.value = "sometime last spring"
+    row = projection.message_row(reaction)
+    recorded = row["provenance"]["record_created"]["time"]
+    assert recorded["value"] == "sometime last spring"
+    assert recorded[projection.TIMESTAMP_COLUMN] is None
+
+
+def test_a_recorded_verdict_beats_what_the_values_alone_witness():
+    # The table holds evidence a value cannot carry, so it decides where it names the
+    # dataset -- and 11 of the 13 datasets no value settles are in it.
+    ambiguous = ["07/06/2024, 23:25:41"]
+    assert projection.day_first_dates(ambiguous) is None
+    assert (
+        projection.slash_orientation(
+            "ord_dataset-d92976309c3a48a3a64a4cf5e7048086", ambiguous
+        )
+        is False
+    )
+
+
+def test_a_dataset_nobody_has_looked_at_falls_back_to_its_own_values():
+    assert projection.slash_orientation("ord_dataset-new", ["15/11/2023"]) is True
+    assert projection.slash_orientation(None, ["2/25/2021"]) is False
+    assert projection.slash_orientation("ord_dataset-new", ["07/06/2024"]) is None
+
+
+def test_a_witness_contradicting_the_recorded_verdict_is_an_error():
+    # One of the two is wrong about the dataset, and either reading would record a date
+    # this library has evidence against.
+    with pytest.raises(ValueError, match="witness"):
+        projection.slash_orientation(
+            "ord_dataset-d92976309c3a48a3a64a4cf5e7048086", ["15/11/2023"]
+        )
+
+
+def test_the_datasets_no_evidence_settles_are_left_out():
+    # Their submitters have been asked; until they answer, an ambiguous date projects
+    # null rather than freezing a guess into the artifact.
+    for open_dataset in (
+        "ord_dataset-5c9a10329a8a48968d18879a48bb8ab2",
+        "ord_dataset-5e8318f0dda04b398c14f4c3adfeb32c",
+    ):
+        assert open_dataset not in projection._SLASH_ORIENTATION
+        assert (
+            projection.slash_orientation(open_dataset, ["08/05/2024, 11:33:06"]) is None
+        )
