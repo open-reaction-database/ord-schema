@@ -439,8 +439,8 @@
     }
   },
   {
-    "question": "on average, how many percentage measurements does a reaction have?",
-    "why": "counting a repeated level gives zero where the reaction has none, so every reaction belongs in the average; restricting to the ones that have any answers a different question",
+    "question": "on average, how many yield measurements does a reaction have?",
+    "why": "counting a repeated level gives zero where the reaction has none, so every reaction belongs in the average; a percentage is also recorded for selectivity and purity, so the count needs the reduction's own where",
     "reference": {
       "aggregate": {
         "measures": [
@@ -448,24 +448,43 @@
             "fn": "avg",
             "path": {
               "reduce": "count",
-              "path": "outcomes.products.measurements.percentage.value"
+              "path": "outcomes.products.measurements.percentage.value",
+              "where": {
+                "op": "eq",
+                "path": "type",
+                "value": {
+                  "literal": "YIELD"
+                }
+              }
             },
-            "name": "measurements_per_reaction"
+            "name": "yields_per_reaction"
           }
         ]
       }
     }
   },
   {
-    "question": "among reactions that have at least one percentage measurement, how many do they have on average?",
+    "question": "among reactions that have at least one yield measurement, how many do they have on average?",
     "why": "the same average behind an exists, which is the only thing separating it from the question over every reaction",
     "reference": {
       "where": {
         "op": "exists",
         "path": "outcomes.products.measurements",
         "where": {
-          "op": "not_null",
-          "path": "percentage.value"
+          "op": "and",
+          "clauses": [
+            {
+              "op": "eq",
+              "path": "type",
+              "value": {
+                "literal": "YIELD"
+              }
+            },
+            {
+              "op": "not_null",
+              "path": "percentage.value"
+            }
+          ]
         }
       },
       "aggregate": {
@@ -474,9 +493,16 @@
             "fn": "avg",
             "path": {
               "reduce": "count",
-              "path": "outcomes.products.measurements.percentage.value"
+              "path": "outcomes.products.measurements.percentage.value",
+              "where": {
+                "op": "eq",
+                "path": "type",
+                "value": {
+                  "literal": "YIELD"
+                }
+              }
             },
-            "name": "measurements_per_reaction"
+            "name": "yields_per_reaction"
           }
         ]
       }
