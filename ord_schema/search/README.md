@@ -59,7 +59,7 @@ Aggregate  = { over?: Path, where?: Predicate, group_by: [Path],
                measures: [{ fn: "count"|"count_distinct"|"sum"|"avg"|"min"|"max",
                             path?: Path | Reduction, name: string }] }
 
-Reduction  = { reduce: "min"|"max"|"avg"|"sum"|"count", path: Path }
+Reduction  = { reduce: "min"|"max"|"avg"|"sum"|"count", path: Path, where?: Predicate }
 
 Order      = { key: string | Reduction, descending?: bool }
 ```
@@ -101,6 +101,13 @@ is a compile error rather than a wrong answer:
   pivot over the deepest level the path crosses where the corpus holds one, and the
   projection's lists otherwise; the answer is the same either way, and the measurement is
   below.
+- A `Reduction`'s `where` selects which elements are reduced, with paths relative to the
+  element as inside a quantifier. It is what separates "the highest yield" from "the
+  highest percentage anything was measured at": 42,909 of the corpus's percentage-valued
+  measurements are selectivity, purity, area, or custom, so the bare path answers a
+  broader question than the one asked. Quantifying inside it is refused on both routes,
+  since the pivot carries an element's non-repeated fields only and whether a filter
+  compiles should not depend on which artifacts a corpus holds.
 - `count` answers zero for a reaction holding no elements under the path, whichever route
   reads them. The projection spells an absent repeated level NULL rather than empty --
   788,334 reactions record no workups this way -- so the list route coalesces, because

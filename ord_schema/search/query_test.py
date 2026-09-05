@@ -17,6 +17,7 @@
 import warnings
 
 import duckdb
+import pyarrow as pa
 import pytest
 from pydantic import ValidationError
 from rdkit import Chem
@@ -1291,6 +1292,117 @@ def test_a_measure_reduces_over_the_pivot_too():
         pivot=_every_level,
     )
     assert "avg((SELECT count(r0.element.percentage.value)" in sql
+
+
+# Reducing only the elements a filter keeps
+
+_YIELD = {"op": "eq", "path": "type", "value": {"literal": "YIELD"}}
+
+
+def _filtered(where=None, reducer="count"):
+    key = {
+        "reduce": reducer,
+        "path": "outcomes.products.measurements.percentage.value",
+    }
+    if where is not None:
+        key["where"] = where
+    return {"order_by": [{"key": key}]}
+
+
+def test_a_filtered_reduction_narrows_the_pivot_subquery():
+    sql = _pivot_sql(_filtered(_YIELD), pivot=_every_level)
+    assert (
+        "WHERE r0.reaction_id = reactions.reaction_id AND r0.element.type = 'YIELD'"
+    ) in sql
+
+
+def test_a_filtered_reduction_narrows_the_list_before_reducing():
+    # The filter binds the element, so it has to apply before the descent to the leaf:
+    # filtering percentages could not see the type the question asks about.
+    sql = _pivot_sql(_filtered(_YIELD))
+    assert "list_filter(flatten(" in sql
+    assert "r0 -> r0.type = 'YIELD'" in sql
+    assert sql.index("list_filter(flatten(") < sql.index("x -> x.percentage")
+
+
+def test_an_unfiltered_reduction_reduces_every_element():
+    # count filters the nulls whether or not a where narrows the elements, so the tell
+    # is the bound variable rather than the presence of a list_filter.
+    assert "r0 ->" not in _pivot_sql(_filtered())
+
+
+def test_a_reduction_filter_may_name_a_compound():
+    # The filter's own clauses collect parameters like any other predicate; a name
+    # reaching the SQL unbound is an error rather than a wasted parameter.
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {
+                "order_by": [
+                    {
+                        "key": {
+                            "reduce": "count",
+                            "path": "inputs.components.amount.moles_moles",
+                            "where": {
+                                "op": "eq",
+                                "path": "smiles",
+                                "value": {"compound": "thf"},
+                            },
+                        }
+                    }
+                ]
+            }
+        )
+    )
+    assert compiled.compounds == ("thf",)
+    assert "$thf" in compiled.sql
+
+
+@pytest.mark.parametrize("pivoted", [False, True])
+def test_a_reduction_filter_cannot_quantify(pivoted):
+    # Refused on both routes, so whether a filter compiles at all does not depend on
+    # what artifacts the corpus happens to hold.
+    with pytest.raises(query.QueryError, match="no level here to quantify over"):
+        _pivot_sql(
+            _filtered(
+                {
+                    "op": "exists",
+                    "path": "identifiers",
+                    "where": {"op": "not_null", "path": "value"},
+                }
+            ),
+            pivot=_every_level if pivoted else None,
+        )
+
+
+def test_a_reduction_filter_needs_a_level_to_bind_to():
+    # Every repeated path the projection holds reaches a named level, so this is only
+    # reachable through a caller-supplied schema -- but a filter with nothing to bind
+    # its paths to has to say so rather than resolve them against the row.
+    schema = pa.schema(
+        [
+            pa.field("reaction_id", pa.string()),
+            pa.field(
+                "readings", pa.list_(pa.struct([pa.field("value", pa.float64())]))
+            ),
+        ]
+    )
+    with pytest.raises(query.QueryError, match="crosses none this grammar names"):
+        query.compile_query(
+            query.Query.model_validate(
+                {
+                    "order_by": [
+                        {
+                            "key": {
+                                "reduce": "count",
+                                "path": "readings.value",
+                                "where": {"op": "not_null", "path": "value"},
+                            }
+                        }
+                    ]
+                }
+            ),
+            schema=schema,
+        )
 
 
 # Comparing compounds rather than spellings

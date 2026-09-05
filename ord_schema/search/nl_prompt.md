@@ -75,9 +75,21 @@ Rules that keep a query answerable:
   A metal named as a catalyst is a `substructure` on the element — `[Pd]`, `[Ni]` —
   rather than a compound identity, since the catalyst is a complex and not the bare
   metal.
-- To rank or aggregate by a value under a repeated level, reduce it:
-  `{"reduce": "max", "path": "outcomes.products.measurements.percentage.value"}` is a
-  reaction's best yield. A plain path there is refused.
+- To rank or aggregate by a value under a repeated level, reduce it. A plain path there
+  is refused. `where` inside the reduction says which elements count, and its paths are
+  relative to the element, as they are inside a quantifier. Reach for it whenever the
+  column is shared by things the question does not mean: a percentage is recorded for
+  selectivity and purity as well as yield, so the bare path is "the highest percentage"
+  and only the filter makes it "the highest yield".
+
+  ```json
+  {"reduce": "max", "path": "outcomes.products.measurements.percentage.value",
+   "where": {"op": "eq", "path": "type", "value": {"literal": "YIELD"}}}
+  ```
+
+  Counting one reduces to zero for a reaction with no such element, so an average over
+  reductions includes those zeros. "Among reactions that have at least one" is a
+  different question, and it wants the query's own `where` to say so.
 - Enum columns compare against the spellings listed beside them, which are the value
   names rather than numbers.
 - "The most common X", "how many of each X", and anything else that groups by something
