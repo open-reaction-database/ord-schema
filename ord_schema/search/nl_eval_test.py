@@ -407,3 +407,25 @@ def test_a_run_without_a_sink_records_nothing(tmp_path):
     result = _run(_CASE, _StubClient("build_query", _BAD_PATH))
     assert not result.passed
     assert not list(tmp_path.iterdir())
+
+
+def test_a_case_is_scored_over_every_match(monkeypatch):
+    # A case is scored by comparing the reactions a translation returns against the
+    # reference's. Bounded, both sides are arbitrary pages of their match sets -- SQL
+    # leaves an unordered LIMIT free to pick any rows -- so two queries that agree would
+    # be scored as disagreeing. The corpora in this file are far under any bound, so
+    # only the argument itself can say this.
+    seen = {}
+
+    class _RecordedError(Exception):
+        pass
+
+    def _corpus(*args, **kwargs):
+        seen.update(kwargs)
+        raise _RecordedError
+
+    monkeypatch.setattr(nl_eval.nl, "get_client", lambda: None)
+    monkeypatch.setattr(nl_eval.execute, "Corpus", _corpus)
+    with pytest.raises(_RecordedError):
+        nl_eval.main(["--projections=x", "--structures=y"])
+    assert seen["max_rows"] is None
