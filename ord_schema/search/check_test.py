@@ -285,3 +285,24 @@ def test_an_empty_corpus_says_why_its_other_checks_are_worthless(empty_corpus):
     findings = check.check_coverage(empty_corpus, timeout_seconds=60)
     failure = next(f for f in findings if not f.passed)
     assert "vacuously" in failure.detail
+
+
+def test_the_baseline_is_measured_over_every_match(monkeypatch):
+    # A baseline is a count and a digest over every matching reaction. Under the
+    # corpus's own default bound it would be a digest over an arbitrary page, which
+    # compares unequal against the recorded one and reports a regression in the corpus
+    # rather than in the bound that produced it. The fixtures here hold three
+    # reactions, far under any bound, so only the argument itself can say this.
+    seen = {}
+
+    class _RecordedError(Exception):
+        pass
+
+    def _corpus(*args, **kwargs):
+        seen.update(kwargs)
+        raise _RecordedError
+
+    monkeypatch.setattr(check.execute, "Corpus", _corpus)
+    with pytest.raises(_RecordedError):
+        check.main(["--projections=x", "--structures=y"])
+    assert seen["max_rows"] is None
