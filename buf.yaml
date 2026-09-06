@@ -15,6 +15,12 @@
 version: v2
 modules:
   - path: .
+    # The module root is the repository, because that is where the proto import paths
+    # resolve. Everything under js/ is either generated output or an installed
+    # dependency, and node_modules vendors .proto files that would otherwise join the
+    # module and fail to build.
+    excludes:
+      - js
 lint:
   use:
     - STANDARD
