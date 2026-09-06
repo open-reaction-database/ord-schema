@@ -4186,7 +4186,7 @@ def test_a_pivot_filed_under_the_wrong_level_is_refused(wide_root, tmp_path):
             pivots_dir=str(pivots),
             warm=False,
         ) as corpus,
-        pytest.raises(execute.PairingError, match="wrong level"),
+        pytest.raises(execute.PairingError, match="holds the pivot over"),
     ):
         _search(corpus, _white("exists"))
 
@@ -4500,6 +4500,24 @@ def _without_mol_hash(corpus_dir, tmp_path, *, files: int) -> pathlib.Path:
             path,
         )
     return root
+
+
+def test_an_artifact_stamped_with_an_empty_name_is_refused_by_name(
+    corpus_dir, tmp_path
+):
+    # load_stamps requires the artifact key to be present, not to be non-empty, so a
+    # footer written by hand or truncated mid-write reaches the check with an empty
+    # name. Naming the article off it must not be what fails: an IndexError raised
+    # while composing the message would bury the file this is refusing.
+    root = tmp_path / "unnamed"
+    shutil.copytree(corpus_dir, root)
+    target = next((root / "structures").glob("*.parquet"))
+    table = pq.read_table(target)
+    metadata = dict(table.schema.metadata)
+    metadata[b"ord.artifact"] = b""
+    pq.write_table(table.replace_schema_metadata(metadata), target)
+    with pytest.raises(execute.PairingError, match=re.escape(str(target))):
+        _open(root)
 
 
 def test_a_structures_artifact_without_mol_hash_is_refused(corpus_dir, tmp_path):
