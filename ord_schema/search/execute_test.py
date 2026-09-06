@@ -3574,6 +3574,57 @@ def test_a_filtered_reduction_answers_the_same_on_either_route(
         assert _reduced_per_reaction(pivoted, reducer, where) == expected
 
 
+def test_a_reduction_filter_may_screen_structures(deep_root, tmp_path):
+    # A structure test reads structure_offset, which the reactions carry and a pivot
+    # row does not. Inside the correlated subquery the unqualified name resolves to the
+    # outer relation, which is the offset that makes the element's dataset-local
+    # structure_id corpus-wide; getting that wrong screens against another file's
+    # molecules and answers plausibly.
+    pivots = _write_pivots(deep_root, ("inputs.components",), into=tmp_path / "pivots")
+    counted = {
+        "aggregate": {
+            "group_by": ["reaction_id"],
+            "measures": [
+                {
+                    "fn": "min",
+                    "path": {
+                        "reduce": "count",
+                        "path": "inputs.components.reaction_role",
+                        "where": {
+                            "op": "substructure",
+                            "path": "smiles",
+                            "smarts": "[OX2H]",
+                        },
+                    },
+                    "name": "alcohols",
+                }
+            ],
+        }
+    }
+    answers = {}
+    for pivots_dir in (None, str(pivots)):
+        with execute.Corpus(
+            str(deep_root / "projections" / "*.parquet"),
+            str(deep_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=pivots_dir,
+            pivot_budget_bytes=0,
+        ) as corpus:
+            for smarts in ("[OX2H]", "[n]"):
+                counted["aggregate"]["measures"][0]["path"]["where"]["smarts"] = smarts
+                table = corpus.search(query.Query.model_validate(counted))
+                answers[pivots_dir is not None, smarts] = {
+                    row["reaction_id"]: row["alcohols"] for row in table.to_pylist()
+                }
+    # Every input here is ethanol, and the pyridine is a workup's. So the alcohol
+    # screen keeps both -- an agreement on zeros would say nothing about the offset --
+    # and the aromatic-nitrogen screen keeps neither, which is what a dropped filter
+    # could not produce.
+    for pivoted in (False, True):
+        assert answers[pivoted, "[OX2H]"] == {"ord-cc01": 1, "ord-cc02": 1}
+        assert answers[pivoted, "[n]"] == {"ord-cc01": 0, "ord-cc02": 0}
+
+
 @pytest.mark.parametrize("pivoted", [False, True])
 def test_a_filter_changes_which_elements_are_reduced(wide_root, tmp_path, pivoted):
     # The point of the filter, and the reason the bare path is the wrong question:
