@@ -190,6 +190,33 @@ QUERIES: list[dict[str, Any]] = [
         },
     },
     {
+        # Averaged rather than ordered, because every ordering over this path answers
+        # the same 25 reactions whatever the reducer and whatever the filter: the top
+        # is held by a handful of percentages recorded as 9.0e19, which are yields. A
+        # query whose digest cannot move is coverage in name only.
+        "name": "filtered_reduction",
+        "covers": "a reduction narrowed to the elements its where keeps",
+        "query": {
+            "aggregate": {
+                "measures": [
+                    {
+                        "fn": "avg",
+                        "path": {
+                            "reduce": "count",
+                            "path": "outcomes.products.measurements.percentage.value",
+                            "where": {
+                                "op": "eq",
+                                "path": "type",
+                                "value": {"literal": "YIELD"},
+                            },
+                        },
+                        "name": "yields_per_reaction",
+                    }
+                ]
+            }
+        },
+    },
+    {
         "name": "aggregate_grouping",
         "covers": "GROUP BY with a measure",
         "query": {

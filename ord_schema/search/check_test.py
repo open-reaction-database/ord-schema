@@ -227,6 +227,18 @@ def _operators_used(node) -> set[str]:
     return set()
 
 
+def _reductions_used(node) -> list[dict]:
+    """Returns every reduction appearing anywhere in a query payload."""
+    if isinstance(node, dict):
+        found = [node] if "reduce" in node else []
+        for value in node.values():
+            found += _reductions_used(value)
+        return found
+    if isinstance(node, list):
+        return [found for item in node for found in _reductions_used(item)]
+    return []
+
+
 def test_every_grammar_operator_is_covered_by_a_canonical_query():
     # The baseline is only as good as what it asks. An operator nothing asks about can
     # break without moving a single digest, and the day that matters is the day someone
@@ -246,6 +258,17 @@ def test_every_reducer_is_covered_by_a_canonical_query():
     # One is enough to prove the list-aggregate path compiles and runs; the rest differ
     # only in which DuckDB function the same expression wraps, which query_test pins.
     assert covered
+
+
+def test_every_field_of_a_reduction_is_covered_by_a_canonical_query():
+    # A reduction compiles differently for each field it carries -- a where narrows the
+    # elements on both routes -- so a field nothing asks about can break without moving
+    # a digest. The same argument as the operator list above, for the same reason.
+    covered = set()
+    for entry in check.QUERIES:
+        for reduction in _reductions_used(entry["query"]):
+            covered |= set(reduction)
+    assert set(query.Reduction.model_fields) - covered == set()
 
 
 @pytest.fixture(scope="module")
