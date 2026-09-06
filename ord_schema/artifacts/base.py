@@ -269,8 +269,20 @@ def load_stamps(path: str | os.PathLike[str]) -> Stamps:
     )
 
 
-def _declared_paths(schema: pa.Schema | pa.DataType, prefix: str = "") -> list[str]:
-    """Returns every field a schema declares, dotted, in declaration order.
+def _is_nested(dtype: pa.DataType) -> bool:
+    """Returns whether ``dtype`` holds other fields rather than values of its own."""
+    return (
+        pa.types.is_struct(dtype)
+        or pa.types.is_list(dtype)
+        or pa.types.is_large_list(dtype)
+        or pa.types.is_map(dtype)
+    )
+
+
+def _declared_paths(
+    schema: pa.Schema | pa.DataType, prefix: str = ""
+) -> list[tuple[str, pa.DataType | None]]:
+    """Returns every field a schema declares, dotted and typed, in declaration order.
 
     A list's or map's own name is not a field a reader binds; what it holds is, so the
     descent passes through them without adding a segment of its own.
@@ -280,7 +292,9 @@ def _declared_paths(schema: pa.Schema | pa.DataType, prefix: str = "") -> list[s
         prefix: What the walk has already named, for the recursion.
 
     Returns:
-        The dotted paths, outermost first.
+        Pairs of dotted path and leaf type, outermost first. The type is None for a
+        field that holds other fields, whose own type is decided by the leaves beneath
+        it and would otherwise report a change twice.
     """
     if isinstance(schema, pa.Schema):
         fields: list[pa.Field] = list(schema)
@@ -292,10 +306,10 @@ def _declared_paths(schema: pa.Schema | pa.DataType, prefix: str = "") -> list[s
         return _declared_paths(schema.item_type, prefix)
     else:
         return []
-    paths = []
+    paths: list[tuple[str, pa.DataType | None]] = []
     for field in fields:
         name = f"{prefix}.{field.name}" if prefix else field.name
-        paths.append(name)
+        paths.append((name, None if _is_nested(field.type) else field.type))
         paths.extend(_declared_paths(field.type, name))
     return paths
 
@@ -313,24 +327,34 @@ def missing_columns(path: str | os.PathLike[str], schema: pa.Schema) -> list[str
     since it was written -- and a reader binding the new column would fail on a file
     nothing marked stale.
 
+    A leaf whose type changed counts as missing too, because a path comparison alone
+    cannot see it: widening a column or moving a timestamp from seconds to microseconds
+    leaves every name where it was, so a file holding the old type would read as current
+    and keep serving values the current definition does not describe.
+
     Args:
         path: Path to check. Need not exist.
         schema: The columns this library's version of the artifact carries.
 
     Returns:
         The declared paths the file lacks, dotted from the top level and in declaration
-        order. A file that cannot be read at all lacks all of them.
+        order. A path present with the wrong type carries the type it should hold, so
+        the message says what changed rather than naming a column the file visibly has.
+        A file that cannot be read at all lacks all of them.
     """
+    declared = _declared_paths(schema)
     try:
         with pq.ParquetFile(path) as parquet_file:
-            found = parquet_file.schema_arrow
+            found = dict(_declared_paths(parquet_file.schema_arrow))
     except (OSError, ValueError, pa.ArrowInvalid):
-        return _declared_paths(schema)
-    return [
-        path
-        for path in _declared_paths(schema)
-        if path not in set(_declared_paths(found))
-    ]
+        return [name for name, _ in declared]
+    missing = []
+    for name, leaf in declared:
+        if name not in found:
+            missing.append(name)
+        elif leaf is not None and found[name] != leaf:
+            missing.append(f"{name}: {leaf}")
+    return missing
 
 
 def is_current(
