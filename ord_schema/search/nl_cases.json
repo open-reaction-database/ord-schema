@@ -439,6 +439,76 @@
     }
   },
   {
+    "question": "on average, how many yield measurements does a reaction have?",
+    "why": "counting a repeated level gives zero where the reaction has none, so every reaction belongs in the average; a percentage is also recorded for selectivity and purity, so the count needs the reduction's own where",
+    "reference": {
+      "aggregate": {
+        "measures": [
+          {
+            "fn": "avg",
+            "path": {
+              "reduce": "count",
+              "path": "outcomes.products.measurements.percentage.value",
+              "where": {
+                "op": "eq",
+                "path": "type",
+                "value": {
+                  "literal": "YIELD"
+                }
+              }
+            },
+            "name": "yields_per_reaction"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "among reactions that have at least one yield measurement, how many do they have on average?",
+    "why": "the same average behind an exists, which is the only thing separating it from the question over every reaction",
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "outcomes.products.measurements",
+        "where": {
+          "op": "and",
+          "clauses": [
+            {
+              "op": "eq",
+              "path": "type",
+              "value": {
+                "literal": "YIELD"
+              }
+            },
+            {
+              "op": "not_null",
+              "path": "percentage.value"
+            }
+          ]
+        }
+      },
+      "aggregate": {
+        "measures": [
+          {
+            "fn": "avg",
+            "path": {
+              "reduce": "count",
+              "path": "outcomes.products.measurements.percentage.value",
+              "where": {
+                "op": "eq",
+                "path": "type",
+                "value": {
+                  "literal": "YIELD"
+                }
+              }
+            },
+            "name": "yields_per_reaction"
+          }
+        ]
+      }
+    }
+  },
+  {
     "question": "what is the average setpoint temperature, for automated and manual reactions separately?",
     "why": "an average crossing two regions, where a count of rows and an average of values look alike in the answer",
     "reference": {
