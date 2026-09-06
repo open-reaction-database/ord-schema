@@ -4143,6 +4143,32 @@ def test_a_stale_pivot_is_refused(corpus_dir, tmp_path):
         )
 
 
+def test_a_pivot_missing_a_column_the_schema_declares_is_refused(corpus_dir, tmp_path):
+    # The element struct grows whenever the projection's does, and the stamps say
+    # nothing about columns -- so an artifact derived before the column is current by
+    # every other measure here. Read as a corpus member it fails deep in DuckDB, as a
+    # binder error naming a struct key rather than the file that predates it, which
+    # sends whoever reads it looking at the query instead of the tree.
+    pivots = _write_pivots(corpus_dir, ("inputs.components",), into=tmp_path / "pivots")
+    target = next((pivots / "inputs.components").rglob("*.parquet"))
+    table = pq.read_table(target)
+    metadata = table.schema.metadata
+    element = table.column("element").combine_chunks()
+    dropped = element.field(element.type.field(0).name)
+    table = table.drop_columns(["element"]).append_column(
+        pa.field("element", pa.struct([element.type.field(0)])),
+        pa.StructArray.from_arrays([dropped], fields=[element.type.field(0)]),
+    )
+    pq.write_table(table.replace_schema_metadata(metadata), target)
+    with pytest.raises(execute.PairingError, match="without"):
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+        )
+
+
 def test_a_pivot_filed_under_the_wrong_level_is_refused(wide_root, tmp_path):
     pivots = tmp_path / "pivots"
     (pivots / "outcomes.products").mkdir(parents=True)
@@ -4606,6 +4632,28 @@ def occurrence_dirs(tmp_path, corpus_dir) -> tuple[pathlib.Path, pathlib.Path]:
     """The pivots the occurrences descend from, and the occurrences themselves."""
     pivots = _write_pivots(corpus_dir, _OCCURRENCE_LEVELS, into=tmp_path / "pivots")
     return pivots, _write_occurrences(pivots, tmp_path / "occurrences")
+
+
+def test_an_occurrences_artifact_missing_a_column_is_refused(
+    corpus_dir, occurrence_dirs
+):
+    # The same check _check_pivots makes, for an artifact whose columns cannot drift
+    # today: the three are the same at every path and have not moved. It is here
+    # because the stamps say nothing about columns whatever the artifact, so the day
+    # this schema grows one, every file written before it would read as current and
+    # fail deep in DuckDB rather than here.
+    _, occurrence_dir = occurrence_dirs
+    target = occurrences.artifact_paths(occurrence_dir, "inputs.components")[0]
+    table = pq.read_table(target)
+    metadata = table.schema.metadata
+    pq.write_table(
+        table.drop_columns(["reaction_role"]).replace_schema_metadata(metadata), target
+    )
+    with (
+        pytest.raises(execute.PairingError, match="without"),
+        _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read,
+    ):
+        _search(read, _white("exists"))
 
 
 @pytest.mark.parametrize("smarts", ["c1ccncc1", "[OX2H]", "c1ccccc1", "[#6]"])

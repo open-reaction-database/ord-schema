@@ -42,8 +42,9 @@ Artifacts whose footer already records the current source content, library versi
 artifact version are skipped, so re-running is cheap; --force rewrites them anyway.
 
 These are errors: an --output_dir that would write over any input, a path this schema
-does not carry a structure at, a pivot that is stale or holds another level, and a run
-that finds no pivots for a path at all.
+does not carry a structure at, a pivot that is stale or holds another level, a run that
+finds no pivots for a path at all, and a path the tree already holds that this run did
+not name whose artifacts are short a column the schema declares.
 """
 
 import argparse
@@ -169,7 +170,8 @@ def main(args: argparse.Namespace) -> None:
             is named twice; if a pivot is stale or holds another level; or if a path's
             level has no pivots at all -- which usually means they have not been derived
             yet, and would otherwise leave a tree a corpus refuses for reaching too few
-            structures.
+            structures; or if the tree holds a path this run did not derive whose
+            artifacts are short a column the schema declares.
     """
     paths = check_paths(args.paths)
     if args.print_levels:
@@ -256,6 +258,24 @@ def main(args: argparse.Namespace) -> None:
                 f"than the {written + skipped} this run wrote or found current; the "
                 "rest are where no reader looks"
             )
+    behind = base.left_behind(
+        args.output_dir,
+        occurrences.ARTIFACT,
+        # One schema for every path: the three columns are the same wherever a
+        # structure sits, so nothing on disk is short one until this schema grows.
+        dict.fromkeys(occurrences.PATHS, occurrences.SCHEMA),
+        occurrences.artifact_paths,
+        paths,
+    )
+    if behind:
+        # Raised rather than reported: the run succeeded at what it was asked to do and
+        # still left a tree a corpus refuses. Naming the paths says which to add to
+        # --paths.
+        raise ValueError(
+            f"{args.output_dir} holds {len(behind)} paths this run did not derive "
+            "whose artifacts no longer match the schema: "
+            + "; ".join(f"{path} ({reason})" for path, reason in behind.items())
+        )
 
 
 if __name__ == "__main__":
