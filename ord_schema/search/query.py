@@ -576,14 +576,23 @@ Quantifier.model_rebuild()
 
 
 # DuckDB's list aggregates, which ignore the nulls a list may hold. `count` filters
-# rather than taking len(), which would count them.
+# rather than taking len(), which would count them, and coalesces because the
+# projection spells an absent repeated level NULL rather than empty -- 788,334
+# reactions record no workups this way -- and len(NULL) is NULL, which would answer
+# "how many does this reaction have" with "unknown" where the answer is none.
 _REDUCERS = {
     "min": "list_min({expression})",
     "max": "list_max({expression})",
     "avg": "list_avg({expression})",
     "sum": "list_sum({expression})",
-    "count": "len(list_filter({expression}, value -> value IS NOT NULL))",
+    "count": "coalesce(len(list_filter({expression}, value -> value IS NOT NULL)), 0)",
 }
+
+# The relation a pivoted reduction reads its elements from. A reduction is only ever
+# compiled where the rows are reactions, and each subquery scopes its own alias, so one
+# name serves every reduction in a query without shadowing the reactions it correlates
+# to.
+_REDUCTION_ALIAS = "r0"
 
 # Reducers and aggregates that arithmetic has to carry. The grammar already holds
 # ordered comparisons to numbers, and a sum over text is a DuckDB error rather than an
@@ -1186,17 +1195,62 @@ def _check_numeric(path: str, leaf: pa.DataType, what: str) -> None:
         raise QueryError(f"{path}: {what} needs a numeric column, not {leaf}")
 
 
-def _reduced(reduction: Reduction, schema: pa.Schema) -> str:
+def _pivoted_reduction(
+    reduction: Reduction, table: str, pivot: PivotIndex | None
+) -> str | None:
+    """Returns the reduction as an aggregate over a pivot, where one covers the path.
+
+    Reading the elements as rows costs a scan of the narrow pivot rather than a walk of
+    the nested lists the projection holds, measured at 2.5s against 0.76s for a corpus
+    ranking -- which is the cost of reading ``reaction_id`` alone, so the reduction
+    itself becomes free.
+
+    Args:
+        reduction: What to reduce, and how.
+        table: The relation of reactions the subquery correlates to.
+        pivot: Pivoted levels, or None where the caller holds none.
+
+    Returns:
+        A correlated scalar subquery over the pivot, or None where no pivot covers the
+        path and the projection has to answer it.
+    """
+    if pivot is None:
+        return None
+    reached = pivot_levels.reach(reduction.path)
+    if reached is None:
+        return None
+    level, remainder, _ = reached
+    relation = pivot(level.path)
+    if relation is None:
+        return None
+    column = ".".join([_REDUCTION_ALIAS, pivot_levels.ELEMENT, *remainder])
+    return (
+        f"(SELECT {_AGGREGATES[reduction.reduce]}({column}) "  # noqa: S608
+        f"FROM {relation} AS {_REDUCTION_ALIAS} WHERE "
+        f"{_REDUCTION_ALIAS}.{pivot_levels.REACTION_ID} = "
+        f"{table}.{pivot_levels.REACTION_ID})"
+    )
+
+
+def _reduced(
+    reduction: Reduction,
+    schema: pa.Schema,
+    *,
+    table: str = TABLE,
+    pivot: PivotIndex | None = None,
+) -> str:
     """Returns the expression reducing a repeated path to one value per reaction.
 
     Args:
         reduction: What to reduce, and how.
         schema: Schema the path resolves against.
+        table: The relation of reactions, which a pivoted reduction correlates to.
+        pivot: Pivoted levels to read the elements from, where one covers the path.
 
     Returns:
         A DuckDB expression yielding one scalar per reaction. An arithmetic reducer
         yields NULL for a reaction holding no elements under that path; ``count``
-        yields zero there, and NULL only where the repeated level itself is absent.
+        yields zero there.
 
     Raises:
         QueryError: If the path is already scalar, which needs no reduction (accepting
@@ -1211,11 +1265,19 @@ def _reduced(reduction: Reduction, schema: pa.Schema) -> str:
         )
     if reduction.reduce in _ARITHMETIC:
         _check_numeric(reduction.path, resolved.type, reduction.reduce)
+    pivoted = _pivoted_reduction(reduction, table, pivot)
+    if pivoted is not None:
+        return pivoted
     return _REDUCERS[reduction.reduce].format(expression=resolved.expression)
 
 
 def _measure_argument(
-    measure: Measure, schema: pa.Schema, element: str | None = None
+    measure: Measure,
+    schema: pa.Schema,
+    element: str | None = None,
+    *,
+    table: str = TABLE,
+    pivot: PivotIndex | None = None,
 ) -> str:
     """Returns the expression a measure aggregates over.
 
@@ -1225,6 +1287,8 @@ def _measure_argument(
         element: The bound element paths are relative to, for an aggregate over a
             repeated level; None where the rows are reactions. A ``Reduction`` needs
             none, since a level's elements hold no list to reduce.
+        table: The relation of reactions, which a pivoted reduction correlates to.
+        pivot: Pivoted levels to read a reduction's elements from.
 
     Returns:
         ``*`` for a bare count, a reduced expression where the path crosses a repeated
@@ -1242,7 +1306,7 @@ def _measure_argument(
                 f"{measure.path.path}: a reduction reads a reaction's own elements, "
                 "and this aggregate's rows are already elements"
             )
-        argument = _reduced(measure.path, schema)
+        argument = _reduced(measure.path, schema, table=table, pivot=pivot)
     elif element is not None and measure.path == pivot_levels.REACTION_ID:
         # The one path a pivot row carries outside its element, and what makes a count
         # of elements answerable as a count of reactions.
@@ -1408,7 +1472,9 @@ def compile_query(
         ]
         selected = list(groups)
         for measure in query.aggregate.measures:
-            argument = _measure_argument(measure, element_schema, alias)
+            argument = _measure_argument(
+                measure, element_schema, alias, table=table, pivot=pivot
+            )
             selected.append(f"{_AGGREGATES[measure.fn]}({argument}) AS {measure.name}")
         names = {measure.name for measure in query.aggregate.measures}
         orderable = names | set(query.aggregate.group_by)
@@ -1482,7 +1548,7 @@ def compile_query(
                         "an aggregated query orders by a measure name or a group_by "
                         "path; reduce inside a measure instead"
                     )
-                key = _reduced(order.key, schema)
+                key = _reduced(order.key, schema, table=table, pivot=pivot)
             elif orderable is None:
                 key = _scalar(order.key, schema, "order_by").expression
             elif order.key in orderable:

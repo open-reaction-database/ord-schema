@@ -3494,6 +3494,79 @@ def test_a_pivot_artifact_is_read_rather_than_built(wide_root, caplog):
     assert not any("building the pivot" in message for message in messages)
 
 
+def _reduced_per_reaction(corpus, reducer):
+    """Returns the reduction each reaction answers, keyed by reaction."""
+    table = corpus.search(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "group_by": ["reaction_id"],
+                    "measures": [
+                        {
+                            "fn": "min",
+                            "path": {
+                                "reduce": reducer,
+                                "path": (
+                                    "outcomes.products.measurements.percentage.value"
+                                ),
+                            },
+                            "name": "reduced",
+                        }
+                    ],
+                }
+            }
+        )
+    )
+    return {row["reaction_id"]: row["reduced"] for row in table.to_pylist()}
+
+
+@pytest.mark.parametrize("reducer", ["min", "max", "avg", "sum", "count"])
+def test_a_pivoted_reduction_answers_what_the_projection_answers(
+    wide_root, tmp_path, reducer
+):
+    # The pivot reaches the same elements by another route, so it cannot answer
+    # differently -- including for the reactions that carry no element at all, which
+    # is where the two spellings of "nothing" diverge if the count is left to len().
+    pivots = _write_pivots(
+        wide_root, ("outcomes.products.measurements",), into=tmp_path / "pivots"
+    )
+    projected = str(wide_root / "projections" / "*.parquet")
+    structured = str(wide_root / "structures" / "*.parquet")
+    # Budgeted to nothing, because a corpus left to its default builds the pivot in
+    # memory and routes through it -- which would compare the pivot against itself.
+    with execute.Corpus(
+        projected, structured, resolver={}.__getitem__, pivot_budget_bytes=0
+    ) as lists:
+        expected = _reduced_per_reaction(lists, reducer)
+    with execute.Corpus(
+        projected, structured, resolver={}.__getitem__, pivots_dir=str(pivots)
+    ) as pivoted:
+        assert _reduced_per_reaction(pivoted, reducer) == expected
+
+
+@pytest.mark.parametrize("pivoted", [False, True])
+def test_counting_a_level_a_reaction_lacks_is_zero(wide_root, tmp_path, pivoted):
+    # ord-wd04 records no outcomes, which the projection writes as NULL rather than as
+    # an empty list, and ord-wd03 an outcome carrying no products. Neither reaction
+    # holds an unknown number of measurements; both hold none.
+    pivots = _write_pivots(
+        wide_root, ("outcomes.products.measurements",), into=tmp_path / "pivots"
+    )
+    with execute.Corpus(
+        str(wide_root / "projections" / "*.parquet"),
+        str(wide_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots) if pivoted else None,
+        # Without a budget of zero the unpivoted case builds the level in memory and
+        # takes the pivoted route anyway, leaving the list spelling untested. The
+        # pivoted case reads the artifact, so it needs no budget either.
+        pivot_budget_bytes=0,
+    ) as corpus:
+        counted = _reduced_per_reaction(corpus, "count")
+    assert counted["ord-wd04"] == 0
+    assert counted["ord-wd03"] == 0
+
+
 # The levels the occurrence index's paths range within: three are indexed paths of
 # their own, and the authentic standard is one compound per measurement, so its rows
 # come from the measurements' pivot.

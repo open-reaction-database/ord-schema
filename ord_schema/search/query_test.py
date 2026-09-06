@@ -1217,6 +1217,82 @@ def test_a_singular_struct_routes_to_its_ancestor_level_s_pivot():
     assert "x0.element.authentic_standard.smiles" in sql
 
 
+# Reducing over a pivot rather than over the projection's lists
+
+
+def _ranking(reducer="max"):
+    return {
+        "order_by": [
+            {
+                "key": {
+                    "reduce": reducer,
+                    "path": "outcomes.products.measurements.percentage.value",
+                }
+            }
+        ]
+    }
+
+
+def test_a_reduction_reads_the_pivot_where_one_covers_its_level():
+    sql = _pivot_sql(_ranking(), pivot=_every_level)
+    assert "list_max(" not in sql
+    assert (
+        "(SELECT max(r0.element.percentage.value) "
+        "FROM pivot_outcomes_products_measurements AS r0 "
+        "WHERE r0.reaction_id = reactions.reaction_id)"
+    ) in sql
+
+
+def test_a_pivoted_reduction_correlates_to_the_reactions_it_reduces():
+    # The pivot carries a reaction_id of its own, so an unqualified outer reference
+    # would bind to the inner one and compare a column to itself, which is true of
+    # every row and reduces the whole corpus for each reaction.
+    sql = _pivot_sql(_ranking(), pivot=_every_level)
+    assert "WHERE r0.reaction_id = reactions.reaction_id" in sql
+
+
+def test_a_reduction_falls_back_to_the_list_aggregate_without_a_pivot():
+    assert _pivot_sql(_ranking()) == _pivot_sql(_ranking(), pivot=lambda path: None)
+    assert "list_max(" in _pivot_sql(_ranking())
+
+
+def test_a_reduction_over_an_unpivoted_level_stays_on_the_projection():
+    sql = _pivot_sql(
+        _ranking(),
+        pivot=lambda path: (
+            None if path == "outcomes.products.measurements" else pivot.table_name(path)
+        ),
+    )
+    assert "list_max(" in sql
+
+
+@pytest.mark.parametrize("reducer", ["min", "max", "avg", "sum", "count"])
+def test_every_reducer_routes_to_the_pivot(reducer):
+    sql = _pivot_sql(_ranking(reducer), pivot=_every_level)
+    assert f"SELECT {reducer}(r0.element.percentage.value)" in sql
+
+
+def test_a_measure_reduces_over_the_pivot_too():
+    sql = _pivot_sql(
+        {
+            "aggregate": {
+                "measures": [
+                    {
+                        "fn": "avg",
+                        "path": {
+                            "reduce": "count",
+                            "path": "outcomes.products.measurements.percentage.value",
+                        },
+                        "name": "measurements",
+                    }
+                ]
+            }
+        },
+        pivot=_every_level,
+    )
+    assert "avg((SELECT count(r0.element.percentage.value)" in sql
+
+
 # Comparing compounds rather than spellings
 
 

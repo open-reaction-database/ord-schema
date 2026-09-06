@@ -97,7 +97,15 @@ is a compile error rather than a wrong answer:
 - A `Reduction` is the one place a repeated path is read without a quantifier: it reduces
   that reaction's own elements to a single value, so `max` over `outcomes.products.measurements.percentage.value`
   is the reaction's best yield rather than the corpus's. Its path must cross a repeated level;
-  a scalar one is refused, since it would give the same query two spellings.
+  a scalar one is refused, since it would give the same query two spellings. It reads the
+  pivot over the deepest level the path crosses where the corpus holds one, and the
+  projection's lists otherwise; the answer is the same either way, and the measurement is
+  below.
+- `count` answers zero for a reaction holding no elements under the path, whichever route
+  reads them. The projection spells an absent repeated level NULL rather than empty --
+  788,334 reactions record no workups this way -- so the list route coalesces, because
+  "how many does this reaction have" is answered by none rather than by unknown. The
+  arithmetic reducers yield NULL there, which is what an average over nothing is.
 - `min`, `max`, `avg`, and `sum` need a numeric column, whether they reduce a repeated path
   or aggregate a scalar one; `count` takes any. Arithmetic over text is refused where the
   query is compiled rather than left to fail where it runs.
@@ -175,7 +183,7 @@ in what they read. Worked examples, with the route each clause takes:
 | solvent-free: no component is a solvent | `forall inputs.components` | pivot — the index shows which elements match, never that all of them do |
 | pyridine **and** a boronic acid in one component | `exists inputs.components` | pivot — two structure predicates is one more than an occurrence row can carry |
 | a desired product with a yield above 50% | `exists outcomes.products`, nested `exists measurements` | both levels' pivots, joined on the ordinal prefix |
-| the ten highest-yielding reactions | `order_by` a `reduce` over `outcomes.products.measurements` | no quantifier: a list aggregate over the projection |
+| the ten highest-yielding reactions | `order_by` a `reduce` over `outcomes.products.measurements` | no quantifier: the level's pivot, or the projection's lists without one |
 
 Every pivot row above falls to the elements when no pivot is available — a level the
 budget refused, or one with neither an artifact nor room to build. The answer does not
@@ -389,6 +397,14 @@ container against rather than a floor a later query raises it to. `Corpus`
 takes that limit as an argument; left unset, DuckDB claims about 80% of the machine — or
 of the container's cap, which it does read. The step-by-step breakdown is in
 [the logbook entry][cache-entry], finding 16.
+
+**A reduction reads the pivot, and what is left is the scan.** Ranking the corpus by a
+reaction's best yield walks three nested lists over every reaction on the projection route
+and costs 2.5s; the same query against the `outcomes.products.measurements` pivot costs
+0.76s, which is what reading `reaction_id` alone costs — the reduction itself is free, and
+the pivot's own group-by is 0.023s. Over the 19 canonical queries the slowest is 0.231s
+with the pivots held and 1.87s without them, and none is above a second. The artifact costs
+no budget, so this is latency a corpus holding pivots gets for nothing.
 
 None of that is optional for substructure search, since the screen and verify are RDKit in
 this process rather than SQL in an engine. Everything above it is latency: a container
