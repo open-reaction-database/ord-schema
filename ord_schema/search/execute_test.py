@@ -1708,7 +1708,8 @@ def test_max_rows_bounds_what_a_search_returns(corpus_dir, caplog):
 
 def test_an_answer_that_reaches_the_bound_says_it_may_be_cut(corpus_dir, caplog):
     # Cut rather than refused: the answer is nearer what the caller wanted than an
-    # error, and nothing in the result says it was cut, so the log has to.
+    # error, so the log says it may be short, and the table carries TRUNCATED for a
+    # reader who never sees the log.
     with (
         caplog.at_level(logging.WARNING, logger="ord_schema.search.execute"),
         execute.Corpus(
@@ -3201,6 +3202,15 @@ def _wide_reactions() -> list[reaction_pb2.Reaction]:
     other.measurements.add(type="YIELD").percentage.value = 90
     reactions.append(sibling)
 
+    # A percentage that is not a yield, beside one that is. Selectivity, purity, and
+    # area are recorded as percentages too -- 42,909 measurements across the corpus --
+    # so a reduction over the bare path answers a broader question than "yield" asks.
+    mixed = reaction_pb2.Reaction(reaction_id="ord-wd08")
+    only = mixed.outcomes.add().products.add(is_desired_product=True)
+    only.measurements.add(type="YIELD").percentage.value = 40
+    only.measurements.add(type="SELECTIVITY").percentage.value = 95
+    reactions.append(mixed)
+
     return reactions
 
 
@@ -3493,6 +3503,173 @@ def test_a_pivot_artifact_is_read_rather_than_built(wide_root, caplog):
     assert not any("building the pivot" in message for message in messages)
 
 
+def _reduced_per_reaction(corpus, reducer, where=None):
+    """Returns the reduction each reaction answers, keyed by reaction."""
+    key = {
+        "reduce": reducer,
+        "path": "outcomes.products.measurements.percentage.value",
+    }
+    if where is not None:
+        key["where"] = where
+    table = corpus.search(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "group_by": ["reaction_id"],
+                    "measures": [{"fn": "min", "path": key, "name": "reduced"}],
+                }
+            }
+        )
+    )
+    return {row["reaction_id"]: row["reduced"] for row in table.to_pylist()}
+
+
+@pytest.mark.parametrize("reducer", ["min", "max", "avg", "sum", "count"])
+def test_a_pivoted_reduction_answers_what_the_projection_answers(
+    wide_root, tmp_path, reducer
+):
+    # The pivot reaches the same elements by another route, so it cannot answer
+    # differently -- including for the reactions that carry no element at all, which
+    # is where the two spellings of "nothing" diverge if the count is left to len().
+    pivots = _write_pivots(
+        wide_root, ("outcomes.products.measurements",), into=tmp_path / "pivots"
+    )
+    projected = str(wide_root / "projections" / "*.parquet")
+    structured = str(wide_root / "structures" / "*.parquet")
+    # Budgeted to nothing, because a corpus left to its default builds the pivot in
+    # memory and routes through it -- which would compare the pivot against itself.
+    with execute.Corpus(
+        projected, structured, resolver={}.__getitem__, pivot_budget_bytes=0
+    ) as lists:
+        expected = _reduced_per_reaction(lists, reducer)
+    with execute.Corpus(
+        projected, structured, resolver={}.__getitem__, pivots_dir=str(pivots)
+    ) as pivoted:
+        assert _reduced_per_reaction(pivoted, reducer) == expected
+
+
+@pytest.mark.parametrize("reducer", ["min", "max", "avg", "sum", "count"])
+def test_a_filtered_reduction_answers_the_same_on_either_route(
+    wide_root, tmp_path, reducer
+):
+    # The filter narrows the same elements whichever relation holds them, and the
+    # wide corpus records measurements that are not yields for exactly this.
+    pivots = _write_pivots(
+        wide_root, ("outcomes.products.measurements",), into=tmp_path / "pivots"
+    )
+    projected = str(wide_root / "projections" / "*.parquet")
+    structured = str(wide_root / "structures" / "*.parquet")
+    where = {"op": "eq", "path": "type", "value": {"literal": "YIELD"}}
+    with execute.Corpus(
+        projected, structured, resolver={}.__getitem__, pivot_budget_bytes=0
+    ) as lists:
+        expected = _reduced_per_reaction(lists, reducer, where)
+    with execute.Corpus(
+        projected,
+        structured,
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots),
+        pivot_budget_bytes=0,
+    ) as pivoted:
+        assert _reduced_per_reaction(pivoted, reducer, where) == expected
+
+
+def test_a_reduction_filter_may_screen_structures(deep_root, tmp_path):
+    # A structure test reads structure_offset, which the reactions carry and a pivot
+    # row does not. Inside the correlated subquery the unqualified name resolves to the
+    # outer relation, which is the offset that makes the element's dataset-local
+    # structure_id corpus-wide; getting that wrong screens against another file's
+    # molecules and answers plausibly.
+    pivots = _write_pivots(deep_root, ("inputs.components",), into=tmp_path / "pivots")
+    counted = {
+        "aggregate": {
+            "group_by": ["reaction_id"],
+            "measures": [
+                {
+                    "fn": "min",
+                    "path": {
+                        "reduce": "count",
+                        "path": "inputs.components.reaction_role",
+                        "where": {
+                            "op": "substructure",
+                            "path": "smiles",
+                            "smarts": "[OX2H]",
+                        },
+                    },
+                    "name": "alcohols",
+                }
+            ],
+        }
+    }
+    answers = {}
+    for pivots_dir in (None, str(pivots)):
+        with execute.Corpus(
+            str(deep_root / "projections" / "*.parquet"),
+            str(deep_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=pivots_dir,
+            pivot_budget_bytes=0,
+        ) as corpus:
+            for smarts in ("[OX2H]", "[n]"):
+                counted["aggregate"]["measures"][0]["path"]["where"]["smarts"] = smarts
+                table = corpus.search(query.Query.model_validate(counted))
+                answers[pivots_dir is not None, smarts] = {
+                    row["reaction_id"]: row["alcohols"] for row in table.to_pylist()
+                }
+    # Every input here is ethanol, and the pyridine is a workup's. So the alcohol
+    # screen keeps both -- an agreement on zeros would say nothing about the offset --
+    # and the aromatic-nitrogen screen keeps neither, which is what a dropped filter
+    # could not produce.
+    for pivoted in (False, True):
+        assert answers[pivoted, "[OX2H]"] == {"ord-cc01": 1, "ord-cc02": 1}
+        assert answers[pivoted, "[n]"] == {"ord-cc01": 0, "ord-cc02": 0}
+
+
+@pytest.mark.parametrize("pivoted", [False, True])
+def test_a_filter_changes_which_elements_are_reduced(wide_root, tmp_path, pivoted):
+    # The point of the filter, and the reason the bare path is the wrong question:
+    # ord-wd08 records a selectivity percentage beside its yield, so counting every
+    # percentage counts two where the yield is one, and the highest is the selectivity.
+    pivots = _write_pivots(
+        wide_root, ("outcomes.products.measurements",), into=tmp_path / "pivots"
+    )
+    yields = {"op": "eq", "path": "type", "value": {"literal": "YIELD"}}
+    with execute.Corpus(
+        str(wide_root / "projections" / "*.parquet"),
+        str(wide_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots) if pivoted else None,
+        pivot_budget_bytes=0,
+    ) as corpus:
+        assert _reduced_per_reaction(corpus, "count")["ord-wd08"] == 2
+        assert _reduced_per_reaction(corpus, "count", yields)["ord-wd08"] == 1
+        assert _reduced_per_reaction(corpus, "max")["ord-wd08"] == 95
+        assert _reduced_per_reaction(corpus, "max", yields)["ord-wd08"] == 40
+
+
+@pytest.mark.parametrize("pivoted", [False, True])
+def test_counting_a_level_a_reaction_lacks_is_zero(wide_root, tmp_path, pivoted):
+    # ord-wd04 records no outcomes, which the projection writes as NULL rather than as
+    # an empty list, and ord-wd03 an outcome carrying no products. Neither reaction
+    # holds an unknown number of measurements; both hold none.
+    pivots = _write_pivots(
+        wide_root, ("outcomes.products.measurements",), into=tmp_path / "pivots"
+    )
+    with execute.Corpus(
+        str(wide_root / "projections" / "*.parquet"),
+        str(wide_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots) if pivoted else None,
+        # Without a budget of zero the unpivoted case builds the level in memory and
+        # takes the pivoted route anyway, leaving the list spelling untested. The
+        # pivoted case reads the artifact, so it needs no budget either.
+        pivot_budget_bytes=0,
+    ) as corpus:
+        counted = _reduced_per_reaction(corpus, "count")
+    assert counted["ord-wd04"] == 0
+    assert counted["ord-wd03"] == 0
+
+
 # The levels the occurrence index's paths range within: three are indexed paths of
 # their own, and the authentic standard is one compound per measurement, so its rows
 # come from the measurements' pivot.
@@ -3703,7 +3880,7 @@ def test_a_level_without_artifacts_is_still_built(wide_root, caplog):
                 },
             },
         )
-    assert found == {"ord-wd01", "ord-wd02", "ord-wd07"}
+    assert found == {"ord-wd01", "ord-wd02", "ord-wd07", "ord-wd08"}
     assert any(
         "building the pivot over outcomes.products.measurements" in record.message
         for record in caplog.records
@@ -4792,3 +4969,55 @@ def test_an_answer_that_arrives_past_the_bound_is_a_timeout(corpus, monkeypatch)
             )
     finally:
         cursor.close()
+
+
+def test_a_corpus_bounds_what_it_returns_without_being_asked(corpus_dir):
+    # The grammar leaves limit optional, so an unbounded default builds every matching
+    # reaction into an Arrow table in whatever process asked -- millions of them at
+    # corpus scale, from a query that reads as ordinary.
+    assert execute.DEFAULT_MAX_ROWS == 1000
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        assert value._max_rows == execute.DEFAULT_MAX_ROWS
+
+
+def test_a_caller_computing_over_every_match_can_still_ask_for_one(corpus_dir):
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        max_rows=None,
+    ) as value:
+        answer = value.search(query.Query.model_validate({}))
+    assert answer.num_rows == 3
+    assert execute.TRUNCATED.encode() not in (answer.schema.metadata or {})
+
+
+def test_an_answer_the_bound_may_have_cut_says_so_on_the_table(corpus_dir):
+    # On the table rather than logged alone: whoever reads the answer is often not
+    # whoever reads the log, and a summary saying "2 reactions" is wrong in a way
+    # nothing in the rows shows.
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        max_rows=2,
+    ) as value:
+        answer = value.search(query.Query.model_validate({}))
+    assert answer.num_rows == 2
+    assert (answer.schema.metadata or {})[execute.TRUNCATED.encode()] == b"true"
+
+
+def test_an_answer_the_bound_did_not_reach_carries_no_stamp(corpus_dir):
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        max_rows=100,
+    ) as value:
+        answer = value.search(query.Query.model_validate({}))
+    assert answer.num_rows == 3
+    assert execute.TRUNCATED.encode() not in (answer.schema.metadata or {})

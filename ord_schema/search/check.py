@@ -190,6 +190,33 @@ QUERIES: list[dict[str, Any]] = [
         },
     },
     {
+        # Averaged rather than ordered, because every ordering over this path answers
+        # the same 25 reactions whatever the reducer and whatever the filter: the top
+        # is held by a handful of percentages recorded as 9.0e19, which are yields. A
+        # query whose digest cannot move is coverage in name only.
+        "name": "filtered_reduction",
+        "covers": "a reduction narrowed to the elements its where keeps",
+        "query": {
+            "aggregate": {
+                "measures": [
+                    {
+                        "fn": "avg",
+                        "path": {
+                            "reduce": "count",
+                            "path": "outcomes.products.measurements.percentage.value",
+                            "where": {
+                                "op": "eq",
+                                "path": "type",
+                                "value": {"literal": "YIELD"},
+                            },
+                        },
+                        "name": "yields_per_reaction",
+                    }
+                ]
+            }
+        },
+    },
+    {
         "name": "aggregate_grouping",
         "covers": "GROUP BY with a measure",
         "query": {
@@ -910,6 +937,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=0,
         help="What pivots built in process may hold; zero builds none",
     )
+    parser.add_argument(
+        "--pivots",
+        default=None,
+        help=(
+            "Directory holding pivot artifacts. Without it a reduction reads the "
+            "projection's lists, which answers the same but leaves the pivoted route "
+            "unmeasured"
+        ),
+    )
     args = parser.parse_args(argv)
     # Re-projecting a sampled reaction runs the same RDKit the derivation did, and it
     # says the same things about atom maps it said then.
@@ -930,6 +966,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.structures,
         require_current=True,
         pivot_budget_bytes=args.pivot_budget_bytes,
+        pivots_dir=args.pivots,
+        # Unbounded: a baseline is a count and a digest over every matching reaction,
+        # and under the corpus's own default it would be a digest over an arbitrary
+        # page of them -- which compares unequal against the recorded one and reports a
+        # regression in the corpus rather than in the bound that produced it.
+        max_rows=None,
     ) as corpus:
         measured = measure(corpus, timeout_seconds=args.timeout_seconds)
         if args.write_baseline:

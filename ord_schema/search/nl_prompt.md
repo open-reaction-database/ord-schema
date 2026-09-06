@@ -36,20 +36,79 @@ Rules that keep a query answerable:
 - Name compounds rather than spelling structures: `{"compound": "pyridine"}` resolves to
   SMILES. Reach for `substructure` with a SMARTS only when the user describes a pattern
   or a scaffold rather than a molecule.
+- "Similar to" a named molecule is `similarity`, its own predicate, with a `threshold`
+  between 0 and 1. It is a Tanimoto coefficient over Morgan fingerprints, not a
+  percentage and not a fraction of shared atoms, so a question phrased as a percentage
+  is asking for something this does not compute — take the number as a threshold only
+  where the question gives a coefficient. It is neither a `substructure` nor a text
+  match: a molecule similar to aniline need not contain aniline as a subgraph.
+
+  ```json
+  {"op": "exists", "path": "inputs.components",
+   "where": {"op": "similarity", "path": "smiles",
+             "compound": "morpholine", "threshold": 0.7}}
+  ```
+
 - Ask for a compound with `same_compound`, not with `eq` on a `smiles`. An `eq` compares
   spellings, so it misses the same reagent recorded as another protonation state or
   tautomer — acetate where the question said acetic acid. Use `eq` on a `smiles` only when
   the user gives you an exact string and wants exactly it.
 - `same_compound` is the default for a named compound: a bare name means that compound,
   not a family. Reach for `same_parent` only where the question says it does not care
-  which salt — "any form of triethylamine", "triethylamine or its hydrochloride". Asking
+  which salt — "any form of triethylamine", "triethylamine or its hydrochloride",
+  "whichever salt it was sold as", "free base or salt", "however it was supplied". Asking
   for pyridine as a solvent is `same_compound`, because pyridinium chloride is not what
   anyone means by pyridine.
-- To rank or aggregate by a value under a repeated level, reduce it:
-  `{"reduce": "max", "path": "outcomes.products.measurements.percentage.value"}` is a
-  reaction's best yield. A plain path there is refused.
+- Negation inside a quantifier is `not` around the clause, and it is not the same as
+  negating the quantifier. "Some catalyst that is not palladium" keeps a reaction whose
+  catalyst is nickel; "no palladium catalyst" throws that reaction out only if it also
+  has palladium. Put the `not` where the question puts it.
+
+  ```json
+  {"op": "exists", "path": "inputs.components",
+   "where": {"op": "and", "clauses": [
+     {"op": "eq", "path": "reaction_role", "value": {"literal": "SOLVENT"}},
+     {"op": "not", "clause": {"op": "same_compound", "path": "smiles",
+                              "compound": "water"}}]}}
+  ```
+
+  A metal named as a catalyst is a `substructure` on the element — `[Pd]`, `[Ni]` —
+  rather than a compound identity, since the catalyst is a complex and not the bare
+  metal.
+- To rank or aggregate by a value under a repeated level, reduce it. A plain path there
+  is refused. `where` inside the reduction says which elements count, and its paths are
+  relative to the element, as they are inside a quantifier. Reach for it whenever the
+  column is shared by things the question does not mean: a percentage is recorded for
+  selectivity and purity as well as yield, so the bare path is "the highest percentage"
+  and only the filter makes it "the highest yield".
+
+  ```json
+  {"reduce": "max", "path": "outcomes.products.measurements.percentage.value",
+   "where": {"op": "eq", "path": "type", "value": {"literal": "YIELD"}}}
+  ```
+
+  Counting one reduces to zero for a reaction with no such element, so an average over
+  reductions includes those zeros. "Among reactions that have at least one" is a
+  different question, and it wants the query's own `where` to say so.
 - Enum columns compare against the spellings listed beside them, which are the value
   names rather than numbers.
+- "The most common X", "how many of each X", and anything else that groups by something
+  under a repeated level needs `aggregate.over`, which makes the rows the elements of
+  that level rather than reactions. `group_by` and measure paths are then relative to
+  the element, `aggregate.where` selects which elements are counted, and the query's own
+  `where` still selects reactions. Count `reaction_id` distinctly to answer about
+  reactions, since one reaction can hold the same solvent twice:
+
+  ```json
+  {"aggregate": {"over": "inputs.components",
+                 "where": {"op": "eq", "path": "reaction_role",
+                           "value": {"literal": "SOLVENT"}},
+                 "group_by": ["smiles"],
+                 "measures": [{"fn": "count_distinct", "path": "reaction_id",
+                               "name": "reactions"}]},
+   "order_by": [{"key": "reactions", "descending": true}], "limit": 3}
+  ```
+
 - Prefer the smallest query that answers the question, and set `limit` when the user asks
   for a particular number of results.
 

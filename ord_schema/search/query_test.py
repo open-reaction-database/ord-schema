@@ -17,6 +17,7 @@
 import warnings
 
 import duckdb
+import pyarrow as pa
 import pytest
 from pydantic import ValidationError
 from rdkit import Chem
@@ -1217,6 +1218,193 @@ def test_a_singular_struct_routes_to_its_ancestor_level_s_pivot():
     assert "x0.element.authentic_standard.smiles" in sql
 
 
+# Reducing over a pivot rather than over the projection's lists
+
+
+def _ranking(reducer="max"):
+    return {
+        "order_by": [
+            {
+                "key": {
+                    "reduce": reducer,
+                    "path": "outcomes.products.measurements.percentage.value",
+                }
+            }
+        ]
+    }
+
+
+def test_a_reduction_reads_the_pivot_where_one_covers_its_level():
+    sql = _pivot_sql(_ranking(), pivot=_every_level)
+    assert "list_max(" not in sql
+    assert (
+        "(SELECT max(r0.element.percentage.value) "
+        "FROM pivot_outcomes_products_measurements AS r0 "
+        "WHERE r0.reaction_id = reactions.reaction_id)"
+    ) in sql
+
+
+def test_a_pivoted_reduction_correlates_to_the_reactions_it_reduces():
+    # The pivot carries a reaction_id of its own, so an unqualified outer reference
+    # would bind to the inner one and compare a column to itself, which is true of
+    # every row and reduces the whole corpus for each reaction.
+    sql = _pivot_sql(_ranking(), pivot=_every_level)
+    assert "WHERE r0.reaction_id = reactions.reaction_id" in sql
+
+
+def test_a_reduction_falls_back_to_the_list_aggregate_without_a_pivot():
+    assert _pivot_sql(_ranking()) == _pivot_sql(_ranking(), pivot=lambda path: None)
+    assert "list_max(" in _pivot_sql(_ranking())
+
+
+def test_a_reduction_over_an_unpivoted_level_stays_on_the_projection():
+    sql = _pivot_sql(
+        _ranking(),
+        pivot=lambda path: (
+            None if path == "outcomes.products.measurements" else pivot.table_name(path)
+        ),
+    )
+    assert "list_max(" in sql
+
+
+@pytest.mark.parametrize("reducer", ["min", "max", "avg", "sum", "count"])
+def test_every_reducer_routes_to_the_pivot(reducer):
+    sql = _pivot_sql(_ranking(reducer), pivot=_every_level)
+    assert f"SELECT {reducer}(r0.element.percentage.value)" in sql
+
+
+def test_a_measure_reduces_over_the_pivot_too():
+    sql = _pivot_sql(
+        {
+            "aggregate": {
+                "measures": [
+                    {
+                        "fn": "avg",
+                        "path": {
+                            "reduce": "count",
+                            "path": "outcomes.products.measurements.percentage.value",
+                        },
+                        "name": "measurements",
+                    }
+                ]
+            }
+        },
+        pivot=_every_level,
+    )
+    assert "avg((SELECT count(r0.element.percentage.value)" in sql
+
+
+# Reducing only the elements a filter keeps
+
+_YIELD = {"op": "eq", "path": "type", "value": {"literal": "YIELD"}}
+
+
+def _filtered(where=None, reducer="count"):
+    key = {
+        "reduce": reducer,
+        "path": "outcomes.products.measurements.percentage.value",
+    }
+    if where is not None:
+        key["where"] = where
+    return {"order_by": [{"key": key}]}
+
+
+def test_a_filtered_reduction_narrows_the_pivot_subquery():
+    sql = _pivot_sql(_filtered(_YIELD), pivot=_every_level)
+    assert (
+        "WHERE r0.reaction_id = reactions.reaction_id AND r0.element.type = 'YIELD'"
+    ) in sql
+
+
+def test_a_filtered_reduction_narrows_the_list_before_reducing():
+    # The filter binds the element, so it has to apply before the descent to the leaf:
+    # filtering percentages could not see the type the question asks about.
+    sql = _pivot_sql(_filtered(_YIELD))
+    assert "list_filter(flatten(" in sql
+    assert "r0 -> r0.type = 'YIELD'" in sql
+    assert sql.index("list_filter(flatten(") < sql.index("x -> x.percentage")
+
+
+def test_an_unfiltered_reduction_reduces_every_element():
+    # count filters the nulls whether or not a where narrows the elements, so the tell
+    # is the bound variable rather than the presence of a list_filter.
+    assert "r0 ->" not in _pivot_sql(_filtered())
+
+
+def test_a_reduction_filter_may_name_a_compound():
+    # The filter's own clauses collect parameters like any other predicate; a name
+    # reaching the SQL unbound is an error rather than a wasted parameter.
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {
+                "order_by": [
+                    {
+                        "key": {
+                            "reduce": "count",
+                            "path": "inputs.components.amount.moles_moles",
+                            "where": {
+                                "op": "eq",
+                                "path": "smiles",
+                                "value": {"compound": "thf"},
+                            },
+                        }
+                    }
+                ]
+            }
+        )
+    )
+    assert compiled.compounds == ("thf",)
+    assert "$thf" in compiled.sql
+
+
+@pytest.mark.parametrize("pivoted", [False, True])
+def test_a_reduction_filter_cannot_quantify(pivoted):
+    # Refused on both routes, so whether a filter compiles at all does not depend on
+    # what artifacts the corpus happens to hold.
+    with pytest.raises(query.QueryError, match="no level here to quantify over"):
+        _pivot_sql(
+            _filtered(
+                {
+                    "op": "exists",
+                    "path": "identifiers",
+                    "where": {"op": "not_null", "path": "value"},
+                }
+            ),
+            pivot=_every_level if pivoted else None,
+        )
+
+
+def test_a_reduction_filter_needs_a_level_to_bind_to():
+    # Every repeated path the projection holds reaches a named level, so this is only
+    # reachable through a caller-supplied schema -- but a filter with nothing to bind
+    # its paths to has to say so rather than resolve them against the row.
+    schema = pa.schema(
+        [
+            pa.field("reaction_id", pa.string()),
+            pa.field(
+                "readings", pa.list_(pa.struct([pa.field("value", pa.float64())]))
+            ),
+        ]
+    )
+    with pytest.raises(query.QueryError, match="crosses none this grammar names"):
+        query.compile_query(
+            query.Query.model_validate(
+                {
+                    "order_by": [
+                        {
+                            "key": {
+                                "reduce": "count",
+                                "path": "readings.value",
+                                "where": {"op": "not_null", "path": "value"},
+                            }
+                        }
+                    ]
+                }
+            ),
+            schema=schema,
+        )
+
+
 # Comparing compounds rather than spellings
 
 
@@ -1368,6 +1556,237 @@ def test_same_parent_needs_a_compound_smiles_column():
                     "op": "same_parent",
                     "path": "reaction_id",
                     "smiles": "CC(=O)O",
+                }
+            }
+        )
+
+
+# Aggregating over a repeated level
+
+
+def _over(body, pivot=_every_level):
+    return _pivot_sql(body, pivot=pivot)
+
+
+_SOLVENT_COUNTS = {
+    "aggregate": {
+        "over": "inputs.components",
+        "where": {"op": "eq", "path": "reaction_role", "value": {"literal": "SOLVENT"}},
+        "group_by": ["smiles"],
+        "measures": [{"fn": "count_distinct", "path": "reaction_id", "name": "n"}],
+    },
+    "order_by": [{"key": "n", "descending": True}],
+    "limit": 3,
+}
+
+
+def test_an_aggregate_over_a_level_reads_the_pivot_rather_than_the_reactions():
+    # The rows are elements, so the relation is the pivot and the group_by path is
+    # relative to the element -- the shape "the most common solvent" needs, which no
+    # grouping of reactions can express.
+    sql = _over(_SOLVENT_COUNTS)
+    assert "FROM pivot_inputs_components AS x0" in sql
+    assert "x0.element.smiles" in sql
+    assert "count(DISTINCT x0.reaction_id) AS n" in sql
+    assert "FROM reactions" not in sql
+
+
+def test_the_aggregate_s_where_filters_the_elements_not_the_reactions():
+    sql = _over(_SOLVENT_COUNTS)
+    assert "WHERE x0.element.reaction_role = 'SOLVENT'" in sql
+    assert "EXISTS" not in sql
+
+
+def test_the_query_s_where_still_selects_reactions():
+    # Two filters because there are two things to filter, and neither can say what the
+    # other says: the elements grouped, and whose elements are counted.
+    sql = _over(
+        _SOLVENT_COUNTS
+        | {
+            "where": {
+                "op": "gt",
+                "path": "conditions.temperature.setpoint_kelvin",
+                "value": {"literal": 350},
+            }
+        }
+    )
+    assert "x0.element.reaction_role = 'SOLVENT'" in sql
+    assert (
+        "EXISTS (SELECT 1 FROM reactions WHERE reactions.reaction_id = x0.reaction_id"
+        in sql
+    )
+    assert "setpoint_kelvin > 350" in sql
+
+
+def test_a_quantifier_in_the_reaction_filter_does_not_take_the_grouped_alias():
+    # Both relations are the same pivot, so a shared alias would leave the inner
+    # correlation binding to the rows being grouped.
+    sql = _over(
+        _SOLVENT_COUNTS
+        | {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {
+                    "op": "eq",
+                    "path": "reaction_role",
+                    "value": {"literal": "CATALYST"},
+                },
+            }
+        }
+    )
+    assert "AS x1 WHERE x1.reaction_id = reactions.reaction_id" in sql
+    assert "AS x0" in sql
+
+
+def test_grouping_elements_needs_a_pivot_for_the_level():
+    # No fallback: reaching the elements without one is UNNEST in a FROM clause, which
+    # is the spelling this grammar exists to make unwritable.
+    with pytest.raises(query.QueryError, match="does not hold"):
+        _over(_SOLVENT_COUNTS, pivot=lambda path: None)
+
+
+def test_over_must_name_a_repeated_level():
+    with pytest.raises(query.QueryError, match="no such level"):
+        _over(
+            {
+                "aggregate": {
+                    "over": "conditions.temperature.setpoint_kelvin",
+                    "measures": [{"fn": "count", "name": "n"}],
+                }
+            }
+        )
+
+
+def test_over_names_the_level_itself_not_a_field_below_it():
+    # reach() descends singular fields past a level, which a quantifier wants and this
+    # cannot use: the rows would be that struct rather than the level named.
+    with pytest.raises(query.QueryError, match="descends past"):
+        _over(
+            {
+                "aggregate": {
+                    "over": "outcomes.products.measurements.authentic_standard",
+                    "measures": [{"fn": "count", "name": "n"}],
+                }
+            }
+        )
+
+
+def test_an_element_filter_without_a_level_is_refused():
+    with pytest.raises(ValidationError, match="needs an over"):
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "where": {"op": "not_null", "path": "reaction_id"},
+                    "measures": [{"fn": "count", "name": "n"}],
+                }
+            }
+        )
+
+
+def test_a_reduction_is_refused_where_the_rows_are_already_elements():
+    # A reduction folds a reaction's own list to one value; a row that is already one
+    # element has no list to fold.
+    with pytest.raises(query.QueryError, match="already elements"):
+        _over(
+            {
+                "aggregate": {
+                    "over": "outcomes.products",
+                    "measures": [
+                        {
+                            "fn": "max",
+                            "path": {
+                                "reduce": "max",
+                                "path": "outcomes.products.measurements."
+                                "percentage.value",
+                            },
+                            "name": "n",
+                        }
+                    ],
+                }
+            }
+        )
+
+
+def test_the_elements_being_grouped_cannot_be_quantified_over():
+    # Load-bearing, not incidental: a pivot prunes the repeated fields from its element
+    # type, so an aggregate's own filter can never bind a variable. That is what lets it
+    # and the reaction filter compile at the same depth without their aliases colliding.
+    with pytest.raises(query.QueryError, match="no level here to quantify over"):
+        _over(
+            {
+                "aggregate": {
+                    "over": "outcomes.products",
+                    "where": {
+                        "op": "exists",
+                        "path": "measurements",
+                        "where": {
+                            "op": "eq",
+                            "path": "type",
+                            "value": {"literal": "YIELD"},
+                        },
+                    },
+                    "measures": [{"fn": "count", "name": "n"}],
+                }
+            }
+        )
+
+
+def test_both_filters_allocate_structure_parameters_apart():
+    # They append to one list, so a name taken by the element filter is not offered to
+    # the reaction filter -- two bitmaps bound under one name would silently be one.
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "over": "inputs.components",
+                    "where": {
+                        "op": "substructure",
+                        "path": "smiles",
+                        "smarts": "c1ccccc1",
+                    },
+                    "group_by": ["smiles"],
+                    "measures": [{"fn": "count", "name": "n"}],
+                },
+                "where": {
+                    "op": "exists",
+                    "path": "inputs.components",
+                    "where": {
+                        "op": "substructure",
+                        "path": "smiles",
+                        "smarts": "[Pd]",
+                    },
+                },
+            }
+        ),
+        pivot=_every_level,
+    )
+    names = [parameter.name for parameter in compiled.structures]
+    assert len(names) == 2
+    assert len(set(names)) == 2
+
+
+def test_a_quantifier_buried_in_the_element_filter_is_found_too():
+    # Reached through a not, an and, or an or, so the message does not depend on where
+    # in the clause tree the quantifier sits.
+    with pytest.raises(query.QueryError, match="no level here to quantify over"):
+        _over(
+            {
+                "aggregate": {
+                    "over": "outcomes.products",
+                    "where": {
+                        "op": "not",
+                        "clause": {
+                            "op": "exists",
+                            "path": "measurements",
+                            "where": {
+                                "op": "eq",
+                                "path": "type",
+                                "value": {"literal": "YIELD"},
+                            },
+                        },
+                    },
+                    "measures": [{"fn": "count", "name": "n"}],
                 }
             }
         )

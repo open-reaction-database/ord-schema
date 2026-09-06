@@ -55,6 +55,7 @@ from anthropic.types import (
     ToolUseBlock,
 )
 
+from ord_schema.artifacts import pivot as pivot_levels
 from ord_schema.logging import get_logger
 from ord_schema.search import execute, nl_log, query, schema
 
@@ -84,7 +85,14 @@ SYSTEM_PROMPT = (
 # miss on every query.
 TOOL: ToolParam = {
     "name": "build_query",
-    "description": "Build an ORD search query from the user's question.",
+    # The input is the query, said explicitly because a model otherwise nests it under
+    # the tool's own name: its top-level keys are the Query fields, not a "query" key
+    # holding them. _unwrapped recovers from that; saying so avoids it.
+    "description": (
+        "Build an ORD search query from the user's question. The input is the query "
+        "itself, whose top-level keys are where, aggregate, order_by, and limit; do "
+        "not nest it under a key of its own."
+    ),
     "input_schema": query.Query.model_json_schema(),
 }
 # Forcing build_query would leave a model with no way to decline, and a model with no
@@ -303,6 +311,31 @@ def _coerce(value: Any) -> Any:
     return value
 
 
+def _unwrapped(value: Any) -> Any:
+    """Returns a tool input without the envelope a model may nest it in.
+
+    A model that puts its arguments under the tool's parameter name sends
+    ``{"query": {...}}`` where the schema asks for the query itself. ``Query`` declares
+    no ``query`` field and refuses undeclared ones, so a payload of exactly that shape
+    can mean nothing else. Unwrapping it costs no round trip, where handing it to the
+    repair turn costs one and does not reliably work: a model that nests once tends to
+    nest again when told the result did not validate.
+
+    Args:
+        value: A tool input, already coerced.
+
+    Returns:
+        What the envelope holds, or ``value`` where it is not one.
+    """
+    if (
+        isinstance(value, dict)
+        and set(value) == {"query"}
+        and isinstance(value["query"], dict)
+    ):
+        return value["query"]
+    return value
+
+
 def _validated(coerced: Any) -> query.Query:
     """Returns the query a tool call carries, proven to compile.
 
@@ -327,7 +360,16 @@ def _validated(coerced: Any) -> query.Query:
             "the query asks nothing: it has no where, no aggregate, and no limit, so "
             "it would return every reaction in the corpus"
         )
-    query.compile_query(parsed)
+    # Every level offered as pivoted, because this asks whether the query is
+    # well-formed, not how it would be planned. Which levels a corpus actually holds is
+    # a property of that corpus, and refusing here on this process's answer would reject
+    # a query the corpus about to run it can serve.
+    query.compile_query(
+        parsed,
+        pivot=lambda path: (
+            pivot_levels.table_name(path) if path in pivot_levels.LEVELS else None
+        ),
+    )
     return parsed
 
 
@@ -450,7 +492,7 @@ def translate(
     except NLQueryError as error:
         raise failed(error) from error
     spent += usage
-    coerced = _coerce(block.input)
+    coerced = _unwrapped(_coerce(block.input))
     try:
         parsed = _validated(coerced)
     except (ValueError, query.QueryError) as error:
@@ -497,7 +539,7 @@ def translate(
         # by way of a query the compiler refused rather than by reading the question.
         raise failed(error) from error
     spent += usage
-    coerced = _coerce(retry.input)
+    coerced = _unwrapped(_coerce(retry.input))
     try:
         parsed = _validated(coerced)
     except (ValueError, query.QueryError) as error:

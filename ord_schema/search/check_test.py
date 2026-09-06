@@ -227,6 +227,18 @@ def _operators_used(node) -> set[str]:
     return set()
 
 
+def _reductions_used(node) -> list[dict]:
+    """Returns every reduction appearing anywhere in a query payload."""
+    if isinstance(node, dict):
+        found = [node] if "reduce" in node else []
+        for value in node.values():
+            found += _reductions_used(value)
+        return found
+    if isinstance(node, list):
+        return [found for item in node for found in _reductions_used(item)]
+    return []
+
+
 def test_every_grammar_operator_is_covered_by_a_canonical_query():
     # The baseline is only as good as what it asks. An operator nothing asks about can
     # break without moving a single digest, and the day that matters is the day someone
@@ -246,6 +258,17 @@ def test_every_reducer_is_covered_by_a_canonical_query():
     # One is enough to prove the list-aggregate path compiles and runs; the rest differ
     # only in which DuckDB function the same expression wraps, which query_test pins.
     assert covered
+
+
+def test_every_field_of_a_reduction_is_covered_by_a_canonical_query():
+    # A reduction compiles differently for each field it carries -- a where narrows the
+    # elements on both routes -- so a field nothing asks about can break without moving
+    # a digest. The same argument as the operator list above, for the same reason.
+    covered = set()
+    for entry in check.QUERIES:
+        for reduction in _reductions_used(entry["query"]):
+            covered |= set(reduction)
+    assert set(query.Reduction.model_fields) - covered == set()
 
 
 @pytest.fixture(scope="module")
@@ -285,3 +308,47 @@ def test_an_empty_corpus_says_why_its_other_checks_are_worthless(empty_corpus):
     findings = check.check_coverage(empty_corpus, timeout_seconds=60)
     failure = next(f for f in findings if not f.passed)
     assert "vacuously" in failure.detail
+
+
+def test_the_baseline_is_measured_over_every_match(monkeypatch):
+    # A baseline is a count and a digest over every matching reaction. Under the
+    # corpus's own default bound it would be a digest over an arbitrary page, which
+    # compares unequal against the recorded one and reports a regression in the corpus
+    # rather than in the bound that produced it. The fixtures here hold three
+    # reactions, far under any bound, so only the argument itself can say this.
+    seen = {}
+
+    class _RecordedError(Exception):
+        pass
+
+    def _corpus(*args, **kwargs):
+        seen.update(kwargs)
+        raise _RecordedError
+
+    monkeypatch.setattr(check.execute, "Corpus", _corpus)
+    with pytest.raises(_RecordedError):
+        check.main(["--projections=x", "--structures=y"])
+    assert seen["max_rows"] is None
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [([], None), (["--pivots=/artifacts/pivots"], "/artifacts/pivots")],
+)
+def test_the_pivots_directory_reaches_the_corpus(monkeypatch, argv, expected):
+    # A reduction routes to a pivot only where the corpus holds one, so a baseline
+    # recorded without this argument measures the list spelling and says nothing about
+    # the pivoted route -- for either the answers or the coverage counts.
+    seen = {}
+
+    class _RecordedError(Exception):
+        pass
+
+    def _corpus(*args, **kwargs):
+        seen.update(kwargs)
+        raise _RecordedError
+
+    monkeypatch.setattr(check.execute, "Corpus", _corpus)
+    with pytest.raises(_RecordedError):
+        check.main(["--projections=x", "--structures=y", *argv])
+    assert seen["pivots_dir"] == expected
