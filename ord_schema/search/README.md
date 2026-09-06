@@ -408,10 +408,10 @@ of the container's cap, which it does read. The step-by-step breakdown is in
 **A reduction reads the pivot, and what is left is the scan.** Ranking the corpus by a
 reaction's best yield walks three nested lists over every reaction on the projection route
 and costs 2.5s; the same query against the `outcomes.products.measurements` pivot costs
-0.76s, which is what reading `reaction_id` alone costs — the reduction itself becomes free,
-and the pivot's own group-by is 0.023s. Over the 19 canonical queries the slowest fell from
-1.87s to 0.231s, and none is now above a second. The artifact costs no budget, so this is
-latency a corpus holding pivots gets for nothing.
+0.76s, which is what reading `reaction_id` alone costs — the reduction itself is free, and
+the pivot's own group-by is 0.023s. Over the 19 canonical queries the slowest is 0.231s
+with the pivots held and 1.87s without them, and none is above a second. The artifact costs
+no budget, so this is latency a corpus holding pivots gets for nothing.
 
 None of that is optional for substructure search, since the screen and verify are RDKit in
 this process rather than SQL in an engine. Everything above it is latency: a container
