@@ -794,6 +794,19 @@ def test_a_date_column_compares_as_a_date_not_as_text():
     assert "day >= DATE '2025-01-01'" in compiled.sql
 
 
+@pytest.mark.parametrize(
+    "literal", ["2025-01-01T12:30:00+05:00", "2025-01-01T12:30:00Z"]
+)
+def test_a_literal_carrying_an_offset_is_refused(literal):
+    # The column records no zone, because no shape the projection reads carries one --
+    # a value that does is left unparsed rather than read as a wall clock. DuckDB drops
+    # the offset from a TIMESTAMP literal rather than shifting by it, so accepting one
+    # would compare the caller's wall clock while reading as though it compared their
+    # instant.
+    with pytest.raises(query.QueryError, match="records no time zone"):
+        _compile({"where": {"op": "ge", "path": _WHEN, "value": {"literal": literal}}})
+
+
 @pytest.mark.parametrize("literal", ["last tuesday", "2025-13-45", ""])
 def test_a_literal_that_is_not_a_date_is_refused_where_it_compiles(literal):
     with pytest.raises(query.QueryError, match="not an ISO 8601 date or timestamp"):

@@ -160,8 +160,10 @@ def _parsed_instant(literal: str) -> datetime.datetime | None:
 
     Returns:
         The parsed value, with a bare date reading as that day's midnight so a query
-        for a day compares against the first instant of it. None where the string is
-        not ISO 8601, which the caller refuses where the query is compiled.
+        for a day compares against the first instant of it. Aware where the literal
+        carries an offset, which the caller refuses rather than compares against a
+        column holding no zone. None where the string is not ISO 8601, refused the same
+        way.
     """
     try:
         return datetime.datetime.fromisoformat(literal)
@@ -790,10 +792,21 @@ def _check_operand(node: Comparison, resolved: _Resolved) -> None:
         return
     if isinstance(literal, str) and _is_temporal(leaf):
         # Parsed here rather than left to _literal, so the path is in the message.
-        if _parsed_instant(literal) is None:
+        instant = _parsed_instant(literal)
+        if instant is None:
             raise QueryError(
                 f"{node.path}: holds {leaf}, compared against {literal!r}, which is "
                 "not an ISO 8601 date or timestamp"
+            )
+        if instant.tzinfo is not None:
+            # The column holds no zone, because no shape the projection reads carries
+            # one: a value that does is left unparsed rather than read as a wall clock.
+            # DuckDB drops the offset from a TIMESTAMP literal rather than shifting by
+            # it, so accepting one here would compare the caller's wall clock while
+            # reading as though it compared their instant.
+            raise QueryError(
+                f"{node.path}: holds {leaf}, which records no time zone, and "
+                f"{literal!r} carries an offset; give the instant without one"
             )
     elif isinstance(literal, str) and not pa.types.is_string(leaf):
         raise QueryError(f"{node.path}: holds {leaf}, compared against a string")
