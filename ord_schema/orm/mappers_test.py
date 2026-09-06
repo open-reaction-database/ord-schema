@@ -58,3 +58,53 @@ def test_mappers_registers_rdkit_relationship_targets_in_clean_interpreter():
 def test_round_trip(filename):
     dataset = load_message(filename, Dataset)
     assert dataset == to_proto(from_proto(dataset))
+
+
+def test_full_fixture_preserves_section_metadata_paths():
+    """Distinct metadata keys under nested contexts must not swap or drop."""
+    dataset = load_message(
+        pathlib.Path(__file__).parent / "testdata" / "full.pbtxt", Dataset
+    )
+    reaction = to_proto(from_proto(dataset)).reactions[0]
+    assert (
+        reaction.inputs["4"].metadata["input_meta"].string_value == "input_meta_value"
+    )
+    assert reaction.setup.metadata["setup_meta"].string_value == "setup_meta_value"
+    assert (
+        reaction.conditions.metadata["conditions_meta"].string_value
+        == "conditions_meta_value"
+    )
+    assert (
+        reaction.conditions.temperature.metadata["temp_meta"].string_value
+        == "temp_meta_value"
+    )
+    assert (
+        reaction.conditions.pressure.metadata["pressure_meta"].string_value
+        == "pressure_meta_value"
+    )
+    assert (
+        reaction.conditions.stirring.metadata["stirring_meta"].string_value
+        == "stirring_meta_value"
+    )
+    assert (
+        reaction.conditions.illumination.metadata["illum_meta"].string_value
+        == "illum_meta_value"
+    )
+    assert (
+        reaction.conditions.electrochemistry.metadata["electro_meta"].string_value
+        == "electro_meta_value"
+    )
+    assert (
+        reaction.conditions.flow.metadata["flow_meta"].string_value == "flow_meta_value"
+    )
+    assert reaction.notes.metadata["notes_meta"].string_value == "notes_meta_value"
+    workup = reaction.workups[0]
+    assert workup.metadata["workup_meta"].string_value == "workup_meta_value"
+    assert (
+        workup.temperature.metadata["workup_temp_meta"].string_value
+        == "workup_temp_meta_value"
+    )
+    assert (
+        workup.stirring.metadata["workup_stirring_meta"].string_value
+        == "workup_stirring_meta_value"
+    )

@@ -2378,7 +2378,8 @@ proto.ord.ReactionInput.toObject = function(includeInstance, msg) {
     flowRate: (f = msg.getFlowRate()) && proto.ord.FlowRate.toObject(includeInstance, f),
     additionDevice: (f = msg.getAdditionDevice()) && proto.ord.ReactionInput.AdditionDevice.toObject(includeInstance, f),
     additionTemperature: (f = msg.getAdditionTemperature()) && proto.ord.Temperature.toObject(includeInstance, f),
-    texture: (f = msg.getTexture()) && proto.ord.Texture.toObject(includeInstance, f)
+    texture: (f = msg.getTexture()) && proto.ord.Texture.toObject(includeInstance, f),
+    metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : []
   };
 
   if (includeInstance) {
@@ -2463,6 +2464,12 @@ proto.ord.ReactionInput.deserializeBinaryFromReader = function(msg, reader) {
       var value = new proto.ord.Texture;
       reader.readMessage(value,proto.ord.Texture.deserializeBinaryFromReader);
       msg.setTexture(value);
+      break;
+    case 11:
+      var value = msg.getMetadataMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readMessage, proto.ord.Data.deserializeBinaryFromReader, "", new proto.ord.Data());
+         });
       break;
     default:
       reader.skipField();
@@ -2571,6 +2578,10 @@ proto.ord.ReactionInput.serializeBinaryToWriter = function(message, writer) {
       f,
       proto.ord.Texture.serializeBinaryToWriter
     );
+  }
+  f = message.getMetadataMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(11, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeMessage, proto.ord.Data.serializeBinaryToWriter);
   }
 };
 
@@ -3275,6 +3286,29 @@ proto.ord.ReactionInput.prototype.clearTexture = function() {
  */
 proto.ord.ReactionInput.prototype.hasTexture = function() {
   return jspb.Message.getField(this, 10) != null;
+};
+
+
+/**
+ * map<string, Data> metadata = 11;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,!proto.ord.Data>}
+ */
+proto.ord.ReactionInput.prototype.getMetadataMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,!proto.ord.Data>} */ (
+      jspb.Message.getMapField(this, 11, opt_noLazyCreate,
+      proto.ord.Data));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.ord.ReactionInput} returns this
+ */
+proto.ord.ReactionInput.prototype.clearMetadataMap = function() {
+  this.getMetadataMap().clear();
+  return this;
 };
 
 
@@ -6652,7 +6686,8 @@ proto.ord.ReactionSetup.toObject = function(includeInstance, msg) {
     isAutomated: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
     automationPlatform: jspb.Message.getFieldWithDefault(msg, 3, ""),
     automationCodeMap: (f = msg.getAutomationCodeMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : [],
-    environment: (f = msg.getEnvironment()) && proto.ord.ReactionSetup.ReactionEnvironment.toObject(includeInstance, f)
+    environment: (f = msg.getEnvironment()) && proto.ord.ReactionSetup.ReactionEnvironment.toObject(includeInstance, f),
+    metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : []
   };
 
   if (includeInstance) {
@@ -6712,6 +6747,12 @@ proto.ord.ReactionSetup.deserializeBinaryFromReader = function(msg, reader) {
       var value = new proto.ord.ReactionSetup.ReactionEnvironment;
       reader.readMessage(value,proto.ord.ReactionSetup.ReactionEnvironment.deserializeBinaryFromReader);
       msg.setEnvironment(value);
+      break;
+    case 6:
+      var value = msg.getMetadataMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readMessage, proto.ord.Data.deserializeBinaryFromReader, "", new proto.ord.Data());
+         });
       break;
     default:
       reader.skipField();
@@ -6775,6 +6816,10 @@ proto.ord.ReactionSetup.serializeBinaryToWriter = function(message, writer) {
       f,
       proto.ord.ReactionSetup.ReactionEnvironment.serializeBinaryToWriter
     );
+  }
+  f = message.getMetadataMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(6, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeMessage, proto.ord.Data.serializeBinaryToWriter);
   }
 };
 
@@ -7102,6 +7147,29 @@ proto.ord.ReactionSetup.prototype.hasEnvironment = function() {
 };
 
 
+/**
+ * map<string, Data> metadata = 6;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,!proto.ord.Data>}
+ */
+proto.ord.ReactionSetup.prototype.getMetadataMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,!proto.ord.Data>} */ (
+      jspb.Message.getMapField(this, 6, opt_noLazyCreate,
+      proto.ord.Data));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.ord.ReactionSetup} returns this
+ */
+proto.ord.ReactionSetup.prototype.clearMetadataMap = function() {
+  this.getMetadataMap().clear();
+  return this;
+};
+
+
 
 
 
@@ -7143,7 +7211,8 @@ proto.ord.ReactionConditions.toObject = function(includeInstance, msg) {
     reflux: jspb.Message.getBooleanFieldWithDefault(msg, 7, false),
     ph: jspb.Message.getFloatingPointFieldWithDefault(msg, 8, 0.0),
     conditionsAreDynamic: jspb.Message.getBooleanFieldWithDefault(msg, 9, false),
-    details: jspb.Message.getFieldWithDefault(msg, 10, "")
+    details: jspb.Message.getFieldWithDefault(msg, 10, ""),
+    metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : []
   };
 
   if (includeInstance) {
@@ -7225,6 +7294,12 @@ proto.ord.ReactionConditions.deserializeBinaryFromReader = function(msg, reader)
     case 10:
       var value = /** @type {string} */ (reader.readString());
       msg.setDetails(value);
+      break;
+    case 11:
+      var value = msg.getMetadataMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readMessage, proto.ord.Data.deserializeBinaryFromReader, "", new proto.ord.Data());
+         });
       break;
     default:
       reader.skipField();
@@ -7330,6 +7405,10 @@ proto.ord.ReactionConditions.serializeBinaryToWriter = function(message, writer)
       10,
       f
     );
+  }
+  f = message.getMetadataMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(11, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeMessage, proto.ord.Data.serializeBinaryToWriter);
   }
 };
 
@@ -7682,6 +7761,29 @@ proto.ord.ReactionConditions.prototype.setDetails = function(value) {
 };
 
 
+/**
+ * map<string, Data> metadata = 11;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,!proto.ord.Data>}
+ */
+proto.ord.ReactionConditions.prototype.getMetadataMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,!proto.ord.Data>} */ (
+      jspb.Message.getMapField(this, 11, opt_noLazyCreate,
+      proto.ord.Data));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.ord.ReactionConditions} returns this
+ */
+proto.ord.ReactionConditions.prototype.clearMetadataMap = function() {
+  this.getMetadataMap().clear();
+  return this;
+};
+
+
 
 /**
  * List of repeated fields within this message type.
@@ -7724,7 +7826,8 @@ proto.ord.TemperatureConditions.toObject = function(includeInstance, msg) {
     control: (f = msg.getControl()) && proto.ord.TemperatureConditions.TemperatureControl.toObject(includeInstance, f),
     setpoint: (f = msg.getSetpoint()) && proto.ord.Temperature.toObject(includeInstance, f),
     measurementsList: jspb.Message.toObjectList(msg.getMeasurementsList(),
-    proto.ord.TemperatureConditions.TemperatureMeasurement.toObject, includeInstance)
+    proto.ord.TemperatureConditions.TemperatureMeasurement.toObject, includeInstance),
+    metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : []
   };
 
   if (includeInstance) {
@@ -7775,6 +7878,12 @@ proto.ord.TemperatureConditions.deserializeBinaryFromReader = function(msg, read
       var value = new proto.ord.TemperatureConditions.TemperatureMeasurement;
       reader.readMessage(value,proto.ord.TemperatureConditions.TemperatureMeasurement.deserializeBinaryFromReader);
       msg.addMeasurements(value);
+      break;
+    case 4:
+      var value = msg.getMetadataMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readMessage, proto.ord.Data.deserializeBinaryFromReader, "", new proto.ord.Data());
+         });
       break;
     default:
       reader.skipField();
@@ -7828,6 +7937,10 @@ proto.ord.TemperatureConditions.serializeBinaryToWriter = function(message, writ
       f,
       proto.ord.TemperatureConditions.TemperatureMeasurement.serializeBinaryToWriter
     );
+  }
+  f = message.getMetadataMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(4, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeMessage, proto.ord.Data.serializeBinaryToWriter);
   }
 };
 
@@ -8395,6 +8508,29 @@ proto.ord.TemperatureConditions.prototype.clearMeasurementsList = function() {
 };
 
 
+/**
+ * map<string, Data> metadata = 4;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,!proto.ord.Data>}
+ */
+proto.ord.TemperatureConditions.prototype.getMetadataMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,!proto.ord.Data>} */ (
+      jspb.Message.getMapField(this, 4, opt_noLazyCreate,
+      proto.ord.Data));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.ord.TemperatureConditions} returns this
+ */
+proto.ord.TemperatureConditions.prototype.clearMetadataMap = function() {
+  this.getMetadataMap().clear();
+  return this;
+};
+
+
 
 /**
  * List of repeated fields within this message type.
@@ -8438,7 +8574,8 @@ proto.ord.PressureConditions.toObject = function(includeInstance, msg) {
     setpoint: (f = msg.getSetpoint()) && proto.ord.Pressure.toObject(includeInstance, f),
     atmosphere: (f = msg.getAtmosphere()) && proto.ord.PressureConditions.Atmosphere.toObject(includeInstance, f),
     measurementsList: jspb.Message.toObjectList(msg.getMeasurementsList(),
-    proto.ord.PressureConditions.PressureMeasurement.toObject, includeInstance)
+    proto.ord.PressureConditions.PressureMeasurement.toObject, includeInstance),
+    metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : []
   };
 
   if (includeInstance) {
@@ -8494,6 +8631,12 @@ proto.ord.PressureConditions.deserializeBinaryFromReader = function(msg, reader)
       var value = new proto.ord.PressureConditions.PressureMeasurement;
       reader.readMessage(value,proto.ord.PressureConditions.PressureMeasurement.deserializeBinaryFromReader);
       msg.addMeasurements(value);
+      break;
+    case 5:
+      var value = msg.getMetadataMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readMessage, proto.ord.Data.deserializeBinaryFromReader, "", new proto.ord.Data());
+         });
       break;
     default:
       reader.skipField();
@@ -8555,6 +8698,10 @@ proto.ord.PressureConditions.serializeBinaryToWriter = function(message, writer)
       f,
       proto.ord.PressureConditions.PressureMeasurement.serializeBinaryToWriter
     );
+  }
+  f = message.getMetadataMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(5, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeMessage, proto.ord.Data.serializeBinaryToWriter);
   }
 };
 
@@ -9331,6 +9478,29 @@ proto.ord.PressureConditions.prototype.clearMeasurementsList = function() {
 };
 
 
+/**
+ * map<string, Data> metadata = 5;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,!proto.ord.Data>}
+ */
+proto.ord.PressureConditions.prototype.getMetadataMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,!proto.ord.Data>} */ (
+      jspb.Message.getMapField(this, 5, opt_noLazyCreate,
+      proto.ord.Data));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.ord.PressureConditions} returns this
+ */
+proto.ord.PressureConditions.prototype.clearMetadataMap = function() {
+  this.getMetadataMap().clear();
+  return this;
+};
+
+
 
 
 
@@ -9365,7 +9535,8 @@ proto.ord.StirringConditions.toObject = function(includeInstance, msg) {
   var f, obj = {
     type: jspb.Message.getFieldWithDefault(msg, 1, 0),
     details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    rate: (f = msg.getRate()) && proto.ord.StirringConditions.StirringRate.toObject(includeInstance, f)
+    rate: (f = msg.getRate()) && proto.ord.StirringConditions.StirringRate.toObject(includeInstance, f),
+    metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : []
   };
 
   if (includeInstance) {
@@ -9414,6 +9585,12 @@ proto.ord.StirringConditions.deserializeBinaryFromReader = function(msg, reader)
       var value = new proto.ord.StirringConditions.StirringRate;
       reader.readMessage(value,proto.ord.StirringConditions.StirringRate.deserializeBinaryFromReader);
       msg.setRate(value);
+      break;
+    case 4:
+      var value = msg.getMetadataMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readMessage, proto.ord.Data.deserializeBinaryFromReader, "", new proto.ord.Data());
+         });
       break;
     default:
       reader.skipField();
@@ -9465,6 +9642,10 @@ proto.ord.StirringConditions.serializeBinaryToWriter = function(message, writer)
       f,
       proto.ord.StirringConditions.StirringRate.serializeBinaryToWriter
     );
+  }
+  f = message.getMetadataMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(4, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeMessage, proto.ord.Data.serializeBinaryToWriter);
   }
 };
 
@@ -9756,6 +9937,29 @@ proto.ord.StirringConditions.prototype.hasRate = function() {
 };
 
 
+/**
+ * map<string, Data> metadata = 4;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,!proto.ord.Data>}
+ */
+proto.ord.StirringConditions.prototype.getMetadataMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,!proto.ord.Data>} */ (
+      jspb.Message.getMapField(this, 4, opt_noLazyCreate,
+      proto.ord.Data));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.ord.StirringConditions} returns this
+ */
+proto.ord.StirringConditions.prototype.clearMetadataMap = function() {
+  this.getMetadataMap().clear();
+  return this;
+};
+
+
 
 
 
@@ -9792,7 +9996,8 @@ proto.ord.IlluminationConditions.toObject = function(includeInstance, msg) {
     details: jspb.Message.getFieldWithDefault(msg, 2, ""),
     peakWavelength: (f = msg.getPeakWavelength()) && proto.ord.Wavelength.toObject(includeInstance, f),
     color: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    distanceToVessel: (f = msg.getDistanceToVessel()) && proto.ord.Length.toObject(includeInstance, f)
+    distanceToVessel: (f = msg.getDistanceToVessel()) && proto.ord.Length.toObject(includeInstance, f),
+    metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : []
   };
 
   if (includeInstance) {
@@ -9850,6 +10055,12 @@ proto.ord.IlluminationConditions.deserializeBinaryFromReader = function(msg, rea
       var value = new proto.ord.Length;
       reader.readMessage(value,proto.ord.Length.deserializeBinaryFromReader);
       msg.setDistanceToVessel(value);
+      break;
+    case 6:
+      var value = msg.getMetadataMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readMessage, proto.ord.Data.deserializeBinaryFromReader, "", new proto.ord.Data());
+         });
       break;
     default:
       reader.skipField();
@@ -9916,6 +10127,10 @@ proto.ord.IlluminationConditions.serializeBinaryToWriter = function(message, wri
       f,
       proto.ord.Length.serializeBinaryToWriter
     );
+  }
+  f = message.getMetadataMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(6, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeMessage, proto.ord.Data.serializeBinaryToWriter);
   }
 };
 
@@ -10063,6 +10278,29 @@ proto.ord.IlluminationConditions.prototype.hasDistanceToVessel = function() {
 };
 
 
+/**
+ * map<string, Data> metadata = 6;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,!proto.ord.Data>}
+ */
+proto.ord.IlluminationConditions.prototype.getMetadataMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,!proto.ord.Data>} */ (
+      jspb.Message.getMapField(this, 6, opt_noLazyCreate,
+      proto.ord.Data));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.ord.IlluminationConditions} returns this
+ */
+proto.ord.IlluminationConditions.prototype.clearMetadataMap = function() {
+  this.getMetadataMap().clear();
+  return this;
+};
+
+
 
 /**
  * List of repeated fields within this message type.
@@ -10111,7 +10349,8 @@ proto.ord.ElectrochemistryConditions.toObject = function(includeInstance, msg) {
     electrodeSeparation: (f = msg.getElectrodeSeparation()) && proto.ord.Length.toObject(includeInstance, f),
     measurementsList: jspb.Message.toObjectList(msg.getMeasurementsList(),
     proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.toObject, includeInstance),
-    cell: (f = msg.getCell()) && proto.ord.ElectrochemistryConditions.ElectrochemistryCell.toObject(includeInstance, f)
+    cell: (f = msg.getCell()) && proto.ord.ElectrochemistryConditions.ElectrochemistryCell.toObject(includeInstance, f),
+    metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : []
   };
 
   if (includeInstance) {
@@ -10188,6 +10427,12 @@ proto.ord.ElectrochemistryConditions.deserializeBinaryFromReader = function(msg,
       var value = new proto.ord.ElectrochemistryConditions.ElectrochemistryCell;
       reader.readMessage(value,proto.ord.ElectrochemistryConditions.ElectrochemistryCell.deserializeBinaryFromReader);
       msg.setCell(value);
+      break;
+    case 10:
+      var value = msg.getMetadataMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readMessage, proto.ord.Data.deserializeBinaryFromReader, "", new proto.ord.Data());
+         });
       break;
     default:
       reader.skipField();
@@ -10285,6 +10530,10 @@ proto.ord.ElectrochemistryConditions.serializeBinaryToWriter = function(message,
       f,
       proto.ord.ElectrochemistryConditions.ElectrochemistryCell.serializeBinaryToWriter
     );
+  }
+  f = message.getMetadataMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(10, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeMessage, proto.ord.Data.serializeBinaryToWriter);
   }
 };
 
@@ -10980,6 +11229,29 @@ proto.ord.ElectrochemistryConditions.prototype.hasCell = function() {
 };
 
 
+/**
+ * map<string, Data> metadata = 10;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,!proto.ord.Data>}
+ */
+proto.ord.ElectrochemistryConditions.prototype.getMetadataMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,!proto.ord.Data>} */ (
+      jspb.Message.getMapField(this, 10, opt_noLazyCreate,
+      proto.ord.Data));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.ord.ElectrochemistryConditions} returns this
+ */
+proto.ord.ElectrochemistryConditions.prototype.clearMetadataMap = function() {
+  this.getMetadataMap().clear();
+  return this;
+};
+
+
 
 
 
@@ -11015,7 +11287,8 @@ proto.ord.FlowConditions.toObject = function(includeInstance, msg) {
     type: jspb.Message.getFieldWithDefault(msg, 1, 0),
     details: jspb.Message.getFieldWithDefault(msg, 2, ""),
     pumpType: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    tubing: (f = msg.getTubing()) && proto.ord.FlowConditions.Tubing.toObject(includeInstance, f)
+    tubing: (f = msg.getTubing()) && proto.ord.FlowConditions.Tubing.toObject(includeInstance, f),
+    metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : []
   };
 
   if (includeInstance) {
@@ -11068,6 +11341,12 @@ proto.ord.FlowConditions.deserializeBinaryFromReader = function(msg, reader) {
       var value = new proto.ord.FlowConditions.Tubing;
       reader.readMessage(value,proto.ord.FlowConditions.Tubing.deserializeBinaryFromReader);
       msg.setTubing(value);
+      break;
+    case 5:
+      var value = msg.getMetadataMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readMessage, proto.ord.Data.deserializeBinaryFromReader, "", new proto.ord.Data());
+         });
       break;
     default:
       reader.skipField();
@@ -11126,6 +11405,10 @@ proto.ord.FlowConditions.serializeBinaryToWriter = function(message, writer) {
       f,
       proto.ord.FlowConditions.Tubing.serializeBinaryToWriter
     );
+  }
+  f = message.getMetadataMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(5, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeMessage, proto.ord.Data.serializeBinaryToWriter);
   }
 };
 
@@ -11461,6 +11744,29 @@ proto.ord.FlowConditions.prototype.hasTubing = function() {
 };
 
 
+/**
+ * map<string, Data> metadata = 5;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,!proto.ord.Data>}
+ */
+proto.ord.FlowConditions.prototype.getMetadataMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,!proto.ord.Data>} */ (
+      jspb.Message.getMapField(this, 5, opt_noLazyCreate,
+      proto.ord.Data));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.ord.FlowConditions} returns this
+ */
+proto.ord.FlowConditions.prototype.clearMetadataMap = function() {
+  this.getMetadataMap().clear();
+  return this;
+};
+
+
 
 
 
@@ -11501,7 +11807,8 @@ proto.ord.ReactionNotes.toObject = function(includeInstance, msg) {
     isSensitiveToOxygen: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
     isSensitiveToLight: jspb.Message.getBooleanFieldWithDefault(msg, 7, false),
     safetyNotes: jspb.Message.getFieldWithDefault(msg, 8, ""),
-    procedureDetails: jspb.Message.getFieldWithDefault(msg, 9, "")
+    procedureDetails: jspb.Message.getFieldWithDefault(msg, 9, ""),
+    metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : []
   };
 
   if (includeInstance) {
@@ -11573,6 +11880,12 @@ proto.ord.ReactionNotes.deserializeBinaryFromReader = function(msg, reader) {
     case 9:
       var value = /** @type {string} */ (reader.readString());
       msg.setProcedureDetails(value);
+      break;
+    case 10:
+      var value = msg.getMetadataMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readMessage, proto.ord.Data.deserializeBinaryFromReader, "", new proto.ord.Data());
+         });
       break;
     default:
       reader.skipField();
@@ -11665,6 +11978,10 @@ proto.ord.ReactionNotes.serializeBinaryToWriter = function(message, writer) {
       9,
       f
     );
+  }
+  f = message.getMetadataMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(10, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeMessage, proto.ord.Data.serializeBinaryToWriter);
   }
 };
 
@@ -11957,6 +12274,29 @@ proto.ord.ReactionNotes.prototype.setProcedureDetails = function(value) {
 };
 
 
+/**
+ * map<string, Data> metadata = 10;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,!proto.ord.Data>}
+ */
+proto.ord.ReactionNotes.prototype.getMetadataMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,!proto.ord.Data>} */ (
+      jspb.Message.getMapField(this, 10, opt_noLazyCreate,
+      proto.ord.Data));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.ord.ReactionNotes} returns this
+ */
+proto.ord.ReactionNotes.prototype.clearMetadataMap = function() {
+  this.getMetadataMap().clear();
+  return this;
+};
+
+
 
 
 
@@ -12230,7 +12570,8 @@ proto.ord.ReactionWorkup.toObject = function(includeInstance, msg) {
     keepPhase: jspb.Message.getFieldWithDefault(msg, 7, ""),
     stirring: (f = msg.getStirring()) && proto.ord.StirringConditions.toObject(includeInstance, f),
     targetPh: jspb.Message.getFloatingPointFieldWithDefault(msg, 9, 0.0),
-    isAutomated: jspb.Message.getBooleanFieldWithDefault(msg, 10, false)
+    isAutomated: jspb.Message.getBooleanFieldWithDefault(msg, 10, false),
+    metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : []
   };
 
   if (includeInstance) {
@@ -12311,6 +12652,12 @@ proto.ord.ReactionWorkup.deserializeBinaryFromReader = function(msg, reader) {
     case 10:
       var value = /** @type {boolean} */ (reader.readBool());
       msg.setIsAutomated(value);
+      break;
+    case 11:
+      var value = msg.getMetadataMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readMessage, proto.ord.Data.deserializeBinaryFromReader, "", new proto.ord.Data());
+         });
       break;
     default:
       reader.skipField();
@@ -12415,6 +12762,10 @@ proto.ord.ReactionWorkup.serializeBinaryToWriter = function(message, writer) {
       10,
       f
     );
+  }
+  f = message.getMetadataMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(11, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeMessage, proto.ord.Data.serializeBinaryToWriter);
   }
 };
 
@@ -12752,6 +13103,29 @@ proto.ord.ReactionWorkup.prototype.clearIsAutomated = function() {
  */
 proto.ord.ReactionWorkup.prototype.hasIsAutomated = function() {
   return jspb.Message.getField(this, 10) != null;
+};
+
+
+/**
+ * map<string, Data> metadata = 11;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,!proto.ord.Data>}
+ */
+proto.ord.ReactionWorkup.prototype.getMetadataMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,!proto.ord.Data>} */ (
+      jspb.Message.getMapField(this, 11, opt_noLazyCreate,
+      proto.ord.Data));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.ord.ReactionWorkup} returns this
+ */
+proto.ord.ReactionWorkup.prototype.clearMetadataMap = function() {
+  this.getMetadataMap().clear();
+  return this;
 };
 
 

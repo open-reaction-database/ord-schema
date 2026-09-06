@@ -185,6 +185,8 @@ export class ReactionInput extends jspb.Message {
   getTexture(): Texture | undefined;
   setTexture(value?: Texture): void;
 
+  getMetadataMap(): jspb.Map<string, Data>;
+  clearMetadataMap(): void;
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): ReactionInput.AsObject;
   static toObject(includeInstance: boolean, msg: ReactionInput): ReactionInput.AsObject;
@@ -207,6 +209,7 @@ export namespace ReactionInput {
     additionDevice?: ReactionInput.AdditionDevice.AsObject,
     additionTemperature?: Temperature.AsObject,
     texture?: Texture.AsObject,
+    metadataMap: Array<[string, Data.AsObject]>,
   }
 
   export class AdditionSpeed extends jspb.Message {
@@ -895,6 +898,8 @@ export class ReactionSetup extends jspb.Message {
   getEnvironment(): ReactionSetup.ReactionEnvironment | undefined;
   setEnvironment(value?: ReactionSetup.ReactionEnvironment): void;
 
+  getMetadataMap(): jspb.Map<string, Data>;
+  clearMetadataMap(): void;
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): ReactionSetup.AsObject;
   static toObject(includeInstance: boolean, msg: ReactionSetup): ReactionSetup.AsObject;
@@ -912,6 +917,7 @@ export namespace ReactionSetup {
     automationPlatform: string,
     automationCodeMap: Array<[string, Data.AsObject]>,
     environment?: ReactionSetup.ReactionEnvironment.AsObject,
+    metadataMap: Array<[string, Data.AsObject]>,
   }
 
   export class ReactionEnvironment extends jspb.Message {
@@ -999,6 +1005,8 @@ export class ReactionConditions extends jspb.Message {
   getDetails(): string;
   setDetails(value: string): void;
 
+  getMetadataMap(): jspb.Map<string, Data>;
+  clearMetadataMap(): void;
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): ReactionConditions.AsObject;
   static toObject(includeInstance: boolean, msg: ReactionConditions): ReactionConditions.AsObject;
@@ -1021,6 +1029,7 @@ export namespace ReactionConditions {
     ph: number,
     conditionsAreDynamic: boolean,
     details: string,
+    metadataMap: Array<[string, Data.AsObject]>,
   }
 }
 
@@ -1040,6 +1049,8 @@ export class TemperatureConditions extends jspb.Message {
   setMeasurementsList(value: Array<TemperatureConditions.TemperatureMeasurement>): void;
   addMeasurements(value?: TemperatureConditions.TemperatureMeasurement, index?: number): TemperatureConditions.TemperatureMeasurement;
 
+  getMetadataMap(): jspb.Map<string, Data>;
+  clearMetadataMap(): void;
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): TemperatureConditions.AsObject;
   static toObject(includeInstance: boolean, msg: TemperatureConditions): TemperatureConditions.AsObject;
@@ -1055,6 +1066,7 @@ export namespace TemperatureConditions {
     control?: TemperatureConditions.TemperatureControl.AsObject,
     setpoint?: Temperature.AsObject,
     measurementsList: Array<TemperatureConditions.TemperatureMeasurement.AsObject>,
+    metadataMap: Array<[string, Data.AsObject]>,
   }
 
   export class TemperatureControl extends jspb.Message {
@@ -1166,6 +1178,8 @@ export class PressureConditions extends jspb.Message {
   setMeasurementsList(value: Array<PressureConditions.PressureMeasurement>): void;
   addMeasurements(value?: PressureConditions.PressureMeasurement, index?: number): PressureConditions.PressureMeasurement;
 
+  getMetadataMap(): jspb.Map<string, Data>;
+  clearMetadataMap(): void;
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): PressureConditions.AsObject;
   static toObject(includeInstance: boolean, msg: PressureConditions): PressureConditions.AsObject;
@@ -1182,6 +1196,7 @@ export namespace PressureConditions {
     setpoint?: Pressure.AsObject,
     atmosphere?: PressureConditions.Atmosphere.AsObject,
     measurementsList: Array<PressureConditions.PressureMeasurement.AsObject>,
+    metadataMap: Array<[string, Data.AsObject]>,
   }
 
   export class PressureControl extends jspb.Message {
@@ -1319,6 +1334,8 @@ export class StirringConditions extends jspb.Message {
   getRate(): StirringConditions.StirringRate | undefined;
   setRate(value?: StirringConditions.StirringRate): void;
 
+  getMetadataMap(): jspb.Map<string, Data>;
+  clearMetadataMap(): void;
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): StirringConditions.AsObject;
   static toObject(includeInstance: boolean, msg: StirringConditions): StirringConditions.AsObject;
@@ -1334,6 +1351,7 @@ export namespace StirringConditions {
     type: StirringConditions.StirringMethodTypeMap[keyof StirringConditions.StirringMethodTypeMap],
     details: string,
     rate?: StirringConditions.StirringRate.AsObject,
+    metadataMap: Array<[string, Data.AsObject]>,
   }
 
   export class StirringRate extends jspb.Message {
@@ -1407,6 +1425,8 @@ export class IlluminationConditions extends jspb.Message {
   getDistanceToVessel(): Length | undefined;
   setDistanceToVessel(value?: Length): void;
 
+  getMetadataMap(): jspb.Map<string, Data>;
+  clearMetadataMap(): void;
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): IlluminationConditions.AsObject;
   static toObject(includeInstance: boolean, msg: IlluminationConditions): IlluminationConditions.AsObject;
@@ -1424,6 +1444,7 @@ export namespace IlluminationConditions {
     peakWavelength?: Wavelength.AsObject,
     color: string,
     distanceToVessel?: Length.AsObject,
+    metadataMap: Array<[string, Data.AsObject]>,
   }
 
   export interface IlluminationTypeMap {
@@ -1479,6 +1500,8 @@ export class ElectrochemistryConditions extends jspb.Message {
   getCell(): ElectrochemistryConditions.ElectrochemistryCell | undefined;
   setCell(value?: ElectrochemistryConditions.ElectrochemistryCell): void;
 
+  getMetadataMap(): jspb.Map<string, Data>;
+  clearMetadataMap(): void;
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): ElectrochemistryConditions.AsObject;
   static toObject(includeInstance: boolean, msg: ElectrochemistryConditions): ElectrochemistryConditions.AsObject;
@@ -1500,6 +1523,7 @@ export namespace ElectrochemistryConditions {
     electrodeSeparation?: Length.AsObject,
     measurementsList: Array<ElectrochemistryConditions.ElectrochemistryMeasurement.AsObject>,
     cell?: ElectrochemistryConditions.ElectrochemistryCell.AsObject,
+    metadataMap: Array<[string, Data.AsObject]>,
   }
 
   export class ElectrochemistryMeasurement extends jspb.Message {
@@ -1594,6 +1618,8 @@ export class FlowConditions extends jspb.Message {
   getTubing(): FlowConditions.Tubing | undefined;
   setTubing(value?: FlowConditions.Tubing): void;
 
+  getMetadataMap(): jspb.Map<string, Data>;
+  clearMetadataMap(): void;
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): FlowConditions.AsObject;
   static toObject(includeInstance: boolean, msg: FlowConditions): FlowConditions.AsObject;
@@ -1610,6 +1636,7 @@ export namespace FlowConditions {
     details: string,
     pumpType: string,
     tubing?: FlowConditions.Tubing.AsObject,
+    metadataMap: Array<[string, Data.AsObject]>,
   }
 
   export class Tubing extends jspb.Message {
@@ -1712,6 +1739,8 @@ export class ReactionNotes extends jspb.Message {
   getProcedureDetails(): string;
   setProcedureDetails(value: string): void;
 
+  getMetadataMap(): jspb.Map<string, Data>;
+  clearMetadataMap(): void;
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): ReactionNotes.AsObject;
   static toObject(includeInstance: boolean, msg: ReactionNotes): ReactionNotes.AsObject;
@@ -1733,6 +1762,7 @@ export namespace ReactionNotes {
     isSensitiveToLight: boolean,
     safetyNotes: string,
     procedureDetails: string,
+    metadataMap: Array<[string, Data.AsObject]>,
   }
 }
 
@@ -1813,6 +1843,8 @@ export class ReactionWorkup extends jspb.Message {
   getIsAutomated(): boolean;
   setIsAutomated(value: boolean): void;
 
+  getMetadataMap(): jspb.Map<string, Data>;
+  clearMetadataMap(): void;
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): ReactionWorkup.AsObject;
   static toObject(includeInstance: boolean, msg: ReactionWorkup): ReactionWorkup.AsObject;
@@ -1835,6 +1867,7 @@ export namespace ReactionWorkup {
     stirring?: StirringConditions.AsObject,
     targetPh: number,
     isAutomated: boolean,
+    metadataMap: Array<[string, Data.AsObject]>,
   }
 
   export interface ReactionWorkupTypeMap {
