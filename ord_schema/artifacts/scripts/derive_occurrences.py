@@ -51,7 +51,6 @@ import argparse
 import functools
 import glob
 import pathlib
-from collections.abc import Collection
 
 import pyarrow.parquet as pq
 
@@ -160,43 +159,6 @@ def _audit(
     return len(found), empty, mismatched
 
 
-def _left_behind(output_dir: str, derived: Collection[str]) -> dict[str, str]:
-    """Returns the paths already in the tree that this run left short of a column.
-
-    ``--paths`` is for rebuilding one path rather than for choosing what to carry, so
-    the tree a subset run writes into holds the rest at whatever schema an earlier run
-    wrote them at. Those artifacts stamp current and nothing revisits them.
-
-    Columns only, matching what a reader refuses whatever its policy: an artifact short
-    a column fails every corpus that opens it, while one whose stamps are merely old is
-    refused where ``require_current`` says so and read otherwise.
-
-    Args:
-        output_dir: The directory the paths sit under.
-        derived: The paths this run covered, which are current by construction.
-
-    Returns:
-        One entry per uncovered path whose artifacts no longer match the schema, naming
-        the first artifact that does not and what it lacks. Empty today whatever the
-        tree holds, since the three columns are the same at every path and have not
-        moved; it answers differently the day the schema grows one.
-    """
-    behind: dict[str, str] = {}
-    for path in sorted(set(occurrences.PATHS) - set(derived)):
-        for artifact in occurrences.artifact_paths(output_dir, path):
-            try:
-                stamps = base.load_stamps(artifact)
-            except (OSError, ValueError):
-                continue
-            if stamps.artifact != occurrences.ARTIFACT:
-                continue
-            missing = base.missing_columns(artifact, occurrences.SCHEMA)
-            if missing:
-                behind[path] = f"{artifact} is without {missing}"
-                break
-    return behind
-
-
 def main(args: argparse.Namespace) -> None:
     """Derives the occurrences at each requested path.
 
@@ -296,7 +258,15 @@ def main(args: argparse.Namespace) -> None:
                 f"than the {written + skipped} this run wrote or found current; the "
                 "rest are where no reader looks"
             )
-    behind = _left_behind(args.output_dir, paths)
+    behind = base.left_behind(
+        args.output_dir,
+        occurrences.ARTIFACT,
+        # One schema for every path: the three columns are the same wherever a
+        # structure sits, so nothing on disk is short one until this schema grows.
+        dict.fromkeys(occurrences.PATHS, occurrences.SCHEMA),
+        occurrences.artifact_paths,
+        paths,
+    )
     if behind:
         # Raised rather than reported: the run succeeded at what it was asked to do and
         # still left a tree a corpus refuses. Naming the paths says which to add to

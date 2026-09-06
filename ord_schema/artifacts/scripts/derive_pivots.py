@@ -60,7 +60,6 @@ ending the run, since the output tree is not this script's to police.
 import argparse
 import functools
 import pathlib
-from collections.abc import Collection
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -210,47 +209,6 @@ def _empty_artifacts(
     return found, empty, skipped
 
 
-def _left_behind(pivots_dir: str, derived: Collection[str]) -> dict[str, str]:
-    """Returns the levels already in the tree that this run left at an older schema.
-
-    A run naming a subset of the levels is the cheaper run and the documented one, but
-    the tree it writes into holds whatever earlier runs put there. Those artifacts are
-    stamped current and nothing revisits them, so a projection that grew a column
-    leaves every uncovered level short of it -- and a corpus reading the tree pairs the
-    new projections with pivots that predate them.
-
-    Columns only, matching what a reader refuses whatever its policy: an artifact short
-    a column fails every corpus that opens it, while one whose stamps are merely old is
-    refused whenever ``require_current`` says so and read otherwise. A build that
-    stopped on the second would decide that question on the reader's behalf, and leave
-    no way to finish a subset run against a tree an older library wrote.
-
-    Args:
-        pivots_dir: The directory the levels sit under.
-        derived: The levels this run covered, which are current by construction.
-
-    Returns:
-        One entry per uncovered level whose artifacts no longer match the schema,
-        naming the first artifact that does not and what it lacks. Levels the schema
-        does not have are not included: a directory nobody derives is nobody's to
-        police, and a corpus never reads one.
-    """
-    behind: dict[str, str] = {}
-    for level_path in sorted(set(pivot.LEVELS) - set(derived)):
-        for path in pivot.artifact_paths(pivots_dir, level_path):
-            try:
-                stamps = base.load_stamps(path)
-            except (OSError, ValueError):
-                continue
-            if stamps.artifact != pivot.ARTIFACT:
-                continue
-            missing = base.missing_columns(path, pivot.schema(pivot.LEVELS[level_path]))
-            if missing:
-                behind[level_path] = f"{path} is without {missing}"
-                break
-    return behind
-
-
 def main(args: argparse.Namespace) -> None:
     """Derives a pivot artifact per level for every projection matching the pattern.
 
@@ -336,7 +294,13 @@ def main(args: argparse.Namespace) -> None:
             # the two apart. Nothing else in the chain aggregates rows across a tree,
             # or says anything about them above INFO.
             logger.warning("%s: every artifact is empty at this level", level_path)
-    behind = _left_behind(args.output_dir, levels)
+    behind = base.left_behind(
+        args.output_dir,
+        pivot.ARTIFACT,
+        {level: pivot.schema(pivot.LEVELS[level]) for level in pivot.LEVELS},
+        pivot.artifact_paths,
+        levels,
+    )
     if behind:
         # Raised rather than reported: the run succeeded at what it was asked to do and
         # still left a tree a corpus refuses, and a pipeline that reads the exit status

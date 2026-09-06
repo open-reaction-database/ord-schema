@@ -65,6 +65,7 @@ import dataclasses
 import glob
 import os
 import pathlib
+from collections.abc import Callable, Collection, Mapping
 from importlib import metadata
 from typing import Protocol
 
@@ -742,3 +743,55 @@ def derive_tree(
         ignored,
     )
     return written, skipped, ignored
+
+
+def left_behind(
+    directory: str | os.PathLike[str],
+    artifact: str,
+    schemas: Mapping[str, pa.Schema],
+    artifact_paths: Callable[[str | os.PathLike[str], str], list[pathlib.Path]],
+    derived: Collection[str],
+) -> dict[str, str]:
+    """Returns the keys already under ``directory`` that a run left short of a column.
+
+    An artifact split across a tree -- one subdirectory per pivot level, per indexed
+    path -- is derived a subset at a time, which is the cheaper run and often the only
+    one wanted. The tree that run writes into holds whatever earlier runs put there, and
+    those files stamp current forever, so a schema that grew a column leaves every key
+    nobody named short of it. A corpus reads the whole tree rather than the part the run
+    touched.
+
+    Columns only, matching what a reader refuses whatever its policy: an artifact short
+    a column fails every corpus that opens it, while one whose stamps are merely old is
+    refused where ``require_current`` says so and read otherwise. A build that stopped
+    on the second would decide that question on the reader's behalf, and leave no way to
+    finish a subset run against a tree an older library wrote.
+
+    Args:
+        directory: The directory the keys sit under.
+        artifact: Artifact name the files are expected to hold; anything else is left
+            alone, since a tree is not a build's to police.
+        schemas: Every key this artifact covers, mapped to the columns it carries.
+        artifact_paths: Lists one key's artifacts exactly as a reader finds them, taking
+            ``directory`` and the key.
+        derived: The keys the run covered, which are current by construction.
+
+    Returns:
+        One entry per uncovered key whose artifacts no longer match its schema, naming
+        the first artifact that does not and what it lacks. Keys with no artifacts are
+        not included: there is nothing there to be out of date.
+    """
+    behind: dict[str, str] = {}
+    for key in sorted(set(schemas) - set(derived)):
+        for path in artifact_paths(directory, key):
+            try:
+                stamps = load_stamps(path)
+            except (OSError, ValueError):
+                continue
+            if stamps.artifact != artifact:
+                continue
+            missing = missing_columns(path, schemas[key])
+            if missing:
+                behind[key] = f"{path} is without {missing}"
+                break
+    return behind
