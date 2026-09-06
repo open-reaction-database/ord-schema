@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<UDM DATABASE="ord-schema-testdata" SEQUENCE="1" TIMESTAMP="2024-01-15T12:00:00">
+  <UDM_VERSION MAJOR="6" MINOR="0" REVISION="0" VERSIONTEXT="6.0.0"/>
+  <LEGAL>
+    <PRODUCER>Test Lab</PRODUCER>
+    <TITLE>Test Dataset</TITLE>
+    <DOI>10.1000/test.doi</DOI>
+  </LEGAL>
+  <MOLECULES>
+    <MOLECULE ID="MOL-1">
+      <MOLSTRUCTURE format="molfile"><![CDATA[
+     RDKit          2D
+
+  8  8  0  0  0  0  0  0  0  0999 V2000
+   -3.0851    0.4695    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+   -2.0677   -0.6327    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.6045   -0.3028    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.1586    1.1294    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.3047    1.4594    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    2.3221    0.3572    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.8762   -1.0750    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.4129   -1.4050    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  2  0
+  2  3  1  0
+  3  4  2  0
+  4  5  1  0
+  5  6  2  0
+  6  7  1  0
+  7  8  2  0
+  8  3  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <NAME>Benzaldehyde</NAME>
+    </MOLECULE>
+    <MOLECULE ID="MOL-2">
+      <NAME>Aniline</NAME>
+    </MOLECULE>
+    <MOLECULE ID="MOL-3">
+      <NAME>Palladium on Carbon</NAME>
+    </MOLECULE>
+    <MOLECULE ID="MOL-4">
+      <NAME>Ethanol</NAME>
+    </MOLECULE>
+    <MOLECULE ID="MOL-5">
+      <NAME>Imine Product</NAME>
+    </MOLECULE>
+  </MOLECULES>
+  <REACTIONS>
+    <REACTION ID="RXN-1">
+      <RXNSTRUCTURE format="rsmiles">O=Cc1ccccc1.Nc1ccccc1>>N(/C=C/c1ccccc1)c1ccccc1</RXNSTRUCTURE>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="MOL-1"/>
+          <SAMPLE_MASS unit="g">1.5</SAMPLE_MASS>
+        </REACTANT>
+        <PRODUCT>
+          <MOLECULE MOL_ID="MOL-5"/>
+          <YIELD>
+            <exact>85</exact>
+          </YIELD>
+        </PRODUCT>
+        <REAGENT>
+          <MOLECULE MOL_ID="MOL-2"/>
+          <AMOUNT unit="mmol">1.2</AMOUNT>
+        </REAGENT>
+        <CATALYST>
+          <MOLECULE MOL_ID="MOL-3"/>
+          <AMOUNT unit="mmol">0.05</AMOUNT>
+        </CATALYST>
+        <SOLVENT>
+          <MOLECULE MOL_ID="MOL-4"/>
+          <VOLUME unit="mL">10</VOLUME>
+        </SOLVENT>
+        <CONDITIONS>
+          <PREPARATION>Add benzaldehyde and aniline to ethanol. Heat at reflux for 2 h.</PREPARATION>
+          <CONDITION_GROUP>
+            <ATMOSPHERE>air</ATMOSPHERE>
+            <PH>
+              <exact>7.0</exact>
+            </PH>
+            <PREPARATION>fume hood</PREPARATION>
+            <PRESSURE unit="atm">
+              <exact>1</exact>
+            </PRESSURE>
+            <REFLUX>true</REFLUX>
+            <TEMPERATURE unit="degC">
+              <exact>80</exact>
+            </TEMPERATURE>
+            <TIME unit="hr">
+              <exact>2</exact>
+            </TIME>
+            <STIRRING unit="rpm">
+              <exact>600</exact>
+            </STIRRING>
+          </CONDITION_GROUP>
+        </CONDITIONS>
+        <COMMENT>Reaction proceeded cleanly with no side products observed.</COMMENT>
+      </VARIATION>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="MOL-1"/>
+          <SAMPLE_MASS unit="g">1.0</SAMPLE_MASS>
+        </REACTANT>
+        <PRODUCT>
+          <MOLECULE MOL_ID="MOL-5"/>
+          <YIELD>
+            <exact>62</exact>
+          </YIELD>
+        </PRODUCT>
+        <REAGENT>
+          <MOLECULE MOL_ID="MOL-2"/>
+          <AMOUNT unit="mmol">2.0</AMOUNT>
+        </REAGENT>
+        <SOLVENT>
+          <MOLECULE MOL_ID="MOL-4"/>
+          <VOLUME unit="mL">5</VOLUME>
+        </SOLVENT>
+        <CONDITIONS>
+          <CONDITION_GROUP>
+            <TEMPERATURE unit="degC">
+              <exact>60</exact>
+            </TEMPERATURE>
+          </CONDITION_GROUP>
+        </CONDITIONS>
+      </VARIATION>
+    </REACTION>
+  </REACTIONS>
+</UDM>
