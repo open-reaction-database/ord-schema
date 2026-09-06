@@ -189,7 +189,7 @@ TIMESTAMP_COLUMN = "timestamp"
 # 1.77 million from a dataset whose stamps merely begin with it.
 #
 # Slash dates are listed month-first here and read day-first where the dataset says so;
-# see ``day_first_dates``.
+# see ``slash_orientation``.
 _DATE_FORMATS = (
     "%Y-%m-%d %H:%M:%S.%f",
     "%Y-%m-%dT%H:%M:%S.%f",
@@ -912,9 +912,10 @@ def write_projection(
     # Which way this dataset writes slash dates, settled before any row is projected.
     # The convention belongs to the depositor rather than to a value, so it cannot be
     # read off the rows as they stream past and a row group's worth of them is not the
-    # dataset. Where the answer is not already recorded this costs a pass that parses
-    # the protos without projecting them: measured at ~7 seconds over the source that is
-    # 96% of ORD, against the 34.6 minutes the projection itself takes.
+    # dataset. Every dataset but an undecided one costs a pass that parses the protos
+    # without projecting them, though it stops at the first value that settles the
+    # question: measured at ~7 seconds over the source that is 96% of ORD, against the
+    # 34.6 minutes the projection itself takes.
     day_first = slash_orientation(source_dataset_id, _recorded_dates(view))
     with (
         atomic_io.atomic_path(output) as temp_path,
