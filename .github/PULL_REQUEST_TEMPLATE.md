@@ -30,7 +30,7 @@ What you ran, and what new coverage proves the change works. "CI is green" is no
 test plan. Note anything you couldn't test and why.
 
 Before pushing: `uv run pytest`, plus `uv lock` if you touched `pyproject.toml` and
-`./compile_proto_wrappers.sh` if you touched `proto/`.
+`./compile_proto_wrappers.sh` if you touched `ord_schema/proto/`.
 -->
 
 -
