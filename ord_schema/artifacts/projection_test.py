@@ -792,9 +792,16 @@ def test_a_recorded_verdict_beats_what_the_values_alone_witness():
 
 
 def test_a_dataset_nobody_has_looked_at_falls_back_to_its_own_values():
+    # A witness still wins for an unlisted dataset, which is what keeps a day-first
+    # dataset added later from silently taking the month-first default.
     assert projection.slash_orientation("ord_dataset-new", ["15/11/2023"]) is True
     assert projection.slash_orientation(None, ["2/25/2021"]) is False
-    assert projection.slash_orientation("ord_dataset-new", ["07/06/2024"]) is None
+
+
+def test_an_unlisted_dataset_with_no_witness_reads_month_first():
+    # Month first is what every settled dataset outside _DAY_FIRST reads, and the two
+    # that nothing settles are named by _UNDECIDED rather than left to this.
+    assert projection.slash_orientation("ord_dataset-new", ["07/06/2024"]) is False
 
 
 def test_a_witness_contradicting_the_recorded_verdict_is_an_error():
@@ -802,7 +809,7 @@ def test_a_witness_contradicting_the_recorded_verdict_is_an_error():
     # this library has evidence against.
     with pytest.raises(ValueError, match="witness"):
         projection.slash_orientation(
-            "ord_dataset-d92976309c3a48a3a64a4cf5e7048086", ["15/11/2023"]
+            "ord_dataset-172039a759a440219a68af62d203b79b", ["2/25/2021"]
         )
 
 
@@ -813,7 +820,7 @@ def test_the_datasets_no_evidence_settles_are_left_out():
         "ord_dataset-5c9a10329a8a48968d18879a48bb8ab2",
         "ord_dataset-5e8318f0dda04b398c14f4c3adfeb32c",
     ):
-        assert open_dataset not in projection._SLASH_ORIENTATION
+        assert open_dataset not in projection._DAY_FIRST
         assert (
             projection.slash_orientation(open_dataset, ["08/05/2024, 11:33:06"]) is None
         )

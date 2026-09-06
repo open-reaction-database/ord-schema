@@ -56,7 +56,6 @@ inputs: MAP<VARCHAR, STRUCT>
       instrument_manufacturer: VARCHAR
       instrument_last_calibrated: STRUCT
         timestamp: TIMESTAMP
-        value: VARCHAR
     texture: STRUCT
       type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
       details: VARCHAR
@@ -286,7 +285,6 @@ workups: LIST<STRUCT>
         instrument_manufacturer: VARCHAR
         instrument_last_calibrated: STRUCT
           timestamp: TIMESTAMP
-          value: VARCHAR
       texture: STRUCT
         type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
         details: VARCHAR
@@ -431,7 +429,6 @@ outcomes: LIST<STRUCT>
           instrument_manufacturer: VARCHAR
           instrument_last_calibrated: STRUCT
             timestamp: TIMESTAMP
-            value: VARCHAR
         texture: STRUCT
           type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
           details: VARCHAR
@@ -495,7 +492,6 @@ outcomes: LIST<STRUCT>
     instrument_manufacturer: VARCHAR
     instrument_last_calibrated: STRUCT
       timestamp: TIMESTAMP
-      value: VARCHAR
 provenance: STRUCT
   experimenter: STRUCT
     username: VARCHAR
@@ -506,14 +502,12 @@ provenance: STRUCT
   city: VARCHAR
   experiment_start: STRUCT
     timestamp: TIMESTAMP
-    value: VARCHAR
   doi: VARCHAR
   patent: VARCHAR
   publication_url: VARCHAR
   record_created: STRUCT
     time: STRUCT
       timestamp: TIMESTAMP
-      value: VARCHAR
     person: STRUCT
       username: VARCHAR
       name: VARCHAR
@@ -524,7 +518,6 @@ provenance: STRUCT
   record_modified: LIST<STRUCT>
     time: STRUCT
       timestamp: TIMESTAMP
-      value: VARCHAR
     person: STRUCT
       username: VARCHAR
       name: VARCHAR
