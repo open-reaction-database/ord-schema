@@ -235,6 +235,14 @@ _UNDECIDED = frozenset(
     }
 )
 
+# A dataset in both lists reads as undecided, silently: nothing else says that the
+# evidence naming it day first and the evidence settling nothing are the same claim.
+if _DAY_FIRST & _UNDECIDED:
+    raise ValueError(
+        "a dataset cannot be both day-first and undecided: "
+        f"{sorted(_DAY_FIRST & _UNDECIDED)}"
+    )
+
 # An ID rides beside the collapsed smiles and cannot exist without it: the schema
 # would gain a structure_id with no sibling smiles, and message_row would KeyError.
 if not set(_STRUCTURAL_TYPES) >= _STRUCTURE_ID_TYPES:
@@ -384,7 +392,8 @@ def slash_orientation(
 
     Returns:
         True for day first, False for month first, and None for a dataset ``_UNDECIDED``
-        names -- which leaves its ambiguous dates unparsed rather than guessed.
+        names or a source recording no ID at all -- which leaves ambiguous dates
+        unparsed rather than guessed.
 
     Raises:
         ValueError: If a witness in the data contradicts ``_DAY_FIRST``. One of the two
@@ -393,6 +402,12 @@ def slash_orientation(
     """
     if dataset_id in _UNDECIDED:
         return None
+    if dataset_id is None:
+        # The default is a claim about a dataset someone could name in _DAY_FIRST after
+        # reading its submission. A source recording no ID can never be named, so the
+        # guess would be permanent and there would be nothing to correct it against;
+        # only its own values may speak for it.
+        return day_first_dates(values)
     witnessed = day_first_dates(values)
     if dataset_id in _DAY_FIRST:
         if witnessed is False:

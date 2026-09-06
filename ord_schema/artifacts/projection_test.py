@@ -804,6 +804,19 @@ def test_an_unlisted_dataset_with_no_witness_reads_month_first():
     assert projection.slash_orientation("ord_dataset-new", ["07/06/2024"]) is False
 
 
+def test_a_source_with_no_dataset_id_is_never_given_the_default():
+    # The default is a claim about a dataset someone could name in _DAY_FIRST later. A
+    # source recording no ID can never be named, so its guess would be permanent.
+    assert projection.slash_orientation(None, ["07/06/2024"]) is None
+    assert projection.slash_orientation(None, ["2/25/2021"]) is False
+
+
+def test_the_two_dataset_lists_are_disjoint():
+    # A dataset in both would read as undecided, and nothing else would say that the
+    # evidence naming it day first and the evidence settling nothing disagree.
+    assert not projection._DAY_FIRST & projection._UNDECIDED
+
+
 def test_a_witness_contradicting_the_recorded_verdict_is_an_error():
     # One of the two is wrong about the dataset, and either reading would record a date
     # this library has evidence against.
