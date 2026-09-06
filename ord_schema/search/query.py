@@ -58,6 +58,7 @@ local and only the executor knows the offsets that make them one corpus-wide spa
 """
 
 import dataclasses
+import datetime
 import difflib
 import re
 import warnings
@@ -144,6 +145,30 @@ def executable_schema(schema: pa.Schema | None = None) -> pa.Schema:
 
 _COMPARISONS = {"eq": "=", "ne": "<>", "lt": "<", "le": "<=", "gt": ">", "ge": ">="}
 _ORDERED = frozenset({"lt", "le", "gt", "ge"})
+
+
+def _is_temporal(leaf: pa.DataType) -> bool:
+    """Returns whether ``leaf`` holds an instant or a day rather than a number."""
+    return pa.types.is_timestamp(leaf) or pa.types.is_date(leaf)
+
+
+def _parsed_instant(literal: str) -> datetime.datetime | None:
+    """Returns the instant an ISO literal names, or None where it is not one.
+
+    Args:
+        literal: The string the query compares a temporal column against.
+
+    Returns:
+        The parsed value, with a bare date reading as that day's midnight so a query
+        for a day compares against the first instant of it. None where the string is
+        not ISO 8601, which the caller refuses where the query is compiled.
+    """
+    try:
+        return datetime.datetime.fromisoformat(literal)
+    except ValueError:
+        return None
+
+
 _TEXT = {"contains": "contains", "starts_with": "starts_with", "ends_with": "ends_with"}
 _AGGREGATES = {
     "count": "count",
@@ -701,13 +726,37 @@ class Query(_Node):
     limit: int | None = Field(default=None, gt=0)
 
 
-def _literal(value: Value, compounds: list[str]) -> str:
-    """Returns the SQL for a value, recording a compound that needs binding."""
+def _literal(
+    value: Value, compounds: list[str], leaf: pa.DataType | None = None
+) -> str:
+    """Returns the SQL for a value, recording a compound that needs binding.
+
+    Args:
+        value: The literal or compound name to compile.
+        compounds: Compound names collected so far, appended to when this is one.
+        leaf: The type it is compared against, which types a temporal literal. Without
+            it a string compiles as text, which is what every non-temporal column wants.
+
+    Returns:
+        The SQL operand.
+    """
     if value.compound is not None:
         if value.compound not in compounds:
             compounds.append(value.compound)
         return f"${value.compound}"
     if isinstance(value.literal, str):
+        if leaf is not None and _is_temporal(leaf):
+            # Typed rather than quoted, so the comparison is between instants. A string
+            # beside a TIMESTAMP casts in DuckDB, but the same string beside a DATE
+            # compares as text and answers by spelling.
+            instant = _parsed_instant(value.literal)
+            if instant is None:
+                raise QueryError(
+                    f"{value.literal!r} is not an ISO 8601 date or timestamp"
+                )
+            if pa.types.is_date(leaf):
+                return f"DATE '{instant.date().isoformat()}'"
+            return f"TIMESTAMP '{instant.isoformat(sep=' ')}'"
         escaped = value.literal.replace("'", "''")
         return f"'{escaped}'"
     if isinstance(value.literal, bool):
@@ -729,15 +778,24 @@ def _check_operand(node: Comparison, resolved: _Resolved) -> None:
     if node.op in _TEXT and not pa.types.is_string(leaf):
         raise QueryError(f"{node.path}: {node.op} needs a text column, not {leaf}")
     if node.op in _ORDERED and not (
-        pa.types.is_integer(leaf) or pa.types.is_floating(leaf)
+        pa.types.is_integer(leaf) or pa.types.is_floating(leaf) or _is_temporal(leaf)
     ):
-        raise QueryError(f"{node.path}: {node.op} needs a numeric column, not {leaf}")
+        raise QueryError(
+            f"{node.path}: {node.op} needs a numeric or temporal column, not {leaf}"
+        )
     if node.value.compound is not None and not pa.types.is_string(leaf):
         raise QueryError(f"{node.path}: a compound compares against text, not {leaf}")
     literal = node.value.literal
     if literal is None:
         return
-    if isinstance(literal, str) and not pa.types.is_string(leaf):
+    if isinstance(literal, str) and _is_temporal(leaf):
+        # Parsed here rather than left to _literal, so the path is in the message.
+        if _parsed_instant(literal) is None:
+            raise QueryError(
+                f"{node.path}: holds {leaf}, compared against {literal!r}, which is "
+                "not an ISO 8601 date or timestamp"
+            )
+    elif isinstance(literal, str) and not pa.types.is_string(leaf):
         raise QueryError(f"{node.path}: holds {leaf}, compared against a string")
     if isinstance(literal, bool) and not pa.types.is_boolean(leaf):
         raise QueryError(f"{node.path}: holds {leaf}, compared against a boolean")
@@ -755,7 +813,7 @@ def _leaf(node: Any, resolved: _Resolved, compounds: list[str]) -> str:
         keyword = "NULL" if node.op == "is_null" else "NOT NULL"
         return f"{resolved.expression} IS {keyword}"
     _check_operand(node, resolved)
-    operand = _literal(node.value, compounds)
+    operand = _literal(node.value, compounds, resolved.type)
     if node.op in _TEXT:
         return f"{_TEXT[node.op]}({resolved.expression}, {operand})"
     return f"{resolved.expression} {_COMPARISONS[node.op]} {operand}"

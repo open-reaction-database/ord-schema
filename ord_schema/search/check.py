@@ -217,6 +217,27 @@ QUERIES: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "temporal_range",
+        "covers": "an ordered comparison against a typed timestamp, at both ends",
+        "query": {
+            "where": {
+                "op": "and",
+                "clauses": [
+                    {
+                        "op": "ge",
+                        "path": "provenance.record_created.time.timestamp",
+                        "value": {"literal": "2020-01-01"},
+                    },
+                    {
+                        "op": "lt",
+                        "path": "provenance.record_created.time.timestamp",
+                        "value": {"literal": "2021-01-01"},
+                    },
+                ],
+            }
+        },
+    },
+    {
         "name": "aggregate_grouping",
         "covers": "GROUP BY with a measure",
         "query": {

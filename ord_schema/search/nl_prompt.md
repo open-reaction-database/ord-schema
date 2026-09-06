@@ -92,6 +92,11 @@ Rules that keep a query answerable:
   different question, and it wants the query's own `where` to say so.
 - Enum columns compare against the spellings listed beside them, which are the value
   names rather than numbers.
+- A `TIMESTAMP` column compares against an ISO date or timestamp written as a string:
+  `{"literal": "2025-01-01"}`. A bare date means that day's midnight, so a year is a
+  half-open pair — `ge` its January 1 and `lt` the next year's. The grammar has no date
+  arithmetic and no notion of today, so a question about "the last five years" or
+  "recently" cannot be written; decline it rather than hardcoding a year.
 - "The most common X", "how many of each X", and anything else that groups by something
   under a repeated level needs `aggregate.over`, which makes the rows the elements of
   that level rather than reactions. `group_by` and measure paths are then relative to
