@@ -215,6 +215,29 @@ jobs:
             exit 1
           fi
 
+  test_proto_breaking:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # buf reads the baseline out of the local clone, so the full fetch is what
+          # supplies it: a shallow checkout has neither main's history nor a ref that
+          # points at it.
+          fetch-depth: 0
+      - uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
+        with:
+          # Pin the CLI: a floating version can report new findings on a schema that
+          # did not change.
+          version: '1.72.0'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check for breaking schema changes
+        # Every .pb.gz and .parquet in ord-data is read by field number, so a renumbering
+        # quietly changes what existing records mean instead of failing loudly.
+        #
+        # The baseline is the remote-tracking ref: checking out a pull request leaves HEAD
+        # detached and creates no local main branch, so '#branch=main' resolves to nothing.
+        run: buf breaking --against '.git#ref=origin/main'
+
   test_js:
     runs-on: ubuntu-latest
     steps:
