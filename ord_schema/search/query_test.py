@@ -327,7 +327,7 @@ def test_count_distinct_counts_distinctly():
         ),
         (
             {"where": {"op": "gt", "path": "reaction_id", "value": {"literal": 1}}},
-            "needs a numeric column",
+            "needs a numeric or temporal column",
         ),
         # A compound resolves to a SMILES, so it can only compare against text.
         (
@@ -755,6 +755,69 @@ def test_a_recorded_date_is_answered_by_its_timestamp_not_its_spelling(path):
     assert query.resolve(path.replace(".value", ".timestamp")).type == pa.timestamp(
         "us"
     )
+
+
+_WHEN = "provenance.record_created.time.timestamp"
+
+
+@pytest.mark.parametrize(
+    ("op", "literal", "expected"),
+    [
+        ("ge", "2025-01-01", "TIMESTAMP '2025-01-01 00:00:00'"),
+        ("lt", "2026-01-01", "TIMESTAMP '2026-01-01 00:00:00'"),
+        ("ge", "2025-01-01 12:30:00", "TIMESTAMP '2025-01-01 12:30:00'"),
+        ("eq", "2025-01-01T12:30:00", "TIMESTAMP '2025-01-01 12:30:00'"),
+    ],
+)
+def test_a_timestamp_compares_against_an_iso_literal(op, literal, expected):
+    # Typed rather than quoted: a bare date reads as that day's midnight, so asking for
+    # a year is a pair of comparisons rather than a text match on the spelling.
+    compiled = _compile(
+        {"where": {"op": op, "path": _WHEN, "value": {"literal": literal}}}
+    )
+    assert expected in compiled.sql
+    assert _run(compiled) == []
+
+
+def test_a_date_column_compares_as_a_date_not_as_text():
+    # A string beside a TIMESTAMP casts in DuckDB, but beside a DATE it compares as
+    # text and answers by spelling, so the literal carries its type either way.
+    schema = pa.schema(
+        [pa.field("reaction_id", pa.string()), pa.field("day", pa.date32())]
+    )
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {"where": {"op": "ge", "path": "day", "value": {"literal": "2025-01-01"}}}
+        ),
+        schema=schema,
+    )
+    assert "day >= DATE '2025-01-01'" in compiled.sql
+
+
+@pytest.mark.parametrize(
+    "literal", ["2025-01-01T12:30:00+05:00", "2025-01-01T12:30:00Z"]
+)
+def test_a_literal_carrying_an_offset_is_refused(literal):
+    # The column records no zone, because no shape the projection reads carries one --
+    # a value that does is left unparsed rather than read as a wall clock. DuckDB drops
+    # the offset from a TIMESTAMP literal rather than shifting by it, so accepting one
+    # would compare the caller's wall clock while reading as though it compared their
+    # instant.
+    with pytest.raises(query.QueryError, match="records no time zone"):
+        _compile({"where": {"op": "ge", "path": _WHEN, "value": {"literal": literal}}})
+
+
+@pytest.mark.parametrize("literal", ["last tuesday", "2025-13-45", ""])
+def test_a_literal_that_is_not_a_date_is_refused_where_it_compiles(literal):
+    with pytest.raises(query.QueryError, match="not an ISO 8601 date or timestamp"):
+        _compile({"where": {"op": "ge", "path": _WHEN, "value": {"literal": literal}}})
+
+
+def test_an_ordered_comparison_still_refuses_text():
+    with pytest.raises(query.QueryError, match="numeric or temporal"):
+        _compile(
+            {"where": {"op": "gt", "path": "reaction_id", "value": {"literal": "a"}}}
+        )
 
 
 def test_suggestions_do_not_name_internal_columns():

@@ -560,6 +560,31 @@
     }
   },
   {
+    "question": "reactions recorded in 2025",
+    "why": "a year is a half-open pair of comparisons against the typed timestamp; a single equality, or a text match on the recorded spelling, answers a fraction of it and reads as if it answered all of it",
+    "reference": {
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "ge",
+            "path": "provenance.record_created.time.timestamp",
+            "value": {
+              "literal": "2025-01-01"
+            }
+          },
+          {
+            "op": "lt",
+            "path": "provenance.record_created.time.timestamp",
+            "value": {
+              "literal": "2026-01-01"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
     "question": "reactions published in the last five years",
     "why": "no date arithmetic and no notion of today: a translation that hardcodes a year looks right and rots",
     "compiles": false
