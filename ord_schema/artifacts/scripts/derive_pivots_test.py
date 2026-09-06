@@ -539,3 +539,29 @@ def test_each_level_is_derived_against_its_own_columns(projected):
     _drop_column(written, "product_index")
     _run(projected, "--levels", "outcomes", "outcomes.products")
     assert "product_index" in pq.read_schema(written).names
+
+
+def test_a_level_this_run_did_not_name_is_checked_against_the_schema(projected):
+    # Naming a subset is the documented cheaper run, and the tree it writes into keeps
+    # whatever an earlier, larger run put there. Those artifacts stamp current forever,
+    # so a projection that grew a column leaves every level nobody named short of it --
+    # which is the whole tree a corpus reads, not just the part this run touched.
+    _run(projected, "--levels", "workups", "outcomes.products")
+    left_behind = projected / "pivots" / "workups" / "aa" / "ord_dataset-aa.parquet"
+    _drop_column(left_behind, "workup_index")
+    with pytest.raises(ValueError, match="did not derive"):
+        _run(projected, "--levels", "outcomes.products")
+
+
+def test_a_level_this_run_did_not_name_and_did_not_outgrow_is_not_an_error(projected):
+    # The subset run has to stay usable. A level left alone whose artifacts still match
+    # the schema is exactly what --levels is for, and stopping on it would make every
+    # deployment derive all 39 levels to answer questions over four.
+    _run(projected, "--levels", "workups", "outcomes.products")
+    _run(projected, "--levels", "outcomes.products")
+
+
+def test_a_level_the_tree_does_not_hold_is_not_left_behind(projected):
+    # A level nobody has ever derived has no artifacts to be stale, and a run that
+    # stopped on one would refuse every first build of a subset.
+    _run(projected, "--levels", "outcomes.products")

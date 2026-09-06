@@ -2378,7 +2378,8 @@ class Corpus:
             PairingError: If the artifacts for this level were not derived from the
                 projections this corpus reads -- a pivot of another corpus answers
                 confidently and wrongly, since its reaction IDs resolve against the
-                wrong rows -- or, with ``require_current``, if any of them is stale.
+                wrong rows -- if any lacks a column this library reads, or, with
+                ``require_current``, if any of them is stale.
         """
         sources = self._pivot_artifacts(path)
         if sources is None:
@@ -2417,7 +2418,8 @@ class Corpus:
 
         Raises:
             PairingError: If the artifacts were not derived from the projections this
-                corpus reads, or -- with ``require_current`` -- if any is stale.
+                corpus reads, if any lacks a column this library reads, or -- with
+                ``require_current`` -- if any is stale.
         """
         if self._pivots_dir is None:
             return None
@@ -2452,12 +2454,13 @@ class Corpus:
             ``_pivot_offsets``.
 
         Raises:
-            PairingError: If a file is not a pivot over ``path``, if two artifacts
-                restate one source dataset, if the set of source datasets differs from
-                the projections', or -- with ``require_current`` -- if any artifact is
-                stale.
+            PairingError: If a file is not a pivot over ``path``, if it lacks a column
+                this library reads, if two artifacts restate one source dataset, if the
+                set of source datasets differs from the projections', or -- with
+                ``require_current`` -- if any artifact is stale.
         """
         wanted = {base.load_stamps(name).source_md5 for name in self._projections}
+        schema = pivot.schema(pivot.LEVELS[path])
         sources: dict[str, str] = {}
         derived_from: dict[str, str] = {}
         for name in files:
@@ -2471,6 +2474,17 @@ class Corpus:
                 raise PairingError(
                     f"{name} holds the pivot over {held}, but sits where {path} is "
                     "read from, so a quantifier would be answered by the wrong level"
+                )
+            missing = base.missing_columns(name, schema)
+            if missing:
+                # A level's element struct grows whenever the projection's does, and
+                # the stamps say nothing about columns. Without this the artifact is
+                # read as a corpus member and a predicate over the new field fails deep
+                # in DuckDB, as a binder error naming a struct key rather than the file
+                # that predates it.
+                raise PairingError(
+                    f"{name} is a {pivot.ARTIFACT} artifact over {path} without "
+                    f"{missing}, which this library reads; derive it again first"
                 )
             if self._require_current and not base.stamps_are_current(
                 stamps, pivot.ARTIFACT

@@ -41,8 +41,11 @@ run -- is ignored rather than derived from, so --output_dir may sit inside a rec
 pattern's reach. These are errors: an --output_dir that would write over any input, an
 input that cannot be read as Parquet at all, a level the schema does not have or that
 is named twice, a projection that changed while the run was deriving from it or whose
-count and unnest disagreed, a run that finds no projections at all, and a level whose
-artifacts cannot be found once it has derived them.
+count and unnest disagreed, a run that finds no projections at all, a level whose
+artifacts cannot be found once it has derived them, and a level the tree already holds
+that this run did not name and whose artifacts the current schema has outgrown -- a
+subset run is the cheaper run, but the levels it leaves behind still have to match the
+projections a corpus reads them beside.
 
 Every run reports, per level, how many of the artifacts on disk hold no rows, and warns
 when all of them do. That is ordinary for a level nothing in the corpus records, and it
@@ -57,6 +60,7 @@ ending the run, since the output tree is not this script's to police.
 import argparse
 import functools
 import pathlib
+from collections.abc import Collection
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -206,6 +210,44 @@ def _empty_artifacts(
     return found, empty, skipped
 
 
+def _left_behind(pivots_dir: str, derived: Collection[str]) -> dict[str, str]:
+    """Returns the levels already in the tree that this run left at an older schema.
+
+    A run naming a subset of the levels is the cheaper run and the documented one, but
+    the tree it writes into holds whatever earlier runs put there. Those artifacts are
+    stamped current and nothing revisits them, so a projection that grew a column
+    leaves every uncovered level short of it -- and a corpus reading the tree pairs the
+    new projections with pivots that predate them.
+
+    Args:
+        pivots_dir: The directory the levels sit under.
+        derived: The levels this run covered, which are current by construction.
+
+    Returns:
+        One entry per uncovered level whose artifacts no longer match the schema,
+        naming the first artifact that does not and what it lacks. Levels the schema
+        does not have are not included: a directory nobody derives is nobody's to
+        police, and a corpus never reads one.
+    """
+    behind: dict[str, str] = {}
+    for level_path in sorted(set(pivot.LEVELS) - set(derived)):
+        for path in pivot.artifact_paths(pivots_dir, level_path):
+            try:
+                stamps = base.load_stamps(path)
+            except (OSError, ValueError):
+                continue
+            if stamps.artifact != pivot.ARTIFACT:
+                continue
+            missing = base.missing_columns(path, pivot.schema(pivot.LEVELS[level_path]))
+            if missing:
+                behind[level_path] = f"{path} is without {missing}"
+                break
+            if not base.stamps_are_current(stamps, pivot.ARTIFACT):
+                behind[level_path] = f"{path} is stale"
+                break
+    return behind
+
+
 def main(args: argparse.Namespace) -> None:
     """Derives a pivot artifact per level for every projection matching the pattern.
 
@@ -220,8 +262,9 @@ def main(args: argparse.Namespace) -> None:
             which usually means it was aimed at the source tree, or at an output tree,
             rather than at the projections; or if a level's artifacts cannot be found
             after the run derived them, which means they were written somewhere no
-            reader looks. Silence in any of those would let a pipeline step downstream
-            proceed as though the artifacts had been built.
+            reader looks; or if the tree holds a level this run did not derive whose
+            artifacts no longer match the schema. Silence in any of those would let a
+            pipeline step downstream proceed as though the artifacts had been built.
     """
     levels = pivot.check_levels(args.levels)
     for level_path in levels:
@@ -235,11 +278,11 @@ def main(args: argparse.Namespace) -> None:
                 level_path=level_path,
                 level_paths=tuple(levels),
             ),
-            # Reaches the ordinals, which are top-level columns: a repeated level added
-            # to the schema above this one gives every level beneath it another one,
-            # and the artifacts carrying the old set are derived again rather than
-            # stamping as current. What it does not reach is the element struct, which
-            # is one column however its fields change; that is what a version is for.
+            # Reaches the ordinals, which are top-level columns, and the fields of the
+            # element struct, which are compared down through it: a level added above
+            # this one gives every level beneath it another ordinal, and a field added
+            # to the element gives it another leaf. Artifacts carrying the old set of
+            # either are derived again rather than stamping as current.
             schema=pivot.schema(pivot.LEVELS[level_path]),
             force=args.force,
             parent_artifact=projection.ARTIFACT,
@@ -290,6 +333,16 @@ def main(args: argparse.Namespace) -> None:
             # the two apart. Nothing else in the chain aggregates rows across a tree,
             # or says anything about them above INFO.
             logger.warning("%s: every artifact is empty at this level", level_path)
+    behind = _left_behind(args.output_dir, levels)
+    if behind:
+        # Raised rather than reported: the run succeeded at what it was asked to do and
+        # still left a tree a corpus refuses, and a pipeline that reads the exit status
+        # would go on to publish it. Naming the levels says which to add to --levels.
+        raise ValueError(
+            f"{args.output_dir} holds {len(behind)} levels this run did not derive "
+            "whose artifacts no longer match the schema: "
+            + "; ".join(f"{level} ({reason})" for level, reason in behind.items())
+        )
 
 
 if __name__ == "__main__":
