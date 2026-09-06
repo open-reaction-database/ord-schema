@@ -3202,6 +3202,15 @@ def _wide_reactions() -> list[reaction_pb2.Reaction]:
     other.measurements.add(type="YIELD").percentage.value = 90
     reactions.append(sibling)
 
+    # A percentage that is not a yield, beside one that is. Selectivity, purity, and
+    # area are recorded as percentages too -- 42,909 measurements across the corpus --
+    # so a reduction over the bare path answers a broader question than "yield" asks.
+    mixed = reaction_pb2.Reaction(reaction_id="ord-wd08")
+    only = mixed.outcomes.add().products.add(is_desired_product=True)
+    only.measurements.add(type="YIELD").percentage.value = 40
+    only.measurements.add(type="SELECTIVITY").percentage.value = 95
+    reactions.append(mixed)
+
     return reactions
 
 
@@ -3494,25 +3503,20 @@ def test_a_pivot_artifact_is_read_rather_than_built(wide_root, caplog):
     assert not any("building the pivot" in message for message in messages)
 
 
-def _reduced_per_reaction(corpus, reducer):
+def _reduced_per_reaction(corpus, reducer, where=None):
     """Returns the reduction each reaction answers, keyed by reaction."""
+    key = {
+        "reduce": reducer,
+        "path": "outcomes.products.measurements.percentage.value",
+    }
+    if where is not None:
+        key["where"] = where
     table = corpus.search(
         query.Query.model_validate(
             {
                 "aggregate": {
                     "group_by": ["reaction_id"],
-                    "measures": [
-                        {
-                            "fn": "min",
-                            "path": {
-                                "reduce": reducer,
-                                "path": (
-                                    "outcomes.products.measurements.percentage.value"
-                                ),
-                            },
-                            "name": "reduced",
-                        }
-                    ],
+                    "measures": [{"fn": "min", "path": key, "name": "reduced"}],
                 }
             }
         )
@@ -3542,6 +3546,105 @@ def test_a_pivoted_reduction_answers_what_the_projection_answers(
         projected, structured, resolver={}.__getitem__, pivots_dir=str(pivots)
     ) as pivoted:
         assert _reduced_per_reaction(pivoted, reducer) == expected
+
+
+@pytest.mark.parametrize("reducer", ["min", "max", "avg", "sum", "count"])
+def test_a_filtered_reduction_answers_the_same_on_either_route(
+    wide_root, tmp_path, reducer
+):
+    # The filter narrows the same elements whichever relation holds them, and the
+    # wide corpus records measurements that are not yields for exactly this.
+    pivots = _write_pivots(
+        wide_root, ("outcomes.products.measurements",), into=tmp_path / "pivots"
+    )
+    projected = str(wide_root / "projections" / "*.parquet")
+    structured = str(wide_root / "structures" / "*.parquet")
+    where = {"op": "eq", "path": "type", "value": {"literal": "YIELD"}}
+    with execute.Corpus(
+        projected, structured, resolver={}.__getitem__, pivot_budget_bytes=0
+    ) as lists:
+        expected = _reduced_per_reaction(lists, reducer, where)
+    with execute.Corpus(
+        projected,
+        structured,
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots),
+        pivot_budget_bytes=0,
+    ) as pivoted:
+        assert _reduced_per_reaction(pivoted, reducer, where) == expected
+
+
+def test_a_reduction_filter_may_screen_structures(deep_root, tmp_path):
+    # A structure test reads structure_offset, which the reactions carry and a pivot
+    # row does not. Inside the correlated subquery the unqualified name resolves to the
+    # outer relation, which is the offset that makes the element's dataset-local
+    # structure_id corpus-wide; getting that wrong screens against another file's
+    # molecules and answers plausibly.
+    pivots = _write_pivots(deep_root, ("inputs.components",), into=tmp_path / "pivots")
+    counted = {
+        "aggregate": {
+            "group_by": ["reaction_id"],
+            "measures": [
+                {
+                    "fn": "min",
+                    "path": {
+                        "reduce": "count",
+                        "path": "inputs.components.reaction_role",
+                        "where": {
+                            "op": "substructure",
+                            "path": "smiles",
+                            "smarts": "[OX2H]",
+                        },
+                    },
+                    "name": "alcohols",
+                }
+            ],
+        }
+    }
+    answers = {}
+    for pivots_dir in (None, str(pivots)):
+        with execute.Corpus(
+            str(deep_root / "projections" / "*.parquet"),
+            str(deep_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=pivots_dir,
+            pivot_budget_bytes=0,
+        ) as corpus:
+            for smarts in ("[OX2H]", "[n]"):
+                counted["aggregate"]["measures"][0]["path"]["where"]["smarts"] = smarts
+                table = corpus.search(query.Query.model_validate(counted))
+                answers[pivots_dir is not None, smarts] = {
+                    row["reaction_id"]: row["alcohols"] for row in table.to_pylist()
+                }
+    # Every input here is ethanol, and the pyridine is a workup's. So the alcohol
+    # screen keeps both -- an agreement on zeros would say nothing about the offset --
+    # and the aromatic-nitrogen screen keeps neither, which is what a dropped filter
+    # could not produce.
+    for pivoted in (False, True):
+        assert answers[pivoted, "[OX2H]"] == {"ord-cc01": 1, "ord-cc02": 1}
+        assert answers[pivoted, "[n]"] == {"ord-cc01": 0, "ord-cc02": 0}
+
+
+@pytest.mark.parametrize("pivoted", [False, True])
+def test_a_filter_changes_which_elements_are_reduced(wide_root, tmp_path, pivoted):
+    # The point of the filter, and the reason the bare path is the wrong question:
+    # ord-wd08 records a selectivity percentage beside its yield, so counting every
+    # percentage counts two where the yield is one, and the highest is the selectivity.
+    pivots = _write_pivots(
+        wide_root, ("outcomes.products.measurements",), into=tmp_path / "pivots"
+    )
+    yields = {"op": "eq", "path": "type", "value": {"literal": "YIELD"}}
+    with execute.Corpus(
+        str(wide_root / "projections" / "*.parquet"),
+        str(wide_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots) if pivoted else None,
+        pivot_budget_bytes=0,
+    ) as corpus:
+        assert _reduced_per_reaction(corpus, "count")["ord-wd08"] == 2
+        assert _reduced_per_reaction(corpus, "count", yields)["ord-wd08"] == 1
+        assert _reduced_per_reaction(corpus, "max")["ord-wd08"] == 95
+        assert _reduced_per_reaction(corpus, "max", yields)["ord-wd08"] == 40
 
 
 @pytest.mark.parametrize("pivoted", [False, True])
@@ -3777,7 +3880,7 @@ def test_a_level_without_artifacts_is_still_built(wide_root, caplog):
                 },
             },
         )
-    assert found == {"ord-wd01", "ord-wd02", "ord-wd07"}
+    assert found == {"ord-wd01", "ord-wd02", "ord-wd07", "ord-wd08"}
     assert any(
         "building the pivot over outcomes.products.measurements" in record.message
         for record in caplog.records

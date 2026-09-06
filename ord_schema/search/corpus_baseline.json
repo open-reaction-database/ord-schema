@@ -25,6 +25,10 @@
       "rows": 25,
       "digest": "b50a316f9ed7fcbfaeb7f7bed8971afdc31144bcc2f52220264a1e6012c97d5e"
     },
+    "filtered_reduction": {
+      "rows": 1,
+      "digest": "2285e18e5ceb1a2bfac3e6efc2ba05a4fbf738108df18e3a6124328668e90f60"
+    },
     "aggregate_grouping": {
       "rows": 6,
       "digest": "c72bf61cee8eb30484583a814e816c5cb3c6775f835a3a359ab22dca5d27f84a"
