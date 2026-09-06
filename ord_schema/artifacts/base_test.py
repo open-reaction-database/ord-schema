@@ -25,7 +25,7 @@ import pytest
 from rdkit import rdBase
 
 from ord_schema import parquet
-from ord_schema.artifacts import base
+from ord_schema.artifacts import base, projection, structures
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -656,6 +656,48 @@ def test_missing_columns_sees_a_field_added_inside_a_struct(tmp_path):
         ]
     )
     assert base.missing_columns(path, widened) == ["provenance.timestamp"]
+
+
+def test_missing_columns_sees_a_leaf_whose_type_changed(tmp_path):
+    # A path comparison alone cannot see this: moving a timestamp from milliseconds to
+    # microseconds leaves every name where it was, so the file would read as current
+    # and keep serving values truncated against the current definition.
+    path = tmp_path / "old.parquet"
+    millis = pa.schema(
+        [
+            pa.field("reaction_id", pa.string()),
+            pa.field(
+                "provenance", pa.struct([pa.field("recorded", pa.timestamp("ms"))])
+            ),
+        ]
+    )
+    pq.write_table(millis.empty_table(), path)
+    micros = pa.schema(
+        [
+            pa.field("reaction_id", pa.string()),
+            pa.field(
+                "provenance", pa.struct([pa.field("recorded", pa.timestamp("us"))])
+            ),
+        ]
+    )
+    assert base.missing_columns(path, micros) == ["provenance.recorded: timestamp[us]"]
+    # The same file against its own schema is current, so the check is about the type
+    # rather than about a nested field being reported twice.
+    assert base.missing_columns(path, millis) == []
+
+
+@pytest.mark.parametrize(
+    ("name", "schema"),
+    [("projection", projection.SCHEMA), ("structures", structures.SCHEMA)],
+)
+def test_every_declared_type_survives_a_parquet_round_trip(tmp_path, name, schema):
+    # missing_columns compares leaf types, and Parquet does not store every Arrow type
+    # it is given -- a second-resolution timestamp comes back as milliseconds. A type
+    # the writer coerces would make every file of that artifact read as stale forever,
+    # which is a re-derive that never converges rather than a wrong answer.
+    path = tmp_path / f"{name}.parquet"
+    pq.write_table(schema.empty_table(), path)
+    assert base.missing_columns(path, schema) == []
 
 
 def test_missing_columns_descends_through_lists_and_maps(tmp_path):
