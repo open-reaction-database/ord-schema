@@ -1,5 +1,5 @@
 /**
- * Copyright 2024 Open Reaction Database Project Authors
+ * Copyright 2026 Open Reaction Database Project Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
  */
 
 // package: ord
-// file: ord-schema/proto/dataset.proto
+// file: ord_schema/proto/dataset.proto
 
 import * as jspb from "google-protobuf";
-import * as ord_schema_proto_reaction_pb from "../../ord-schema/proto/reaction_pb";
+import * as ord_schema_proto_reaction_pb from "../../ord_schema/proto/reaction_pb";
 
 export class Dataset extends jspb.Message {
   getName(): string;

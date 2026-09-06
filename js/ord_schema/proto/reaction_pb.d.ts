@@ -1,5 +1,5 @@
 /**
- * Copyright 2024 Open Reaction Database Project Authors
+ * Copyright 2026 Open Reaction Database Project Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
  */
 
 // package: ord
-// file: ord-schema/proto/reaction.proto
+// file: ord_schema/proto/reaction.proto
 
 import * as jspb from "google-protobuf";
 

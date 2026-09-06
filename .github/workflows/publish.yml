@@ -83,7 +83,7 @@ jobs:
         run: uv publish --trusted-publishing always dist/*
       - name: Build and upload to NPM
         run: |
-          cd js/ord-schema
+          cd js/ord_schema
           npm install
           npm run build
           npm publish

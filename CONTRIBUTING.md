@@ -70,7 +70,7 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
        npx --yes markdownlint-cli2@0.23.1 "**/*.md"
        ```
 
-    1. Create a new branch and make your changes. If you edit `proto/*.proto`,
+    1. Create a new branch and make your changes. If you edit `ord_schema/proto/*.proto`,
        [install](https://grpc.io/docs/protoc-installation/) `protoc` and run
        `./compile_proto_wrappers.sh` to rebuild the generated wrappers, and commit those too.
     1. Test your changes by syncing the environment and running the test suite, for example:

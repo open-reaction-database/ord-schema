@@ -22,11 +22,11 @@ set -ex
 # NOTE(kearnes): Uncomment this section if we decide to use these docs.
 # go get -u github.com/pseudomuto/protoc-gen-doc/cmd/protoc-gen-doc
 # protoc \
-#   --proto_path=../.. \
+#   --proto_path=.. \
 #   --plugin=${HOME}/go/bin/protoc-gen-doc \
 #   --doc_opt=markdown,protos.md:test.proto \
 #   --doc_out=. \
-#   ord-schema/proto/reaction.proto ord-schema/proto/dataset.proto
+#   ord_schema/proto/reaction.proto ord_schema/proto/dataset.proto
 
 # Generate RST for ord-schema.
 sphinx-apidoc -fTM -o ord_schema -t _templates ../ord_schema \
