@@ -738,6 +738,25 @@ def test_an_internal_column_is_refused():
         query.resolve("inputs.components.structure_id")
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "provenance.record_created.time.value",
+        "provenance.experiment_start.value",
+    ],
+)
+def test_a_recorded_date_is_answered_by_its_timestamp_not_its_spelling(path):
+    # The string a depositor wrote is kept, because the timestamp is an interpretation
+    # and is null for the dates no evidence settles. It is not what a date question is
+    # asked against: the corpus spells dates ten ways, so matching text finds a fraction
+    # of what it asks for and reads as if it found all of it.
+    with pytest.raises(query.QueryError, match="internal"):
+        query.resolve(path)
+    assert query.resolve(path.replace(".value", ".timestamp")).type == pa.timestamp(
+        "us"
+    )
+
+
 def test_suggestions_do_not_name_internal_columns():
     # A near-miss like 'structure' is exactly what a model gropes for when asked a
     # structure question; the suggestion must not teach it the withheld name.

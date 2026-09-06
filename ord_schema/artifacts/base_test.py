@@ -25,7 +25,7 @@ import pytest
 from rdkit import rdBase
 
 from ord_schema import parquet
-from ord_schema.artifacts import base
+from ord_schema.artifacts import base, projection, structures
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -633,3 +633,92 @@ def test_a_grandparent_bump_makes_a_grandchild_stale(tmp_path, monkeypatch):
         base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"projection": "2"}
     )
     assert not base.is_current(path, "occurrences", "0" * 32)
+
+
+def test_missing_columns_sees_a_field_added_inside_a_struct(tmp_path):
+    # Nearly every field the projection has is nested, so a top-level comparison would
+    # call a file current that is missing everything added since it was written -- and a
+    # reader binding the new column would fail on a file nothing marked stale.
+    path = tmp_path / "artifact.parquet"
+    inner = pa.struct([pa.field("value", pa.string())])
+    pq.write_table(pa.table({"provenance": pa.array([{"value": "x"}], inner)}), path)
+    widened = pa.schema(
+        [
+            pa.field(
+                "provenance",
+                pa.struct(
+                    [
+                        pa.field("value", pa.string()),
+                        pa.field("timestamp", pa.timestamp("us")),
+                    ]
+                ),
+            )
+        ]
+    )
+    assert base.missing_columns(path, widened) == ["provenance.timestamp"]
+
+
+def test_missing_columns_sees_a_leaf_whose_type_changed(tmp_path):
+    # A path comparison alone cannot see this: moving a timestamp from milliseconds to
+    # microseconds leaves every name where it was, so the file would read as current
+    # and keep serving values truncated against the current definition.
+    path = tmp_path / "old.parquet"
+    millis = pa.schema(
+        [
+            pa.field("reaction_id", pa.string()),
+            pa.field(
+                "provenance", pa.struct([pa.field("recorded", pa.timestamp("ms"))])
+            ),
+        ]
+    )
+    pq.write_table(millis.empty_table(), path)
+    micros = pa.schema(
+        [
+            pa.field("reaction_id", pa.string()),
+            pa.field(
+                "provenance", pa.struct([pa.field("recorded", pa.timestamp("us"))])
+            ),
+        ]
+    )
+    assert base.missing_columns(path, micros) == ["provenance.recorded: timestamp[us]"]
+    # The same file against its own schema is current, so the check is about the type
+    # rather than about a nested field being reported twice.
+    assert base.missing_columns(path, millis) == []
+
+
+@pytest.mark.parametrize(
+    ("name", "schema"),
+    [("projection", projection.SCHEMA), ("structures", structures.SCHEMA)],
+)
+def test_every_declared_type_survives_a_parquet_round_trip(tmp_path, name, schema):
+    # missing_columns compares leaf types, and Parquet does not store every Arrow type
+    # it is given -- a second-resolution timestamp comes back as milliseconds. A type
+    # the writer coerces would make every file of that artifact read as stale forever,
+    # which is a re-derive that never converges rather than a wrong answer.
+    path = tmp_path / f"{name}.parquet"
+    pq.write_table(schema.empty_table(), path)
+    assert base.missing_columns(path, schema) == []
+
+
+def test_missing_columns_descends_through_lists_and_maps(tmp_path):
+    # A list's own name is not a field a reader binds; what it holds is.
+    path = tmp_path / "artifact.parquet"
+    held = pa.list_(pa.struct([pa.field("a", pa.string())]))
+    pq.write_table(pa.table({"items": pa.array([[{"a": "x"}]], held)}), path)
+    widened = pa.schema(
+        [
+            pa.field(
+                "items",
+                pa.list_(
+                    pa.struct([pa.field("a", pa.string()), pa.field("b", pa.int64())])
+                ),
+            )
+        ]
+    )
+    assert base.missing_columns(path, widened) == ["items.b"]
+
+
+def test_a_file_carrying_every_nested_field_lacks_nothing(tmp_path):
+    path = tmp_path / "artifact.parquet"
+    _write(path, _valid_metadata())
+    assert base.missing_columns(path, pa.schema([pa.field("x", pa.int32())])) == []

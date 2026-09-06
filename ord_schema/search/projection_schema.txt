@@ -55,7 +55,7 @@ inputs: MAP<VARCHAR, STRUCT>
         format: VARCHAR
       instrument_manufacturer: VARCHAR
       instrument_last_calibrated: STRUCT
-        value: VARCHAR
+        timestamp: TIMESTAMP
     texture: STRUCT
       type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
       details: VARCHAR
@@ -284,7 +284,7 @@ workups: LIST<STRUCT>
           format: VARCHAR
         instrument_manufacturer: VARCHAR
         instrument_last_calibrated: STRUCT
-          value: VARCHAR
+          timestamp: TIMESTAMP
       texture: STRUCT
         type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
         details: VARCHAR
@@ -428,7 +428,7 @@ outcomes: LIST<STRUCT>
             format: VARCHAR
           instrument_manufacturer: VARCHAR
           instrument_last_calibrated: STRUCT
-            value: VARCHAR
+            timestamp: TIMESTAMP
         texture: STRUCT
           type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
           details: VARCHAR
@@ -491,7 +491,7 @@ outcomes: LIST<STRUCT>
       format: VARCHAR
     instrument_manufacturer: VARCHAR
     instrument_last_calibrated: STRUCT
-      value: VARCHAR
+      timestamp: TIMESTAMP
 provenance: STRUCT
   experimenter: STRUCT
     username: VARCHAR
@@ -501,13 +501,13 @@ provenance: STRUCT
     email: VARCHAR
   city: VARCHAR
   experiment_start: STRUCT
-    value: VARCHAR
+    timestamp: TIMESTAMP
   doi: VARCHAR
   patent: VARCHAR
   publication_url: VARCHAR
   record_created: STRUCT
     time: STRUCT
-      value: VARCHAR
+      timestamp: TIMESTAMP
     person: STRUCT
       username: VARCHAR
       name: VARCHAR
@@ -517,7 +517,7 @@ provenance: STRUCT
     details: VARCHAR
   record_modified: LIST<STRUCT>
     time: STRUCT
-      value: VARCHAR
+      timestamp: TIMESTAMP
     person: STRUCT
       username: VARCHAR
       name: VARCHAR
