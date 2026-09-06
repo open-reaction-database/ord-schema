@@ -132,7 +132,7 @@ tests = [
 include = ["ord_schema*"]
 
 [tool.setuptools.package-data]
-"ord_schema.proto" = ["*.pyi"]
+"ord_schema.proto" = ["*.proto", "*.pyi"]
 # The projection schema snapshot, read back through importlib.resources by its test,
 # and the natural-language system prompt, which ord_schema.search.nl reads the same way.
 "ord_schema.search" = ["*.txt", "*.md", "*.json"]

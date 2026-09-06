@@ -36,7 +36,7 @@ flowchart TB
 
 | module | what it is for |
 | --- | --- |
-| [`proto/`](proto/) | generated `dataset_pb2` / `reaction_pb2` and their type stubs, rebuilt from `proto/*.proto` |
+| [`proto/`](proto/) | the `.proto` schema definitions, plus the `dataset_pb2` / `reaction_pb2` and type stubs generated from them |
 | [`message_helpers.py`](message_helpers.py) | the general-purpose toolkit: building messages, single-message I/O, and the canonical SMILES a compound resolves to |
 | [`macros/`](macros/) | shorthand for the shapes people write repeatedly — solutions, workup steps |
 | [`units.py`](units.py) | parses `"1.25 mmol"` into the united message that means it |

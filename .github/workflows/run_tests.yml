@@ -224,7 +224,7 @@ jobs:
           node-version: '24'
       - name: Test NPM package
         run: |
-          cd js/ord-schema
+          cd js/ord_schema
           npm install-test
 
   test_publish:
@@ -261,7 +261,7 @@ jobs:
           python .github/scripts/check_direct_dependencies.py dist/*
       - name: Test javascript
         run: |
-          cd js/ord-schema
+          cd js/ord_schema
           npm install
           npm run build
           npm publish --dry-run

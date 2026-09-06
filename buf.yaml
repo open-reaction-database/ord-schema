@@ -1,0 +1,43 @@
+# Copyright 2026 Open Reaction Database Project Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+version: v2
+modules:
+  - path: .
+    # The module root is the repository, because that is where the proto import paths
+    # resolve. Only the schema directory belongs to the module: every .proto below the
+    # root would otherwise join it, and node_modules, .venv, and setuptools' build/ each
+    # carry copies that fail to build or collide with these sources.
+    includes:
+      - ord_schema/proto
+lint:
+  use:
+    - STANDARD
+  except:
+    # The schema nests enums inside the message they describe, which protobuf.dev permits
+    # and which protoc already prefixes for C++; prefixing in source would spell the enum
+    # name twice. Validation also reads UNSPECIFIED and CUSTOM off any type/details
+    # message generically, which a per-enum prefix would break.
+    - ENUM_VALUE_PREFIX
+    - ENUM_ZERO_VALUE_SUFFIX
+    # A matching directory would move the sources to ord/ and ord_test/, renaming the
+    # generated Python and JavaScript packages every consumer imports. A version suffix
+    # would rename every fully-qualified type, ord.Reaction to ord.v1.Reaction.
+    - PACKAGE_DIRECTORY_MATCH
+    - PACKAGE_VERSION_SUFFIX
+    # reaction.proto and dataset.proto are package "ord"; test.proto is package "ord_test".
+    - DIRECTORY_SAME_PACKAGE
+breaking:
+  use:
+    - FILE

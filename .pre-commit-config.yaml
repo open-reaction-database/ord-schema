@@ -26,13 +26,13 @@ repos:
       # nbstripout is notebooks. These three are what covers the rest.
       #
       # The exclusions are exactly what compile_proto_wrappers.sh writes: protoc's
-      # --python_out and --pyi_out, its --js_out and --ts_out under js/ord-schema/proto,
+      # --python_out and --pyi_out, its --js_out and --ts_out under js/ord_schema/proto,
       # and the pbjs/pbts pair under js/ord-schema-protobufjs. The test_proto_wrappers
       # job regenerates all of it and fails on any drift, so a hook that edited one
       # would fail that job on every run until someone noticed which of the two
       # authorities over those bytes to believe.
       #
-      # Nothing else under js/ is generated. The entry points at js/ord-schema/index.js
+      # Nothing else under js/ is generated. The entry points at js/ord_schema/index.js
       # and index.d.ts are hand-written, as are package.json, webpack.config.js, and the
       # _pb.test.js suites, so all of them are covered.
       #
@@ -45,7 +45,7 @@ repos:
         exclude: |
           (?x)^(
             js/ord-schema-protobufjs/index\.(js|d\.ts)
-            |js/ord-schema/proto/[a-z_]+_pb\.(js|d\.ts)
+            |js/ord_schema/proto/[a-z_]+_pb\.(js|d\.ts)
             |ord_schema/proto/.*_pb2\.pyi?
             |.*\.svg
           )$
@@ -53,7 +53,7 @@ repos:
         exclude: |
           (?x)^(
             js/ord-schema-protobufjs/index\.(js|d\.ts)
-            |js/ord-schema/proto/[a-z_]+_pb\.(js|d\.ts)
+            |js/ord_schema/proto/[a-z_]+_pb\.(js|d\.ts)
             |ord_schema/proto/.*_pb2\.pyi?
             |.*\.svg
           )$
