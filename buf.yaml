@@ -16,10 +16,11 @@ version: v2
 modules:
   - path: .
     # The module root is the repository, because that is where the proto import paths
-    # resolve. js/ holds no schema sources, and node_modules vendors .proto files that
-    # do not build on their own.
-    excludes:
-      - js
+    # resolve. Only the schema directory belongs to the module: every .proto below the
+    # root would otherwise join it, and node_modules, .venv, and setuptools' build/ each
+    # carry copies that fail to build or collide with these sources.
+    includes:
+      - ord_schema/proto
 lint:
   use:
     - STANDARD
