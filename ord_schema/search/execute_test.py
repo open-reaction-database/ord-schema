@@ -4634,6 +4634,28 @@ def occurrence_dirs(tmp_path, corpus_dir) -> tuple[pathlib.Path, pathlib.Path]:
     return pivots, _write_occurrences(pivots, tmp_path / "occurrences")
 
 
+def test_an_occurrences_artifact_missing_a_column_is_refused(
+    corpus_dir, occurrence_dirs
+):
+    # The same check _check_pivots makes, for an artifact whose columns cannot drift
+    # today: the three are the same at every path and have not moved. It is here
+    # because the stamps say nothing about columns whatever the artifact, so the day
+    # this schema grows one, every file written before it would read as current and
+    # fail deep in DuckDB rather than here.
+    _, occurrence_dir = occurrence_dirs
+    target = occurrences.artifact_paths(occurrence_dir, "inputs.components")[0]
+    table = pq.read_table(target)
+    metadata = table.schema.metadata
+    pq.write_table(
+        table.drop_columns(["reaction_role"]).replace_schema_metadata(metadata), target
+    )
+    with (
+        pytest.raises(execute.PairingError, match="without"),
+        _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read,
+    ):
+        _search(read, _white("exists"))
+
+
 @pytest.mark.parametrize("smarts", ["c1ccncc1", "[OX2H]", "c1ccccc1", "[#6]"])
 def test_an_index_read_from_artifacts_answers_what_unnesting_answers(
     corpus_dir, occurrence_dirs, smarts

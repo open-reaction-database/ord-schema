@@ -1809,9 +1809,10 @@ class Corpus:
 
         Raises:
             PairingError: If a file is not an occurrences artifact, if it is stamped
-                with another path, if two artifacts restate one source dataset, if the
-                set of source datasets differs from the projections', or -- with
-                ``require_current`` -- if any artifact is stale.
+                with another path, if it lacks a column this library reads, if two
+                artifacts restate one source dataset, if the set of source datasets
+                differs from the projections', or -- with ``require_current`` -- if any
+                artifact is stale.
         """
         wanted = {base.load_stamps(name).source_md5 for name in self._projections}
         sources: dict[str, str] = {}
@@ -1829,6 +1830,17 @@ class Corpus:
                     f"{name} holds the occurrences at {held}, but sits where {path} is "
                     "read from, so a quantifier over it would be answered by another "
                     "path's elements"
+                )
+            missing = base.missing_columns(name, occurrences.SCHEMA)
+            if missing:
+                # The three columns are the same at every path and have not moved, so
+                # nothing on disk fails this today. It is here because the stamps say
+                # nothing about columns whatever the artifact: the day this schema
+                # grows one, every file written before it reads as current and fails
+                # deep in DuckDB instead of here.
+                raise PairingError(
+                    f"{name} is an {occurrences.ARTIFACT} artifact at {path} without "
+                    f"{missing}, which this library reads; derive it again first"
                 )
             if self._require_current and not base.stamps_are_current(
                 stamps, occurrences.ARTIFACT
