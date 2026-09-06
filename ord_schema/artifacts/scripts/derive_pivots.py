@@ -219,6 +219,12 @@ def _left_behind(pivots_dir: str, derived: Collection[str]) -> dict[str, str]:
     leaves every uncovered level short of it -- and a corpus reading the tree pairs the
     new projections with pivots that predate them.
 
+    Columns only, matching what a reader refuses whatever its policy: an artifact short
+    a column fails every corpus that opens it, while one whose stamps are merely old is
+    refused whenever ``require_current`` says so and read otherwise. A build that
+    stopped on the second would decide that question on the reader's behalf, and leave
+    no way to finish a subset run against a tree an older library wrote.
+
     Args:
         pivots_dir: The directory the levels sit under.
         derived: The levels this run covered, which are current by construction.
@@ -241,9 +247,6 @@ def _left_behind(pivots_dir: str, derived: Collection[str]) -> dict[str, str]:
             missing = base.missing_columns(path, pivot.schema(pivot.LEVELS[level_path]))
             if missing:
                 behind[level_path] = f"{path} is without {missing}"
-                break
-            if not base.stamps_are_current(stamps, pivot.ARTIFACT):
-                behind[level_path] = f"{path} is stale"
                 break
     return behind
 
