@@ -225,15 +225,14 @@ jobs:
           fetch-depth: 0
       - uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
         with:
-          # Pin the CLI. A floating version can start reporting findings on a schema that
-          # did not change, which turns a red check into something nobody trusts.
+          # Pin the CLI: a floating version can report new findings on a schema that
+          # did not change.
           version: '1.72.0'
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check for breaking schema changes
-        # Field numbers and reserved ranges are what keep serialized records parseable for
-        # as long as the archive lasts. Every .pb.gz and .parquet in ord-data is read by
-        # field number, so a renumbering quietly changes what existing records mean instead
-        # of failing loudly. Reviewer attention was the only thing enforcing that.
+        # Every .pb.gz and .parquet in ord-data is read by field number, so a renumbering
+        # quietly changes what existing records mean instead of failing loudly. Field
+        # numbers and reserved ranges are what keep the archive parseable.
         run: buf breaking --against '.git#branch=main'
 
   test_js:
