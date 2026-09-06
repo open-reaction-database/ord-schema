@@ -4186,7 +4186,7 @@ def test_a_pivot_filed_under_the_wrong_level_is_refused(wide_root, tmp_path):
             pivots_dir=str(pivots),
             warm=False,
         ) as corpus,
-        pytest.raises(execute.PairingError, match="wrong level"),
+        pytest.raises(execute.PairingError, match="holds the pivot over"),
     ):
         _search(corpus, _white("exists"))
 

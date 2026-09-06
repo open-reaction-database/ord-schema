@@ -301,6 +301,84 @@ def _max_structure_id(path: str) -> int | None:
     return largest
 
 
+def _article(word: str) -> str:
+    """Returns the indefinite article ``word`` takes."""
+    return "an" if word[0] in "aeiou" else "a"
+
+
+def _refuse_unreadable(
+    path: str,
+    stamps: base.Stamps,
+    *,
+    artifact: str,
+    schema: pa.Schema,
+    require_current: bool,
+    held: Callable[[str], str | None] | None = None,
+    expected: str | None = None,
+    reading: str = "",
+) -> None:
+    """Refuses a file a corpus cannot read as the artifact it is filed as.
+
+    The one definition of what makes an artifact readable, for every artifact a corpus
+    opens. One definition because the checks have to agree and nothing else makes them:
+    a copy per artifact still runs when it falls behind the others, so the artifact
+    whose copy is short a check is admitted and fails somewhere far from here.
+
+    Order matters. What the file *is* comes first, since the later checks read it as
+    the artifact it claims to be, and a level or path stamped on something else says
+    nothing.
+
+    Args:
+        path: The file to check, named in every message.
+        stamps: Its stamps, already read.
+        artifact: Artifact name it is expected to hold.
+        schema: The columns this library's version of that artifact carries.
+        require_current: Refuse an artifact not written by the current versions. A
+            column is refused whatever this says, because a reader binding one that is
+            absent fails however old the file is; stamps alone are the caller's policy.
+        held: Reads the level or path a file is stamped with, for an artifact split
+            across a tree. None where the artifact is one file per dataset and where it
+            sits says nothing.
+        expected: The level or path ``path`` sits under, which ``held`` must match.
+        reading: How a message names the relation to ``expected`` -- "over" for a pivot
+            level, "at" for an indexed path.
+
+    Raises:
+        PairingError: If the file holds another artifact, is stamped with another level
+            or path, lacks a column this library reads, or is stale under
+            ``require_current``.
+    """
+    if stamps.artifact != artifact:
+        raise PairingError(
+            f"{path} is {_article(stamps.artifact)} {stamps.artifact}, not "
+            f"{_article(artifact)} {artifact}"
+        )
+    at = f" {reading} {expected}" if expected is not None else ""
+    if held is not None:
+        stamped = held(path)
+        if stamped != expected:
+            raise PairingError(
+                f"{path} holds the {artifact} {reading} {stamped}, but sits where "
+                f"{expected} is read from, so a quantifier would be answered by the "
+                "wrong elements"
+            )
+    missing = base.missing_columns(path, schema)
+    if missing:
+        # The stamps say nothing about a file's columns, so this is the only check that
+        # sees a schema change. Without it a file predating a column is read as a corpus
+        # member and fails deep in DuckDB -- as a binder error on the query that wants
+        # the column, or, where some files have it and some do not, as a schema mismatch
+        # that takes down every structure query.
+        raise PairingError(
+            f"{path} is {_article(artifact)} {artifact} artifact{at} without "
+            f"{missing}, which this library reads; derive it again first"
+        )
+    if require_current and not base.stamps_are_current(stamps, artifact):
+        raise PairingError(
+            f"{path} is a stale {artifact} artifact; derive it again first"
+        )
+
+
 def _index(
     pattern: str, artifact: str, schema: pa.Schema, require_current: bool
 ) -> dict[str, tuple[str, base.Stamps]]:
@@ -330,21 +408,13 @@ def _index(
     index: dict[str, tuple[str, base.Stamps]] = {}
     for path in sorted(glob.glob(pattern, recursive=True)):
         stamps = base.load_stamps(path)
-        if stamps.artifact != artifact:
-            raise PairingError(f"{path} is a {stamps.artifact}, not a {artifact}")
-        missing = base.missing_columns(path, schema)
-        if missing:
-            # The stamps say nothing about a file's columns, so this is the only check
-            # that sees a schema change. Without it a file predating a column is read
-            # as a corpus member and fails deep in DuckDB -- as a binder error on the
-            # query that wants the column, or, where some files have it and some do
-            # not, as a schema mismatch that takes down every structure query.
-            raise PairingError(
-                f"{path} is a {artifact} artifact without {missing}, which this "
-                "library reads; derive it again first"
-            )
-        if require_current and not base.stamps_are_current(stamps, artifact):
-            raise PairingError(f"{path} is stale; derive it again first")
+        _refuse_unreadable(
+            path,
+            stamps,
+            artifact=artifact,
+            schema=schema,
+            require_current=require_current,
+        )
         if stamps.source_md5 in index:
             raise PairingError(
                 f"{path} and {index[stamps.source_md5][0]} are both {artifact} "
@@ -1819,33 +1889,16 @@ class Corpus:
         derived_from: dict[str, str] = {}
         for name in files:
             stamps = base.load_stamps(name)
-            if stamps.artifact != occurrences.ARTIFACT:
-                raise PairingError(
-                    f"{name} is a {stamps.artifact}, not an {occurrences.ARTIFACT} "
-                    "artifact"
-                )
-            held = occurrences.occurrence_path(name)
-            if held != path:
-                raise PairingError(
-                    f"{name} holds the occurrences at {held}, but sits where {path} is "
-                    "read from, so a quantifier over it would be answered by another "
-                    "path's elements"
-                )
-            missing = base.missing_columns(name, occurrences.SCHEMA)
-            if missing:
-                # The three columns are the same at every path and have not moved, so
-                # nothing on disk fails this today. It is here because the stamps say
-                # nothing about columns whatever the artifact: the day this schema
-                # grows one, every file written before it reads as current and fails
-                # deep in DuckDB instead of here.
-                raise PairingError(
-                    f"{name} is an {occurrences.ARTIFACT} artifact at {path} without "
-                    f"{missing}, which this library reads; derive it again first"
-                )
-            if self._require_current and not base.stamps_are_current(
-                stamps, occurrences.ARTIFACT
-            ):
-                raise PairingError(f"{name} is a stale {occurrences.ARTIFACT} artifact")
+            _refuse_unreadable(
+                name,
+                stamps,
+                artifact=occurrences.ARTIFACT,
+                schema=occurrences.SCHEMA,
+                require_current=self._require_current,
+                held=occurrences.occurrence_path,
+                expected=path,
+                reading="at",
+            )
             # Two artifacts of one dataset pass the set comparison below and are both
             # read, so every occurrence at the path is stated twice. A quantifier cannot
             # see it -- a semi-join returns a reaction once however many rows name it --
@@ -2477,31 +2530,16 @@ class Corpus:
         derived_from: dict[str, str] = {}
         for name in files:
             stamps = base.load_stamps(name)
-            if stamps.artifact != pivot.ARTIFACT:
-                raise PairingError(
-                    f"{name} is a {stamps.artifact}, not a {pivot.ARTIFACT}"
-                )
-            held = pivot.pivot_path(name)
-            if held != path:
-                raise PairingError(
-                    f"{name} holds the pivot over {held}, but sits where {path} is "
-                    "read from, so a quantifier would be answered by the wrong level"
-                )
-            missing = base.missing_columns(name, schema)
-            if missing:
-                # A level's element struct grows whenever the projection's does, and
-                # the stamps say nothing about columns. Without this the artifact is
-                # read as a corpus member and a predicate over the new field fails deep
-                # in DuckDB, as a binder error naming a struct key rather than the file
-                # that predates it.
-                raise PairingError(
-                    f"{name} is a {pivot.ARTIFACT} artifact over {path} without "
-                    f"{missing}, which this library reads; derive it again first"
-                )
-            if self._require_current and not base.stamps_are_current(
-                stamps, pivot.ARTIFACT
-            ):
-                raise PairingError(f"{name} is a stale {pivot.ARTIFACT}")
+            _refuse_unreadable(
+                name,
+                stamps,
+                artifact=pivot.ARTIFACT,
+                schema=schema,
+                require_current=self._require_current,
+                held=pivot.pivot_path,
+                expected=path,
+                reading="over",
+            )
             # Two artifacts of one dataset pass the set comparison below and are both
             # read, so every element of the level is stated twice. A quantifier cannot
             # see it -- a semi-join returns a reaction once however many rows name it --
