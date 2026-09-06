@@ -302,8 +302,20 @@ def _max_structure_id(path: str) -> int | None:
 
 
 def _article(word: str) -> str:
-    """Returns the indefinite article ``word`` takes."""
-    return "an" if word[0] in "aeiou" else "a"
+    """Returns the indefinite article ``word`` takes, or "a" for an empty name.
+
+    ``load_stamps`` requires the artifact key to be present rather than non-empty, so
+    an empty name reaches here from a footer written by hand or truncated mid-write.
+    Tested with ``startswith`` rather than by indexing, which raises on it, or against
+    a string of vowels, which contains the empty one and would answer "an".
+
+    Args:
+        word: The name to precede.
+
+    Returns:
+        "an" before a vowel, "a" otherwise.
+    """
+    return "an" if word.startswith(("a", "e", "i", "o", "u")) else "a"
 
 
 def _refuse_unreadable(
