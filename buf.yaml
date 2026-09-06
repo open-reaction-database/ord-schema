@@ -16,9 +16,8 @@ version: v2
 modules:
   - path: .
     # The module root is the repository, because that is where the proto import paths
-    # resolve. Everything under js/ is either generated output or an installed
-    # dependency, and node_modules vendors .proto files that would otherwise join the
-    # module and fail to build.
+    # resolve. js/ holds no schema sources, and node_modules vendors .proto files that
+    # do not build on their own.
     excludes:
       - js
 lint:
@@ -27,13 +26,13 @@ lint:
   except:
     # The schema nests enums inside the message they describe, which protobuf.dev permits
     # and which protoc already prefixes for C++; prefixing in source would spell the enum
-    # name twice. ord.ReactionRole and its peers also read UNSPECIFIED and CUSTOM off any
+    # name twice. Validation also reads UNSPECIFIED and CUSTOM off any type/details
     # message generically, which a per-enum prefix would break.
     - ENUM_VALUE_PREFIX
     - ENUM_ZERO_VALUE_SUFFIX
-    # Package "ord" predates the schema's first release and is the name every consumer
-    # imports; a version suffix or a matching directory would rename the generated Python
-    # and JavaScript packages.
+    # A matching directory would move the sources to ord/ and ord_test/, renaming the
+    # generated Python and JavaScript packages every consumer imports. A version suffix
+    # would rename every fully-qualified type, ord.Reaction to ord.v1.Reaction.
     - PACKAGE_DIRECTORY_MATCH
     - PACKAGE_VERSION_SUFFIX
     # reaction.proto and dataset.proto are package "ord"; test.proto is package "ord_test".
