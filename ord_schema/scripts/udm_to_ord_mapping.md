@@ -49,7 +49,7 @@ Mapped from `<RXNSTRUCTURE>` elements on the parent `<REACTION>` (shared across 
 
 ## Inputs (`ReactionInput`)
 
-Each `<REACTANT>`, `<REAGENT>`, `<CATALYST>`, `<SOLVENT>` block becomes one `ReactionInput`. The map key in `reaction.inputs` is `<MOL_ID>_<ROLE>` (e.g., `MOL-1_REACTANT`), ensuring the same molecule used in two roles produces two separate input slots. When only bare `REACTANT_ID` references are available, all referenced compounds share one `REACTANT_IDS` input because the source does not define separate addition events.
+UDM role blocks do not record addition order or grouping. Every `<REACTANT>`, `<REAGENT>`, `<CATALYST>`, and `<SOLVENT>` in a variation therefore becomes a component of one shared `ReactionInput` with map key `combined`. Each component keeps its own `reaction_role` and `amount`. A separate `ReactionInput` would claim a separate addition. The same molecule in two roles stays two components. When only bare `REACTANT_ID` references are available, those compounds share one `REACTANT_IDS` input instead.
 
 | UDM element | ORD field |
 |---|---|
@@ -225,6 +225,7 @@ Policies applied when UDM is missing fields that ORD validation still requires. 
 |---|---|---|
 | Elsevier-style DOI with `(…)` in the suffix; URL or `org/…` prefixes | `provenance.doi` must equal `parse_doi(doi)` | `parse_doi` keeps parenthetical suffixes; converter normalizes via `parse_doi` before storing |
 | Products only as `REACTION/PRODUCT_ID` (or `VARIATION/PRODUCT_ID`), no `<PRODUCT>` block | ≥1 `ReactionOutcome` | Resolve IDs through `MOLECULES` into outcome products when no `PRODUCT` blocks exist |
+| `<REACTANT>` / `<REAGENT>` / `<CATALYST>` / `<SOLVENT>` with no addition-order field | One `ReactionInput` | Components of one shared `combined` input; each block keeps its own role and amount |
 | Reactants only as `REACTION/REACTANT_ID` (or `VARIATION/REACTANT_ID`), no role blocks | ≥1 reaction input | Resolve all IDs through `MOLECULES` as components of one shared `REACTANT_IDS` input |
 | `REACTION` has no `VARIATION` | Preserve recoverable reaction-level data | Emit one ORD reaction using reaction-level identifiers and `REACTANT_ID` / `PRODUCT_ID` fallbacks. A non-SMILES identifier-only record may require `--no-validate` |
 | Free-text `PREPARATION` used as environment details | `ReactionEnvironment.type` required if message non-empty | Set `type=CUSTOM` with the free text in `details` |

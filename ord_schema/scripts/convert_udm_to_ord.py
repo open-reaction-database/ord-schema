@@ -11,13 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 """Converts a UDM v6.0.0 XML file to an ORD Dataset (.pbtxt or .pb).
 
 Each UDM VARIATION becomes a separate ORD Reaction.
 
+UDM (Unified Data Model) is a Pistoia Alliance format (MIT license); see
+https://github.com/PistoiaAlliance/UDM for the schema, documentation, and
+example data.
+
+This converter's handling of the SURF dialect of UDM is based on
+https://github.com/alexarnimueller/surf (MIT license). Please cite SURF as:
+Nippa, Mueller, Atz, Konrad, Grether, Martin & Schneider (2023), "Simple
+User-Friendly Reaction Format," ChemRxiv, https://doi.org/10.26434/chemrxiv-2023-nfq7h
+
 Example usage:
-    python convert_udm_to_ord.py --input my_dataset.xml --output my_dataset.pbtxt \
-        --email me@example.com --person-name "Ada Lovelace" --created-date 2024-01-15
+python convert_udm_to_ord.py --input my_dataset.xml --output my_dataset.pbtxt
+--email me@example.com --person-name "Ada Lovelace" --created-date 2024-01-15
 """
 
 import argparse
@@ -324,9 +334,7 @@ def _format_detail_value(value: object, *, default_unit: str = "") -> str:
         range_text = _format_range_text(mapping, default_unit)
         if range_text is not None:
             increment = _format_detail_value(mapping.get("incr"))
-            return (
-                f"{range_text}; ramp={increment}" if increment else range_text
-            )
+            return f"{range_text}; ramp={increment}" if increment else range_text
         text = _text(mapping)
         if text:
             unit = _attr_unit(mapping, "@unit", "@units")
@@ -334,8 +342,7 @@ def _format_detail_value(value: object, *, default_unit: str = "") -> str:
         return ", ".join(
             f"{key.lstrip('@')}={formatted}"
             for key, item in mapping.items()
-            if key != "SECTION"
-            and (formatted := _format_detail_value(item))
+            if key != "SECTION" and (formatted := _format_detail_value(item))
         )
     return _text(value).strip()
 
@@ -656,9 +663,14 @@ def _map_inputs(
 ) -> None:
     """Maps UDM REACTANT / REAGENT / CATALYST / SOLVENT to ORD ReactionInputs.
 
+    UDM role blocks do not record addition order or grouping, so every compound
+    in a variation shares one ReactionInput (key ``combined``). Each block stays
+    its own component, with its own reaction_role and amount. A separate
+    ReactionInput would claim a separate addition event.
+
     When the variation has no role compound blocks (common in Reaxys), falls back
     to VARIATION/REACTANT_ID then REACTION/REACTANT_ID resolved through the
-    molecule lookup as REACTANT inputs.
+    molecule lookup as components of one ``REACTANT_IDS`` input.
     """
     role_map = {
         "REACTANT": reaction_pb2.ReactionRole.REACTANT,
@@ -666,7 +678,7 @@ def _map_inputs(
         "CATALYST": reaction_pb2.ReactionRole.CATALYST,
         "SOLVENT": reaction_pb2.ReactionRole.SOLVENT,
     }
-    mapped_any = False
+    molinput = None
     for udm_key, ord_role in role_map.items():
         for compound_entry in _as_list(variation.get(udm_key)):
             mol_ref = compound_entry.get("MOLECULE")
@@ -680,9 +692,8 @@ def _map_inputs(
                 )
                 continue
 
-            # Failure 6: role-qualified key prevents cross-role slot contamination.
-            input_key = f"{mol_id}_{udm_key}"
-            molinput = pb2_reaction.inputs[input_key]
+            if molinput is None:
+                molinput = pb2_reaction.inputs["combined"]
             molcomponent = molinput.components.add()
             _add_compound_identifier(
                 molcomponent,
@@ -702,9 +713,8 @@ def _map_inputs(
                     reaction_pb2.UnmeasuredAmount.CUSTOM
                 )
                 molcomponent.amount.unmeasured.details = "amount not reported in UDM"
-            mapped_any = True
 
-    if mapped_any:
+    if molinput is not None:
         return
 
     reactant_ids = _mol_ids_from(variation, "REACTANT_ID")
@@ -837,8 +847,7 @@ def _map_conditions(
             value, _ = parsed
             _append_condition_details(
                 pb2_reaction,
-                f"UDM PRESSURE value={value:g} "
-                "(unit omitted; not mapped to setpoint)",
+                f"UDM PRESSURE value={value:g} (unit omitted; not mapped to setpoint)",
             )
             captured.add("PRESSURE")
 
@@ -1419,9 +1428,7 @@ def convert(
     for reaction_element in reactions_element.findall("REACTION"):
         reaction = etree_to_dict(reaction_element)["REACTION"]
         reaction_xml = (
-            ET.tostring(reaction_element, encoding="unicode")
-            if include_udm_xml
-            else ""
+            ET.tostring(reaction_element, encoding="unicode") if include_udm_xml else ""
         )
         _map_rxn_identifiers(reaction, _scratch := reaction_pb2.Reaction())
         rxn_identifiers = _scratch.identifiers[:]  # carry forward to each variation
@@ -1440,9 +1447,7 @@ def convert(
             _map_conditions(variation, pb2_reaction)
             _map_notes(variation, pb2_reaction)
             _map_observations(variation, pb2_reaction)
-            _map_outcomes(
-                variation, all_molecules, pb2_reaction, reaction=reaction
-            )
+            _map_outcomes(variation, all_molecules, pb2_reaction, reaction=reaction)
             _map_provenance(
                 reaction,
                 variation,

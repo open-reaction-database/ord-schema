@@ -81,6 +81,8 @@ uv run python ord_schema/scripts/convert_udm_to_ord.py \
 
 SURF files often nest chemistry under `VARIATION/SECTION` and write amounts as `0.3000 mmol`; the converter handles both. Empty `<LEGAL />` still needs `--name` / `--description` for ORD dataset validation.
 
+This repository does not ship a SURF or UDM example file. To try conversion on a real file locally, use [alexarnimueller/surf](https://github.com/alexarnimueller/surf) or [PistoiaAlliance/UDM](https://github.com/PistoiaAlliance/UDM). Cite SURF as Nippa, Mueller, Atz, Konrad, Grether, Martin & Schneider (2023), "Simple User-Friendly Reaction Format," ChemRxiv, https://doi.org/10.26434/chemrxiv-2023-nfq7h.
+
 **Convert without validation (faster, for drafts):**
 ```bash
 uv run python ord_schema/scripts/convert_udm_to_ord.py \
@@ -115,7 +117,7 @@ done
 The converter writes a standard ORD `Dataset` protobuf. Each reaction inside it has:
 
 - A canonical `reaction_id` (auto-assigned as `ord-<sha256>`)
-- Inputs keyed by `<MOL_ID>_<ROLE>` (e.g., `MOL-1_REACTANT`, `MOL-1_SOLVENT`)
+- Role compounds (reactant, reagent, catalyst, solvent) share one `combined` input; each keeps its own role and amount
 - Bare reaction-level `REACTANT_ID` references grouped under one `REACTANT_IDS` input
 - Conditions, outcomes, notes, and provenance populated where UDM data is present
 
@@ -246,6 +248,7 @@ Literature / ELN exports (especially Reaxys) often omit fields ORD validation re
 | DOI like `10.1016/S0022-328X(00)99569-X` (parentheses in suffix) | Keep the full DOI (`parse_doi` allows `(…)`) | Trimmed forms are regex artifacts and often do not resolve; the published DOI is kept |
 | DOI prefixed with junk (`org/10.1016/…`, URL wrappers) | Normalize via `parse_doi` before writing `provenance.doi` | ORD requires the stored DOI to equal the parsed form |
 | `VARIATION` has reagents but no `<PRODUCT>`; `REACTION` has `<PRODUCT_ID>` | Resolve `PRODUCT_ID` → `MOLECULES` and create an outcome product | ORD requires ≥1 outcome; Reaxys stores products as IDs at reaction level |
+| `VARIATION` has `<REACTANT>` / `<REAGENT>` / `<CATALYST>` / `<SOLVENT>` and no addition-order field | One `combined` input; each block is its own component with its own role and amount | UDM does not record separate additions, so separate `ReactionInput`s would invent them |
 | `VARIATION` has no role compounds; `REACTION` has `<REACTANT_ID>` | Resolve every ID through `MOLECULES` as a component of one shared `REACTANT_IDS` input (unmeasured amount) | Bare IDs contain no evidence for separate addition events |
 | `REACTION` has no `<VARIATION>` | Emit one ORD reaction from reaction-level identifiers and ID fallbacks | Legal UDM shape; recover data rather than skip it. Non-SMILES identifier-only records may need `--no-validate` |
 | Free-text `<PREPARATION>` (not a known env keyword) | Set `setup.environment.type=CUSTOM` and put the text in `.details` | ORD requires `type` whenever environment fields are set |

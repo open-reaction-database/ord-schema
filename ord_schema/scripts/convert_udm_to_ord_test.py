@@ -251,12 +251,15 @@ def test_missing_and_unsupported_amount_units_are_valid(tmp_path):
     p.write_text(xml)
     dataset = conv.convert(p)
 
-    unitless = dataset.reactions[0].inputs["M1_REACTANT"].components[0].amount
+    by_role = {
+        c.reaction_role: c for c in dataset.reactions[0].inputs["combined"].components
+    }
+    unitless = by_role[reaction_pb2.ReactionRole.REACTANT].amount
     assert unitless.WhichOneof("kind") == "moles"
     assert unitless.moles.value == pytest.approx(1.5)
     assert unitless.moles.units == reaction_pb2.Moles.MOLE
 
-    unsupported = dataset.reactions[0].inputs["M2_REAGENT"].components[0].amount
+    unsupported = by_role[reaction_pb2.ReactionRole.REAGENT].amount
     assert unsupported.WhichOneof("kind") == "unmeasured"
     assert unsupported.unmeasured.type == reaction_pb2.UnmeasuredAmount.CUSTOM
     assert "2" in unsupported.unmeasured.details
@@ -310,32 +313,12 @@ def test_section_unwrap_maps_inputs_and_products(tmp_path):
     reactant = next(iter(rxn.inputs.values())).components[0]
     assert reactant.amount.moles.value == pytest.approx(1.0)
     assert rxn.conditions.temperature.setpoint.value == pytest.approx(60.0)
-    assert (
-        rxn.conditions.temperature.setpoint.units == reaction_pb2.Temperature.CELSIUS
-    )
+    assert rxn.conditions.temperature.setpoint.units == reaction_pb2.Temperature.CELSIUS
     assert len(rxn.outcomes) == 1
     assert rxn.outcomes[0].reaction_time.value == pytest.approx(0.5)
     assert rxn.outcomes[0].reaction_time.units == reaction_pb2.Time.HOUR
     product = rxn.outcomes[0].products[0]
     assert product.measurements[0].percentage.value == pytest.approx(13.0)
-
-
-def test_surf_template_converts_and_validates():
-    """Real SURF-shaped fixture converts with depositor/dataset CLI fills."""
-    surf = TESTDATA / "surf_template.xml"
-    dataset = conv.convert(
-        surf,
-        name="SURF template",
-        description="SURF Minisci template dataset",
-        email="test@example.com",
-        person_name="Test Scientist",
-        created_date="2024-01-15",
-    )
-    assert len(dataset.reactions) == 5
-    assert all(rxn.inputs for rxn in dataset.reactions)
-    assert all(rxn.outcomes for rxn in dataset.reactions)
-    assert dataset.reactions[0].provenance.doi == "10.1021/jo9010624"
-    validations.validate_datasets({"_COMBINED": dataset})
 
 
 # ---------------------------------------------------------------------------
@@ -569,13 +552,17 @@ def test_udm_creation_date_wins_over_cli(tmp_path):
     """)
     p = tmp_path / "creation_date.xml"
     p.write_text(xml)
-    dataset = conv.convert(p, created_date="2024-01-15", email="a@b.com", person_name="A")
+    dataset = conv.convert(
+        p, created_date="2024-01-15", email="a@b.com", person_name="A"
+    )
     assert "2020-06-01" in dataset.reactions[0].provenance.record_created.time.value
 
 
 def test_validation_flag_hints_cover_common_gaps():
     """Validation failure text maps to the depositor CLI flags UDM often lacks."""
-    email_hint = conv._validation_flag_hints("User email is required for record_created")
+    email_hint = conv._validation_flag_hints(
+        "User email is required for record_created"
+    )
     assert "--email" in email_hint
     time_hint = conv._validation_flag_hints("RecordEvent must have `time` specified")
     assert "--created-date" in time_hint
@@ -1073,11 +1060,83 @@ def test_no_outcome_when_no_products_or_duration(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Failure 6: Same mol_id in multiple roles → separate input slots
+# Input grouping: one ReactionInput per variation
 # ---------------------------------------------------------------------------
 
 
-def test_same_mol_in_two_roles_gets_separate_inputs(tmp_path):
+def test_components_without_addition_order_share_one_input(tmp_path):
+    """Role blocks with no addition info share one ReactionInput."""
+    xml = textwrap.dedent("""\
+        <?xml version="1.0" encoding="UTF-8"?>
+        <UDM version="6.0.0">
+          <LEGAL><TITLE>Test</TITLE></LEGAL>
+          <MOLECULES>
+            <MOLECULE ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+            <MOLECULE ID="m2"><NAME>Reagent B</NAME></MOLECULE>
+            <MOLECULE ID="m3"><NAME>Catalyst C</NAME></MOLECULE>
+            <MOLECULE ID="m4"><NAME>Solvent D</NAME></MOLECULE>
+          </MOLECULES>
+          <REACTIONS>
+            <REACTION ID="R1">
+              <VARIATION ID="V1">
+                <REACTANT>
+                  <MOLECULE MOL_ID="m1"/>
+                  <AMOUNT unit="mmol">1.5</AMOUNT>
+                </REACTANT>
+                <REAGENT>
+                  <MOLECULE MOL_ID="m2"/>
+                  <AMOUNT unit="mmol">2.0</AMOUNT>
+                </REAGENT>
+                <CATALYST>
+                  <MOLECULE MOL_ID="m3"/>
+                  <AMOUNT unit="mmol">0.05</AMOUNT>
+                </CATALYST>
+                <SOLVENT>
+                  <MOLECULE MOL_ID="m4"/>
+                  <VOLUME unit="mL">5</VOLUME>
+                </SOLVENT>
+                <PRODUCT><MOLECULE MOL_ID="m1"/></PRODUCT>
+              </VARIATION>
+            </REACTION>
+          </REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / "input_grouping.xml"
+    p.write_text(xml)
+    dataset = conv.convert(
+        p, email="a@b.com", person_name="A", created_date="2024-01-15"
+    )
+    rxn = dataset.reactions[0]
+
+    assert list(rxn.inputs) == ["combined"]
+    components = rxn.inputs["combined"].components
+    assert len(components) == 4
+
+    by_role = {c.reaction_role: c for c in components}
+    reactant = by_role[reaction_pb2.ReactionRole.REACTANT]
+    assert reactant.identifiers[0].value == "Reactant A"
+    assert reactant.amount.moles.value == pytest.approx(1.5)
+    assert reactant.amount.moles.units == reaction_pb2.Moles.MILLIMOLE
+
+    reagent = by_role[reaction_pb2.ReactionRole.REAGENT]
+    assert reagent.identifiers[0].value == "Reagent B"
+    assert reagent.amount.moles.value == pytest.approx(2.0)
+    assert reagent.amount.moles.units == reaction_pb2.Moles.MILLIMOLE
+
+    catalyst = by_role[reaction_pb2.ReactionRole.CATALYST]
+    assert catalyst.identifiers[0].value == "Catalyst C"
+    assert catalyst.amount.moles.value == pytest.approx(0.05)
+    assert catalyst.amount.moles.units == reaction_pb2.Moles.MILLIMOLE
+
+    solvent = by_role[reaction_pb2.ReactionRole.SOLVENT]
+    assert solvent.identifiers[0].value == "Solvent D"
+    assert solvent.amount.volume.value == pytest.approx(5.0)
+    assert solvent.amount.volume.units == reaction_pb2.Volume.MILLILITER
+    assert not solvent.amount.HasField("volume_includes_solutes")
+
+
+def test_same_mol_in_two_roles_stays_two_components(tmp_path):
+    """Same molecule in two roles stays two components of one input."""
     xml = textwrap.dedent("""\
         <?xml version="1.0" encoding="UTF-8"?>
         <UDM version="6.0.0">
@@ -1106,10 +1165,16 @@ def test_same_mol_in_two_roles_gets_separate_inputs(tmp_path):
     p.write_text(xml)
     dataset = conv.convert(p)
     rxn = dataset.reactions[0]
-    assert len(rxn.inputs) == 2
-    roles = {c.reaction_role for inp in rxn.inputs.values() for c in inp.components}
-    assert reaction_pb2.ReactionRole.REACTANT in roles
-    assert reaction_pb2.ReactionRole.SOLVENT in roles
+    assert list(rxn.inputs) == ["combined"]
+    components = rxn.inputs["combined"].components
+    assert len(components) == 2
+    by_role = {c.reaction_role: c for c in components}
+    reactant = by_role[reaction_pb2.ReactionRole.REACTANT]
+    solvent = by_role[reaction_pb2.ReactionRole.SOLVENT]
+    assert reactant.amount.mass.value == pytest.approx(1.0)
+    assert reactant.amount.mass.units == reaction_pb2.Mass.GRAM
+    assert solvent.amount.volume.value == pytest.approx(10)
+    assert solvent.amount.volume.units == reaction_pb2.Volume.MILLILITER
 
 
 # ---------------------------------------------------------------------------
@@ -1553,7 +1618,7 @@ def test_empty_molecule_name_falls_back_to_mol_id(tmp_path):
     p = tmp_path / "empty_name.xml"
     p.write_text(xml)
     dataset = conv.convert(p)
-    reagent = dataset.reactions[0].inputs["28870379_REAGENT"].components[0]
+    reagent = dataset.reactions[0].inputs["combined"].components[0]
     assert reagent.identifiers[0].type == reaction_pb2.CompoundIdentifier.NAME
     assert reagent.identifiers[0].value == "28870379"
 
@@ -1688,9 +1753,7 @@ def test_include_udm_xml_preserves_reaction_and_parent_context(tmp_path):
     assert "<MOLECULES" not in parent_xml
     assert "<REACTIONS" not in parent_xml
     assert not without_xml.reactions[0].provenance.reaction_metadata
-    assert conv.parse_args(
-        ["--input", str(p), "--include-udm-xml"]
-    ).include_udm_xml
+    assert conv.parse_args(["--input", str(p), "--include-udm-xml"]).include_udm_xml
 
 
 def test_free_text_preparation_sets_environment_custom(tmp_path):
