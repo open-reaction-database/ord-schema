@@ -83,7 +83,7 @@ uv run python ord_schema/scripts/convert_udm_to_ord.py \
 
 SURF files often nest chemistry under `VARIATION/SECTION` and write amounts as `0.3000 mmol`; the converter handles both. Empty `<LEGAL />` still needs `--name` / `--description` for ORD dataset validation.
 
-This repository does not ship a SURF or UDM example file. To try conversion on a real file locally, use [alexarnimueller/surf](https://github.com/alexarnimueller/surf) or [PistoiaAlliance/UDM](https://github.com/PistoiaAlliance/UDM). Cite SURF as Nippa, Mueller, Atz, Konrad, Grether, Martin & Schneider (2023), "Simple User-Friendly Reaction Format," ChemRxiv, <https://doi.org/10.26434/chemrxiv-2023-nfq7h>.
+`ord_schema/scripts/testdata/sample_udm.xml` is a small synthetic UDM file you can convert locally. This repository does not ship a real SURF export or an example from the UDM project. For those, use [alexarnimueller/surf](https://github.com/alexarnimueller/surf) or [PistoiaAlliance/UDM](https://github.com/PistoiaAlliance/UDM). Cite SURF as Nippa, Mueller, Atz, Konrad, Grether, Martin & Schneider (2023), "Simple User-Friendly Reaction Format," ChemRxiv, <https://doi.org/10.26434/chemrxiv-2023-nfq7h>.
 
 **Convert without validation (faster, for drafts):**
 
