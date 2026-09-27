@@ -1769,7 +1769,7 @@ def test_free_text_preparation_sets_environment_custom(tmp_path):
               <REACTANT_ID>M1</REACTANT_ID>
               <VARIATION>
                 <CONDITIONS>
-                  <PREPARATION>Long literature procedure text without env keyword.</PREPARATION>
+                  <PREPARATION>Long literature procedure text.</PREPARATION>
                 </CONDITIONS>
               </VARIATION>
             </REACTION>

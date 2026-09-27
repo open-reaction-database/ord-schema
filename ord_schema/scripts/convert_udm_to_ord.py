@@ -1092,7 +1092,8 @@ def _map_outcomes(
             )
         else:
             logger.warning("Product molecule %r not found in MOLECULES lookup.", mol_id)
-            # SURF PRODUCT blocks often carry a CAS-like NAME when MOLECULES lookup misses.
+            # SURF PRODUCT blocks often carry a CAS-like NAME
+            # when the MOLECULES lookup misses.
             product_name = _text(udm_product.get("NAME")) or str(mol_id)
             if product_name:
                 product.identifiers.add(type="NAME", value=product_name)
