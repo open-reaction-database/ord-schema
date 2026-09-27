@@ -29,14 +29,14 @@ If `--output` is omitted, the output filename is derived from the `<TITLE>` in t
 ## Options
 
 | Flag | Default | Description |
-|---|---|---|
-| `--input FILE` | _(required)_ | Path to the UDM v6.0.0 XML file |
+| --- | --- | --- |
+| `--input FILE` | *(required)* | Path to the UDM v6.0.0 XML file |
 | `--output FILE` | `<title>.pbtxt` | Output path; suffix determines format (`.pbtxt` = text proto, `.pb` = binary) |
 | `--name TEXT` | UDM `LEGAL/TITLE` | **Override** dataset name (`Dataset.name`) |
 | `--description TEXT` | DOI-derived text | **Override** dataset description (`Dataset.description`) |
-| `--username TEXT` | _(none)_ | Depositor username → provenance `Person.username` (no UDM source) |
+| `--username TEXT` | *(none)* | Depositor username → provenance `Person.username` (no UDM source) |
 | `--person-name TEXT` | UDM `SCIENTIST/NAME` | **Fill gap** for depositor display name. Distinct from `--name` (dataset title) |
-| `--orcid TEXT` | _(none)_ | Depositor ORCID iD → provenance `Person.orcid` (no UDM source) |
+| `--orcid TEXT` | *(none)* | Depositor ORCID iD → provenance `Person.orcid` (no UDM source) |
 | `--email ADDRESS` | UDM `SCIENTIST/EMAIL` | **Fill gap** for depositor email; ORD requires email on `record_created` |
 | `--created-date TEXT` | UDM `CREATION_DATE` | **Fill gap** for `record_created.time`; ORD requires a time |
 | `--include-udm-xml` | off | Embed each source `REACTION` and shared document context in `provenance.reaction_metadata`; enable only when source redistribution is allowed |
@@ -47,7 +47,7 @@ If `--output` is omitted, the output filename is derived from the `<TITLE>` in t
 Dataset packaging flags and reaction-provenance flags behave differently when both UDM and CLI supply a value:
 
 | Kind | Flags | Both present? | Why |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Dataset packaging | `--name`, `--description` | **CLI wins** (overrides UDM `TITLE` / DOI-derived text) | Naming the ORD Dataset is a deposit/packaging choice; same idea as other ORD scripts |
 | Provenance gap-fill | `--email`, `--person-name`, `--created-date` | **UDM wins**; CLI used only when UDM omits the field | Scientist contact and creation time are recorded experiment facts — do not overwrite |
 | Provenance only-on-CLI | `--username`, `--orcid` | CLI applied (no UDM equivalent in this converter) | |
@@ -59,6 +59,7 @@ Dataset packaging flags and reaction-provenance flags behave differently when bo
 ## Examples
 
 **Convert and validate:**
+
 ```bash
 uv run python ord_schema/scripts/convert_udm_to_ord.py \
     --input screen.xml \
@@ -66,6 +67,7 @@ uv run python ord_schema/scripts/convert_udm_to_ord.py \
 ```
 
 **Fill depositor provenance when UDM has no SCIENTIST / CREATION_DATE (e.g. SURF exports):**
+
 ```bash
 uv run python ord_schema/scripts/convert_udm_to_ord.py \
     --input surf_export.xml \
@@ -81,7 +83,10 @@ uv run python ord_schema/scripts/convert_udm_to_ord.py \
 
 SURF files often nest chemistry under `VARIATION/SECTION` and write amounts as `0.3000 mmol`; the converter handles both. Empty `<LEGAL />` still needs `--name` / `--description` for ORD dataset validation.
 
+This repository does not ship a SURF or UDM example file. To try conversion on a real file locally, use [alexarnimueller/surf](https://github.com/alexarnimueller/surf) or [PistoiaAlliance/UDM](https://github.com/PistoiaAlliance/UDM). Cite SURF as Nippa, Mueller, Atz, Konrad, Grether, Martin & Schneider (2023), "Simple User-Friendly Reaction Format," ChemRxiv, <https://doi.org/10.26434/chemrxiv-2023-nfq7h>.
+
 **Convert without validation (faster, for drafts):**
+
 ```bash
 uv run python ord_schema/scripts/convert_udm_to_ord.py \
     --input screen.xml \
@@ -90,6 +95,7 @@ uv run python ord_schema/scripts/convert_udm_to_ord.py \
 ```
 
 **Override dataset name and write binary format:**
+
 ```bash
 uv run python ord_schema/scripts/convert_udm_to_ord.py \
     --input screen.xml \
@@ -99,6 +105,7 @@ uv run python ord_schema/scripts/convert_udm_to_ord.py \
 ```
 
 **Batch convert a directory of UDM files (bash):**
+
 ```bash
 for f in udm_exports/*.xml; do
     uv run python ord_schema/scripts/convert_udm_to_ord.py \
@@ -115,11 +122,12 @@ done
 The converter writes a standard ORD `Dataset` protobuf. Each reaction inside it has:
 
 - A canonical `reaction_id` (auto-assigned as `ord-<sha256>`)
-- Inputs keyed by `<MOL_ID>_<ROLE>` (e.g., `MOL-1_REACTANT`, `MOL-1_SOLVENT`)
+- Role compounds (reactant, reagent, catalyst, solvent) share one `combined` input; each keeps its own role and amount
 - Bare reaction-level `REACTANT_ID` references grouped under one `REACTANT_IDS` input
 - Conditions, outcomes, notes, and provenance populated where UDM data is present
 
 To inspect the output:
+
 ```bash
 # Print the text proto
 cat my_dataset.pbtxt
@@ -136,12 +144,13 @@ print(len(ds.reactions), "reactions")
 
 By default the converter runs `validations.validate_datasets` before writing. If the dataset fails validation, the output file is **not** written and the converter exits with code 1:
 
-```
+```text
 ERROR - Validation failed (use --no-validate to write anyway):
   reaction[0]: ...
 ```
 
 Common reasons for validation failure:
+
 - `SCIENTIST/EMAIL` missing and `--email` not supplied (ORD requires an email on every provenance record)
 - `CREATION_DATE` missing and `--created-date` not supplied (ORD requires `record_created.time`)
 - No scientist identity and none of `--person-name` / `--username` / `--orcid` supplied
@@ -152,12 +161,14 @@ Common reasons for validation failure:
 On these provenance gaps the converter prints a short Hint naming the CLI flag to pass. Use `--no-validate` to write the file anyway and validate it separately later.
 
 **Validate after the fact — CLI (single file):**
+
 ```bash
 uv run python ord_schema/scripts/validate_dataset.py \
     --input_pattern "my_dataset.pbtxt"
 ```
 
 **Validate multiple files at once:**
+
 ```bash
 # All .pbtxt files in a directory
 uv run python ord_schema/scripts/validate_dataset.py \
@@ -175,6 +186,7 @@ uv run python ord_schema/scripts/validate_dataset.py \
 ```
 
 **Validate after the fact — Python:**
+
 ```python
 from ord_schema import datasets, validations
 
@@ -195,7 +207,7 @@ The ORD repository uses the **CC-BY-SA** license. Do not submit converted data t
 Converter and RDKit may print warnings during conversion. Most do **not** stop the run; treat them as data-quality notes.
 
 | Warning message | Source | Cause | Safe to ignore? |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `could not find number of expected rings. Switching to an approximate ring finding algorithm.` | RDKit | Unusual / incomplete MolBlock ring perception | Usually yes, if the molecule still parses and ORD validation passes |
 | `molecule is tagged as 2D, but at least one Z coordinate is not zero. Marking the mol as 3D.` | RDKit | MolBlock dimension flag disagrees with coordinates | Usually yes; RDKit retags and continues |
 | `Element 'H+' not found` / `Post-condition Violation` … `Failed Expression: anum > -1` | RDKit | MolBlock uses a non-element symbol (often proton `H+`) RDKit cannot look up | Usually yes for conversion. Structure often fails parse; converter then falls back to `NAME` (see MOLSTRUCTURE row below). Common in SPRESI-style exports |
@@ -242,10 +254,11 @@ See [`udm_to_ord_mapping.md`](udm_to_ord_mapping.md) for the full UDM → ORD fi
 Literature / ELN exports (especially Reaxys) often omit fields ORD validation requires. The converter applies the policies below so datasets can validate **without** inventing chemically wrong values. Domain experts: please comment if a policy should change.
 
 | Situation | Converter policy | Rationale |
-|---|---|---|
+| --- | --- | --- |
 | DOI like `10.1016/S0022-328X(00)99569-X` (parentheses in suffix) | Keep the full DOI (`parse_doi` allows `(…)`) | Trimmed forms are regex artifacts and often do not resolve; the published DOI is kept |
 | DOI prefixed with junk (`org/10.1016/…`, URL wrappers) | Normalize via `parse_doi` before writing `provenance.doi` | ORD requires the stored DOI to equal the parsed form |
 | `VARIATION` has reagents but no `<PRODUCT>`; `REACTION` has `<PRODUCT_ID>` | Resolve `PRODUCT_ID` → `MOLECULES` and create an outcome product | ORD requires ≥1 outcome; Reaxys stores products as IDs at reaction level |
+| `VARIATION` has `<REACTANT>` / `<REAGENT>` / `<CATALYST>` / `<SOLVENT>` and no addition-order field | One `combined` input; each block is its own component with its own role and amount | UDM does not record separate additions, so separate `ReactionInput`s would invent them |
 | `VARIATION` has no role compounds; `REACTION` has `<REACTANT_ID>` | Resolve every ID through `MOLECULES` as a component of one shared `REACTANT_IDS` input (unmeasured amount) | Bare IDs contain no evidence for separate addition events |
 | `REACTION` has no `<VARIATION>` | Emit one ORD reaction from reaction-level identifiers and ID fallbacks | Legal UDM shape; recover data rather than skip it. Non-SMILES identifier-only records may need `--no-validate` |
 | Free-text `<PREPARATION>` (not a known env keyword) | Set `setup.environment.type=CUSTOM` and put the text in `.details` | ORD requires `type` whenever environment fields are set |
@@ -258,7 +271,7 @@ Literature / ELN exports (especially Reaxys) often omit fields ORD validation re
 
 UDM allows several `<CONDITION_GROUP>` children under one `<CONDITIONS>` to describe a dynamic multi-stage profile. ORD has one `ReactionConditions` message with fields intended for this case.
 
-**What the converter does today**
+#### What the converter does today
 
 1. Sets `conditions_are_dynamic = true`.
 2. Writes every group to `conditions.details` as `Stage 1: ...; Stage 2: ...`.
