@@ -69,10 +69,15 @@ def test_dataset_description_contains_doi(dataset):
     assert "10.1000/test.doi" in dataset.description
 
 
-def test_reaction_ids_are_canonical(dataset):
-    """update_dataset should assign 'ord-' prefixed IDs."""
+def test_ids_are_left_for_submission(dataset):
+    """reaction_id and dataset_id stay unset until ord-data submission."""
+    assert dataset.dataset_id == ""
     for rxn in dataset.reactions:
-        assert rxn.reaction_id.startswith("ord-"), rxn.reaction_id
+        assert rxn.reaction_id == ""
+        assert not any(
+            "submission pipeline" in event.details
+            for event in rxn.provenance.record_modified
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -676,7 +681,6 @@ def test_sample_reactant_has_molblock(dataset):
 def test_two_variations_independent(dataset):
     """Each variation produces a fully independent Reaction (not sharing state)."""
     r0, r1 = dataset.reactions[0], dataset.reactions[1]
-    assert r0.reaction_id != r1.reaction_id
     assert r0.conditions.temperature.setpoint.value == pytest.approx(80.0)
     assert r1.conditions.temperature.setpoint.value == pytest.approx(60.0)
 

@@ -29,7 +29,7 @@ UDM                          ORD
 | --- | --- | --- |
 | `LEGAL/TITLE` | `Dataset.name` | Overridable with `--name` |
 | `LEGAL/DOI` | `Dataset.description` | Formatted as `"UDM dataset DOI: <doi>"` |
-| *(none)* | `Dataset.reactions[*].reaction_id` | Auto-assigned by `updates.update_dataset()` as `ord-<sha256>` |
+| *(none)* | `Dataset.dataset_id`, `Reaction.reaction_id` | Left unset. Assigned when the dataset is submitted to ord-data |
 
 ---
 

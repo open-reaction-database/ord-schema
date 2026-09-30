@@ -42,7 +42,7 @@ import xml.etree.ElementTree as ET
 from collections import defaultdict
 from typing import cast
 
-from ord_schema import message_helpers, updates, validations
+from ord_schema import message_helpers, validations
 from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
@@ -1469,13 +1469,11 @@ def convert(
 
             pb2_reactions.append(pb2_reaction)
 
-    dataset = dataset_pb2.Dataset(
+    return dataset_pb2.Dataset(
         name=dataset_name,
         description=dataset_description,
         reactions=pb2_reactions,
     )
-    updates.update_dataset(dataset)
-    return dataset
 
 
 # ---------------------------------------------------------------------------
