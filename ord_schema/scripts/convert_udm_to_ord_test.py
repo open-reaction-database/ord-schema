@@ -710,6 +710,91 @@ def test_missing_molecules_does_not_crash(tmp_path):
     assert len(dataset.reactions) == 1
 
 
+def test_unresolved_role_block_keeps_name_and_amount(tmp_path):
+    """A role block missing from MOLECULES stays, with its name and amount."""
+    xml = textwrap.dedent("""\
+        <?xml version="1.0" encoding="UTF-8"?>
+        <UDM version="6.0.0">
+          <LEGAL><TITLE>Test</TITLE></LEGAL>
+          <MOLECULES><MOLECULE ID="M1"><NAME>Known</NAME></MOLECULE></MOLECULES>
+          <REACTIONS>
+            <REACTION ID="R1">
+              <VARIATION ID="V1">
+                <REACTANT>
+                  <MOLECULE MOL_ID="M1"/>
+                  <AMOUNT unit="mmol">1</AMOUNT>
+                </REACTANT>
+                <REAGENT>
+                  <MOLECULE MOL_ID="missing"/>
+                  <NAME>Local reagent</NAME>
+                  <AMOUNT unit="mmol">2</AMOUNT>
+                </REAGENT>
+                <CATALYST>
+                  <MOLECULE MOL_ID="cat-only"/>
+                </CATALYST>
+                <PRODUCT><MOLECULE MOL_ID="M1"/></PRODUCT>
+              </VARIATION>
+            </REACTION>
+          </REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / "unresolved_role.xml"
+    p.write_text(xml)
+    dataset = conv.convert(p)
+    components = dataset.reactions[0].inputs["combined"].components
+    by_role = {c.reaction_role: c for c in components}
+    reagent = by_role[reaction_pb2.ReactionRole.REAGENT]
+    assert reagent.identifiers[0].value == "Local reagent"
+    assert reagent.amount.moles.value == pytest.approx(2)
+    catalyst = by_role[reaction_pb2.ReactionRole.CATALYST]
+    assert catalyst.identifiers[0].value == "cat-only"
+    assert catalyst.amount.WhichOneof("kind") == "unmeasured"
+
+
+def test_variation_doi_wins_over_reaction_citation(tmp_path):
+    """A resolved variation DOI is not replaced by a reaction-level citation."""
+    xml = textwrap.dedent("""\
+        <?xml version="1.0" encoding="UTF-8"?>
+        <UDM version="6.0.0">
+          <LEGAL><TITLE>Test</TITLE><DOI>10.1000/global</DOI></LEGAL>
+          <CITATIONS>
+            <CITATION ID="C1"><DOI>10.1000/variation</DOI></CITATION>
+          </CITATIONS>
+          <MOLECULES><MOLECULE ID="M1"><NAME>A</NAME></MOLECULE></MOLECULES>
+          <REACTIONS>
+            <REACTION ID="R1">
+              <CITATIONS>
+                <CITATION>
+                  <DOI>10.1000/reaction</DOI>
+                  <PATENT_NUMBER>US1</PATENT_NUMBER>
+                </CITATION>
+              </CITATIONS>
+              <VARIATION CIT_ID="C1">
+                <REACTANT><MOLECULE MOL_ID="M1"/></REACTANT>
+                <PRODUCT><MOLECULE MOL_ID="M1"/></PRODUCT>
+              </VARIATION>
+            </REACTION>
+            <REACTION ID="R2">
+              <CITATIONS>
+                <CITATION><DOI>10.1000/legacy</DOI></CITATION>
+              </CITATIONS>
+              <VARIATION>
+                <REACTANT><MOLECULE MOL_ID="M1"/></REACTANT>
+                <PRODUCT><MOLECULE MOL_ID="M1"/></PRODUCT>
+              </VARIATION>
+            </REACTION>
+          </REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / "doi_precedence.xml"
+    p.write_text(xml)
+    dataset = conv.convert(p)
+    first, second = dataset.reactions
+    assert first.provenance.doi == "10.1000/variation"
+    assert first.provenance.patent == "US1"
+    assert second.provenance.doi == "10.1000/legacy"
+
+
 def test_missing_reactions_exits(tmp_path):
     """A UDM file with no <REACTIONS> element should raise SystemExit."""
     xml = textwrap.dedent("""\

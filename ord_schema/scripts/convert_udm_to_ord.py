@@ -684,9 +684,10 @@ def _map_inputs(
             mol_ref = compound_entry.get("MOLECULE")
             if not isinstance(mol_ref, dict):
                 continue
-            mol_id = mol_ref.get("@MOL_ID", "")
+            mol_id = str(mol_ref.get("@MOL_ID", ""))
             molval = all_molecules.get(mol_id)
-            if molval is None:
+            local_name = _text(compound_entry.get("NAME")) or mol_id
+            if molval is None and not local_name:
                 logger.warning(
                     "Molecule %r not found in MOLECULES lookup; skipping.", mol_id
                 )
@@ -695,12 +696,19 @@ def _map_inputs(
             if molinput is None:
                 molinput = pb2_reaction.inputs["combined"]
             molcomponent = molinput.components.add()
-            _add_compound_identifier(
-                molcomponent,
-                molval,
-                mol_id=str(mol_id),
-                fallback_name=_text(compound_entry.get("NAME")),
-            )
+            if molval is not None:
+                _add_compound_identifier(
+                    molcomponent,
+                    molval,
+                    mol_id=mol_id,
+                    fallback_name=local_name,
+                )
+            else:
+                logger.warning(
+                    "Molecule %r not found in MOLECULES lookup; recording ID as NAME.",
+                    mol_id,
+                )
+                molcomponent.identifiers.add(type="NAME", value=local_name)
             molcomponent.reaction_role = ord_role
 
             parsed = _compound_amount(compound_entry)
@@ -1254,7 +1262,9 @@ def _map_provenance(
     reaction_citations = _as_list(reaction.get("CITATIONS"))
     if reaction_citations:
         first_cit = reaction_citations[0].get("CITATION") or {}
-        if "DOI" in first_cit:
+        # Variation citation wins. Reaction-level DOI fills only when that
+        # lookup did not resolve one; it still overrides LEGAL/DOI.
+        if "DOI" in first_cit and not variation_doi:
             pb2_reaction.provenance.doi = _normalize_doi(first_cit["DOI"])
         if "PATENT_NUMBER" in first_cit:
             pb2_reaction.provenance.patent = first_cit["PATENT_NUMBER"]

@@ -107,6 +107,7 @@ uv run python ord_schema/scripts/convert_udm_to_ord.py \
 **Batch convert a directory of UDM files (bash):**
 
 ```bash
+mkdir -p ord_out
 for f in udm_exports/*.xml; do
     uv run python ord_schema/scripts/convert_udm_to_ord.py \
         --input "$f" \

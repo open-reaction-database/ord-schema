@@ -49,7 +49,7 @@ Mapped from `<RXNSTRUCTURE>` elements on the parent `<REACTION>` (shared across 
 
 ## Inputs (`ReactionInput`)
 
-UDM role blocks do not record addition order or grouping. Every `<REACTANT>`, `<REAGENT>`, `<CATALYST>`, and `<SOLVENT>` in a variation therefore becomes a component of one shared `ReactionInput` with map key `combined`. Each component keeps its own `reaction_role` and `amount`. A separate `ReactionInput` would claim a separate addition. The same molecule in two roles stays two components. When only bare `REACTANT_ID` references are available, those compounds share one `REACTANT_IDS` input instead.
+UDM role blocks do not record addition order or grouping. Every `<REACTANT>`, `<REAGENT>`, `<CATALYST>`, and `<SOLVENT>` in a variation therefore becomes a component of one shared `ReactionInput` with map key `combined`. Each component keeps its own `reaction_role` and `amount`. A separate `ReactionInput` would claim a separate addition. The same molecule in two roles stays two components. When only bare `REACTANT_ID` references are available, those compounds share one `REACTANT_IDS` input instead. A role block whose molecule is missing from `MOLECULES` is still kept: `NAME` is the block's local name, or the molecule id when that name is empty, and the block's amount is preserved.
 
 | UDM element | ORD field |
 | --- | --- |
@@ -173,8 +173,8 @@ CLI precedence is asymmetric (see the user guide): `--name` / `--description` **
 | `--email` | `Person.email` when UDM SCIENTIST has no email | Gap-fill only; required by ORD validation when provenance is present |
 | `--created-date` | `provenance.record_created.time.value` when UDM has no `CREATION_DATE` | Gap-fill only; required by ORD validation (`RecordEvent.time`) |
 | `LEGAL/DOI` | `provenance.doi` | Overridden by variation-level or reaction-level citation DOI if present |
-| `VARIATION/CITATION/@CIT_ID` or `VARIATION/@CIT_ID` → `CITATIONS/CITATION/@ID/DOI` | `provenance.doi` | Per-variation citation lookup (SURF uses the attribute form) |
-| `REACTION/CITATIONS/CITATION/DOI` | `provenance.doi` | Reaction-level legacy path |
+| `VARIATION/CITATION/@CIT_ID` or `VARIATION/@CIT_ID` → `CITATIONS/CITATION/@ID/DOI` | `provenance.doi` | Per-variation citation lookup (SURF uses the attribute form). Wins over a reaction-level DOI |
+| `REACTION/CITATIONS/CITATION/DOI` | `provenance.doi` | Reaction-level legacy path. Used only when the variation did not resolve a DOI; still overrides `LEGAL/DOI` |
 | `REACTION/CITATIONS/CITATION/PATENT_NUMBER` | `provenance.patent` | |
 | `VARIATION/CREATION_DATE` | `provenance.record_created.time.value` | Wins over `--created-date` |
 | `VARIATION/MODIFICATION_DATE` | `provenance.record_modified[].time.value` | Plain string and list both supported |
