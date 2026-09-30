@@ -107,6 +107,7 @@ uv run python ord_schema/scripts/convert_udm_to_ord.py \
 **Batch convert a directory of UDM files (bash):**
 
 ```bash
+mkdir -p ord_out
 for f in udm_exports/*.xml; do
     uv run python ord_schema/scripts/convert_udm_to_ord.py \
         --input "$f" \
@@ -121,7 +122,7 @@ done
 
 The converter writes a standard ORD `Dataset` protobuf. Each reaction inside it has:
 
-- A canonical `reaction_id` (auto-assigned as `ord-<sha256>`)
+- `reaction_id` and `dataset_id` left unset; ord-data submission assigns them
 - Role compounds (reactant, reagent, catalyst, solvent) share one `combined` input; each keeps its own role and amount
 - Bare reaction-level `REACTANT_ID` references grouped under one `REACTANT_IDS` input
 - Conditions, outcomes, notes, and provenance populated where UDM data is present
