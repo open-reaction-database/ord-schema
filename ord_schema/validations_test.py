@@ -881,14 +881,18 @@ def test_a_reaction_without_a_source_is_only_a_suggestion_by_default():
     assert output.errors == []
     assert output.warnings == []
     assert len(output.suggestions) == 1
-    assert "doi or publication_url" in output.suggestions[0]
+    assert "doi, patent, or publication_url" in output.suggestions[0]
 
 
 @pytest.mark.parametrize(
     "provenance",
-    [{"doi": "10.1126/science.aap9112"}, {"publication_url": "https://example.com"}],
+    [
+        {"doi": "10.1126/science.aap9112"},
+        {"patent": "US20100000001A1"},
+        {"publication_url": "https://example.com"},
+    ],
 )
-def test_either_source_satisfies_the_suggestion(provenance):
+def test_any_source_satisfies_the_suggestion(provenance):
     output = _run_validation(_reaction_with_source(**provenance), recurse=False)
     assert output.errors == []
     assert output.suggestions == []

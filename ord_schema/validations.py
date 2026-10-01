@@ -730,10 +730,16 @@ def _validate_reaction(
     if options.require_provenance:
         if not message.HasField("provenance"):
             context.error("Reaction requires provenance")
-    if not (message.provenance.doi or message.provenance.publication_url):
+    if not (
+        message.provenance.doi
+        or message.provenance.patent
+        or message.provenance.publication_url
+    ):
         # Only a suggestion: an unpublished dataset, such as an ELN export, has no
         # source to give yet.
-        context.suggest("Reaction provenance could include a doi or publication_url")
+        context.suggest(
+            "Reaction provenance could include a doi, patent, or publication_url"
+        )
 
 
 # Identifier types whose conventional spelling differs from their enum name, for use in
