@@ -1,0 +1,992 @@
+<?xml version='1.0' encoding='utf-8'?>
+<UDM DATABASE="SURF" SEQUENCE="001" TIMESTAMP="2023-08-10T11:29:25" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <UDM_VERSION MAJOR="6" MINOR="0" REVISION="0" VERSIONTEXT="6.0.0" />
+  <LEGAL />
+  <CITATIONS>
+    <CITATION ID="1">
+      <DOI>10.1021/jo9010624</DOI>
+    </CITATION>
+    <CITATION ID="2">
+      <DOI>10.1021/acs.orglett.8b02988</DOI>
+    </CITATION>
+  </CITATIONS>
+  <MOLECULES>
+    <MOLECULE ID="HRZKFCSHISLTEI-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+  7  4  0  0  0  0  0  0  0  0999 V2000
+    0.0000    1.0000    0.0000 Fe  0  0  0  0  0 15  0  0  0  0  0  0
+    1.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    2.2990    0.7500    0.0000 S   0  0  0  0  0  0  0  0  0  0  0  0
+    3.5981    1.5000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5490    2.0490    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0490   -0.5490    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    0.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+  2  3  2  0
+  3  4  2  0
+  3  5  1  0
+  3  6  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>7782-63-0</CAS>
+    </MOLECULE>
+    <MOLECULE ID="FJVNPBRXSMUTPY-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+ 35 39  0  0  0  0  0  0  0  0999 V2000
+    7.5000   -2.5981    0.0000 F   0  0  0  0  0  0  0  0  0  0  0  0
+    6.0000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    5.2500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    5.2500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    6.0000   -0.0000    0.0000 Cl  0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000   -2.5981    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    0.0000    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500    1.2990    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -5.2500   -1.2990    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+   -6.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500   -3.8971    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000   -5.1962    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500   -6.4952    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000   -7.7942    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500   -9.0933    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+   -5.2500   -9.0933    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -6.0000  -10.3923    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -5.2500  -11.6913    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500  -11.6913    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000  -10.3923    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    2.9489    2.9863    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    2.5607    4.4352    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    1.1118    4.0470    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0
+  2  3  2  0
+  3  4  1  0
+  4  5  2  0
+  5  6  1  0
+  6  7  2  0
+  7  8  1  0
+  5  9  1  0
+  9 10  1  0
+ 10 11  2  0
+ 11 12  1  0
+ 12 13  2  0
+ 13 14  1  0
+ 14 15  2  0
+ 15 16  1  0
+ 16 17  1  0
+ 17 18  1  0
+ 16 19  2  0
+ 19 20  1  0
+ 20 21  1  0
+ 21 22  1  0
+ 22 23  1  0
+ 23 24  1  0
+ 24 25  1  0
+ 25 26  1  0
+ 26 27  1  0
+ 27 28  1  0
+ 28 29  1  0
+ 19 30  1  0
+ 30 31  2  0
+ 12 32  1  0
+ 32 33  1  0
+ 33 34  1  0
+ 34 35  1  0
+  7  2  1  0
+ 10 31  1  0
+ 31 14  1  0
+ 29 24  1  0
+ 35 32  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>1180654-05-0</CAS>
+    </MOLECULE>
+    <MOLECULE ID="QAOWNCQODCNURD-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+  5  4  0  0  0  0  0  0  0  0999 V2000
+    0.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    1.2990    0.7500    0.0000 S   0  0  0  0  0  0  0  0  0  0  0  0
+    2.5981    1.5000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    0.5490    2.0490    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    2.0490   -0.5490    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  2  0
+  2  3  2  0
+  2  4  1  0
+  2  5  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>7664-93-9</CAS>
+    </MOLECULE>
+    <MOLECULE ID="MHAJPDPJQMAIIY-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+  2  1  0  0  0  0  0  0  0  0999 V2000
+    0.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    1.2990    0.7500    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>7722-84-1</CAS>
+    </MOLECULE>
+    <MOLECULE ID="XLYOFNOQVPJJNP-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+  1  0  0  0  0  0  0  0  0  0999 V2000
+    0.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>7732-18-5</CAS>
+    </MOLECULE>
+    <MOLECULE ID="IAZDPXIOMUYVGZ-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+  4  3  0  0  0  0  0  0  0  0999 V2000
+    1.2990    2.2500    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    1.2990    0.7500    0.0000 S   0  0  0  0  0  0  0  0  0  0  0  0
+    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    2.5981   -0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  2  0
+  2  3  1  0
+  2  4  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>67-68-5</CAS>
+    </MOLECULE>
+    <MOLECULE ID="KBEIFKMKVCDETC-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+  5  5  0  0  0  0  0  0  0  0999 V2000
+    2.5607    0.0000    0.0000 I   0  0  0  0  0  0  0  0  0  0  0  0
+    1.0607    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.0000   -1.0607    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.0607    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    0.0000    1.0607    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0
+  2  3  1  0
+  3  4  1  0
+  4  5  1  0
+  5  2  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>26272-85-5</CAS>
+    </MOLECULE>
+    <MOLECULE ID="XGALLCVXEZPNRQ-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+ 31 34  0  0  0  0  0  0  0  0999 V2000
+    7.5000   -2.5981    0.0000 F   0  0  0  0  0  0  0  0  0  0  0  0
+    6.0000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    5.2500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    5.2500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    6.0000   -0.0000    0.0000 Cl  0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000   -2.5981    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    0.0000    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500    1.2990    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -5.2500   -1.2990    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+   -6.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500   -3.8971    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000   -5.1962    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500   -6.4952    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000   -7.7942    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500   -9.0933    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+   -5.2500   -9.0933    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -6.0000  -10.3923    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -5.2500  -11.6913    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500  -11.6913    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000  -10.3923    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0
+  2  3  2  0
+  3  4  1  0
+  4  5  2  0
+  5  6  1  0
+  6  7  2  0
+  7  8  1  0
+  5  9  1  0
+  9 10  1  0
+ 10 11  2  0
+ 11 12  1  0
+ 12 13  2  0
+ 13 14  1  0
+ 14 15  2  0
+ 15 16  1  0
+ 16 17  1  0
+ 17 18  1  0
+ 16 19  2  0
+ 19 20  1  0
+ 20 21  1  0
+ 21 22  1  0
+ 22 23  1  0
+ 23 24  1  0
+ 24 25  1  0
+ 25 26  1  0
+ 26 27  1  0
+ 27 28  1  0
+ 28 29  1  0
+ 19 30  1  0
+ 30 31  2  0
+  7  2  1  0
+ 10 31  1  0
+ 31 14  1  0
+ 29 24  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>184475-35-2</CAS>
+    </MOLECULE>
+    <MOLECULE ID="QTHUSZKQIGNCRB-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+ 36 39  0  0  0  0  0  0  0  0999 V2000
+   -2.2500   -6.4952    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000   -5.1962    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000   -2.5981    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    2.5981    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0000    2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000    2.5981    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500    3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000   -2.5981    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -5.2500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -6.0000    2.5981    0.0000 Cl  0  0  0  0  0  0  0  0  0  0  0  0
+   -6.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -5.2500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -6.0000   -2.5981    0.0000 Cl  0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000   -5.1962    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.1118   -6.6450    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    2.5607   -7.0333    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+    3.3107   -8.3323    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    4.8107   -8.3323    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    2.5607   -9.6313    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    3.3107  -10.9304    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    2.0116  -11.6804    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    4.6097  -10.1804    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    4.0607  -12.2294    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    2.9489   -5.5844    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  3  0
+  2  3  1  0
+  3  4  2  0
+  4  5  1  0
+  5  6  2  0
+  6  7  1  0
+  7  8  2  0
+  8  9  1  0
+  9 10  1  0
+  8 11  1  0
+ 11 12  1  0
+ 12 13  1  0
+ 11 14  2  0
+ 14 15  1  0
+ 15 16  2  0
+ 16 17  1  0
+ 17 18  1  0
+ 18 19  2  0
+ 19 20  1  0
+ 20 21  2  0
+ 21 22  1  0
+ 21 23  1  0
+ 23 24  2  0
+ 24 25  1  0
+  4 26  1  0
+ 26 27  1  0
+ 27 28  1  0
+ 28 29  1  0
+ 29 30  2  0
+ 29 31  1  0
+ 31 32  1  0
+ 32 33  1  0
+ 32 34  1  0
+ 32 35  1  0
+ 28 36  1  0
+  3 16  1  0
+  6 15  1  0
+ 24 18  1  0
+ 36 26  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>1180654-03-8</CAS>
+    </MOLECULE>
+    <MOLECULE ID="XPDIKRMPZNLBAC-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+ 12 12  0  0  0  0  0  0  0  0999 V2000
+    3.3107    1.2990    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    2.5607    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.3107   -1.2990    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    4.8107   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    4.8107   -2.7990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    4.8107    0.2010    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    6.3107   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.0607    0.0000    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.0000   -1.0607    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.0607    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -2.5607    0.0000    0.0000 I   0  0  0  0  0  0  0  0  0  0  0  0
+    0.0000    1.0607    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  2  0
+  2  3  1  0
+  3  4  1  0
+  4  5  1  0
+  4  6  1  0
+  4  7  1  0
+  2  8  1  0
+  8  9  1  0
+  9 10  1  0
+ 10 11  1  0
+ 10 12  1  0
+ 12  8  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>254454-54-1</CAS>
+    </MOLECULE>
+    <MOLECULE ID="IUZCVUGIDCZCEQ-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+ 25 27  0  0  0  0  0  0  0  0999 V2000
+    4.5000    0.0000    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -1.2990    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -5.2500    1.2990    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+   -6.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000    2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500    3.8971    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000    5.1962    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000    2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    2.5981    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0000    2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    5.2500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    6.0000    2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    7.5000    2.5981    0.0000 Cl  0  0  0  0  0  0  0  0  0  0  0  0
+    5.2500    3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.7500    3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0000    5.1962    0.0000 Cl  0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  3  0
+  2  3  1  0
+  3  4  2  0
+  4  5  1  0
+  5  6  2  0
+  6  7  1  0
+  7  8  2  0
+  8  9  1  0
+  9 10  1  0
+  8 11  1  0
+ 11 12  1  0
+ 12 13  1  0
+ 11 14  2  0
+ 14 15  1  0
+ 15 16  2  0
+ 16 17  1  0
+ 17 18  1  0
+ 18 19  2  0
+ 19 20  1  0
+ 20 21  2  0
+ 21 22  1  0
+ 21 23  1  0
+ 23 24  2  0
+ 24 25  1  0
+ 16  3  1  0
+ 15  6  1  0
+ 24 18  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>331662-50-1</CAS>
+    </MOLECULE>
+    <MOLECULE ID="OFKZVFIUCMJERD-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+ 29 32  0  0  0  0  0  0  0  0999 V2000
+   -2.2500   -6.4952    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000   -5.1962    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000   -2.5981    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    2.5981    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0000    2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000    2.5981    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500    3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000   -2.5981    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -5.2500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -6.0000    2.5981    0.0000 Cl  0  0  0  0  0  0  0  0  0  0  0  0
+   -6.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -5.2500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -6.0000   -2.5981    0.0000 Cl  0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000   -5.1962    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.1118   -6.6450    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    2.5607   -7.0333    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    2.9489   -5.5844    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  3  0
+  2  3  1  0
+  3  4  2  0
+  4  5  1  0
+  5  6  2  0
+  6  7  1  0
+  7  8  2  0
+  8  9  1  0
+  9 10  1  0
+  8 11  1  0
+ 11 12  1  0
+ 12 13  1  0
+ 11 14  2  0
+ 14 15  1  0
+ 15 16  2  0
+ 16 17  1  0
+ 17 18  1  0
+ 18 19  2  0
+ 19 20  1  0
+ 20 21  2  0
+ 21 22  1  0
+ 21 23  1  0
+ 23 24  2  0
+ 24 25  1  0
+  4 26  1  0
+ 26 27  1  0
+ 27 28  1  0
+ 28 29  1  0
+  3 16  1  0
+  6 15  1  0
+ 24 18  1  0
+ 29 26  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>1180654-00-5</CAS>
+    </MOLECULE>
+    <MOLECULE ID="FUDPYOPZEFDRFK-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+ 17 19  0  0  0  0  0  0  0  0999 V2000
+    1.5000   -2.5981    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000   -5.1962    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -5.2500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -6.0000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -5.2500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  2  0
+  2  3  1  0
+  3  4  2  0
+  4  5  1  0
+  5  6  2  0
+  6  7  1  0
+  7  8  2  0
+  8  9  1  0
+  9 10  2  0
+ 10 11  1  0
+  8 12  1  0
+ 12 13  1  0
+ 13 14  1  0
+ 14 15  1  0
+ 15 16  1  0
+ 16 17  1  0
+  1 10  1  0
+  2  7  1  0
+ 17 12  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>37597-46-9</CAS>
+    </MOLECULE>
+    <MOLECULE ID="SBFSEMVZXZCBEC-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+ 11  9  0  0  0  0  0  0  0  0999 V2000
+    1.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    2.2990    0.7500    0.0000 S   0  0  0  0  0  0  0  0  0  0  0  0
+    3.5981    1.5000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5490    2.0490    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0490   -0.5490    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    4.5490   -0.5490    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    5.2990   -1.8481    0.0000 S   0  0  0  0  0  0  0  0  0  0  0  0
+    4.0000   -2.5981    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    6.5981   -1.0981    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    6.0490   -3.1471    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    0.0000    0.0000    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  2  0
+  2  3  2  0
+  2  4  1  0
+  2  5  1  0
+  5  6  1  0
+  6  7  1  0
+  7  8  2  0
+  7  9  2  0
+  7 10  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>7727-54-0</CAS>
+    </MOLECULE>
+    <MOLECULE ID="NZNMSOFKMUBTKW-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+  9  9  0  0  0  0  0  0  0  0999 V2000
+    3.7500    1.2990    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.7500   -1.2990    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  2  0
+  2  3  1  0
+  2  4  1  0
+  4  5  1  0
+  5  6  1  0
+  6  7  1  0
+  7  8  1  0
+  8  9  1  0
+  9  4  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>98-89-5</CAS>
+    </MOLECULE>
+    <MOLECULE ID="SMUQFGGVLNAIOZ-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+ 11 12  0  0  0  0  0  0  0  0999 V2000
+    1.5000   -2.5981    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000   -5.1962    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  2  0
+  2  3  1  0
+  3  4  2  0
+  4  5  1  0
+  5  6  2  0
+  6  7  1  0
+  7  8  2  0
+  8  9  1  0
+  9 10  2  0
+ 10 11  1  0
+  1 10  1  0
+  2  7  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>91-63-4</CAS>
+    </MOLECULE>
+    <MOLECULE ID="KACQZCHGLDZBFG-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+ 17 19  0  0  0  0  0  0  0  0999 V2000
+    1.5000   -2.5981    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000   -5.1962    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -6.4952    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000   -7.7942    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0000   -7.7942    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.7500   -6.4952    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0000   -5.1962    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -3.0000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  2  0
+  2  3  1  0
+  3  4  2  0
+  4  5  1  0
+  5  6  2  0
+  6  7  1  0
+  7  8  2  0
+  8  9  1  0
+  9 10  2  0
+ 10 11  1  0
+ 11 12  1  0
+ 12 13  1  0
+ 13 14  1  0
+ 14 15  1  0
+ 15 16  1  0
+  8 17  1  0
+  1 10  1  0
+  2  7  1  0
+ 16 11  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>56947-80-9</CAS>
+    </MOLECULE>
+    <MOLECULE ID="MUDSDYNRBDKLGK-UHFFFAOYSA-N">
+      <MOLSTRUCTURE><![CDATA[
+     RDKit          2D
+
+ 11 12  0  0  0  0  0  0  0  0999 V2000
+   -1.5000   -2.5981    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -3.8971    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500    1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.5000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.7500   -1.2990    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.0000   -2.5981    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  2  0
+  2  3  1  0
+  3  4  2  0
+  4  5  1  0
+  5  6  2  0
+  6  7  1  0
+  7  8  2  0
+  8  9  1  0
+  9 10  2  0
+  4 11  1  0
+  1 10  1  0
+ 10  5  1  0
+M  END
+]]></MOLSTRUCTURE>
+      <CAS>491-35-0</CAS>
+    </MOLECULE>
+  </MOLECULES>
+  <REACTIONS>
+    <REACTION ID="lsf-lit-minisci-1">
+      <VARIATION CIT_ID="1">
+        <SECTION>
+          <CONDITIONS>
+            <TEMPERATURE>
+              <exact>60.00</exact>
+            </TEMPERATURE>
+            <TIME>
+              <exact>0.5</exact>
+            </TIME>
+          </CONDITIONS>
+          <CATALYST>
+            <MOLECULE MOL_ID="HRZKFCSHISLTEI-UHFFFAOYSA-N" />
+            <NAME>7782-63-0</NAME>
+            <AMOUNT>0.3000 mmol</AMOUNT>
+          </CATALYST>
+          <PRODUCT_ID>FJVNPBRXSMUTPY-UHFFFAOYSA-N</PRODUCT_ID>
+          <PRODUCT>
+            <MOLECULE MOL_ID="FJVNPBRXSMUTPY-UHFFFAOYSA-N" />
+            <NAME>1180654-05-0</NAME>
+            <YIELD>13.0</YIELD>
+          </PRODUCT>
+          <REAGENT>
+            <MOLECULE MOL_ID="QAOWNCQODCNURD-UHFFFAOYSA-N" />
+            <NAME>7664-93-9</NAME>
+            <AMOUNT>1.5000 mmol</AMOUNT>
+          </REAGENT>
+          <REAGENT>
+            <MOLECULE MOL_ID="MHAJPDPJQMAIIY-UHFFFAOYSA-N" />
+            <NAME>7722-84-1</NAME>
+            <AMOUNT>3.0000 mmol</AMOUNT>
+          </REAGENT>
+          <SOLVENT>
+            <MOLECULE MOL_ID="XLYOFNOQVPJJNP-UHFFFAOYSA-N" />
+            <NAME>7732-18-5</NAME>
+            <AMOUNT>0.3000 ml</AMOUNT>
+          </SOLVENT>
+          <SOLVENT>
+            <MOLECULE MOL_ID="IAZDPXIOMUYVGZ-UHFFFAOYSA-N" />
+            <NAME>67-68-5</NAME>
+            <AMOUNT>4.7000 ml</AMOUNT>
+          </SOLVENT>
+          <REACTANT_ID>KBEIFKMKVCDETC-UHFFFAOYSA-N</REACTANT_ID>
+          <REACTANT>
+            <MOLECULE MOL_ID="KBEIFKMKVCDETC-UHFFFAOYSA-N" />
+            <NAME>26272-85-5</NAME>
+            <AMOUNT>1.0000 mmol</AMOUNT>
+          </REACTANT>
+          <REACTANT_ID>XGALLCVXEZPNRQ-UHFFFAOYSA-N</REACTANT_ID>
+          <REACTANT>
+            <MOLECULE MOL_ID="XGALLCVXEZPNRQ-UHFFFAOYSA-N" />
+            <NAME>184475-35-2</NAME>
+            <AMOUNT>0.5000 mmol</AMOUNT>
+          </REACTANT>
+        </SECTION>
+      </VARIATION>
+    </REACTION>
+    <REACTION ID="lsf-lit-minisci-2">
+      <VARIATION CIT_ID="1">
+        <SECTION>
+          <CONDITIONS>
+            <TEMPERATURE>
+              <exact>50.00</exact>
+            </TEMPERATURE>
+            <TIME>
+              <exact>1.1</exact>
+            </TIME>
+          </CONDITIONS>
+          <CATALYST>
+            <MOLECULE MOL_ID="HRZKFCSHISLTEI-UHFFFAOYSA-N" />
+            <NAME>7782-63-0</NAME>
+            <AMOUNT>0.3000 mmol</AMOUNT>
+          </CATALYST>
+          <PRODUCT_ID>QTHUSZKQIGNCRB-UHFFFAOYSA-N</PRODUCT_ID>
+          <PRODUCT>
+            <MOLECULE MOL_ID="QTHUSZKQIGNCRB-UHFFFAOYSA-N" />
+            <NAME>1180654-03-8</NAME>
+            <YIELD>44.0</YIELD>
+          </PRODUCT>
+          <REAGENT>
+            <MOLECULE MOL_ID="QAOWNCQODCNURD-UHFFFAOYSA-N" />
+            <NAME>7664-93-9</NAME>
+            <AMOUNT>1.5000 mmol</AMOUNT>
+          </REAGENT>
+          <REAGENT>
+            <MOLECULE MOL_ID="MHAJPDPJQMAIIY-UHFFFAOYSA-N" />
+            <NAME>7722-84-1</NAME>
+            <AMOUNT>3.0000 mmol</AMOUNT>
+          </REAGENT>
+          <SOLVENT>
+            <MOLECULE MOL_ID="IAZDPXIOMUYVGZ-UHFFFAOYSA-N" />
+            <NAME>67-68-5</NAME>
+            <AMOUNT>4.7000 ml</AMOUNT>
+          </SOLVENT>
+          <SOLVENT>
+            <MOLECULE MOL_ID="XLYOFNOQVPJJNP-UHFFFAOYSA-N" />
+            <NAME>7732-18-5</NAME>
+            <AMOUNT>0.3000 ml</AMOUNT>
+          </SOLVENT>
+          <REACTANT_ID>XPDIKRMPZNLBAC-UHFFFAOYSA-N</REACTANT_ID>
+          <REACTANT>
+            <MOLECULE MOL_ID="XPDIKRMPZNLBAC-UHFFFAOYSA-N" />
+            <NAME>254454-54-1</NAME>
+            <AMOUNT>1.0000 mmol</AMOUNT>
+          </REACTANT>
+          <REACTANT_ID>IUZCVUGIDCZCEQ-UHFFFAOYSA-N</REACTANT_ID>
+          <REACTANT>
+            <MOLECULE MOL_ID="IUZCVUGIDCZCEQ-UHFFFAOYSA-N" />
+            <NAME>331662-50-1</NAME>
+            <AMOUNT>0.5000 mmol</AMOUNT>
+          </REACTANT>
+        </SECTION>
+      </VARIATION>
+    </REACTION>
+    <REACTION ID="lsf-lit-minisci-3">
+      <VARIATION CIT_ID="1">
+        <SECTION>
+          <CONDITIONS>
+            <TEMPERATURE>
+              <exact>60.00</exact>
+            </TEMPERATURE>
+            <TIME>
+              <exact>0.8</exact>
+            </TIME>
+          </CONDITIONS>
+          <CATALYST>
+            <MOLECULE MOL_ID="HRZKFCSHISLTEI-UHFFFAOYSA-N" />
+            <NAME>7782-63-0</NAME>
+            <AMOUNT>0.3000 mmol</AMOUNT>
+          </CATALYST>
+          <PRODUCT_ID>OFKZVFIUCMJERD-UHFFFAOYSA-N</PRODUCT_ID>
+          <PRODUCT>
+            <MOLECULE MOL_ID="OFKZVFIUCMJERD-UHFFFAOYSA-N" />
+            <NAME>1180654-00-5</NAME>
+            <YIELD>38.0</YIELD>
+          </PRODUCT>
+          <REAGENT>
+            <MOLECULE MOL_ID="MHAJPDPJQMAIIY-UHFFFAOYSA-N" />
+            <NAME>7722-84-1</NAME>
+            <AMOUNT>3.0000 mmol</AMOUNT>
+          </REAGENT>
+          <REAGENT>
+            <MOLECULE MOL_ID="QAOWNCQODCNURD-UHFFFAOYSA-N" />
+            <NAME>7664-93-9</NAME>
+            <AMOUNT>1.5000 mmol</AMOUNT>
+          </REAGENT>
+          <SOLVENT>
+            <MOLECULE MOL_ID="XLYOFNOQVPJJNP-UHFFFAOYSA-N" />
+            <NAME>7732-18-5</NAME>
+            <AMOUNT>0.3000 ml</AMOUNT>
+          </SOLVENT>
+          <SOLVENT>
+            <MOLECULE MOL_ID="IAZDPXIOMUYVGZ-UHFFFAOYSA-N" />
+            <NAME>67-68-5</NAME>
+            <AMOUNT>4.7000 ml</AMOUNT>
+          </SOLVENT>
+          <REACTANT_ID>IUZCVUGIDCZCEQ-UHFFFAOYSA-N</REACTANT_ID>
+          <REACTANT>
+            <MOLECULE MOL_ID="IUZCVUGIDCZCEQ-UHFFFAOYSA-N" />
+            <NAME>331662-50-1</NAME>
+            <AMOUNT>0.5000 mmol</AMOUNT>
+          </REACTANT>
+          <REACTANT_ID>KBEIFKMKVCDETC-UHFFFAOYSA-N</REACTANT_ID>
+          <REACTANT>
+            <MOLECULE MOL_ID="KBEIFKMKVCDETC-UHFFFAOYSA-N" />
+            <NAME>26272-85-5</NAME>
+            <AMOUNT>1.0000 mmol</AMOUNT>
+          </REACTANT>
+        </SECTION>
+      </VARIATION>
+    </REACTION>
+    <REACTION ID="lsf-lit-minisci-4">
+      <VARIATION CIT_ID="2">
+        <SECTION>
+          <CONDITIONS>
+            <TEMPERATURE>
+              <exact>40.00</exact>
+            </TEMPERATURE>
+            <TIME>
+              <exact>16.0</exact>
+            </TIME>
+          </CONDITIONS>
+          <PRODUCT_ID>FUDPYOPZEFDRFK-UHFFFAOYSA-N</PRODUCT_ID>
+          <PRODUCT>
+            <MOLECULE MOL_ID="FUDPYOPZEFDRFK-UHFFFAOYSA-N" />
+            <NAME>37597-46-9</NAME>
+            <YIELD>78.0</YIELD>
+          </PRODUCT>
+          <REAGENT>
+            <MOLECULE MOL_ID="SBFSEMVZXZCBEC-UHFFFAOYSA-N" />
+            <NAME>7727-54-0</NAME>
+            <AMOUNT>10.5000 mmol</AMOUNT>
+          </REAGENT>
+          <SOLVENT>
+            <MOLECULE MOL_ID="IAZDPXIOMUYVGZ-UHFFFAOYSA-N" />
+            <NAME>67-68-5</NAME>
+            <AMOUNT>6999.8810 ml</AMOUNT>
+          </SOLVENT>
+          <SOLVENT>
+            <MOLECULE MOL_ID="XLYOFNOQVPJJNP-UHFFFAOYSA-N" />
+            <NAME>7732-18-5</NAME>
+            <AMOUNT>0.1190 ml</AMOUNT>
+          </SOLVENT>
+          <REACTANT_ID>NZNMSOFKMUBTKW-UHFFFAOYSA-N</REACTANT_ID>
+          <REACTANT>
+            <MOLECULE MOL_ID="NZNMSOFKMUBTKW-UHFFFAOYSA-N" />
+            <NAME>98-89-5</NAME>
+            <AMOUNT>35.0000 mmol</AMOUNT>
+          </REACTANT>
+          <REACTANT_ID>SMUQFGGVLNAIOZ-UHFFFAOYSA-N</REACTANT_ID>
+          <REACTANT>
+            <MOLECULE MOL_ID="SMUQFGGVLNAIOZ-UHFFFAOYSA-N" />
+            <NAME>91-63-4</NAME>
+            <AMOUNT>3.5000 mmol</AMOUNT>
+          </REACTANT>
+        </SECTION>
+      </VARIATION>
+    </REACTION>
+    <REACTION ID="lsf-lit-minisci-5">
+      <VARIATION CIT_ID="2">
+        <SECTION>
+          <CONDITIONS>
+            <TEMPERATURE>
+              <exact>40.00</exact>
+            </TEMPERATURE>
+            <TIME>
+              <exact>16.0</exact>
+            </TIME>
+          </CONDITIONS>
+          <PRODUCT_ID>KACQZCHGLDZBFG-UHFFFAOYSA-N</PRODUCT_ID>
+          <PRODUCT>
+            <MOLECULE MOL_ID="KACQZCHGLDZBFG-UHFFFAOYSA-N" />
+            <NAME>56947-80-9</NAME>
+            <YIELD>82.0</YIELD>
+          </PRODUCT>
+          <REAGENT>
+            <MOLECULE MOL_ID="SBFSEMVZXZCBEC-UHFFFAOYSA-N" />
+            <NAME>7727-54-0</NAME>
+            <AMOUNT>0.4500 mmol</AMOUNT>
+          </REAGENT>
+          <SOLVENT>
+            <MOLECULE MOL_ID="XLYOFNOQVPJJNP-UHFFFAOYSA-N" />
+            <NAME>7732-18-5</NAME>
+            <AMOUNT>0.0051 ml</AMOUNT>
+          </SOLVENT>
+          <SOLVENT>
+            <MOLECULE MOL_ID="IAZDPXIOMUYVGZ-UHFFFAOYSA-N" />
+            <NAME>67-68-5</NAME>
+            <AMOUNT>299.9949 ml</AMOUNT>
+          </SOLVENT>
+          <REACTANT_ID>MUDSDYNRBDKLGK-UHFFFAOYSA-N</REACTANT_ID>
+          <REACTANT>
+            <MOLECULE MOL_ID="MUDSDYNRBDKLGK-UHFFFAOYSA-N" />
+            <NAME>491-35-0</NAME>
+            <AMOUNT>0.1500 mmol</AMOUNT>
+          </REACTANT>
+          <REACTANT_ID>NZNMSOFKMUBTKW-UHFFFAOYSA-N</REACTANT_ID>
+          <REACTANT>
+            <MOLECULE MOL_ID="NZNMSOFKMUBTKW-UHFFFAOYSA-N" />
+            <NAME>98-89-5</NAME>
+            <AMOUNT>1.5000 mmol</AMOUNT>
+          </REACTANT>
+        </SECTION>
+      </VARIATION>
+    </REACTION>
+  </REACTIONS>
+</UDM>

@@ -171,6 +171,8 @@ message ReactionInput {
   Temperature addition_temperature = 9;
   // The texture immediately before addition.
   Texture texture = 10;
+  // Container for arbitrary section-level metadata (named Data entries).
+  map<string, Data> metadata = 11;
 }
 
 /**
@@ -538,6 +540,9 @@ message ReactionSetup {
   }
   // Specify reaction environment.
   ReactionEnvironment environment = 5;
+  // Container for arbitrary section-level metadata (named Data entries).
+  // Distinct from automation_code, which holds automation recipes only.
+  map<string, Data> metadata = 6;
 }
 
 message ReactionConditions {
@@ -555,6 +560,9 @@ message ReactionConditions {
   // A catch-all string field for providing more information about
   // the conditions (e.g., multiple stages)
   string details = 10;
+  // Cross-cutting or multi-stage condition metadata (named Data entries).
+  // Modality-specific attachments belong on nested *Conditions.metadata.
+  map<string, Data> metadata = 11;
 }
 
 message TemperatureConditions {
@@ -594,6 +602,8 @@ message TemperatureConditions {
     Temperature temperature = 4;
   }
   repeated TemperatureMeasurement measurements = 3;
+  // Modality-specific metadata (e.g., thermocouple logs as Data).
+  map<string, Data> metadata = 4;
 }
 
 message PressureConditions {
@@ -646,6 +656,8 @@ message PressureConditions {
     Pressure pressure = 4;
   }
   repeated PressureMeasurement measurements = 4;
+  // Modality-specific metadata (e.g., pressure traces as Data).
+  map<string, Data> metadata = 5;
 }
 
 message StirringConditions {
@@ -675,6 +687,8 @@ message StirringConditions {
     int32 rpm = 3;
   }
   StirringRate rate = 3;
+  // Modality-specific metadata (e.g., RPM time series as Data).
+  map<string, Data> metadata = 4;
 }
 
 message IlluminationConditions {
@@ -694,6 +708,8 @@ message IlluminationConditions {
   Wavelength peak_wavelength = 3;
   string color = 4;
   Length distance_to_vessel = 5;
+  // Modality-specific metadata (e.g., lamp spectra as Data).
+  map<string, Data> metadata = 6;
 }
 
 message ElectrochemistryConditions {
@@ -729,6 +745,8 @@ message ElectrochemistryConditions {
     string details = 2;
   }
   ElectrochemistryCell cell = 9;
+  // Modality-specific metadata (e.g., current/voltage traces as Data).
+  map<string, Data> metadata = 10;
 }
 
 message FlowConditions {
@@ -762,6 +780,8 @@ message FlowConditions {
     Length diameter = 3;
   }
   Tubing tubing = 4;
+  // Modality-specific metadata (e.g., pump logs as Data).
+  map<string, Data> metadata = 5;
 }
 
 message ReactionNotes {
@@ -781,6 +801,8 @@ message ReactionNotes {
   string safety_notes = 8;
   // Overflow field for full procedure details
   string procedure_details = 9;
+  // Container for arbitrary section-level metadata (named Data entries).
+  map<string, Data> metadata = 10;
 }
 
 message ReactionObservation {
@@ -868,6 +890,9 @@ message ReactionWorkup {
   // "details", e.g., instrument manufacturer, solvent gradient
   // (if applicable), column material and size, etc.
   optional bool is_automated = 10;
+  // Container for arbitrary section-level metadata (named Data entries).
+  // Nested TemperatureConditions / StirringConditions also expose metadata.
+  map<string, Data> metadata = 11;
 }
 
 /**

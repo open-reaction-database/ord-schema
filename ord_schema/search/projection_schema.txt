@@ -95,6 +95,14 @@ inputs: MAP<VARCHAR, STRUCT>
   texture: STRUCT
     type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
     details: VARCHAR
+  metadata: MAP<VARCHAR, STRUCT>
+    float_value: FLOAT
+    integer_value: INTEGER
+    bytes_value: BLOB
+    string_value: VARCHAR
+    url: VARCHAR
+    description: VARCHAR
+    format: VARCHAR
 setup: STRUCT
   vessel: STRUCT
     type: VARCHAR  (UNSPECIFIED | CUSTOM | ROUND_BOTTOM_FLASK | VIAL | WELL_PLATE | MICROWAVE_VIAL | TUBE | CONTINUOUS_STIRRED_TANK_REACTOR | PACKED_BED_REACTOR | NMR_TUBE | PRESSURE_FLASK | PRESSURE_REACTOR | ELECTROCHEMICAL_CELL)
@@ -127,6 +135,14 @@ setup: STRUCT
   environment: STRUCT
     type: VARCHAR  (UNSPECIFIED | CUSTOM | FUME_HOOD | BENCH_TOP | GLOVE_BOX | GLOVE_BAG)
     details: VARCHAR
+  metadata: MAP<VARCHAR, STRUCT>
+    float_value: FLOAT
+    integer_value: INTEGER
+    bytes_value: BLOB
+    string_value: VARCHAR
+    url: VARCHAR
+    description: VARCHAR
+    format: VARCHAR
 conditions: STRUCT
   temperature: STRUCT
     control: STRUCT
@@ -141,6 +157,14 @@ conditions: STRUCT
       time_precision_seconds: DOUBLE
       temperature_kelvin: DOUBLE
       temperature_precision_kelvin: DOUBLE
+    metadata: MAP<VARCHAR, STRUCT>
+      float_value: FLOAT
+      integer_value: INTEGER
+      bytes_value: BLOB
+      string_value: VARCHAR
+      url: VARCHAR
+      description: VARCHAR
+      format: VARCHAR
   pressure: STRUCT
     control: STRUCT
       type: VARCHAR  (UNSPECIFIED | CUSTOM | AMBIENT | SLIGHT_POSITIVE | SEALED | PRESSURIZED)
@@ -157,6 +181,14 @@ conditions: STRUCT
       time_precision_seconds: DOUBLE
       pressure_kilopascals: DOUBLE
       pressure_precision_kilopascals: DOUBLE
+    metadata: MAP<VARCHAR, STRUCT>
+      float_value: FLOAT
+      integer_value: INTEGER
+      bytes_value: BLOB
+      string_value: VARCHAR
+      url: VARCHAR
+      description: VARCHAR
+      format: VARCHAR
   stirring: STRUCT
     type: VARCHAR  (UNSPECIFIED | CUSTOM | NONE | STIR_BAR | OVERHEAD_MIXER | AGITATION | BALL_MILLING | SONICATION)
     details: VARCHAR
@@ -164,6 +196,14 @@ conditions: STRUCT
       type: VARCHAR  (UNSPECIFIED | HIGH | MEDIUM | LOW)
       details: VARCHAR
       rpm: INTEGER
+    metadata: MAP<VARCHAR, STRUCT>
+      float_value: FLOAT
+      integer_value: INTEGER
+      bytes_value: BLOB
+      string_value: VARCHAR
+      url: VARCHAR
+      description: VARCHAR
+      format: VARCHAR
   illumination: STRUCT
     type: VARCHAR  (UNSPECIFIED | CUSTOM | AMBIENT | DARK | LED | HALOGEN_LAMP | DEUTERIUM_LAMP | SOLAR_SIMULATOR | BROAD_SPECTRUM)
     details: VARCHAR
@@ -172,6 +212,14 @@ conditions: STRUCT
     color: VARCHAR
     distance_to_vessel_centimeters: DOUBLE
     distance_to_vessel_precision_centimeters: DOUBLE
+    metadata: MAP<VARCHAR, STRUCT>
+      float_value: FLOAT
+      integer_value: INTEGER
+      bytes_value: BLOB
+      string_value: VARCHAR
+      url: VARCHAR
+      description: VARCHAR
+      format: VARCHAR
   electrochemistry: STRUCT
     type: VARCHAR  (UNSPECIFIED | CUSTOM | CONSTANT_CURRENT | CONSTANT_VOLTAGE)
     details: VARCHAR
@@ -193,6 +241,14 @@ conditions: STRUCT
     cell: STRUCT
       type: VARCHAR  (UNSPECIFIED | CUSTOM | DIVIDED_CELL | UNDIVIDED_CELL)
       details: VARCHAR
+    metadata: MAP<VARCHAR, STRUCT>
+      float_value: FLOAT
+      integer_value: INTEGER
+      bytes_value: BLOB
+      string_value: VARCHAR
+      url: VARCHAR
+      description: VARCHAR
+      format: VARCHAR
   flow: STRUCT
     type: VARCHAR  (UNSPECIFIED | CUSTOM | PLUG_FLOW_REACTOR | CONTINUOUS_STIRRED_TANK_REACTOR | PACKED_BED_REACTOR)
     details: VARCHAR
@@ -202,10 +258,26 @@ conditions: STRUCT
       details: VARCHAR
       diameter_centimeters: DOUBLE
       diameter_precision_centimeters: DOUBLE
+    metadata: MAP<VARCHAR, STRUCT>
+      float_value: FLOAT
+      integer_value: INTEGER
+      bytes_value: BLOB
+      string_value: VARCHAR
+      url: VARCHAR
+      description: VARCHAR
+      format: VARCHAR
   reflux: BOOLEAN
   ph: FLOAT
   conditions_are_dynamic: BOOLEAN
   details: VARCHAR
+  metadata: MAP<VARCHAR, STRUCT>
+    float_value: FLOAT
+    integer_value: INTEGER
+    bytes_value: BLOB
+    string_value: VARCHAR
+    url: VARCHAR
+    description: VARCHAR
+    format: VARCHAR
 notes: STRUCT
   is_heterogeneous: BOOLEAN
   forms_precipitate: BOOLEAN
@@ -216,6 +288,14 @@ notes: STRUCT
   is_sensitive_to_light: BOOLEAN
   safety_notes: VARCHAR
   procedure_details: VARCHAR
+  metadata: MAP<VARCHAR, STRUCT>
+    float_value: FLOAT
+    integer_value: INTEGER
+    bytes_value: BLOB
+    string_value: VARCHAR
+    url: VARCHAR
+    description: VARCHAR
+    format: VARCHAR
 observations: LIST<STRUCT>
   time_seconds: DOUBLE
   time_precision_seconds: DOUBLE
@@ -324,6 +404,14 @@ workups: LIST<STRUCT>
     texture: STRUCT
       type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
       details: VARCHAR
+    metadata: MAP<VARCHAR, STRUCT>
+      float_value: FLOAT
+      integer_value: INTEGER
+      bytes_value: BLOB
+      string_value: VARCHAR
+      url: VARCHAR
+      description: VARCHAR
+      format: VARCHAR
   amount: STRUCT
     mass_grams: DOUBLE
     mass_precision_grams: DOUBLE
@@ -348,6 +436,14 @@ workups: LIST<STRUCT>
       time_precision_seconds: DOUBLE
       temperature_kelvin: DOUBLE
       temperature_precision_kelvin: DOUBLE
+    metadata: MAP<VARCHAR, STRUCT>
+      float_value: FLOAT
+      integer_value: INTEGER
+      bytes_value: BLOB
+      string_value: VARCHAR
+      url: VARCHAR
+      description: VARCHAR
+      format: VARCHAR
   keep_phase: VARCHAR
   stirring: STRUCT
     type: VARCHAR  (UNSPECIFIED | CUSTOM | NONE | STIR_BAR | OVERHEAD_MIXER | AGITATION | BALL_MILLING | SONICATION)
@@ -356,8 +452,24 @@ workups: LIST<STRUCT>
       type: VARCHAR  (UNSPECIFIED | HIGH | MEDIUM | LOW)
       details: VARCHAR
       rpm: INTEGER
+    metadata: MAP<VARCHAR, STRUCT>
+      float_value: FLOAT
+      integer_value: INTEGER
+      bytes_value: BLOB
+      string_value: VARCHAR
+      url: VARCHAR
+      description: VARCHAR
+      format: VARCHAR
   target_ph: FLOAT
   is_automated: BOOLEAN
+  metadata: MAP<VARCHAR, STRUCT>
+    float_value: FLOAT
+    integer_value: INTEGER
+    bytes_value: BLOB
+    string_value: VARCHAR
+    url: VARCHAR
+    description: VARCHAR
+    format: VARCHAR
 outcomes: LIST<STRUCT>
   reaction_time_seconds: DOUBLE
   reaction_time_precision_seconds: DOUBLE

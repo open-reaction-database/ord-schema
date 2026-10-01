@@ -68,6 +68,16 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
 
+# SQLAlchemy Declarative reserves Base.metadata (MetaData). Proto fields named
+# "metadata" are stored under this ORM attribute instead; from_proto/to_proto map
+# between the two names.
+_ORM_ATTR_RENAMES = {"metadata": "ord_metadata"}
+
+
+def _orm_attr_name(field_name: str) -> str:
+    """Returns the SQLAlchemy attribute name for a protobuf field name."""
+    return _ORM_ATTR_RENAMES.get(field_name, field_name)
+
 
 def get_message_type(full_name: str) -> Any:
     """Fetches the class for a protocol buffer message type."""
@@ -196,17 +206,18 @@ def build_mapper(
     if add_key:
         attrs["key"] = Column(Text)  # Map key.
     for field in msg_desc.fields:
+        attr_name = _orm_attr_name(field.name)
         if field.name == "eic_masses":
-            attrs[field.name] = Column(ARRAY(Float))
+            attrs[attr_name] = Column(ARRAY(Float))
         elif field.name == "reaction_ids":
-            attrs[field.name] = Column(ARRAY(Text))
+            attrs[attr_name] = Column(ARRAY(Text))
         elif field.type == FieldDescriptor.TYPE_MESSAGE:
             kwargs = {}
             if field.label != FieldDescriptor.LABEL_REPEATED:
                 kwargs["uselist"] = False
             # All relationships are to polymorphic child classes.
             child_class_name = f"_{msg_desc.name}{field.name.capitalize()}"
-            attrs[field.name] = relationship(
+            attrs[attr_name] = relationship(
                 child_class_name, back_populates="parent", **kwargs
             )
         elif field.type == FieldDescriptor.TYPE_ENUM:
@@ -217,7 +228,7 @@ def build_mapper(
             # referenced unqualified, which breaks when the default search_path does
             # not include ord (e.g. a role with an eponymous schema connecting to a
             # public-only search_path).
-            attrs[field.name] = Column(
+            attrs[attr_name] = Column(
                 Enum(
                     *field.enum_type.values_by_name.keys(),
                     name=field.enum_type.name,
@@ -225,7 +236,7 @@ def build_mapper(
                 )
             )
         else:
-            attrs[field.name] = Column(_FIELD_TYPES[field.type])
+            attrs[attr_name] = Column(_FIELD_TYPES[field.type])
     if message_type == dataset_pb2.Dataset:
         # Make dataset IDs globally unique.
         attrs["dataset_id"] = Column(Text, nullable=False, unique=True)
@@ -284,7 +295,9 @@ def build_mapper(
                 Column(Uuid, ForeignKey(foreign_key, ondelete="CASCADE")),
             ),
             "parent": relationship(
-                parent_desc.name, back_populates=field_name, uselist=False
+                parent_desc.name,
+                back_populates=_orm_attr_name(field_name),
+                uselist=False,
             ),
         }
         child_class_name = f"_{parent_desc.name}{field_name.capitalize()}"
@@ -353,20 +366,21 @@ def from_proto(
     if key is not None:
         kwargs["key"] = key
     for field, value in message.ListFields():
+        attr_name = _orm_attr_name(field.name)
         if field.type == FieldDescriptor.TYPE_MESSAGE:
-            field_mapper = getattr(mapper, field.name).mapper.class_
+            field_mapper = getattr(mapper, attr_name).mapper.class_
             if isinstance(value, Mapping):
-                kwargs[field.name] = [
+                kwargs[attr_name] = [
                     from_proto(v, mapper=field_mapper, key=k) for k, v in value.items()
                 ]
             elif field.label == FieldDescriptor.LABEL_REPEATED:
-                kwargs[field.name] = [from_proto(v, mapper=field_mapper) for v in value]
+                kwargs[attr_name] = [from_proto(v, mapper=field_mapper) for v in value]
             else:
-                kwargs[field.name] = from_proto(value, mapper=field_mapper)
+                kwargs[attr_name] = from_proto(value, mapper=field_mapper)
         elif field.type == FieldDescriptor.TYPE_ENUM:
-            kwargs[field.name] = field.enum_type.values_by_number[value].name
+            kwargs[attr_name] = field.enum_type.values_by_number[value].name
         else:
-            kwargs[field.name] = value
+            kwargs[attr_name] = value
     if isinstance(message, dataset_pb2.Dataset):
         kwargs["metadata_row"] = DatasetMetadata(
             md5=md5(
@@ -402,7 +416,7 @@ def to_proto(base: Base) -> Message:
     proto_desc = proto.DESCRIPTOR
     assert proto_desc is not None  # Type hint.
     for field in proto_desc.fields:
-        value = getattr(base, field.name)
+        value = getattr(base, _orm_attr_name(field.name))
         if isinstance(value, list) and len(value) == 0:
             continue
         if isinstance(value, list) and isinstance(value[0], Base):

@@ -1,3 +1,17 @@
+# Copyright 2024 Open Reaction Database Project Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -66,7 +80,7 @@ class ReactionIdentifier(_message.Message):
     def __init__(self, type: _Optional[_Union[ReactionIdentifier.ReactionIdentifierType, str]] = ..., details: _Optional[str] = ..., value: _Optional[str] = ..., is_mapped: bool = ...) -> None: ...
 
 class ReactionInput(_message.Message):
-    __slots__ = ["components", "crude_components", "addition_order", "addition_time", "addition_speed", "addition_duration", "flow_rate", "addition_device", "addition_temperature", "texture"]
+    __slots__ = ["components", "crude_components", "addition_order", "addition_time", "addition_speed", "addition_duration", "flow_rate", "addition_device", "addition_temperature", "texture", "metadata"]
     class AdditionSpeed(_message.Message):
         __slots__ = ["type", "details"]
         class AdditionSpeedType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -121,6 +135,13 @@ class ReactionInput(_message.Message):
         type: ReactionInput.AdditionDevice.AdditionDeviceType
         details: str
         def __init__(self, type: _Optional[_Union[ReactionInput.AdditionDevice.AdditionDeviceType, str]] = ..., details: _Optional[str] = ...) -> None: ...
+    class MetadataEntry(_message.Message):
+        __slots__ = ["key", "value"]
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: Data
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
     COMPONENTS_FIELD_NUMBER: _ClassVar[int]
     CRUDE_COMPONENTS_FIELD_NUMBER: _ClassVar[int]
     ADDITION_ORDER_FIELD_NUMBER: _ClassVar[int]
@@ -131,6 +152,7 @@ class ReactionInput(_message.Message):
     ADDITION_DEVICE_FIELD_NUMBER: _ClassVar[int]
     ADDITION_TEMPERATURE_FIELD_NUMBER: _ClassVar[int]
     TEXTURE_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
     components: _containers.RepeatedCompositeFieldContainer[Compound]
     crude_components: _containers.RepeatedCompositeFieldContainer[CrudeComponent]
     addition_order: int
@@ -141,7 +163,8 @@ class ReactionInput(_message.Message):
     addition_device: ReactionInput.AdditionDevice
     addition_temperature: Temperature
     texture: Texture
-    def __init__(self, components: _Optional[_Iterable[_Union[Compound, _Mapping]]] = ..., crude_components: _Optional[_Iterable[_Union[CrudeComponent, _Mapping]]] = ..., addition_order: _Optional[int] = ..., addition_time: _Optional[_Union[Time, _Mapping]] = ..., addition_speed: _Optional[_Union[ReactionInput.AdditionSpeed, _Mapping]] = ..., addition_duration: _Optional[_Union[Time, _Mapping]] = ..., flow_rate: _Optional[_Union[FlowRate, _Mapping]] = ..., addition_device: _Optional[_Union[ReactionInput.AdditionDevice, _Mapping]] = ..., addition_temperature: _Optional[_Union[Temperature, _Mapping]] = ..., texture: _Optional[_Union[Texture, _Mapping]] = ...) -> None: ...
+    metadata: _containers.MessageMap[str, Data]
+    def __init__(self, components: _Optional[_Iterable[_Union[Compound, _Mapping]]] = ..., crude_components: _Optional[_Iterable[_Union[CrudeComponent, _Mapping]]] = ..., addition_order: _Optional[int] = ..., addition_time: _Optional[_Union[Time, _Mapping]] = ..., addition_speed: _Optional[_Union[ReactionInput.AdditionSpeed, _Mapping]] = ..., addition_duration: _Optional[_Union[Time, _Mapping]] = ..., flow_rate: _Optional[_Union[FlowRate, _Mapping]] = ..., addition_device: _Optional[_Union[ReactionInput.AdditionDevice, _Mapping]] = ..., addition_temperature: _Optional[_Union[Temperature, _Mapping]] = ..., texture: _Optional[_Union[Texture, _Mapping]] = ..., metadata: _Optional[_Mapping[str, Data]] = ...) -> None: ...
 
 class Amount(_message.Message):
     __slots__ = ["mass", "moles", "volume", "unmeasured", "volume_includes_solutes"]
@@ -519,7 +542,7 @@ class VesselPreparation(_message.Message):
     def __init__(self, type: _Optional[_Union[VesselPreparation.VesselPreparationType, str]] = ..., details: _Optional[str] = ...) -> None: ...
 
 class ReactionSetup(_message.Message):
-    __slots__ = ["vessel", "is_automated", "automation_platform", "automation_code", "environment"]
+    __slots__ = ["vessel", "is_automated", "automation_platform", "automation_code", "environment", "metadata"]
     class AutomationCodeEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -548,20 +571,36 @@ class ReactionSetup(_message.Message):
         type: ReactionSetup.ReactionEnvironment.ReactionEnvironmentType
         details: str
         def __init__(self, type: _Optional[_Union[ReactionSetup.ReactionEnvironment.ReactionEnvironmentType, str]] = ..., details: _Optional[str] = ...) -> None: ...
+    class MetadataEntry(_message.Message):
+        __slots__ = ["key", "value"]
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: Data
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
     VESSEL_FIELD_NUMBER: _ClassVar[int]
     IS_AUTOMATED_FIELD_NUMBER: _ClassVar[int]
     AUTOMATION_PLATFORM_FIELD_NUMBER: _ClassVar[int]
     AUTOMATION_CODE_FIELD_NUMBER: _ClassVar[int]
     ENVIRONMENT_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
     vessel: Vessel
     is_automated: bool
     automation_platform: str
     automation_code: _containers.MessageMap[str, Data]
     environment: ReactionSetup.ReactionEnvironment
-    def __init__(self, vessel: _Optional[_Union[Vessel, _Mapping]] = ..., is_automated: bool = ..., automation_platform: _Optional[str] = ..., automation_code: _Optional[_Mapping[str, Data]] = ..., environment: _Optional[_Union[ReactionSetup.ReactionEnvironment, _Mapping]] = ...) -> None: ...
+    metadata: _containers.MessageMap[str, Data]
+    def __init__(self, vessel: _Optional[_Union[Vessel, _Mapping]] = ..., is_automated: bool = ..., automation_platform: _Optional[str] = ..., automation_code: _Optional[_Mapping[str, Data]] = ..., environment: _Optional[_Union[ReactionSetup.ReactionEnvironment, _Mapping]] = ..., metadata: _Optional[_Mapping[str, Data]] = ...) -> None: ...
 
 class ReactionConditions(_message.Message):
-    __slots__ = ["temperature", "pressure", "stirring", "illumination", "electrochemistry", "flow", "reflux", "ph", "conditions_are_dynamic", "details"]
+    __slots__ = ["temperature", "pressure", "stirring", "illumination", "electrochemistry", "flow", "reflux", "ph", "conditions_are_dynamic", "details", "metadata"]
+    class MetadataEntry(_message.Message):
+        __slots__ = ["key", "value"]
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: Data
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
     TEMPERATURE_FIELD_NUMBER: _ClassVar[int]
     PRESSURE_FIELD_NUMBER: _ClassVar[int]
     STIRRING_FIELD_NUMBER: _ClassVar[int]
@@ -572,6 +611,7 @@ class ReactionConditions(_message.Message):
     PH_FIELD_NUMBER: _ClassVar[int]
     CONDITIONS_ARE_DYNAMIC_FIELD_NUMBER: _ClassVar[int]
     DETAILS_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
     temperature: TemperatureConditions
     pressure: PressureConditions
     stirring: StirringConditions
@@ -582,10 +622,11 @@ class ReactionConditions(_message.Message):
     ph: float
     conditions_are_dynamic: bool
     details: str
-    def __init__(self, temperature: _Optional[_Union[TemperatureConditions, _Mapping]] = ..., pressure: _Optional[_Union[PressureConditions, _Mapping]] = ..., stirring: _Optional[_Union[StirringConditions, _Mapping]] = ..., illumination: _Optional[_Union[IlluminationConditions, _Mapping]] = ..., electrochemistry: _Optional[_Union[ElectrochemistryConditions, _Mapping]] = ..., flow: _Optional[_Union[FlowConditions, _Mapping]] = ..., reflux: bool = ..., ph: _Optional[float] = ..., conditions_are_dynamic: bool = ..., details: _Optional[str] = ...) -> None: ...
+    metadata: _containers.MessageMap[str, Data]
+    def __init__(self, temperature: _Optional[_Union[TemperatureConditions, _Mapping]] = ..., pressure: _Optional[_Union[PressureConditions, _Mapping]] = ..., stirring: _Optional[_Union[StirringConditions, _Mapping]] = ..., illumination: _Optional[_Union[IlluminationConditions, _Mapping]] = ..., electrochemistry: _Optional[_Union[ElectrochemistryConditions, _Mapping]] = ..., flow: _Optional[_Union[FlowConditions, _Mapping]] = ..., reflux: bool = ..., ph: _Optional[float] = ..., conditions_are_dynamic: bool = ..., details: _Optional[str] = ..., metadata: _Optional[_Mapping[str, Data]] = ...) -> None: ...
 
 class TemperatureConditions(_message.Message):
-    __slots__ = ["control", "setpoint", "measurements"]
+    __slots__ = ["control", "setpoint", "measurements", "metadata"]
     class TemperatureControl(_message.Message):
         __slots__ = ["type", "details"]
         class TemperatureControlType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -642,16 +683,25 @@ class TemperatureConditions(_message.Message):
         time: Time
         temperature: Temperature
         def __init__(self, type: _Optional[_Union[TemperatureConditions.TemperatureMeasurement.TemperatureMeasurementType, str]] = ..., details: _Optional[str] = ..., time: _Optional[_Union[Time, _Mapping]] = ..., temperature: _Optional[_Union[Temperature, _Mapping]] = ...) -> None: ...
+    class MetadataEntry(_message.Message):
+        __slots__ = ["key", "value"]
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: Data
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
     CONTROL_FIELD_NUMBER: _ClassVar[int]
     SETPOINT_FIELD_NUMBER: _ClassVar[int]
     MEASUREMENTS_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
     control: TemperatureConditions.TemperatureControl
     setpoint: Temperature
     measurements: _containers.RepeatedCompositeFieldContainer[TemperatureConditions.TemperatureMeasurement]
-    def __init__(self, control: _Optional[_Union[TemperatureConditions.TemperatureControl, _Mapping]] = ..., setpoint: _Optional[_Union[Temperature, _Mapping]] = ..., measurements: _Optional[_Iterable[_Union[TemperatureConditions.TemperatureMeasurement, _Mapping]]] = ...) -> None: ...
+    metadata: _containers.MessageMap[str, Data]
+    def __init__(self, control: _Optional[_Union[TemperatureConditions.TemperatureControl, _Mapping]] = ..., setpoint: _Optional[_Union[Temperature, _Mapping]] = ..., measurements: _Optional[_Iterable[_Union[TemperatureConditions.TemperatureMeasurement, _Mapping]]] = ..., metadata: _Optional[_Mapping[str, Data]] = ...) -> None: ...
 
 class PressureConditions(_message.Message):
-    __slots__ = ["control", "setpoint", "atmosphere", "measurements"]
+    __slots__ = ["control", "setpoint", "atmosphere", "measurements", "metadata"]
     class PressureControl(_message.Message):
         __slots__ = ["type", "details"]
         class PressureControlType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -729,18 +779,27 @@ class PressureConditions(_message.Message):
         time: Time
         pressure: Pressure
         def __init__(self, type: _Optional[_Union[PressureConditions.PressureMeasurement.PressureMeasurementType, str]] = ..., details: _Optional[str] = ..., time: _Optional[_Union[Time, _Mapping]] = ..., pressure: _Optional[_Union[Pressure, _Mapping]] = ...) -> None: ...
+    class MetadataEntry(_message.Message):
+        __slots__ = ["key", "value"]
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: Data
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
     CONTROL_FIELD_NUMBER: _ClassVar[int]
     SETPOINT_FIELD_NUMBER: _ClassVar[int]
     ATMOSPHERE_FIELD_NUMBER: _ClassVar[int]
     MEASUREMENTS_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
     control: PressureConditions.PressureControl
     setpoint: Pressure
     atmosphere: PressureConditions.Atmosphere
     measurements: _containers.RepeatedCompositeFieldContainer[PressureConditions.PressureMeasurement]
-    def __init__(self, control: _Optional[_Union[PressureConditions.PressureControl, _Mapping]] = ..., setpoint: _Optional[_Union[Pressure, _Mapping]] = ..., atmosphere: _Optional[_Union[PressureConditions.Atmosphere, _Mapping]] = ..., measurements: _Optional[_Iterable[_Union[PressureConditions.PressureMeasurement, _Mapping]]] = ...) -> None: ...
+    metadata: _containers.MessageMap[str, Data]
+    def __init__(self, control: _Optional[_Union[PressureConditions.PressureControl, _Mapping]] = ..., setpoint: _Optional[_Union[Pressure, _Mapping]] = ..., atmosphere: _Optional[_Union[PressureConditions.Atmosphere, _Mapping]] = ..., measurements: _Optional[_Iterable[_Union[PressureConditions.PressureMeasurement, _Mapping]]] = ..., metadata: _Optional[_Mapping[str, Data]] = ...) -> None: ...
 
 class StirringConditions(_message.Message):
-    __slots__ = ["type", "details", "rate"]
+    __slots__ = ["type", "details", "rate", "metadata"]
     class StirringMethodType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
         UNSPECIFIED: _ClassVar[StirringConditions.StirringMethodType]
@@ -778,16 +837,25 @@ class StirringConditions(_message.Message):
         details: str
         rpm: int
         def __init__(self, type: _Optional[_Union[StirringConditions.StirringRate.StirringRateType, str]] = ..., details: _Optional[str] = ..., rpm: _Optional[int] = ...) -> None: ...
+    class MetadataEntry(_message.Message):
+        __slots__ = ["key", "value"]
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: Data
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
     TYPE_FIELD_NUMBER: _ClassVar[int]
     DETAILS_FIELD_NUMBER: _ClassVar[int]
     RATE_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
     type: StirringConditions.StirringMethodType
     details: str
     rate: StirringConditions.StirringRate
-    def __init__(self, type: _Optional[_Union[StirringConditions.StirringMethodType, str]] = ..., details: _Optional[str] = ..., rate: _Optional[_Union[StirringConditions.StirringRate, _Mapping]] = ...) -> None: ...
+    metadata: _containers.MessageMap[str, Data]
+    def __init__(self, type: _Optional[_Union[StirringConditions.StirringMethodType, str]] = ..., details: _Optional[str] = ..., rate: _Optional[_Union[StirringConditions.StirringRate, _Mapping]] = ..., metadata: _Optional[_Mapping[str, Data]] = ...) -> None: ...
 
 class IlluminationConditions(_message.Message):
-    __slots__ = ["type", "details", "peak_wavelength", "color", "distance_to_vessel"]
+    __slots__ = ["type", "details", "peak_wavelength", "color", "distance_to_vessel", "metadata"]
     class IlluminationType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
         UNSPECIFIED: _ClassVar[IlluminationConditions.IlluminationType]
@@ -808,20 +876,29 @@ class IlluminationConditions(_message.Message):
     DEUTERIUM_LAMP: IlluminationConditions.IlluminationType
     SOLAR_SIMULATOR: IlluminationConditions.IlluminationType
     BROAD_SPECTRUM: IlluminationConditions.IlluminationType
+    class MetadataEntry(_message.Message):
+        __slots__ = ["key", "value"]
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: Data
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
     TYPE_FIELD_NUMBER: _ClassVar[int]
     DETAILS_FIELD_NUMBER: _ClassVar[int]
     PEAK_WAVELENGTH_FIELD_NUMBER: _ClassVar[int]
     COLOR_FIELD_NUMBER: _ClassVar[int]
     DISTANCE_TO_VESSEL_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
     type: IlluminationConditions.IlluminationType
     details: str
     peak_wavelength: Wavelength
     color: str
     distance_to_vessel: Length
-    def __init__(self, type: _Optional[_Union[IlluminationConditions.IlluminationType, str]] = ..., details: _Optional[str] = ..., peak_wavelength: _Optional[_Union[Wavelength, _Mapping]] = ..., color: _Optional[str] = ..., distance_to_vessel: _Optional[_Union[Length, _Mapping]] = ...) -> None: ...
+    metadata: _containers.MessageMap[str, Data]
+    def __init__(self, type: _Optional[_Union[IlluminationConditions.IlluminationType, str]] = ..., details: _Optional[str] = ..., peak_wavelength: _Optional[_Union[Wavelength, _Mapping]] = ..., color: _Optional[str] = ..., distance_to_vessel: _Optional[_Union[Length, _Mapping]] = ..., metadata: _Optional[_Mapping[str, Data]] = ...) -> None: ...
 
 class ElectrochemistryConditions(_message.Message):
-    __slots__ = ["type", "details", "current", "voltage", "anode_material", "cathode_material", "electrode_separation", "measurements", "cell"]
+    __slots__ = ["type", "details", "current", "voltage", "anode_material", "cathode_material", "electrode_separation", "measurements", "cell", "metadata"]
     class ElectrochemistryType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
         UNSPECIFIED: _ClassVar[ElectrochemistryConditions.ElectrochemistryType]
@@ -858,6 +935,13 @@ class ElectrochemistryConditions(_message.Message):
         type: ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType
         details: str
         def __init__(self, type: _Optional[_Union[ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType, str]] = ..., details: _Optional[str] = ...) -> None: ...
+    class MetadataEntry(_message.Message):
+        __slots__ = ["key", "value"]
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: Data
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
     TYPE_FIELD_NUMBER: _ClassVar[int]
     DETAILS_FIELD_NUMBER: _ClassVar[int]
     CURRENT_FIELD_NUMBER: _ClassVar[int]
@@ -867,6 +951,7 @@ class ElectrochemistryConditions(_message.Message):
     ELECTRODE_SEPARATION_FIELD_NUMBER: _ClassVar[int]
     MEASUREMENTS_FIELD_NUMBER: _ClassVar[int]
     CELL_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
     type: ElectrochemistryConditions.ElectrochemistryType
     details: str
     current: Current
@@ -876,10 +961,11 @@ class ElectrochemistryConditions(_message.Message):
     electrode_separation: Length
     measurements: _containers.RepeatedCompositeFieldContainer[ElectrochemistryConditions.ElectrochemistryMeasurement]
     cell: ElectrochemistryConditions.ElectrochemistryCell
-    def __init__(self, type: _Optional[_Union[ElectrochemistryConditions.ElectrochemistryType, str]] = ..., details: _Optional[str] = ..., current: _Optional[_Union[Current, _Mapping]] = ..., voltage: _Optional[_Union[Voltage, _Mapping]] = ..., anode_material: _Optional[str] = ..., cathode_material: _Optional[str] = ..., electrode_separation: _Optional[_Union[Length, _Mapping]] = ..., measurements: _Optional[_Iterable[_Union[ElectrochemistryConditions.ElectrochemistryMeasurement, _Mapping]]] = ..., cell: _Optional[_Union[ElectrochemistryConditions.ElectrochemistryCell, _Mapping]] = ...) -> None: ...
+    metadata: _containers.MessageMap[str, Data]
+    def __init__(self, type: _Optional[_Union[ElectrochemistryConditions.ElectrochemistryType, str]] = ..., details: _Optional[str] = ..., current: _Optional[_Union[Current, _Mapping]] = ..., voltage: _Optional[_Union[Voltage, _Mapping]] = ..., anode_material: _Optional[str] = ..., cathode_material: _Optional[str] = ..., electrode_separation: _Optional[_Union[Length, _Mapping]] = ..., measurements: _Optional[_Iterable[_Union[ElectrochemistryConditions.ElectrochemistryMeasurement, _Mapping]]] = ..., cell: _Optional[_Union[ElectrochemistryConditions.ElectrochemistryCell, _Mapping]] = ..., metadata: _Optional[_Mapping[str, Data]] = ...) -> None: ...
 
 class FlowConditions(_message.Message):
-    __slots__ = ["type", "details", "pump_type", "tubing"]
+    __slots__ = ["type", "details", "pump_type", "tubing", "metadata"]
     class FlowType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
         UNSPECIFIED: _ClassVar[FlowConditions.FlowType]
@@ -927,18 +1013,34 @@ class FlowConditions(_message.Message):
         details: str
         diameter: Length
         def __init__(self, type: _Optional[_Union[FlowConditions.Tubing.TubingType, str]] = ..., details: _Optional[str] = ..., diameter: _Optional[_Union[Length, _Mapping]] = ...) -> None: ...
+    class MetadataEntry(_message.Message):
+        __slots__ = ["key", "value"]
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: Data
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
     TYPE_FIELD_NUMBER: _ClassVar[int]
     DETAILS_FIELD_NUMBER: _ClassVar[int]
     PUMP_TYPE_FIELD_NUMBER: _ClassVar[int]
     TUBING_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
     type: FlowConditions.FlowType
     details: str
     pump_type: str
     tubing: FlowConditions.Tubing
-    def __init__(self, type: _Optional[_Union[FlowConditions.FlowType, str]] = ..., details: _Optional[str] = ..., pump_type: _Optional[str] = ..., tubing: _Optional[_Union[FlowConditions.Tubing, _Mapping]] = ...) -> None: ...
+    metadata: _containers.MessageMap[str, Data]
+    def __init__(self, type: _Optional[_Union[FlowConditions.FlowType, str]] = ..., details: _Optional[str] = ..., pump_type: _Optional[str] = ..., tubing: _Optional[_Union[FlowConditions.Tubing, _Mapping]] = ..., metadata: _Optional[_Mapping[str, Data]] = ...) -> None: ...
 
 class ReactionNotes(_message.Message):
-    __slots__ = ["is_heterogeneous", "forms_precipitate", "is_exothermic", "offgasses", "is_sensitive_to_moisture", "is_sensitive_to_oxygen", "is_sensitive_to_light", "safety_notes", "procedure_details"]
+    __slots__ = ["is_heterogeneous", "forms_precipitate", "is_exothermic", "offgasses", "is_sensitive_to_moisture", "is_sensitive_to_oxygen", "is_sensitive_to_light", "safety_notes", "procedure_details", "metadata"]
+    class MetadataEntry(_message.Message):
+        __slots__ = ["key", "value"]
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: Data
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
     IS_HETEROGENEOUS_FIELD_NUMBER: _ClassVar[int]
     FORMS_PRECIPITATE_FIELD_NUMBER: _ClassVar[int]
     IS_EXOTHERMIC_FIELD_NUMBER: _ClassVar[int]
@@ -948,6 +1050,7 @@ class ReactionNotes(_message.Message):
     IS_SENSITIVE_TO_LIGHT_FIELD_NUMBER: _ClassVar[int]
     SAFETY_NOTES_FIELD_NUMBER: _ClassVar[int]
     PROCEDURE_DETAILS_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
     is_heterogeneous: bool
     forms_precipitate: bool
     is_exothermic: bool
@@ -957,7 +1060,8 @@ class ReactionNotes(_message.Message):
     is_sensitive_to_light: bool
     safety_notes: str
     procedure_details: str
-    def __init__(self, is_heterogeneous: bool = ..., forms_precipitate: bool = ..., is_exothermic: bool = ..., offgasses: bool = ..., is_sensitive_to_moisture: bool = ..., is_sensitive_to_oxygen: bool = ..., is_sensitive_to_light: bool = ..., safety_notes: _Optional[str] = ..., procedure_details: _Optional[str] = ...) -> None: ...
+    metadata: _containers.MessageMap[str, Data]
+    def __init__(self, is_heterogeneous: bool = ..., forms_precipitate: bool = ..., is_exothermic: bool = ..., offgasses: bool = ..., is_sensitive_to_moisture: bool = ..., is_sensitive_to_oxygen: bool = ..., is_sensitive_to_light: bool = ..., safety_notes: _Optional[str] = ..., procedure_details: _Optional[str] = ..., metadata: _Optional[_Mapping[str, Data]] = ...) -> None: ...
 
 class ReactionObservation(_message.Message):
     __slots__ = ["time", "comment", "image"]
@@ -970,7 +1074,7 @@ class ReactionObservation(_message.Message):
     def __init__(self, time: _Optional[_Union[Time, _Mapping]] = ..., comment: _Optional[str] = ..., image: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
 
 class ReactionWorkup(_message.Message):
-    __slots__ = ["type", "details", "duration", "input", "amount", "temperature", "keep_phase", "stirring", "target_ph", "is_automated"]
+    __slots__ = ["type", "details", "duration", "input", "amount", "temperature", "keep_phase", "stirring", "target_ph", "is_automated", "metadata"]
     class ReactionWorkupType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
         UNSPECIFIED: _ClassVar[ReactionWorkup.ReactionWorkupType]
@@ -1011,6 +1115,13 @@ class ReactionWorkup(_message.Message):
     PH_ADJUST: ReactionWorkup.ReactionWorkupType
     DISSOLUTION: ReactionWorkup.ReactionWorkupType
     DISTILLATION: ReactionWorkup.ReactionWorkupType
+    class MetadataEntry(_message.Message):
+        __slots__ = ["key", "value"]
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: Data
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
     TYPE_FIELD_NUMBER: _ClassVar[int]
     DETAILS_FIELD_NUMBER: _ClassVar[int]
     DURATION_FIELD_NUMBER: _ClassVar[int]
@@ -1021,6 +1132,7 @@ class ReactionWorkup(_message.Message):
     STIRRING_FIELD_NUMBER: _ClassVar[int]
     TARGET_PH_FIELD_NUMBER: _ClassVar[int]
     IS_AUTOMATED_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
     type: ReactionWorkup.ReactionWorkupType
     details: str
     duration: Time
@@ -1031,7 +1143,8 @@ class ReactionWorkup(_message.Message):
     stirring: StirringConditions
     target_ph: float
     is_automated: bool
-    def __init__(self, type: _Optional[_Union[ReactionWorkup.ReactionWorkupType, str]] = ..., details: _Optional[str] = ..., duration: _Optional[_Union[Time, _Mapping]] = ..., input: _Optional[_Union[ReactionInput, _Mapping]] = ..., amount: _Optional[_Union[Amount, _Mapping]] = ..., temperature: _Optional[_Union[TemperatureConditions, _Mapping]] = ..., keep_phase: _Optional[str] = ..., stirring: _Optional[_Union[StirringConditions, _Mapping]] = ..., target_ph: _Optional[float] = ..., is_automated: bool = ...) -> None: ...
+    metadata: _containers.MessageMap[str, Data]
+    def __init__(self, type: _Optional[_Union[ReactionWorkup.ReactionWorkupType, str]] = ..., details: _Optional[str] = ..., duration: _Optional[_Union[Time, _Mapping]] = ..., input: _Optional[_Union[ReactionInput, _Mapping]] = ..., amount: _Optional[_Union[Amount, _Mapping]] = ..., temperature: _Optional[_Union[TemperatureConditions, _Mapping]] = ..., keep_phase: _Optional[str] = ..., stirring: _Optional[_Union[StirringConditions, _Mapping]] = ..., target_ph: _Optional[float] = ..., is_automated: bool = ..., metadata: _Optional[_Mapping[str, Data]] = ...) -> None: ...
 
 class ReactionOutcome(_message.Message):
     __slots__ = ["reaction_time", "conversion", "products", "analyses"]
