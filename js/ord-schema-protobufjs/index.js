@@ -58,7 +58,7 @@ export const ord = $root.ord = (() => {
             this.reactionIds = [];
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -123,16 +123,20 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Dataset.encode = function encode(message, writer) {
+        Dataset.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.name != null && Object.hasOwnProperty.call(message, "name"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.name);
             if (message.description != null && Object.hasOwnProperty.call(message, "description"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.description);
             if (message.reactions != null && message.reactions.length)
                 for (let i = 0; i < message.reactions.length; ++i)
-                    $root.ord.Reaction.encode(message.reactions[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                    $root.ord.Reaction.encode(message.reactions[i], writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             if (message.reactionIds != null && message.reactionIds.length)
                 for (let i = 0; i < message.reactionIds.length; ++i)
                     writer.uint32(/* id 4, wireType 2 =*/34).string(message.reactionIds[i]);
@@ -151,7 +155,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Dataset.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -165,12 +169,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Dataset.decode = function decode(reader, length) {
+        Dataset.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Dataset();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Dataset();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.name = reader.string();
@@ -183,7 +203,7 @@ export const ord = $root.ord = (() => {
                 case 3: {
                         if (!(message.reactions && message.reactions.length))
                             message.reactions = [];
-                        message.reactions.push($root.ord.Reaction.decode(reader, reader.uint32()));
+                        message.reactions.push($root.ord.Reaction.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 4: {
@@ -197,9 +217,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -228,32 +253,36 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Dataset.verify = function verify(message) {
+        Dataset.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.name != null && message.hasOwnProperty("name"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
                 if (!$util.isString(message.name))
                     return "name: string expected";
-            if (message.description != null && message.hasOwnProperty("description"))
+            if (message.description != null && Object.hasOwnProperty.call(message, "description"))
                 if (!$util.isString(message.description))
                     return "description: string expected";
-            if (message.reactions != null && message.hasOwnProperty("reactions")) {
+            if (message.reactions != null && Object.hasOwnProperty.call(message, "reactions")) {
                 if (!Array.isArray(message.reactions))
                     return "reactions: array expected";
                 for (let i = 0; i < message.reactions.length; ++i) {
-                    let error = $root.ord.Reaction.verify(message.reactions[i]);
+                    let error = $root.ord.Reaction.verify(message.reactions[i], long + 1);
                     if (error)
                         return "reactions." + error;
                 }
             }
-            if (message.reactionIds != null && message.hasOwnProperty("reactionIds")) {
+            if (message.reactionIds != null && Object.hasOwnProperty.call(message, "reactionIds")) {
                 if (!Array.isArray(message.reactionIds))
                     return "reactionIds: array expected";
                 for (let i = 0; i < message.reactionIds.length; ++i)
                     if (!$util.isString(message.reactionIds[i]))
                         return "reactionIds: string[] expected";
             }
-            if (message.datasetId != null && message.hasOwnProperty("datasetId"))
+            if (message.datasetId != null && Object.hasOwnProperty.call(message, "datasetId"))
                 if (!$util.isString(message.datasetId))
                     return "datasetId: string expected";
             return null;
@@ -267,9 +296,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Dataset} Dataset
          */
-        Dataset.fromObject = function fromObject(object) {
+        Dataset.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Dataset)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Dataset: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Dataset();
             if (object.name != null)
                 message.name = String(object.name);
@@ -280,9 +315,9 @@ export const ord = $root.ord = (() => {
                     throw TypeError(".ord.Dataset.reactions: array expected");
                 message.reactions = [];
                 for (let i = 0; i < object.reactions.length; ++i) {
-                    if (typeof object.reactions[i] !== "object")
+                    if (!$util.isObject(object.reactions[i]))
                         throw TypeError(".ord.Dataset.reactions: object expected");
-                    message.reactions[i] = $root.ord.Reaction.fromObject(object.reactions[i]);
+                    message.reactions[i] = $root.ord.Reaction.fromObject(object.reactions[i], long + 1);
                 }
             }
             if (object.reactionIds) {
@@ -306,9 +341,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Dataset.toObject = function toObject(message, options) {
+        Dataset.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.arrays || options.defaults) {
                 object.reactions = [];
@@ -319,21 +358,21 @@ export const ord = $root.ord = (() => {
                 object.description = "";
                 object.datasetId = "";
             }
-            if (message.name != null && message.hasOwnProperty("name"))
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
                 object.name = message.name;
-            if (message.description != null && message.hasOwnProperty("description"))
+            if (message.description != null && Object.hasOwnProperty.call(message, "description"))
                 object.description = message.description;
             if (message.reactions && message.reactions.length) {
                 object.reactions = [];
                 for (let j = 0; j < message.reactions.length; ++j)
-                    object.reactions[j] = $root.ord.Reaction.toObject(message.reactions[j], options);
+                    object.reactions[j] = $root.ord.Reaction.toObject(message.reactions[j], options, q + 1);
             }
             if (message.reactionIds && message.reactionIds.length) {
                 object.reactionIds = [];
                 for (let j = 0; j < message.reactionIds.length; ++j)
                     object.reactionIds[j] = message.reactionIds[j];
             }
-            if (message.datasetId != null && message.hasOwnProperty("datasetId"))
+            if (message.datasetId != null && Object.hasOwnProperty.call(message, "datasetId"))
                 object.datasetId = message.datasetId;
             return object;
         };
@@ -390,7 +429,7 @@ export const ord = $root.ord = (() => {
         function DatasetExample(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -447,9 +486,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        DatasetExample.encode = function encode(message, writer) {
+        DatasetExample.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.datasetId != null && Object.hasOwnProperty.call(message, "datasetId"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.datasetId);
             if (message.description != null && Object.hasOwnProperty.call(message, "description"))
@@ -457,7 +500,7 @@ export const ord = $root.ord = (() => {
             if (message.url != null && Object.hasOwnProperty.call(message, "url"))
                 writer.uint32(/* id 3, wireType 2 =*/26).string(message.url);
             if (message.created != null && Object.hasOwnProperty.call(message, "created"))
-                $root.ord.RecordEvent.encode(message.created, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                $root.ord.RecordEvent.encode(message.created, writer.uint32(/* id 4, wireType 2 =*/34).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -471,7 +514,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         DatasetExample.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -485,12 +528,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        DatasetExample.decode = function decode(reader, length) {
+        DatasetExample.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.DatasetExample();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.DatasetExample();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.datasetId = reader.string();
@@ -505,13 +564,18 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 4: {
-                        message.created = $root.ord.RecordEvent.decode(reader, reader.uint32());
+                        message.created = $root.ord.RecordEvent.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -540,20 +604,24 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        DatasetExample.verify = function verify(message) {
+        DatasetExample.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.datasetId != null && message.hasOwnProperty("datasetId"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.datasetId != null && Object.hasOwnProperty.call(message, "datasetId"))
                 if (!$util.isString(message.datasetId))
                     return "datasetId: string expected";
-            if (message.description != null && message.hasOwnProperty("description"))
+            if (message.description != null && Object.hasOwnProperty.call(message, "description"))
                 if (!$util.isString(message.description))
                     return "description: string expected";
-            if (message.url != null && message.hasOwnProperty("url"))
+            if (message.url != null && Object.hasOwnProperty.call(message, "url"))
                 if (!$util.isString(message.url))
                     return "url: string expected";
-            if (message.created != null && message.hasOwnProperty("created")) {
-                let error = $root.ord.RecordEvent.verify(message.created);
+            if (message.created != null && Object.hasOwnProperty.call(message, "created")) {
+                let error = $root.ord.RecordEvent.verify(message.created, long + 1);
                 if (error)
                     return "created." + error;
             }
@@ -568,9 +636,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.DatasetExample} DatasetExample
          */
-        DatasetExample.fromObject = function fromObject(object) {
+        DatasetExample.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.DatasetExample)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.DatasetExample: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.DatasetExample();
             if (object.datasetId != null)
                 message.datasetId = String(object.datasetId);
@@ -579,9 +653,9 @@ export const ord = $root.ord = (() => {
             if (object.url != null)
                 message.url = String(object.url);
             if (object.created != null) {
-                if (typeof object.created !== "object")
+                if (!$util.isObject(object.created))
                     throw TypeError(".ord.DatasetExample.created: object expected");
-                message.created = $root.ord.RecordEvent.fromObject(object.created);
+                message.created = $root.ord.RecordEvent.fromObject(object.created, long + 1);
             }
             return message;
         };
@@ -595,9 +669,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        DatasetExample.toObject = function toObject(message, options) {
+        DatasetExample.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.datasetId = "";
@@ -605,14 +683,14 @@ export const ord = $root.ord = (() => {
                 object.url = "";
                 object.created = null;
             }
-            if (message.datasetId != null && message.hasOwnProperty("datasetId"))
+            if (message.datasetId != null && Object.hasOwnProperty.call(message, "datasetId"))
                 object.datasetId = message.datasetId;
-            if (message.description != null && message.hasOwnProperty("description"))
+            if (message.description != null && Object.hasOwnProperty.call(message, "description"))
                 object.description = message.description;
-            if (message.url != null && message.hasOwnProperty("url"))
+            if (message.url != null && Object.hasOwnProperty.call(message, "url"))
                 object.url = message.url;
-            if (message.created != null && message.hasOwnProperty("created"))
-                object.created = $root.ord.RecordEvent.toObject(message.created, options);
+            if (message.created != null && Object.hasOwnProperty.call(message, "created"))
+                object.created = $root.ord.RecordEvent.toObject(message.created, options, q + 1);
             return object;
         };
 
@@ -693,7 +771,7 @@ export const ord = $root.ord = (() => {
             this.outcomes = [];
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -798,34 +876,38 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Reaction.encode = function encode(message, writer) {
+        Reaction.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.identifiers != null && message.identifiers.length)
                 for (let i = 0; i < message.identifiers.length; ++i)
-                    $root.ord.ReactionIdentifier.encode(message.identifiers[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                    $root.ord.ReactionIdentifier.encode(message.identifiers[i], writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             if (message.inputs != null && Object.hasOwnProperty.call(message, "inputs"))
                 for (let keys = Object.keys(message.inputs), i = 0; i < keys.length; ++i) {
                     writer.uint32(/* id 2, wireType 2 =*/18).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
-                    $root.ord.ReactionInput.encode(message.inputs[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                    $root.ord.ReactionInput.encode(message.inputs[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim().ldelim();
                 }
             if (message.setup != null && Object.hasOwnProperty.call(message, "setup"))
-                $root.ord.ReactionSetup.encode(message.setup, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                $root.ord.ReactionSetup.encode(message.setup, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             if (message.conditions != null && Object.hasOwnProperty.call(message, "conditions"))
-                $root.ord.ReactionConditions.encode(message.conditions, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                $root.ord.ReactionConditions.encode(message.conditions, writer.uint32(/* id 4, wireType 2 =*/34).fork(), q + 1).ldelim();
             if (message.notes != null && Object.hasOwnProperty.call(message, "notes"))
-                $root.ord.ReactionNotes.encode(message.notes, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+                $root.ord.ReactionNotes.encode(message.notes, writer.uint32(/* id 5, wireType 2 =*/42).fork(), q + 1).ldelim();
             if (message.observations != null && message.observations.length)
                 for (let i = 0; i < message.observations.length; ++i)
-                    $root.ord.ReactionObservation.encode(message.observations[i], writer.uint32(/* id 6, wireType 2 =*/50).fork()).ldelim();
+                    $root.ord.ReactionObservation.encode(message.observations[i], writer.uint32(/* id 6, wireType 2 =*/50).fork(), q + 1).ldelim();
             if (message.workups != null && message.workups.length)
                 for (let i = 0; i < message.workups.length; ++i)
-                    $root.ord.ReactionWorkup.encode(message.workups[i], writer.uint32(/* id 7, wireType 2 =*/58).fork()).ldelim();
+                    $root.ord.ReactionWorkup.encode(message.workups[i], writer.uint32(/* id 7, wireType 2 =*/58).fork(), q + 1).ldelim();
             if (message.outcomes != null && message.outcomes.length)
                 for (let i = 0; i < message.outcomes.length; ++i)
-                    $root.ord.ReactionOutcome.encode(message.outcomes[i], writer.uint32(/* id 8, wireType 2 =*/66).fork()).ldelim();
+                    $root.ord.ReactionOutcome.encode(message.outcomes[i], writer.uint32(/* id 8, wireType 2 =*/66).fork(), q + 1).ldelim();
             if (message.provenance != null && Object.hasOwnProperty.call(message, "provenance"))
-                $root.ord.ReactionProvenance.encode(message.provenance, writer.uint32(/* id 9, wireType 2 =*/74).fork()).ldelim();
+                $root.ord.ReactionProvenance.encode(message.provenance, writer.uint32(/* id 9, wireType 2 =*/74).fork(), q + 1).ldelim();
             if (message.reactionId != null && Object.hasOwnProperty.call(message, "reactionId"))
                 writer.uint32(/* id 10, wireType 2 =*/82).string(message.reactionId);
             return writer;
@@ -841,7 +923,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Reaction.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -855,23 +937,42 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Reaction.decode = function decode(reader, length) {
+        Reaction.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Reaction(), key, value;
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message, key, value;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Reaction();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         if (!(message.identifiers && message.identifiers.length))
                             message.identifiers = [];
-                        message.identifiers.push($root.ord.ReactionIdentifier.decode(reader, reader.uint32()));
+                        message.identifiers.push($root.ord.ReactionIdentifier.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 2: {
                         if (message.inputs === $util.emptyObject)
                             message.inputs = {};
                         let end2 = reader.uint32() + reader.pos;
+                        if (end2 > reader.len)
+                            throw RangeError("index out of range");
+                        reader.len = end2;
                         key = "";
                         value = null;
                         while (reader.pos < end2) {
@@ -881,48 +982,53 @@ export const ord = $root.ord = (() => {
                                 key = reader.string();
                                 break;
                             case 2:
-                                value = $root.ord.ReactionInput.decode(reader, reader.uint32());
+                                value = $root.ord.ReactionInput.decode(reader, reader.uint32(), undefined, long + 1);
                                 break;
                             default:
-                                reader.skipType(tag2 & 7);
+                                reader.skipType(tag2 & 7, long);
                                 break;
                             }
                         }
+                        if (reader.pos !== end2)
+                            throw RangeError("index out of range");
+                        reader.len = end;
+                        if (key === "__proto__")
+                            $util.makeProp(message.inputs, key);
                         message.inputs[key] = value;
                         break;
                     }
                 case 3: {
-                        message.setup = $root.ord.ReactionSetup.decode(reader, reader.uint32());
+                        message.setup = $root.ord.ReactionSetup.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 4: {
-                        message.conditions = $root.ord.ReactionConditions.decode(reader, reader.uint32());
+                        message.conditions = $root.ord.ReactionConditions.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 5: {
-                        message.notes = $root.ord.ReactionNotes.decode(reader, reader.uint32());
+                        message.notes = $root.ord.ReactionNotes.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 6: {
                         if (!(message.observations && message.observations.length))
                             message.observations = [];
-                        message.observations.push($root.ord.ReactionObservation.decode(reader, reader.uint32()));
+                        message.observations.push($root.ord.ReactionObservation.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 7: {
                         if (!(message.workups && message.workups.length))
                             message.workups = [];
-                        message.workups.push($root.ord.ReactionWorkup.decode(reader, reader.uint32()));
+                        message.workups.push($root.ord.ReactionWorkup.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 8: {
                         if (!(message.outcomes && message.outcomes.length))
                             message.outcomes = [];
-                        message.outcomes.push($root.ord.ReactionOutcome.decode(reader, reader.uint32()));
+                        message.outcomes.push($root.ord.ReactionOutcome.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 9: {
-                        message.provenance = $root.ord.ReactionProvenance.decode(reader, reader.uint32());
+                        message.provenance = $root.ord.ReactionProvenance.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 10: {
@@ -930,9 +1036,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -961,76 +1072,80 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Reaction.verify = function verify(message) {
+        Reaction.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.identifiers != null && message.hasOwnProperty("identifiers")) {
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.identifiers != null && Object.hasOwnProperty.call(message, "identifiers")) {
                 if (!Array.isArray(message.identifiers))
                     return "identifiers: array expected";
                 for (let i = 0; i < message.identifiers.length; ++i) {
-                    let error = $root.ord.ReactionIdentifier.verify(message.identifiers[i]);
+                    let error = $root.ord.ReactionIdentifier.verify(message.identifiers[i], long + 1);
                     if (error)
                         return "identifiers." + error;
                 }
             }
-            if (message.inputs != null && message.hasOwnProperty("inputs")) {
+            if (message.inputs != null && Object.hasOwnProperty.call(message, "inputs")) {
                 if (!$util.isObject(message.inputs))
                     return "inputs: object expected";
                 let key = Object.keys(message.inputs);
                 for (let i = 0; i < key.length; ++i) {
-                    let error = $root.ord.ReactionInput.verify(message.inputs[key[i]]);
+                    let error = $root.ord.ReactionInput.verify(message.inputs[key[i]], long + 1);
                     if (error)
                         return "inputs." + error;
                 }
             }
-            if (message.setup != null && message.hasOwnProperty("setup")) {
-                let error = $root.ord.ReactionSetup.verify(message.setup);
+            if (message.setup != null && Object.hasOwnProperty.call(message, "setup")) {
+                let error = $root.ord.ReactionSetup.verify(message.setup, long + 1);
                 if (error)
                     return "setup." + error;
             }
-            if (message.conditions != null && message.hasOwnProperty("conditions")) {
-                let error = $root.ord.ReactionConditions.verify(message.conditions);
+            if (message.conditions != null && Object.hasOwnProperty.call(message, "conditions")) {
+                let error = $root.ord.ReactionConditions.verify(message.conditions, long + 1);
                 if (error)
                     return "conditions." + error;
             }
-            if (message.notes != null && message.hasOwnProperty("notes")) {
-                let error = $root.ord.ReactionNotes.verify(message.notes);
+            if (message.notes != null && Object.hasOwnProperty.call(message, "notes")) {
+                let error = $root.ord.ReactionNotes.verify(message.notes, long + 1);
                 if (error)
                     return "notes." + error;
             }
-            if (message.observations != null && message.hasOwnProperty("observations")) {
+            if (message.observations != null && Object.hasOwnProperty.call(message, "observations")) {
                 if (!Array.isArray(message.observations))
                     return "observations: array expected";
                 for (let i = 0; i < message.observations.length; ++i) {
-                    let error = $root.ord.ReactionObservation.verify(message.observations[i]);
+                    let error = $root.ord.ReactionObservation.verify(message.observations[i], long + 1);
                     if (error)
                         return "observations." + error;
                 }
             }
-            if (message.workups != null && message.hasOwnProperty("workups")) {
+            if (message.workups != null && Object.hasOwnProperty.call(message, "workups")) {
                 if (!Array.isArray(message.workups))
                     return "workups: array expected";
                 for (let i = 0; i < message.workups.length; ++i) {
-                    let error = $root.ord.ReactionWorkup.verify(message.workups[i]);
+                    let error = $root.ord.ReactionWorkup.verify(message.workups[i], long + 1);
                     if (error)
                         return "workups." + error;
                 }
             }
-            if (message.outcomes != null && message.hasOwnProperty("outcomes")) {
+            if (message.outcomes != null && Object.hasOwnProperty.call(message, "outcomes")) {
                 if (!Array.isArray(message.outcomes))
                     return "outcomes: array expected";
                 for (let i = 0; i < message.outcomes.length; ++i) {
-                    let error = $root.ord.ReactionOutcome.verify(message.outcomes[i]);
+                    let error = $root.ord.ReactionOutcome.verify(message.outcomes[i], long + 1);
                     if (error)
                         return "outcomes." + error;
                 }
             }
-            if (message.provenance != null && message.hasOwnProperty("provenance")) {
-                let error = $root.ord.ReactionProvenance.verify(message.provenance);
+            if (message.provenance != null && Object.hasOwnProperty.call(message, "provenance")) {
+                let error = $root.ord.ReactionProvenance.verify(message.provenance, long + 1);
                 if (error)
                     return "provenance." + error;
             }
-            if (message.reactionId != null && message.hasOwnProperty("reactionId"))
+            if (message.reactionId != null && Object.hasOwnProperty.call(message, "reactionId"))
                 if (!$util.isString(message.reactionId))
                     return "reactionId: string expected";
             return null;
@@ -1044,53 +1159,61 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Reaction} Reaction
          */
-        Reaction.fromObject = function fromObject(object) {
+        Reaction.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Reaction)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Reaction: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Reaction();
             if (object.identifiers) {
                 if (!Array.isArray(object.identifiers))
                     throw TypeError(".ord.Reaction.identifiers: array expected");
                 message.identifiers = [];
                 for (let i = 0; i < object.identifiers.length; ++i) {
-                    if (typeof object.identifiers[i] !== "object")
+                    if (!$util.isObject(object.identifiers[i]))
                         throw TypeError(".ord.Reaction.identifiers: object expected");
-                    message.identifiers[i] = $root.ord.ReactionIdentifier.fromObject(object.identifiers[i]);
+                    message.identifiers[i] = $root.ord.ReactionIdentifier.fromObject(object.identifiers[i], long + 1);
                 }
             }
             if (object.inputs) {
-                if (typeof object.inputs !== "object")
+                if (!$util.isObject(object.inputs))
                     throw TypeError(".ord.Reaction.inputs: object expected");
                 message.inputs = {};
                 for (let keys = Object.keys(object.inputs), i = 0; i < keys.length; ++i) {
-                    if (typeof object.inputs[keys[i]] !== "object")
+                    if (keys[i] === "__proto__")
+                        $util.makeProp(message.inputs, keys[i]);
+                    if (!$util.isObject(object.inputs[keys[i]]))
                         throw TypeError(".ord.Reaction.inputs: object expected");
-                    message.inputs[keys[i]] = $root.ord.ReactionInput.fromObject(object.inputs[keys[i]]);
+                    message.inputs[keys[i]] = $root.ord.ReactionInput.fromObject(object.inputs[keys[i]], long + 1);
                 }
             }
             if (object.setup != null) {
-                if (typeof object.setup !== "object")
+                if (!$util.isObject(object.setup))
                     throw TypeError(".ord.Reaction.setup: object expected");
-                message.setup = $root.ord.ReactionSetup.fromObject(object.setup);
+                message.setup = $root.ord.ReactionSetup.fromObject(object.setup, long + 1);
             }
             if (object.conditions != null) {
-                if (typeof object.conditions !== "object")
+                if (!$util.isObject(object.conditions))
                     throw TypeError(".ord.Reaction.conditions: object expected");
-                message.conditions = $root.ord.ReactionConditions.fromObject(object.conditions);
+                message.conditions = $root.ord.ReactionConditions.fromObject(object.conditions, long + 1);
             }
             if (object.notes != null) {
-                if (typeof object.notes !== "object")
+                if (!$util.isObject(object.notes))
                     throw TypeError(".ord.Reaction.notes: object expected");
-                message.notes = $root.ord.ReactionNotes.fromObject(object.notes);
+                message.notes = $root.ord.ReactionNotes.fromObject(object.notes, long + 1);
             }
             if (object.observations) {
                 if (!Array.isArray(object.observations))
                     throw TypeError(".ord.Reaction.observations: array expected");
                 message.observations = [];
                 for (let i = 0; i < object.observations.length; ++i) {
-                    if (typeof object.observations[i] !== "object")
+                    if (!$util.isObject(object.observations[i]))
                         throw TypeError(".ord.Reaction.observations: object expected");
-                    message.observations[i] = $root.ord.ReactionObservation.fromObject(object.observations[i]);
+                    message.observations[i] = $root.ord.ReactionObservation.fromObject(object.observations[i], long + 1);
                 }
             }
             if (object.workups) {
@@ -1098,9 +1221,9 @@ export const ord = $root.ord = (() => {
                     throw TypeError(".ord.Reaction.workups: array expected");
                 message.workups = [];
                 for (let i = 0; i < object.workups.length; ++i) {
-                    if (typeof object.workups[i] !== "object")
+                    if (!$util.isObject(object.workups[i]))
                         throw TypeError(".ord.Reaction.workups: object expected");
-                    message.workups[i] = $root.ord.ReactionWorkup.fromObject(object.workups[i]);
+                    message.workups[i] = $root.ord.ReactionWorkup.fromObject(object.workups[i], long + 1);
                 }
             }
             if (object.outcomes) {
@@ -1108,15 +1231,15 @@ export const ord = $root.ord = (() => {
                     throw TypeError(".ord.Reaction.outcomes: array expected");
                 message.outcomes = [];
                 for (let i = 0; i < object.outcomes.length; ++i) {
-                    if (typeof object.outcomes[i] !== "object")
+                    if (!$util.isObject(object.outcomes[i]))
                         throw TypeError(".ord.Reaction.outcomes: object expected");
-                    message.outcomes[i] = $root.ord.ReactionOutcome.fromObject(object.outcomes[i]);
+                    message.outcomes[i] = $root.ord.ReactionOutcome.fromObject(object.outcomes[i], long + 1);
                 }
             }
             if (object.provenance != null) {
-                if (typeof object.provenance !== "object")
+                if (!$util.isObject(object.provenance))
                     throw TypeError(".ord.Reaction.provenance: object expected");
-                message.provenance = $root.ord.ReactionProvenance.fromObject(object.provenance);
+                message.provenance = $root.ord.ReactionProvenance.fromObject(object.provenance, long + 1);
             }
             if (object.reactionId != null)
                 message.reactionId = String(object.reactionId);
@@ -1132,9 +1255,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Reaction.toObject = function toObject(message, options) {
+        Reaction.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.arrays || options.defaults) {
                 object.identifiers = [];
@@ -1154,38 +1281,41 @@ export const ord = $root.ord = (() => {
             if (message.identifiers && message.identifiers.length) {
                 object.identifiers = [];
                 for (let j = 0; j < message.identifiers.length; ++j)
-                    object.identifiers[j] = $root.ord.ReactionIdentifier.toObject(message.identifiers[j], options);
+                    object.identifiers[j] = $root.ord.ReactionIdentifier.toObject(message.identifiers[j], options, q + 1);
             }
             let keys2;
             if (message.inputs && (keys2 = Object.keys(message.inputs)).length) {
                 object.inputs = {};
-                for (let j = 0; j < keys2.length; ++j)
-                    object.inputs[keys2[j]] = $root.ord.ReactionInput.toObject(message.inputs[keys2[j]], options);
+                for (let j = 0; j < keys2.length; ++j) {
+                    if (keys2[j] === "__proto__")
+                        $util.makeProp(object.inputs, keys2[j]);
+                    object.inputs[keys2[j]] = $root.ord.ReactionInput.toObject(message.inputs[keys2[j]], options, q + 1);
+                }
             }
-            if (message.setup != null && message.hasOwnProperty("setup"))
-                object.setup = $root.ord.ReactionSetup.toObject(message.setup, options);
-            if (message.conditions != null && message.hasOwnProperty("conditions"))
-                object.conditions = $root.ord.ReactionConditions.toObject(message.conditions, options);
-            if (message.notes != null && message.hasOwnProperty("notes"))
-                object.notes = $root.ord.ReactionNotes.toObject(message.notes, options);
+            if (message.setup != null && Object.hasOwnProperty.call(message, "setup"))
+                object.setup = $root.ord.ReactionSetup.toObject(message.setup, options, q + 1);
+            if (message.conditions != null && Object.hasOwnProperty.call(message, "conditions"))
+                object.conditions = $root.ord.ReactionConditions.toObject(message.conditions, options, q + 1);
+            if (message.notes != null && Object.hasOwnProperty.call(message, "notes"))
+                object.notes = $root.ord.ReactionNotes.toObject(message.notes, options, q + 1);
             if (message.observations && message.observations.length) {
                 object.observations = [];
                 for (let j = 0; j < message.observations.length; ++j)
-                    object.observations[j] = $root.ord.ReactionObservation.toObject(message.observations[j], options);
+                    object.observations[j] = $root.ord.ReactionObservation.toObject(message.observations[j], options, q + 1);
             }
             if (message.workups && message.workups.length) {
                 object.workups = [];
                 for (let j = 0; j < message.workups.length; ++j)
-                    object.workups[j] = $root.ord.ReactionWorkup.toObject(message.workups[j], options);
+                    object.workups[j] = $root.ord.ReactionWorkup.toObject(message.workups[j], options, q + 1);
             }
             if (message.outcomes && message.outcomes.length) {
                 object.outcomes = [];
                 for (let j = 0; j < message.outcomes.length; ++j)
-                    object.outcomes[j] = $root.ord.ReactionOutcome.toObject(message.outcomes[j], options);
+                    object.outcomes[j] = $root.ord.ReactionOutcome.toObject(message.outcomes[j], options, q + 1);
             }
-            if (message.provenance != null && message.hasOwnProperty("provenance"))
-                object.provenance = $root.ord.ReactionProvenance.toObject(message.provenance, options);
-            if (message.reactionId != null && message.hasOwnProperty("reactionId"))
+            if (message.provenance != null && Object.hasOwnProperty.call(message, "provenance"))
+                object.provenance = $root.ord.ReactionProvenance.toObject(message.provenance, options, q + 1);
+            if (message.reactionId != null && Object.hasOwnProperty.call(message, "reactionId"))
                 object.reactionId = message.reactionId;
             return object;
         };
@@ -1246,7 +1376,7 @@ export const ord = $root.ord = (() => {
         function ReactionIdentifier(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -1312,9 +1442,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ReactionIdentifier.encode = function encode(message, writer) {
+        ReactionIdentifier.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -1336,7 +1470,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ReactionIdentifier.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -1350,12 +1484,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ReactionIdentifier.decode = function decode(reader, length) {
+        ReactionIdentifier.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionIdentifier();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.ReactionIdentifier();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -1374,9 +1524,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -1405,11 +1560,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ReactionIdentifier.verify = function verify(message) {
+        ReactionIdentifier.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -1422,13 +1581,13 @@ export const ord = $root.ord = (() => {
                 case 5:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
-            if (message.value != null && message.hasOwnProperty("value"))
+            if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 if (!$util.isString(message.value))
                     return "value: string expected";
-            if (message.isMapped != null && message.hasOwnProperty("isMapped")) {
+            if (message.isMapped != null && Object.hasOwnProperty.call(message, "isMapped")) {
                 properties._isMapped = 1;
                 if (typeof message.isMapped !== "boolean")
                     return "isMapped: boolean expected";
@@ -1444,9 +1603,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.ReactionIdentifier} ReactionIdentifier
          */
-        ReactionIdentifier.fromObject = function fromObject(object) {
+        ReactionIdentifier.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.ReactionIdentifier)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.ReactionIdentifier: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.ReactionIdentifier();
             switch (object.type) {
             default:
@@ -1502,22 +1667,26 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ReactionIdentifier.toObject = function toObject(message, options) {
+        ReactionIdentifier.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
                 object.details = "";
                 object.value = "";
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.ReactionIdentifier.ReactionIdentifierType[message.type] === undefined ? message.type : $root.ord.ReactionIdentifier.ReactionIdentifierType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
-            if (message.value != null && message.hasOwnProperty("value"))
+            if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 object.value = message.value;
-            if (message.isMapped != null && message.hasOwnProperty("isMapped")) {
+            if (message.isMapped != null && Object.hasOwnProperty.call(message, "isMapped")) {
                 object.isMapped = message.isMapped;
                 if (options.oneofs)
                     object._isMapped = "isMapped";
@@ -1628,7 +1797,7 @@ export const ord = $root.ord = (() => {
             this.crudeComponents = [];
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -1733,31 +1902,35 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ReactionInput.encode = function encode(message, writer) {
+        ReactionInput.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.components != null && message.components.length)
                 for (let i = 0; i < message.components.length; ++i)
-                    $root.ord.Compound.encode(message.components[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                    $root.ord.Compound.encode(message.components[i], writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             if (message.crudeComponents != null && message.crudeComponents.length)
                 for (let i = 0; i < message.crudeComponents.length; ++i)
-                    $root.ord.CrudeComponent.encode(message.crudeComponents[i], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+                    $root.ord.CrudeComponent.encode(message.crudeComponents[i], writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim();
             if (message.additionOrder != null && Object.hasOwnProperty.call(message, "additionOrder"))
                 writer.uint32(/* id 3, wireType 0 =*/24).int32(message.additionOrder);
             if (message.additionTime != null && Object.hasOwnProperty.call(message, "additionTime"))
-                $root.ord.Time.encode(message.additionTime, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                $root.ord.Time.encode(message.additionTime, writer.uint32(/* id 4, wireType 2 =*/34).fork(), q + 1).ldelim();
             if (message.additionSpeed != null && Object.hasOwnProperty.call(message, "additionSpeed"))
-                $root.ord.ReactionInput.AdditionSpeed.encode(message.additionSpeed, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+                $root.ord.ReactionInput.AdditionSpeed.encode(message.additionSpeed, writer.uint32(/* id 5, wireType 2 =*/42).fork(), q + 1).ldelim();
             if (message.additionDuration != null && Object.hasOwnProperty.call(message, "additionDuration"))
-                $root.ord.Time.encode(message.additionDuration, writer.uint32(/* id 6, wireType 2 =*/50).fork()).ldelim();
+                $root.ord.Time.encode(message.additionDuration, writer.uint32(/* id 6, wireType 2 =*/50).fork(), q + 1).ldelim();
             if (message.flowRate != null && Object.hasOwnProperty.call(message, "flowRate"))
-                $root.ord.FlowRate.encode(message.flowRate, writer.uint32(/* id 7, wireType 2 =*/58).fork()).ldelim();
+                $root.ord.FlowRate.encode(message.flowRate, writer.uint32(/* id 7, wireType 2 =*/58).fork(), q + 1).ldelim();
             if (message.additionDevice != null && Object.hasOwnProperty.call(message, "additionDevice"))
-                $root.ord.ReactionInput.AdditionDevice.encode(message.additionDevice, writer.uint32(/* id 8, wireType 2 =*/66).fork()).ldelim();
+                $root.ord.ReactionInput.AdditionDevice.encode(message.additionDevice, writer.uint32(/* id 8, wireType 2 =*/66).fork(), q + 1).ldelim();
             if (message.additionTemperature != null && Object.hasOwnProperty.call(message, "additionTemperature"))
-                $root.ord.Temperature.encode(message.additionTemperature, writer.uint32(/* id 9, wireType 2 =*/74).fork()).ldelim();
+                $root.ord.Temperature.encode(message.additionTemperature, writer.uint32(/* id 9, wireType 2 =*/74).fork(), q + 1).ldelim();
             if (message.texture != null && Object.hasOwnProperty.call(message, "texture"))
-                $root.ord.Texture.encode(message.texture, writer.uint32(/* id 10, wireType 2 =*/82).fork()).ldelim();
+                $root.ord.Texture.encode(message.texture, writer.uint32(/* id 10, wireType 2 =*/82).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -1771,7 +1944,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ReactionInput.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -1785,23 +1958,39 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ReactionInput.decode = function decode(reader, length) {
+        ReactionInput.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionInput();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.ReactionInput();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         if (!(message.components && message.components.length))
                             message.components = [];
-                        message.components.push($root.ord.Compound.decode(reader, reader.uint32()));
+                        message.components.push($root.ord.Compound.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 2: {
                         if (!(message.crudeComponents && message.crudeComponents.length))
                             message.crudeComponents = [];
-                        message.crudeComponents.push($root.ord.CrudeComponent.decode(reader, reader.uint32()));
+                        message.crudeComponents.push($root.ord.CrudeComponent.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 3: {
@@ -1809,37 +1998,42 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 4: {
-                        message.additionTime = $root.ord.Time.decode(reader, reader.uint32());
+                        message.additionTime = $root.ord.Time.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 5: {
-                        message.additionSpeed = $root.ord.ReactionInput.AdditionSpeed.decode(reader, reader.uint32());
+                        message.additionSpeed = $root.ord.ReactionInput.AdditionSpeed.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 6: {
-                        message.additionDuration = $root.ord.Time.decode(reader, reader.uint32());
+                        message.additionDuration = $root.ord.Time.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 7: {
-                        message.flowRate = $root.ord.FlowRate.decode(reader, reader.uint32());
+                        message.flowRate = $root.ord.FlowRate.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 8: {
-                        message.additionDevice = $root.ord.ReactionInput.AdditionDevice.decode(reader, reader.uint32());
+                        message.additionDevice = $root.ord.ReactionInput.AdditionDevice.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 9: {
-                        message.additionTemperature = $root.ord.Temperature.decode(reader, reader.uint32());
+                        message.additionTemperature = $root.ord.Temperature.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 10: {
-                        message.texture = $root.ord.Texture.decode(reader, reader.uint32());
+                        message.texture = $root.ord.Texture.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -1868,62 +2062,66 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ReactionInput.verify = function verify(message) {
+        ReactionInput.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.components != null && message.hasOwnProperty("components")) {
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.components != null && Object.hasOwnProperty.call(message, "components")) {
                 if (!Array.isArray(message.components))
                     return "components: array expected";
                 for (let i = 0; i < message.components.length; ++i) {
-                    let error = $root.ord.Compound.verify(message.components[i]);
+                    let error = $root.ord.Compound.verify(message.components[i], long + 1);
                     if (error)
                         return "components." + error;
                 }
             }
-            if (message.crudeComponents != null && message.hasOwnProperty("crudeComponents")) {
+            if (message.crudeComponents != null && Object.hasOwnProperty.call(message, "crudeComponents")) {
                 if (!Array.isArray(message.crudeComponents))
                     return "crudeComponents: array expected";
                 for (let i = 0; i < message.crudeComponents.length; ++i) {
-                    let error = $root.ord.CrudeComponent.verify(message.crudeComponents[i]);
+                    let error = $root.ord.CrudeComponent.verify(message.crudeComponents[i], long + 1);
                     if (error)
                         return "crudeComponents." + error;
                 }
             }
-            if (message.additionOrder != null && message.hasOwnProperty("additionOrder"))
+            if (message.additionOrder != null && Object.hasOwnProperty.call(message, "additionOrder"))
                 if (!$util.isInteger(message.additionOrder))
                     return "additionOrder: integer expected";
-            if (message.additionTime != null && message.hasOwnProperty("additionTime")) {
-                let error = $root.ord.Time.verify(message.additionTime);
+            if (message.additionTime != null && Object.hasOwnProperty.call(message, "additionTime")) {
+                let error = $root.ord.Time.verify(message.additionTime, long + 1);
                 if (error)
                     return "additionTime." + error;
             }
-            if (message.additionSpeed != null && message.hasOwnProperty("additionSpeed")) {
-                let error = $root.ord.ReactionInput.AdditionSpeed.verify(message.additionSpeed);
+            if (message.additionSpeed != null && Object.hasOwnProperty.call(message, "additionSpeed")) {
+                let error = $root.ord.ReactionInput.AdditionSpeed.verify(message.additionSpeed, long + 1);
                 if (error)
                     return "additionSpeed." + error;
             }
-            if (message.additionDuration != null && message.hasOwnProperty("additionDuration")) {
-                let error = $root.ord.Time.verify(message.additionDuration);
+            if (message.additionDuration != null && Object.hasOwnProperty.call(message, "additionDuration")) {
+                let error = $root.ord.Time.verify(message.additionDuration, long + 1);
                 if (error)
                     return "additionDuration." + error;
             }
-            if (message.flowRate != null && message.hasOwnProperty("flowRate")) {
-                let error = $root.ord.FlowRate.verify(message.flowRate);
+            if (message.flowRate != null && Object.hasOwnProperty.call(message, "flowRate")) {
+                let error = $root.ord.FlowRate.verify(message.flowRate, long + 1);
                 if (error)
                     return "flowRate." + error;
             }
-            if (message.additionDevice != null && message.hasOwnProperty("additionDevice")) {
-                let error = $root.ord.ReactionInput.AdditionDevice.verify(message.additionDevice);
+            if (message.additionDevice != null && Object.hasOwnProperty.call(message, "additionDevice")) {
+                let error = $root.ord.ReactionInput.AdditionDevice.verify(message.additionDevice, long + 1);
                 if (error)
                     return "additionDevice." + error;
             }
-            if (message.additionTemperature != null && message.hasOwnProperty("additionTemperature")) {
-                let error = $root.ord.Temperature.verify(message.additionTemperature);
+            if (message.additionTemperature != null && Object.hasOwnProperty.call(message, "additionTemperature")) {
+                let error = $root.ord.Temperature.verify(message.additionTemperature, long + 1);
                 if (error)
                     return "additionTemperature." + error;
             }
-            if (message.texture != null && message.hasOwnProperty("texture")) {
-                let error = $root.ord.Texture.verify(message.texture);
+            if (message.texture != null && Object.hasOwnProperty.call(message, "texture")) {
+                let error = $root.ord.Texture.verify(message.texture, long + 1);
                 if (error)
                     return "texture." + error;
             }
@@ -1938,18 +2136,24 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.ReactionInput} ReactionInput
          */
-        ReactionInput.fromObject = function fromObject(object) {
+        ReactionInput.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.ReactionInput)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.ReactionInput: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.ReactionInput();
             if (object.components) {
                 if (!Array.isArray(object.components))
                     throw TypeError(".ord.ReactionInput.components: array expected");
                 message.components = [];
                 for (let i = 0; i < object.components.length; ++i) {
-                    if (typeof object.components[i] !== "object")
+                    if (!$util.isObject(object.components[i]))
                         throw TypeError(".ord.ReactionInput.components: object expected");
-                    message.components[i] = $root.ord.Compound.fromObject(object.components[i]);
+                    message.components[i] = $root.ord.Compound.fromObject(object.components[i], long + 1);
                 }
             }
             if (object.crudeComponents) {
@@ -1957,47 +2161,47 @@ export const ord = $root.ord = (() => {
                     throw TypeError(".ord.ReactionInput.crudeComponents: array expected");
                 message.crudeComponents = [];
                 for (let i = 0; i < object.crudeComponents.length; ++i) {
-                    if (typeof object.crudeComponents[i] !== "object")
+                    if (!$util.isObject(object.crudeComponents[i]))
                         throw TypeError(".ord.ReactionInput.crudeComponents: object expected");
-                    message.crudeComponents[i] = $root.ord.CrudeComponent.fromObject(object.crudeComponents[i]);
+                    message.crudeComponents[i] = $root.ord.CrudeComponent.fromObject(object.crudeComponents[i], long + 1);
                 }
             }
             if (object.additionOrder != null)
                 message.additionOrder = object.additionOrder | 0;
             if (object.additionTime != null) {
-                if (typeof object.additionTime !== "object")
+                if (!$util.isObject(object.additionTime))
                     throw TypeError(".ord.ReactionInput.additionTime: object expected");
-                message.additionTime = $root.ord.Time.fromObject(object.additionTime);
+                message.additionTime = $root.ord.Time.fromObject(object.additionTime, long + 1);
             }
             if (object.additionSpeed != null) {
-                if (typeof object.additionSpeed !== "object")
+                if (!$util.isObject(object.additionSpeed))
                     throw TypeError(".ord.ReactionInput.additionSpeed: object expected");
-                message.additionSpeed = $root.ord.ReactionInput.AdditionSpeed.fromObject(object.additionSpeed);
+                message.additionSpeed = $root.ord.ReactionInput.AdditionSpeed.fromObject(object.additionSpeed, long + 1);
             }
             if (object.additionDuration != null) {
-                if (typeof object.additionDuration !== "object")
+                if (!$util.isObject(object.additionDuration))
                     throw TypeError(".ord.ReactionInput.additionDuration: object expected");
-                message.additionDuration = $root.ord.Time.fromObject(object.additionDuration);
+                message.additionDuration = $root.ord.Time.fromObject(object.additionDuration, long + 1);
             }
             if (object.flowRate != null) {
-                if (typeof object.flowRate !== "object")
+                if (!$util.isObject(object.flowRate))
                     throw TypeError(".ord.ReactionInput.flowRate: object expected");
-                message.flowRate = $root.ord.FlowRate.fromObject(object.flowRate);
+                message.flowRate = $root.ord.FlowRate.fromObject(object.flowRate, long + 1);
             }
             if (object.additionDevice != null) {
-                if (typeof object.additionDevice !== "object")
+                if (!$util.isObject(object.additionDevice))
                     throw TypeError(".ord.ReactionInput.additionDevice: object expected");
-                message.additionDevice = $root.ord.ReactionInput.AdditionDevice.fromObject(object.additionDevice);
+                message.additionDevice = $root.ord.ReactionInput.AdditionDevice.fromObject(object.additionDevice, long + 1);
             }
             if (object.additionTemperature != null) {
-                if (typeof object.additionTemperature !== "object")
+                if (!$util.isObject(object.additionTemperature))
                     throw TypeError(".ord.ReactionInput.additionTemperature: object expected");
-                message.additionTemperature = $root.ord.Temperature.fromObject(object.additionTemperature);
+                message.additionTemperature = $root.ord.Temperature.fromObject(object.additionTemperature, long + 1);
             }
             if (object.texture != null) {
-                if (typeof object.texture !== "object")
+                if (!$util.isObject(object.texture))
                     throw TypeError(".ord.ReactionInput.texture: object expected");
-                message.texture = $root.ord.Texture.fromObject(object.texture);
+                message.texture = $root.ord.Texture.fromObject(object.texture, long + 1);
             }
             return message;
         };
@@ -2011,9 +2215,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ReactionInput.toObject = function toObject(message, options) {
+        ReactionInput.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.arrays || options.defaults) {
                 object.components = [];
@@ -2032,29 +2240,29 @@ export const ord = $root.ord = (() => {
             if (message.components && message.components.length) {
                 object.components = [];
                 for (let j = 0; j < message.components.length; ++j)
-                    object.components[j] = $root.ord.Compound.toObject(message.components[j], options);
+                    object.components[j] = $root.ord.Compound.toObject(message.components[j], options, q + 1);
             }
             if (message.crudeComponents && message.crudeComponents.length) {
                 object.crudeComponents = [];
                 for (let j = 0; j < message.crudeComponents.length; ++j)
-                    object.crudeComponents[j] = $root.ord.CrudeComponent.toObject(message.crudeComponents[j], options);
+                    object.crudeComponents[j] = $root.ord.CrudeComponent.toObject(message.crudeComponents[j], options, q + 1);
             }
-            if (message.additionOrder != null && message.hasOwnProperty("additionOrder"))
+            if (message.additionOrder != null && Object.hasOwnProperty.call(message, "additionOrder"))
                 object.additionOrder = message.additionOrder;
-            if (message.additionTime != null && message.hasOwnProperty("additionTime"))
-                object.additionTime = $root.ord.Time.toObject(message.additionTime, options);
-            if (message.additionSpeed != null && message.hasOwnProperty("additionSpeed"))
-                object.additionSpeed = $root.ord.ReactionInput.AdditionSpeed.toObject(message.additionSpeed, options);
-            if (message.additionDuration != null && message.hasOwnProperty("additionDuration"))
-                object.additionDuration = $root.ord.Time.toObject(message.additionDuration, options);
-            if (message.flowRate != null && message.hasOwnProperty("flowRate"))
-                object.flowRate = $root.ord.FlowRate.toObject(message.flowRate, options);
-            if (message.additionDevice != null && message.hasOwnProperty("additionDevice"))
-                object.additionDevice = $root.ord.ReactionInput.AdditionDevice.toObject(message.additionDevice, options);
-            if (message.additionTemperature != null && message.hasOwnProperty("additionTemperature"))
-                object.additionTemperature = $root.ord.Temperature.toObject(message.additionTemperature, options);
-            if (message.texture != null && message.hasOwnProperty("texture"))
-                object.texture = $root.ord.Texture.toObject(message.texture, options);
+            if (message.additionTime != null && Object.hasOwnProperty.call(message, "additionTime"))
+                object.additionTime = $root.ord.Time.toObject(message.additionTime, options, q + 1);
+            if (message.additionSpeed != null && Object.hasOwnProperty.call(message, "additionSpeed"))
+                object.additionSpeed = $root.ord.ReactionInput.AdditionSpeed.toObject(message.additionSpeed, options, q + 1);
+            if (message.additionDuration != null && Object.hasOwnProperty.call(message, "additionDuration"))
+                object.additionDuration = $root.ord.Time.toObject(message.additionDuration, options, q + 1);
+            if (message.flowRate != null && Object.hasOwnProperty.call(message, "flowRate"))
+                object.flowRate = $root.ord.FlowRate.toObject(message.flowRate, options, q + 1);
+            if (message.additionDevice != null && Object.hasOwnProperty.call(message, "additionDevice"))
+                object.additionDevice = $root.ord.ReactionInput.AdditionDevice.toObject(message.additionDevice, options, q + 1);
+            if (message.additionTemperature != null && Object.hasOwnProperty.call(message, "additionTemperature"))
+                object.additionTemperature = $root.ord.Temperature.toObject(message.additionTemperature, options, q + 1);
+            if (message.texture != null && Object.hasOwnProperty.call(message, "texture"))
+                object.texture = $root.ord.Texture.toObject(message.texture, options, q + 1);
             return object;
         };
 
@@ -2105,7 +2313,7 @@ export const ord = $root.ord = (() => {
             function AdditionSpeed(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -2146,9 +2354,13 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            AdditionSpeed.encode = function encode(message, writer) {
+            AdditionSpeed.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
                 if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -2166,7 +2378,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             AdditionSpeed.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -2180,12 +2392,28 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            AdditionSpeed.decode = function decode(reader, length) {
+            AdditionSpeed.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionInput.AdditionSpeed();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.ReactionInput.AdditionSpeed();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.type = reader.int32();
@@ -2196,9 +2424,14 @@ export const ord = $root.ord = (() => {
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -2227,10 +2460,14 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            AdditionSpeed.verify = function verify(message) {
+            AdditionSpeed.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     switch (message.type) {
                     default:
                         return "type: enum value expected";
@@ -2243,7 +2480,7 @@ export const ord = $root.ord = (() => {
                     case 6:
                         break;
                     }
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     if (!$util.isString(message.details))
                         return "details: string expected";
                 return null;
@@ -2257,9 +2494,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.ReactionInput.AdditionSpeed} AdditionSpeed
              */
-            AdditionSpeed.fromObject = function fromObject(object) {
+            AdditionSpeed.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.ReactionInput.AdditionSpeed)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.ReactionInput.AdditionSpeed: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.ReactionInput.AdditionSpeed();
                 switch (object.type) {
                 default:
@@ -2311,17 +2554,21 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            AdditionSpeed.toObject = function toObject(message, options) {
+            AdditionSpeed.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.type = options.enums === String ? "UNSPECIFIED" : 0;
                     object.details = "";
                 }
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     object.type = options.enums === String ? $root.ord.ReactionInput.AdditionSpeed.AdditionSpeedType[message.type] === undefined ? message.type : $root.ord.ReactionInput.AdditionSpeed.AdditionSpeedType[message.type] : message.type;
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     object.details = message.details;
                 return object;
             };
@@ -2400,7 +2647,7 @@ export const ord = $root.ord = (() => {
             function AdditionDevice(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -2441,9 +2688,13 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            AdditionDevice.encode = function encode(message, writer) {
+            AdditionDevice.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
                 if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -2461,7 +2712,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             AdditionDevice.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -2475,12 +2726,28 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            AdditionDevice.decode = function decode(reader, length) {
+            AdditionDevice.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionInput.AdditionDevice();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.ReactionInput.AdditionDevice();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.type = reader.int32();
@@ -2491,9 +2758,14 @@ export const ord = $root.ord = (() => {
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -2522,10 +2794,14 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            AdditionDevice.verify = function verify(message) {
+            AdditionDevice.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     switch (message.type) {
                     default:
                         return "type: enum value expected";
@@ -2542,7 +2818,7 @@ export const ord = $root.ord = (() => {
                     case 10:
                         break;
                     }
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     if (!$util.isString(message.details))
                         return "details: string expected";
                 return null;
@@ -2556,9 +2832,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.ReactionInput.AdditionDevice} AdditionDevice
              */
-            AdditionDevice.fromObject = function fromObject(object) {
+            AdditionDevice.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.ReactionInput.AdditionDevice)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.ReactionInput.AdditionDevice: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.ReactionInput.AdditionDevice();
                 switch (object.type) {
                 default:
@@ -2626,17 +2908,21 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            AdditionDevice.toObject = function toObject(message, options) {
+            AdditionDevice.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.type = options.enums === String ? "UNSPECIFIED" : 0;
                     object.details = "";
                 }
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     object.type = options.enums === String ? $root.ord.ReactionInput.AdditionDevice.AdditionDeviceType[message.type] === undefined ? message.type : $root.ord.ReactionInput.AdditionDevice.AdditionDeviceType[message.type] : message.type;
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     object.details = message.details;
                 return object;
             };
@@ -2733,7 +3019,7 @@ export const ord = $root.ord = (() => {
         function Amount(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -2818,19 +3104,23 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Amount.encode = function encode(message, writer) {
+        Amount.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.mass != null && Object.hasOwnProperty.call(message, "mass"))
-                $root.ord.Mass.encode(message.mass, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                $root.ord.Mass.encode(message.mass, writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             if (message.moles != null && Object.hasOwnProperty.call(message, "moles"))
-                $root.ord.Moles.encode(message.moles, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+                $root.ord.Moles.encode(message.moles, writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim();
             if (message.volume != null && Object.hasOwnProperty.call(message, "volume"))
-                $root.ord.Volume.encode(message.volume, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                $root.ord.Volume.encode(message.volume, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             if (message.volumeIncludesSolutes != null && Object.hasOwnProperty.call(message, "volumeIncludesSolutes"))
                 writer.uint32(/* id 4, wireType 0 =*/32).bool(message.volumeIncludesSolutes);
             if (message.unmeasured != null && Object.hasOwnProperty.call(message, "unmeasured"))
-                $root.ord.UnmeasuredAmount.encode(message.unmeasured, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+                $root.ord.UnmeasuredAmount.encode(message.unmeasured, writer.uint32(/* id 5, wireType 2 =*/42).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -2844,7 +3134,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Amount.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -2858,27 +3148,43 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Amount.decode = function decode(reader, length) {
+        Amount.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Amount();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Amount();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.mass = $root.ord.Mass.decode(reader, reader.uint32());
+                        message.mass = $root.ord.Mass.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 2: {
-                        message.moles = $root.ord.Moles.decode(reader, reader.uint32());
+                        message.moles = $root.ord.Moles.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 3: {
-                        message.volume = $root.ord.Volume.decode(reader, reader.uint32());
+                        message.volume = $root.ord.Volume.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 5: {
-                        message.unmeasured = $root.ord.UnmeasuredAmount.decode(reader, reader.uint32());
+                        message.unmeasured = $root.ord.UnmeasuredAmount.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 4: {
@@ -2886,9 +3192,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -2917,49 +3228,53 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Amount.verify = function verify(message) {
+        Amount.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.mass != null && message.hasOwnProperty("mass")) {
+            if (message.mass != null && Object.hasOwnProperty.call(message, "mass")) {
                 properties.kind = 1;
                 {
-                    let error = $root.ord.Mass.verify(message.mass);
+                    let error = $root.ord.Mass.verify(message.mass, long + 1);
                     if (error)
                         return "mass." + error;
                 }
             }
-            if (message.moles != null && message.hasOwnProperty("moles")) {
+            if (message.moles != null && Object.hasOwnProperty.call(message, "moles")) {
                 if (properties.kind === 1)
                     return "kind: multiple values";
                 properties.kind = 1;
                 {
-                    let error = $root.ord.Moles.verify(message.moles);
+                    let error = $root.ord.Moles.verify(message.moles, long + 1);
                     if (error)
                         return "moles." + error;
                 }
             }
-            if (message.volume != null && message.hasOwnProperty("volume")) {
+            if (message.volume != null && Object.hasOwnProperty.call(message, "volume")) {
                 if (properties.kind === 1)
                     return "kind: multiple values";
                 properties.kind = 1;
                 {
-                    let error = $root.ord.Volume.verify(message.volume);
+                    let error = $root.ord.Volume.verify(message.volume, long + 1);
                     if (error)
                         return "volume." + error;
                 }
             }
-            if (message.unmeasured != null && message.hasOwnProperty("unmeasured")) {
+            if (message.unmeasured != null && Object.hasOwnProperty.call(message, "unmeasured")) {
                 if (properties.kind === 1)
                     return "kind: multiple values";
                 properties.kind = 1;
                 {
-                    let error = $root.ord.UnmeasuredAmount.verify(message.unmeasured);
+                    let error = $root.ord.UnmeasuredAmount.verify(message.unmeasured, long + 1);
                     if (error)
                         return "unmeasured." + error;
                 }
             }
-            if (message.volumeIncludesSolutes != null && message.hasOwnProperty("volumeIncludesSolutes")) {
+            if (message.volumeIncludesSolutes != null && Object.hasOwnProperty.call(message, "volumeIncludesSolutes")) {
                 properties._volumeIncludesSolutes = 1;
                 if (typeof message.volumeIncludesSolutes !== "boolean")
                     return "volumeIncludesSolutes: boolean expected";
@@ -2975,29 +3290,35 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Amount} Amount
          */
-        Amount.fromObject = function fromObject(object) {
+        Amount.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Amount)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Amount: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Amount();
             if (object.mass != null) {
-                if (typeof object.mass !== "object")
+                if (!$util.isObject(object.mass))
                     throw TypeError(".ord.Amount.mass: object expected");
-                message.mass = $root.ord.Mass.fromObject(object.mass);
+                message.mass = $root.ord.Mass.fromObject(object.mass, long + 1);
             }
             if (object.moles != null) {
-                if (typeof object.moles !== "object")
+                if (!$util.isObject(object.moles))
                     throw TypeError(".ord.Amount.moles: object expected");
-                message.moles = $root.ord.Moles.fromObject(object.moles);
+                message.moles = $root.ord.Moles.fromObject(object.moles, long + 1);
             }
             if (object.volume != null) {
-                if (typeof object.volume !== "object")
+                if (!$util.isObject(object.volume))
                     throw TypeError(".ord.Amount.volume: object expected");
-                message.volume = $root.ord.Volume.fromObject(object.volume);
+                message.volume = $root.ord.Volume.fromObject(object.volume, long + 1);
             }
             if (object.unmeasured != null) {
-                if (typeof object.unmeasured !== "object")
+                if (!$util.isObject(object.unmeasured))
                     throw TypeError(".ord.Amount.unmeasured: object expected");
-                message.unmeasured = $root.ord.UnmeasuredAmount.fromObject(object.unmeasured);
+                message.unmeasured = $root.ord.UnmeasuredAmount.fromObject(object.unmeasured, long + 1);
             }
             if (object.volumeIncludesSolutes != null)
                 message.volumeIncludesSolutes = Boolean(object.volumeIncludesSolutes);
@@ -3013,32 +3334,36 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Amount.toObject = function toObject(message, options) {
+        Amount.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
-            if (message.mass != null && message.hasOwnProperty("mass")) {
-                object.mass = $root.ord.Mass.toObject(message.mass, options);
+            if (message.mass != null && Object.hasOwnProperty.call(message, "mass")) {
+                object.mass = $root.ord.Mass.toObject(message.mass, options, q + 1);
                 if (options.oneofs)
                     object.kind = "mass";
             }
-            if (message.moles != null && message.hasOwnProperty("moles")) {
-                object.moles = $root.ord.Moles.toObject(message.moles, options);
+            if (message.moles != null && Object.hasOwnProperty.call(message, "moles")) {
+                object.moles = $root.ord.Moles.toObject(message.moles, options, q + 1);
                 if (options.oneofs)
                     object.kind = "moles";
             }
-            if (message.volume != null && message.hasOwnProperty("volume")) {
-                object.volume = $root.ord.Volume.toObject(message.volume, options);
+            if (message.volume != null && Object.hasOwnProperty.call(message, "volume")) {
+                object.volume = $root.ord.Volume.toObject(message.volume, options, q + 1);
                 if (options.oneofs)
                     object.kind = "volume";
             }
-            if (message.volumeIncludesSolutes != null && message.hasOwnProperty("volumeIncludesSolutes")) {
+            if (message.volumeIncludesSolutes != null && Object.hasOwnProperty.call(message, "volumeIncludesSolutes")) {
                 object.volumeIncludesSolutes = message.volumeIncludesSolutes;
                 if (options.oneofs)
                     object._volumeIncludesSolutes = "volumeIncludesSolutes";
             }
-            if (message.unmeasured != null && message.hasOwnProperty("unmeasured")) {
-                object.unmeasured = $root.ord.UnmeasuredAmount.toObject(message.unmeasured, options);
+            if (message.unmeasured != null && Object.hasOwnProperty.call(message, "unmeasured")) {
+                object.unmeasured = $root.ord.UnmeasuredAmount.toObject(message.unmeasured, options, q + 1);
                 if (options.oneofs)
                     object.kind = "unmeasured";
             }
@@ -3096,7 +3421,7 @@ export const ord = $root.ord = (() => {
         function UnmeasuredAmount(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -3137,9 +3462,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        UnmeasuredAmount.encode = function encode(message, writer) {
+        UnmeasuredAmount.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -3157,7 +3486,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         UnmeasuredAmount.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -3171,12 +3500,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        UnmeasuredAmount.decode = function decode(reader, length) {
+        UnmeasuredAmount.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.UnmeasuredAmount();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.UnmeasuredAmount();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -3187,9 +3532,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -3218,10 +3568,14 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        UnmeasuredAmount.verify = function verify(message) {
+        UnmeasuredAmount.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -3232,7 +3586,7 @@ export const ord = $root.ord = (() => {
                 case 4:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
             return null;
@@ -3246,9 +3600,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.UnmeasuredAmount} UnmeasuredAmount
          */
-        UnmeasuredAmount.fromObject = function fromObject(object) {
+        UnmeasuredAmount.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.UnmeasuredAmount)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.UnmeasuredAmount: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.UnmeasuredAmount();
             switch (object.type) {
             default:
@@ -3292,17 +3652,21 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        UnmeasuredAmount.toObject = function toObject(message, options) {
+        UnmeasuredAmount.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
                 object.details = "";
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.UnmeasuredAmount.UnmeasuredAmountType[message.type] === undefined ? message.type : $root.ord.UnmeasuredAmount.UnmeasuredAmountType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
             return object;
         };
@@ -3378,7 +3742,7 @@ export const ord = $root.ord = (() => {
         function Texture(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -3419,9 +3783,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Texture.encode = function encode(message, writer) {
+        Texture.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -3439,7 +3807,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Texture.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -3453,12 +3821,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Texture.decode = function decode(reader, length) {
+        Texture.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Texture();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Texture();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -3469,9 +3853,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -3500,10 +3889,14 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Texture.verify = function verify(message) {
+        Texture.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -3521,7 +3914,7 @@ export const ord = $root.ord = (() => {
                 case 11:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
             return null;
@@ -3535,9 +3928,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Texture} Texture
          */
-        Texture.fromObject = function fromObject(object) {
+        Texture.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Texture)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Texture: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Texture();
             switch (object.type) {
             default:
@@ -3609,17 +4008,21 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Texture.toObject = function toObject(message, options) {
+        Texture.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
                 object.details = "";
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.Texture.TextureType[message.type] === undefined ? message.type : $root.ord.Texture.TextureType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
             return object;
         };
@@ -3717,7 +4120,7 @@ export const ord = $root.ord = (() => {
         function CrudeComponent(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -3797,9 +4200,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        CrudeComponent.encode = function encode(message, writer) {
+        CrudeComponent.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.reactionId != null && Object.hasOwnProperty.call(message, "reactionId"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.reactionId);
             if (message.includesWorkup != null && Object.hasOwnProperty.call(message, "includesWorkup"))
@@ -3807,9 +4214,9 @@ export const ord = $root.ord = (() => {
             if (message.hasDerivedAmount != null && Object.hasOwnProperty.call(message, "hasDerivedAmount"))
                 writer.uint32(/* id 3, wireType 0 =*/24).bool(message.hasDerivedAmount);
             if (message.amount != null && Object.hasOwnProperty.call(message, "amount"))
-                $root.ord.Amount.encode(message.amount, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                $root.ord.Amount.encode(message.amount, writer.uint32(/* id 4, wireType 2 =*/34).fork(), q + 1).ldelim();
             if (message.texture != null && Object.hasOwnProperty.call(message, "texture"))
-                $root.ord.Texture.encode(message.texture, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+                $root.ord.Texture.encode(message.texture, writer.uint32(/* id 5, wireType 2 =*/42).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -3823,7 +4230,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         CrudeComponent.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -3837,12 +4244,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        CrudeComponent.decode = function decode(reader, length) {
+        CrudeComponent.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.CrudeComponent();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.CrudeComponent();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.reactionId = reader.string();
@@ -3857,17 +4280,22 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 4: {
-                        message.amount = $root.ord.Amount.decode(reader, reader.uint32());
+                        message.amount = $root.ord.Amount.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 5: {
-                        message.texture = $root.ord.Texture.decode(reader, reader.uint32());
+                        message.texture = $root.ord.Texture.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -3896,30 +4324,34 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        CrudeComponent.verify = function verify(message) {
+        CrudeComponent.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.reactionId != null && message.hasOwnProperty("reactionId"))
+            if (message.reactionId != null && Object.hasOwnProperty.call(message, "reactionId"))
                 if (!$util.isString(message.reactionId))
                     return "reactionId: string expected";
-            if (message.includesWorkup != null && message.hasOwnProperty("includesWorkup")) {
+            if (message.includesWorkup != null && Object.hasOwnProperty.call(message, "includesWorkup")) {
                 properties._includesWorkup = 1;
                 if (typeof message.includesWorkup !== "boolean")
                     return "includesWorkup: boolean expected";
             }
-            if (message.hasDerivedAmount != null && message.hasOwnProperty("hasDerivedAmount")) {
+            if (message.hasDerivedAmount != null && Object.hasOwnProperty.call(message, "hasDerivedAmount")) {
                 properties._hasDerivedAmount = 1;
                 if (typeof message.hasDerivedAmount !== "boolean")
                     return "hasDerivedAmount: boolean expected";
             }
-            if (message.amount != null && message.hasOwnProperty("amount")) {
-                let error = $root.ord.Amount.verify(message.amount);
+            if (message.amount != null && Object.hasOwnProperty.call(message, "amount")) {
+                let error = $root.ord.Amount.verify(message.amount, long + 1);
                 if (error)
                     return "amount." + error;
             }
-            if (message.texture != null && message.hasOwnProperty("texture")) {
-                let error = $root.ord.Texture.verify(message.texture);
+            if (message.texture != null && Object.hasOwnProperty.call(message, "texture")) {
+                let error = $root.ord.Texture.verify(message.texture, long + 1);
                 if (error)
                     return "texture." + error;
             }
@@ -3934,9 +4366,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.CrudeComponent} CrudeComponent
          */
-        CrudeComponent.fromObject = function fromObject(object) {
+        CrudeComponent.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.CrudeComponent)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.CrudeComponent: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.CrudeComponent();
             if (object.reactionId != null)
                 message.reactionId = String(object.reactionId);
@@ -3945,14 +4383,14 @@ export const ord = $root.ord = (() => {
             if (object.hasDerivedAmount != null)
                 message.hasDerivedAmount = Boolean(object.hasDerivedAmount);
             if (object.amount != null) {
-                if (typeof object.amount !== "object")
+                if (!$util.isObject(object.amount))
                     throw TypeError(".ord.CrudeComponent.amount: object expected");
-                message.amount = $root.ord.Amount.fromObject(object.amount);
+                message.amount = $root.ord.Amount.fromObject(object.amount, long + 1);
             }
             if (object.texture != null) {
-                if (typeof object.texture !== "object")
+                if (!$util.isObject(object.texture))
                     throw TypeError(".ord.CrudeComponent.texture: object expected");
-                message.texture = $root.ord.Texture.fromObject(object.texture);
+                message.texture = $root.ord.Texture.fromObject(object.texture, long + 1);
             }
             return message;
         };
@@ -3966,31 +4404,35 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        CrudeComponent.toObject = function toObject(message, options) {
+        CrudeComponent.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.reactionId = "";
                 object.amount = null;
                 object.texture = null;
             }
-            if (message.reactionId != null && message.hasOwnProperty("reactionId"))
+            if (message.reactionId != null && Object.hasOwnProperty.call(message, "reactionId"))
                 object.reactionId = message.reactionId;
-            if (message.includesWorkup != null && message.hasOwnProperty("includesWorkup")) {
+            if (message.includesWorkup != null && Object.hasOwnProperty.call(message, "includesWorkup")) {
                 object.includesWorkup = message.includesWorkup;
                 if (options.oneofs)
                     object._includesWorkup = "includesWorkup";
             }
-            if (message.hasDerivedAmount != null && message.hasOwnProperty("hasDerivedAmount")) {
+            if (message.hasDerivedAmount != null && Object.hasOwnProperty.call(message, "hasDerivedAmount")) {
                 object.hasDerivedAmount = message.hasDerivedAmount;
                 if (options.oneofs)
                     object._hasDerivedAmount = "hasDerivedAmount";
             }
-            if (message.amount != null && message.hasOwnProperty("amount"))
-                object.amount = $root.ord.Amount.toObject(message.amount, options);
-            if (message.texture != null && message.hasOwnProperty("texture"))
-                object.texture = $root.ord.Texture.toObject(message.texture, options);
+            if (message.amount != null && Object.hasOwnProperty.call(message, "amount"))
+                object.amount = $root.ord.Amount.toObject(message.amount, options, q + 1);
+            if (message.texture != null && Object.hasOwnProperty.call(message, "texture"))
+                object.texture = $root.ord.Texture.toObject(message.texture, options, q + 1);
             return object;
         };
 
@@ -4057,7 +4499,7 @@ export const ord = $root.ord = (() => {
             this.analyses = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -4163,35 +4605,39 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Compound.encode = function encode(message, writer) {
+        Compound.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.identifiers != null && message.identifiers.length)
                 for (let i = 0; i < message.identifiers.length; ++i)
-                    $root.ord.CompoundIdentifier.encode(message.identifiers[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                    $root.ord.CompoundIdentifier.encode(message.identifiers[i], writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             if (message.amount != null && Object.hasOwnProperty.call(message, "amount"))
-                $root.ord.Amount.encode(message.amount, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+                $root.ord.Amount.encode(message.amount, writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim();
             if (message.reactionRole != null && Object.hasOwnProperty.call(message, "reactionRole"))
                 writer.uint32(/* id 3, wireType 0 =*/24).int32(message.reactionRole);
             if (message.isLimiting != null && Object.hasOwnProperty.call(message, "isLimiting"))
                 writer.uint32(/* id 4, wireType 0 =*/32).bool(message.isLimiting);
             if (message.preparations != null && message.preparations.length)
                 for (let i = 0; i < message.preparations.length; ++i)
-                    $root.ord.CompoundPreparation.encode(message.preparations[i], writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+                    $root.ord.CompoundPreparation.encode(message.preparations[i], writer.uint32(/* id 5, wireType 2 =*/42).fork(), q + 1).ldelim();
             if (message.source != null && Object.hasOwnProperty.call(message, "source"))
-                $root.ord.Compound.Source.encode(message.source, writer.uint32(/* id 6, wireType 2 =*/50).fork()).ldelim();
+                $root.ord.Compound.Source.encode(message.source, writer.uint32(/* id 6, wireType 2 =*/50).fork(), q + 1).ldelim();
             if (message.features != null && Object.hasOwnProperty.call(message, "features"))
                 for (let keys = Object.keys(message.features), i = 0; i < keys.length; ++i) {
                     writer.uint32(/* id 7, wireType 2 =*/58).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
-                    $root.ord.Data.encode(message.features[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                    $root.ord.Data.encode(message.features[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim().ldelim();
                 }
             if (message.analyses != null && Object.hasOwnProperty.call(message, "analyses"))
                 for (let keys = Object.keys(message.analyses), i = 0; i < keys.length; ++i) {
                     writer.uint32(/* id 8, wireType 2 =*/66).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
-                    $root.ord.Analysis.encode(message.analyses[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                    $root.ord.Analysis.encode(message.analyses[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim().ldelim();
                 }
             if (message.texture != null && Object.hasOwnProperty.call(message, "texture"))
-                $root.ord.Texture.encode(message.texture, writer.uint32(/* id 9, wireType 2 =*/74).fork()).ldelim();
+                $root.ord.Texture.encode(message.texture, writer.uint32(/* id 9, wireType 2 =*/74).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -4205,7 +4651,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Compound.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -4219,21 +4665,37 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Compound.decode = function decode(reader, length) {
+        Compound.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Compound(), key, value;
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message, key, value;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Compound();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         if (!(message.identifiers && message.identifiers.length))
                             message.identifiers = [];
-                        message.identifiers.push($root.ord.CompoundIdentifier.decode(reader, reader.uint32()));
+                        message.identifiers.push($root.ord.CompoundIdentifier.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 2: {
-                        message.amount = $root.ord.Amount.decode(reader, reader.uint32());
+                        message.amount = $root.ord.Amount.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 3: {
@@ -4247,17 +4709,20 @@ export const ord = $root.ord = (() => {
                 case 5: {
                         if (!(message.preparations && message.preparations.length))
                             message.preparations = [];
-                        message.preparations.push($root.ord.CompoundPreparation.decode(reader, reader.uint32()));
+                        message.preparations.push($root.ord.CompoundPreparation.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 6: {
-                        message.source = $root.ord.Compound.Source.decode(reader, reader.uint32());
+                        message.source = $root.ord.Compound.Source.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 7: {
                         if (message.features === $util.emptyObject)
                             message.features = {};
                         let end2 = reader.uint32() + reader.pos;
+                        if (end2 > reader.len)
+                            throw RangeError("index out of range");
+                        reader.len = end2;
                         key = "";
                         value = null;
                         while (reader.pos < end2) {
@@ -4267,13 +4732,18 @@ export const ord = $root.ord = (() => {
                                 key = reader.string();
                                 break;
                             case 2:
-                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                value = $root.ord.Data.decode(reader, reader.uint32(), undefined, long + 1);
                                 break;
                             default:
-                                reader.skipType(tag2 & 7);
+                                reader.skipType(tag2 & 7, long);
                                 break;
                             }
                         }
+                        if (reader.pos !== end2)
+                            throw RangeError("index out of range");
+                        reader.len = end;
+                        if (key === "__proto__")
+                            $util.makeProp(message.features, key);
                         message.features[key] = value;
                         break;
                     }
@@ -4281,6 +4751,9 @@ export const ord = $root.ord = (() => {
                         if (message.analyses === $util.emptyObject)
                             message.analyses = {};
                         let end2 = reader.uint32() + reader.pos;
+                        if (end2 > reader.len)
+                            throw RangeError("index out of range");
+                        reader.len = end2;
                         key = "";
                         value = null;
                         while (reader.pos < end2) {
@@ -4290,24 +4763,34 @@ export const ord = $root.ord = (() => {
                                 key = reader.string();
                                 break;
                             case 2:
-                                value = $root.ord.Analysis.decode(reader, reader.uint32());
+                                value = $root.ord.Analysis.decode(reader, reader.uint32(), undefined, long + 1);
                                 break;
                             default:
-                                reader.skipType(tag2 & 7);
+                                reader.skipType(tag2 & 7, long);
                                 break;
                             }
                         }
+                        if (reader.pos !== end2)
+                            throw RangeError("index out of range");
+                        reader.len = end;
+                        if (key === "__proto__")
+                            $util.makeProp(message.analyses, key);
                         message.analyses[key] = value;
                         break;
                     }
                 case 9: {
-                        message.texture = $root.ord.Texture.decode(reader, reader.uint32());
+                        message.texture = $root.ord.Texture.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -4336,25 +4819,29 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Compound.verify = function verify(message) {
+        Compound.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.identifiers != null && message.hasOwnProperty("identifiers")) {
+            if (message.identifiers != null && Object.hasOwnProperty.call(message, "identifiers")) {
                 if (!Array.isArray(message.identifiers))
                     return "identifiers: array expected";
                 for (let i = 0; i < message.identifiers.length; ++i) {
-                    let error = $root.ord.CompoundIdentifier.verify(message.identifiers[i]);
+                    let error = $root.ord.CompoundIdentifier.verify(message.identifiers[i], long + 1);
                     if (error)
                         return "identifiers." + error;
                 }
             }
-            if (message.amount != null && message.hasOwnProperty("amount")) {
-                let error = $root.ord.Amount.verify(message.amount);
+            if (message.amount != null && Object.hasOwnProperty.call(message, "amount")) {
+                let error = $root.ord.Amount.verify(message.amount, long + 1);
                 if (error)
                     return "amount." + error;
             }
-            if (message.reactionRole != null && message.hasOwnProperty("reactionRole"))
+            if (message.reactionRole != null && Object.hasOwnProperty.call(message, "reactionRole"))
                 switch (message.reactionRole) {
                 default:
                     return "reactionRole: enum value expected";
@@ -4371,47 +4858,47 @@ export const ord = $root.ord = (() => {
                 case 10:
                     break;
                 }
-            if (message.isLimiting != null && message.hasOwnProperty("isLimiting")) {
+            if (message.isLimiting != null && Object.hasOwnProperty.call(message, "isLimiting")) {
                 properties._isLimiting = 1;
                 if (typeof message.isLimiting !== "boolean")
                     return "isLimiting: boolean expected";
             }
-            if (message.preparations != null && message.hasOwnProperty("preparations")) {
+            if (message.preparations != null && Object.hasOwnProperty.call(message, "preparations")) {
                 if (!Array.isArray(message.preparations))
                     return "preparations: array expected";
                 for (let i = 0; i < message.preparations.length; ++i) {
-                    let error = $root.ord.CompoundPreparation.verify(message.preparations[i]);
+                    let error = $root.ord.CompoundPreparation.verify(message.preparations[i], long + 1);
                     if (error)
                         return "preparations." + error;
                 }
             }
-            if (message.source != null && message.hasOwnProperty("source")) {
-                let error = $root.ord.Compound.Source.verify(message.source);
+            if (message.source != null && Object.hasOwnProperty.call(message, "source")) {
+                let error = $root.ord.Compound.Source.verify(message.source, long + 1);
                 if (error)
                     return "source." + error;
             }
-            if (message.features != null && message.hasOwnProperty("features")) {
+            if (message.features != null && Object.hasOwnProperty.call(message, "features")) {
                 if (!$util.isObject(message.features))
                     return "features: object expected";
                 let key = Object.keys(message.features);
                 for (let i = 0; i < key.length; ++i) {
-                    let error = $root.ord.Data.verify(message.features[key[i]]);
+                    let error = $root.ord.Data.verify(message.features[key[i]], long + 1);
                     if (error)
                         return "features." + error;
                 }
             }
-            if (message.analyses != null && message.hasOwnProperty("analyses")) {
+            if (message.analyses != null && Object.hasOwnProperty.call(message, "analyses")) {
                 if (!$util.isObject(message.analyses))
                     return "analyses: object expected";
                 let key = Object.keys(message.analyses);
                 for (let i = 0; i < key.length; ++i) {
-                    let error = $root.ord.Analysis.verify(message.analyses[key[i]]);
+                    let error = $root.ord.Analysis.verify(message.analyses[key[i]], long + 1);
                     if (error)
                         return "analyses." + error;
                 }
             }
-            if (message.texture != null && message.hasOwnProperty("texture")) {
-                let error = $root.ord.Texture.verify(message.texture);
+            if (message.texture != null && Object.hasOwnProperty.call(message, "texture")) {
+                let error = $root.ord.Texture.verify(message.texture, long + 1);
                 if (error)
                     return "texture." + error;
             }
@@ -4426,24 +4913,30 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Compound} Compound
          */
-        Compound.fromObject = function fromObject(object) {
+        Compound.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Compound)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Compound: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Compound();
             if (object.identifiers) {
                 if (!Array.isArray(object.identifiers))
                     throw TypeError(".ord.Compound.identifiers: array expected");
                 message.identifiers = [];
                 for (let i = 0; i < object.identifiers.length; ++i) {
-                    if (typeof object.identifiers[i] !== "object")
+                    if (!$util.isObject(object.identifiers[i]))
                         throw TypeError(".ord.Compound.identifiers: object expected");
-                    message.identifiers[i] = $root.ord.CompoundIdentifier.fromObject(object.identifiers[i]);
+                    message.identifiers[i] = $root.ord.CompoundIdentifier.fromObject(object.identifiers[i], long + 1);
                 }
             }
             if (object.amount != null) {
-                if (typeof object.amount !== "object")
+                if (!$util.isObject(object.amount))
                     throw TypeError(".ord.Compound.amount: object expected");
-                message.amount = $root.ord.Amount.fromObject(object.amount);
+                message.amount = $root.ord.Amount.fromObject(object.amount, long + 1);
             }
             switch (object.reactionRole) {
             default:
@@ -4504,40 +4997,44 @@ export const ord = $root.ord = (() => {
                     throw TypeError(".ord.Compound.preparations: array expected");
                 message.preparations = [];
                 for (let i = 0; i < object.preparations.length; ++i) {
-                    if (typeof object.preparations[i] !== "object")
+                    if (!$util.isObject(object.preparations[i]))
                         throw TypeError(".ord.Compound.preparations: object expected");
-                    message.preparations[i] = $root.ord.CompoundPreparation.fromObject(object.preparations[i]);
+                    message.preparations[i] = $root.ord.CompoundPreparation.fromObject(object.preparations[i], long + 1);
                 }
             }
             if (object.source != null) {
-                if (typeof object.source !== "object")
+                if (!$util.isObject(object.source))
                     throw TypeError(".ord.Compound.source: object expected");
-                message.source = $root.ord.Compound.Source.fromObject(object.source);
+                message.source = $root.ord.Compound.Source.fromObject(object.source, long + 1);
             }
             if (object.features) {
-                if (typeof object.features !== "object")
+                if (!$util.isObject(object.features))
                     throw TypeError(".ord.Compound.features: object expected");
                 message.features = {};
                 for (let keys = Object.keys(object.features), i = 0; i < keys.length; ++i) {
-                    if (typeof object.features[keys[i]] !== "object")
+                    if (keys[i] === "__proto__")
+                        $util.makeProp(message.features, keys[i]);
+                    if (!$util.isObject(object.features[keys[i]]))
                         throw TypeError(".ord.Compound.features: object expected");
-                    message.features[keys[i]] = $root.ord.Data.fromObject(object.features[keys[i]]);
+                    message.features[keys[i]] = $root.ord.Data.fromObject(object.features[keys[i]], long + 1);
                 }
             }
             if (object.analyses) {
-                if (typeof object.analyses !== "object")
+                if (!$util.isObject(object.analyses))
                     throw TypeError(".ord.Compound.analyses: object expected");
                 message.analyses = {};
                 for (let keys = Object.keys(object.analyses), i = 0; i < keys.length; ++i) {
-                    if (typeof object.analyses[keys[i]] !== "object")
+                    if (keys[i] === "__proto__")
+                        $util.makeProp(message.analyses, keys[i]);
+                    if (!$util.isObject(object.analyses[keys[i]]))
                         throw TypeError(".ord.Compound.analyses: object expected");
-                    message.analyses[keys[i]] = $root.ord.Analysis.fromObject(object.analyses[keys[i]]);
+                    message.analyses[keys[i]] = $root.ord.Analysis.fromObject(object.analyses[keys[i]], long + 1);
                 }
             }
             if (object.texture != null) {
-                if (typeof object.texture !== "object")
+                if (!$util.isObject(object.texture))
                     throw TypeError(".ord.Compound.texture: object expected");
-                message.texture = $root.ord.Texture.fromObject(object.texture);
+                message.texture = $root.ord.Texture.fromObject(object.texture, long + 1);
             }
             return message;
         };
@@ -4551,9 +5048,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Compound.toObject = function toObject(message, options) {
+        Compound.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.arrays || options.defaults) {
                 object.identifiers = [];
@@ -4572,13 +5073,13 @@ export const ord = $root.ord = (() => {
             if (message.identifiers && message.identifiers.length) {
                 object.identifiers = [];
                 for (let j = 0; j < message.identifiers.length; ++j)
-                    object.identifiers[j] = $root.ord.CompoundIdentifier.toObject(message.identifiers[j], options);
+                    object.identifiers[j] = $root.ord.CompoundIdentifier.toObject(message.identifiers[j], options, q + 1);
             }
-            if (message.amount != null && message.hasOwnProperty("amount"))
-                object.amount = $root.ord.Amount.toObject(message.amount, options);
-            if (message.reactionRole != null && message.hasOwnProperty("reactionRole"))
+            if (message.amount != null && Object.hasOwnProperty.call(message, "amount"))
+                object.amount = $root.ord.Amount.toObject(message.amount, options, q + 1);
+            if (message.reactionRole != null && Object.hasOwnProperty.call(message, "reactionRole"))
                 object.reactionRole = options.enums === String ? $root.ord.ReactionRole.ReactionRoleType[message.reactionRole] === undefined ? message.reactionRole : $root.ord.ReactionRole.ReactionRoleType[message.reactionRole] : message.reactionRole;
-            if (message.isLimiting != null && message.hasOwnProperty("isLimiting")) {
+            if (message.isLimiting != null && Object.hasOwnProperty.call(message, "isLimiting")) {
                 object.isLimiting = message.isLimiting;
                 if (options.oneofs)
                     object._isLimiting = "isLimiting";
@@ -4586,23 +5087,29 @@ export const ord = $root.ord = (() => {
             if (message.preparations && message.preparations.length) {
                 object.preparations = [];
                 for (let j = 0; j < message.preparations.length; ++j)
-                    object.preparations[j] = $root.ord.CompoundPreparation.toObject(message.preparations[j], options);
+                    object.preparations[j] = $root.ord.CompoundPreparation.toObject(message.preparations[j], options, q + 1);
             }
-            if (message.source != null && message.hasOwnProperty("source"))
-                object.source = $root.ord.Compound.Source.toObject(message.source, options);
+            if (message.source != null && Object.hasOwnProperty.call(message, "source"))
+                object.source = $root.ord.Compound.Source.toObject(message.source, options, q + 1);
             let keys2;
             if (message.features && (keys2 = Object.keys(message.features)).length) {
                 object.features = {};
-                for (let j = 0; j < keys2.length; ++j)
-                    object.features[keys2[j]] = $root.ord.Data.toObject(message.features[keys2[j]], options);
+                for (let j = 0; j < keys2.length; ++j) {
+                    if (keys2[j] === "__proto__")
+                        $util.makeProp(object.features, keys2[j]);
+                    object.features[keys2[j]] = $root.ord.Data.toObject(message.features[keys2[j]], options, q + 1);
+                }
             }
             if (message.analyses && (keys2 = Object.keys(message.analyses)).length) {
                 object.analyses = {};
-                for (let j = 0; j < keys2.length; ++j)
-                    object.analyses[keys2[j]] = $root.ord.Analysis.toObject(message.analyses[keys2[j]], options);
+                for (let j = 0; j < keys2.length; ++j) {
+                    if (keys2[j] === "__proto__")
+                        $util.makeProp(object.analyses, keys2[j]);
+                    object.analyses[keys2[j]] = $root.ord.Analysis.toObject(message.analyses[keys2[j]], options, q + 1);
+                }
             }
-            if (message.texture != null && message.hasOwnProperty("texture"))
-                object.texture = $root.ord.Texture.toObject(message.texture, options);
+            if (message.texture != null && Object.hasOwnProperty.call(message, "texture"))
+                object.texture = $root.ord.Texture.toObject(message.texture, options, q + 1);
             return object;
         };
 
@@ -4654,7 +5161,7 @@ export const ord = $root.ord = (() => {
             function Source(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -4703,9 +5210,13 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            Source.encode = function encode(message, writer) {
+            Source.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.vendor != null && Object.hasOwnProperty.call(message, "vendor"))
                     writer.uint32(/* id 1, wireType 2 =*/10).string(message.vendor);
                 if (message.catalogId != null && Object.hasOwnProperty.call(message, "catalogId"))
@@ -4725,7 +5236,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             Source.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -4739,12 +5250,28 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            Source.decode = function decode(reader, length) {
+            Source.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Compound.Source();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.Compound.Source();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.vendor = reader.string();
@@ -4759,9 +5286,14 @@ export const ord = $root.ord = (() => {
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -4790,16 +5322,20 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            Source.verify = function verify(message) {
+            Source.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.vendor != null && message.hasOwnProperty("vendor"))
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.vendor != null && Object.hasOwnProperty.call(message, "vendor"))
                     if (!$util.isString(message.vendor))
                         return "vendor: string expected";
-                if (message.catalogId != null && message.hasOwnProperty("catalogId"))
+                if (message.catalogId != null && Object.hasOwnProperty.call(message, "catalogId"))
                     if (!$util.isString(message.catalogId))
                         return "catalogId: string expected";
-                if (message.lot != null && message.hasOwnProperty("lot"))
+                if (message.lot != null && Object.hasOwnProperty.call(message, "lot"))
                     if (!$util.isString(message.lot))
                         return "lot: string expected";
                 return null;
@@ -4813,9 +5349,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.Compound.Source} Source
              */
-            Source.fromObject = function fromObject(object) {
+            Source.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.Compound.Source)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.Compound.Source: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.Compound.Source();
                 if (object.vendor != null)
                     message.vendor = String(object.vendor);
@@ -4835,20 +5377,24 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            Source.toObject = function toObject(message, options) {
+            Source.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.vendor = "";
                     object.catalogId = "";
                     object.lot = "";
                 }
-                if (message.vendor != null && message.hasOwnProperty("vendor"))
+                if (message.vendor != null && Object.hasOwnProperty.call(message, "vendor"))
                     object.vendor = message.vendor;
-                if (message.catalogId != null && message.hasOwnProperty("catalogId"))
+                if (message.catalogId != null && Object.hasOwnProperty.call(message, "catalogId"))
                     object.catalogId = message.catalogId;
-                if (message.lot != null && message.hasOwnProperty("lot"))
+                if (message.lot != null && Object.hasOwnProperty.call(message, "lot"))
                     object.lot = message.lot;
                 return object;
             };
@@ -4904,7 +5450,7 @@ export const ord = $root.ord = (() => {
         function ReactionRole(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -4929,9 +5475,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ReactionRole.encode = function encode(message, writer) {
+        ReactionRole.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             return writer;
         };
 
@@ -4945,7 +5495,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ReactionRole.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -4959,17 +5509,38 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ReactionRole.decode = function decode(reader, length) {
+        ReactionRole.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionRole();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.ReactionRole();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -4998,9 +5569,13 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ReactionRole.verify = function verify(message) {
+        ReactionRole.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             return null;
         };
 
@@ -5012,7 +5587,7 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.ReactionRole} ReactionRole
          */
-        ReactionRole.fromObject = function fromObject(object) {
+        ReactionRole.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.ReactionRole)
                 return object;
             return new $root.ord.ReactionRole();
@@ -5118,7 +5693,7 @@ export const ord = $root.ord = (() => {
         function CompoundPreparation(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -5167,9 +5742,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        CompoundPreparation.encode = function encode(message, writer) {
+        CompoundPreparation.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -5189,7 +5768,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         CompoundPreparation.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -5203,12 +5782,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        CompoundPreparation.decode = function decode(reader, length) {
+        CompoundPreparation.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.CompoundPreparation();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.CompoundPreparation();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -5223,9 +5818,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -5254,10 +5854,14 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        CompoundPreparation.verify = function verify(message) {
+        CompoundPreparation.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -5270,10 +5874,10 @@ export const ord = $root.ord = (() => {
                 case 6:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
-            if (message.reactionId != null && message.hasOwnProperty("reactionId"))
+            if (message.reactionId != null && Object.hasOwnProperty.call(message, "reactionId"))
                 if (!$util.isString(message.reactionId))
                     return "reactionId: string expected";
             return null;
@@ -5287,9 +5891,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.CompoundPreparation} CompoundPreparation
          */
-        CompoundPreparation.fromObject = function fromObject(object) {
+        CompoundPreparation.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.CompoundPreparation)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.CompoundPreparation: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.CompoundPreparation();
             switch (object.type) {
             default:
@@ -5343,20 +5953,24 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        CompoundPreparation.toObject = function toObject(message, options) {
+        CompoundPreparation.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
                 object.details = "";
                 object.reactionId = "";
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.CompoundPreparation.CompoundPreparationType[message.type] === undefined ? message.type : $root.ord.CompoundPreparation.CompoundPreparationType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
-            if (message.reactionId != null && message.hasOwnProperty("reactionId"))
+            if (message.reactionId != null && Object.hasOwnProperty.call(message, "reactionId"))
                 object.reactionId = message.reactionId;
             return object;
         };
@@ -5442,7 +6056,7 @@ export const ord = $root.ord = (() => {
         function CompoundIdentifier(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -5491,9 +6105,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        CompoundIdentifier.encode = function encode(message, writer) {
+        CompoundIdentifier.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -5513,7 +6131,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         CompoundIdentifier.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -5527,12 +6145,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        CompoundIdentifier.decode = function decode(reader, length) {
+        CompoundIdentifier.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.CompoundIdentifier();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.CompoundIdentifier();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -5547,9 +6181,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -5578,10 +6217,14 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        CompoundIdentifier.verify = function verify(message) {
+        CompoundIdentifier.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -5605,10 +6248,10 @@ export const ord = $root.ord = (() => {
                 case 17:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
-            if (message.value != null && message.hasOwnProperty("value"))
+            if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 if (!$util.isString(message.value))
                     return "value: string expected";
             return null;
@@ -5622,9 +6265,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.CompoundIdentifier} CompoundIdentifier
          */
-        CompoundIdentifier.fromObject = function fromObject(object) {
+        CompoundIdentifier.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.CompoundIdentifier)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.CompoundIdentifier: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.CompoundIdentifier();
             switch (object.type) {
             default:
@@ -5722,20 +6371,24 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        CompoundIdentifier.toObject = function toObject(message, options) {
+        CompoundIdentifier.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
                 object.details = "";
                 object.value = "";
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.CompoundIdentifier.CompoundIdentifierType[message.type] === undefined ? message.type : $root.ord.CompoundIdentifier.CompoundIdentifierType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
-            if (message.value != null && message.hasOwnProperty("value"))
+            if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 object.value = message.value;
             return object;
         };
@@ -5848,7 +6501,7 @@ export const ord = $root.ord = (() => {
             this.attachments = [];
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -5953,23 +6606,27 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Vessel.encode = function encode(message, writer) {
+        Vessel.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.details);
             if (message.material != null && Object.hasOwnProperty.call(message, "material"))
-                $root.ord.VesselMaterial.encode(message.material, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                $root.ord.VesselMaterial.encode(message.material, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             if (message.preparations != null && message.preparations.length)
                 for (let i = 0; i < message.preparations.length; ++i)
-                    $root.ord.VesselPreparation.encode(message.preparations[i], writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                    $root.ord.VesselPreparation.encode(message.preparations[i], writer.uint32(/* id 4, wireType 2 =*/34).fork(), q + 1).ldelim();
             if (message.attachments != null && message.attachments.length)
                 for (let i = 0; i < message.attachments.length; ++i)
-                    $root.ord.VesselAttachment.encode(message.attachments[i], writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+                    $root.ord.VesselAttachment.encode(message.attachments[i], writer.uint32(/* id 5, wireType 2 =*/42).fork(), q + 1).ldelim();
             if (message.volume != null && Object.hasOwnProperty.call(message, "volume"))
-                $root.ord.Volume.encode(message.volume, writer.uint32(/* id 6, wireType 2 =*/50).fork()).ldelim();
+                $root.ord.Volume.encode(message.volume, writer.uint32(/* id 6, wireType 2 =*/50).fork(), q + 1).ldelim();
             if (message.vesselId != null && Object.hasOwnProperty.call(message, "vesselId"))
                 writer.uint32(/* id 7, wireType 2 =*/58).string(message.vesselId);
             if (message.position != null && Object.hasOwnProperty.call(message, "position"))
@@ -5991,7 +6648,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Vessel.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -6005,12 +6662,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Vessel.decode = function decode(reader, length) {
+        Vessel.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Vessel();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Vessel();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -6021,23 +6694,23 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 3: {
-                        message.material = $root.ord.VesselMaterial.decode(reader, reader.uint32());
+                        message.material = $root.ord.VesselMaterial.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 4: {
                         if (!(message.preparations && message.preparations.length))
                             message.preparations = [];
-                        message.preparations.push($root.ord.VesselPreparation.decode(reader, reader.uint32()));
+                        message.preparations.push($root.ord.VesselPreparation.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 5: {
                         if (!(message.attachments && message.attachments.length))
                             message.attachments = [];
-                        message.attachments.push($root.ord.VesselAttachment.decode(reader, reader.uint32()));
+                        message.attachments.push($root.ord.VesselAttachment.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 6: {
-                        message.volume = $root.ord.Volume.decode(reader, reader.uint32());
+                        message.volume = $root.ord.Volume.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 7: {
@@ -6057,9 +6730,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -6088,10 +6766,14 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Vessel.verify = function verify(message) {
+        Vessel.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -6110,47 +6792,47 @@ export const ord = $root.ord = (() => {
                 case 12:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
-            if (message.material != null && message.hasOwnProperty("material")) {
-                let error = $root.ord.VesselMaterial.verify(message.material);
+            if (message.material != null && Object.hasOwnProperty.call(message, "material")) {
+                let error = $root.ord.VesselMaterial.verify(message.material, long + 1);
                 if (error)
                     return "material." + error;
             }
-            if (message.preparations != null && message.hasOwnProperty("preparations")) {
+            if (message.preparations != null && Object.hasOwnProperty.call(message, "preparations")) {
                 if (!Array.isArray(message.preparations))
                     return "preparations: array expected";
                 for (let i = 0; i < message.preparations.length; ++i) {
-                    let error = $root.ord.VesselPreparation.verify(message.preparations[i]);
+                    let error = $root.ord.VesselPreparation.verify(message.preparations[i], long + 1);
                     if (error)
                         return "preparations." + error;
                 }
             }
-            if (message.attachments != null && message.hasOwnProperty("attachments")) {
+            if (message.attachments != null && Object.hasOwnProperty.call(message, "attachments")) {
                 if (!Array.isArray(message.attachments))
                     return "attachments: array expected";
                 for (let i = 0; i < message.attachments.length; ++i) {
-                    let error = $root.ord.VesselAttachment.verify(message.attachments[i]);
+                    let error = $root.ord.VesselAttachment.verify(message.attachments[i], long + 1);
                     if (error)
                         return "attachments." + error;
                 }
             }
-            if (message.volume != null && message.hasOwnProperty("volume")) {
-                let error = $root.ord.Volume.verify(message.volume);
+            if (message.volume != null && Object.hasOwnProperty.call(message, "volume")) {
+                let error = $root.ord.Volume.verify(message.volume, long + 1);
                 if (error)
                     return "volume." + error;
             }
-            if (message.vesselId != null && message.hasOwnProperty("vesselId"))
+            if (message.vesselId != null && Object.hasOwnProperty.call(message, "vesselId"))
                 if (!$util.isString(message.vesselId))
                     return "vesselId: string expected";
-            if (message.position != null && message.hasOwnProperty("position"))
+            if (message.position != null && Object.hasOwnProperty.call(message, "position"))
                 if (!$util.isString(message.position))
                     return "position: string expected";
-            if (message.row != null && message.hasOwnProperty("row"))
+            if (message.row != null && Object.hasOwnProperty.call(message, "row"))
                 if (!$util.isString(message.row))
                     return "row: string expected";
-            if (message.col != null && message.hasOwnProperty("col"))
+            if (message.col != null && Object.hasOwnProperty.call(message, "col"))
                 if (!$util.isString(message.col))
                     return "col: string expected";
             return null;
@@ -6164,9 +6846,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Vessel} Vessel
          */
-        Vessel.fromObject = function fromObject(object) {
+        Vessel.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Vessel)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Vessel: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Vessel();
             switch (object.type) {
             default:
@@ -6231,18 +6919,18 @@ export const ord = $root.ord = (() => {
             if (object.details != null)
                 message.details = String(object.details);
             if (object.material != null) {
-                if (typeof object.material !== "object")
+                if (!$util.isObject(object.material))
                     throw TypeError(".ord.Vessel.material: object expected");
-                message.material = $root.ord.VesselMaterial.fromObject(object.material);
+                message.material = $root.ord.VesselMaterial.fromObject(object.material, long + 1);
             }
             if (object.preparations) {
                 if (!Array.isArray(object.preparations))
                     throw TypeError(".ord.Vessel.preparations: array expected");
                 message.preparations = [];
                 for (let i = 0; i < object.preparations.length; ++i) {
-                    if (typeof object.preparations[i] !== "object")
+                    if (!$util.isObject(object.preparations[i]))
                         throw TypeError(".ord.Vessel.preparations: object expected");
-                    message.preparations[i] = $root.ord.VesselPreparation.fromObject(object.preparations[i]);
+                    message.preparations[i] = $root.ord.VesselPreparation.fromObject(object.preparations[i], long + 1);
                 }
             }
             if (object.attachments) {
@@ -6250,15 +6938,15 @@ export const ord = $root.ord = (() => {
                     throw TypeError(".ord.Vessel.attachments: array expected");
                 message.attachments = [];
                 for (let i = 0; i < object.attachments.length; ++i) {
-                    if (typeof object.attachments[i] !== "object")
+                    if (!$util.isObject(object.attachments[i]))
                         throw TypeError(".ord.Vessel.attachments: object expected");
-                    message.attachments[i] = $root.ord.VesselAttachment.fromObject(object.attachments[i]);
+                    message.attachments[i] = $root.ord.VesselAttachment.fromObject(object.attachments[i], long + 1);
                 }
             }
             if (object.volume != null) {
-                if (typeof object.volume !== "object")
+                if (!$util.isObject(object.volume))
                     throw TypeError(".ord.Vessel.volume: object expected");
-                message.volume = $root.ord.Volume.fromObject(object.volume);
+                message.volume = $root.ord.Volume.fromObject(object.volume, long + 1);
             }
             if (object.vesselId != null)
                 message.vesselId = String(object.vesselId);
@@ -6280,9 +6968,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Vessel.toObject = function toObject(message, options) {
+        Vessel.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.arrays || options.defaults) {
                 object.preparations = [];
@@ -6298,31 +6990,31 @@ export const ord = $root.ord = (() => {
                 object.row = "";
                 object.col = "";
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.Vessel.VesselType[message.type] === undefined ? message.type : $root.ord.Vessel.VesselType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
-            if (message.material != null && message.hasOwnProperty("material"))
-                object.material = $root.ord.VesselMaterial.toObject(message.material, options);
+            if (message.material != null && Object.hasOwnProperty.call(message, "material"))
+                object.material = $root.ord.VesselMaterial.toObject(message.material, options, q + 1);
             if (message.preparations && message.preparations.length) {
                 object.preparations = [];
                 for (let j = 0; j < message.preparations.length; ++j)
-                    object.preparations[j] = $root.ord.VesselPreparation.toObject(message.preparations[j], options);
+                    object.preparations[j] = $root.ord.VesselPreparation.toObject(message.preparations[j], options, q + 1);
             }
             if (message.attachments && message.attachments.length) {
                 object.attachments = [];
                 for (let j = 0; j < message.attachments.length; ++j)
-                    object.attachments[j] = $root.ord.VesselAttachment.toObject(message.attachments[j], options);
+                    object.attachments[j] = $root.ord.VesselAttachment.toObject(message.attachments[j], options, q + 1);
             }
-            if (message.volume != null && message.hasOwnProperty("volume"))
-                object.volume = $root.ord.Volume.toObject(message.volume, options);
-            if (message.vesselId != null && message.hasOwnProperty("vesselId"))
+            if (message.volume != null && Object.hasOwnProperty.call(message, "volume"))
+                object.volume = $root.ord.Volume.toObject(message.volume, options, q + 1);
+            if (message.vesselId != null && Object.hasOwnProperty.call(message, "vesselId"))
                 object.vesselId = message.vesselId;
-            if (message.position != null && message.hasOwnProperty("position"))
+            if (message.position != null && Object.hasOwnProperty.call(message, "position"))
                 object.position = message.position;
-            if (message.row != null && message.hasOwnProperty("row"))
+            if (message.row != null && Object.hasOwnProperty.call(message, "row"))
                 object.row = message.row;
-            if (message.col != null && message.hasOwnProperty("col"))
+            if (message.col != null && Object.hasOwnProperty.call(message, "col"))
                 object.col = message.col;
             return object;
         };
@@ -6413,7 +7105,7 @@ export const ord = $root.ord = (() => {
         function VesselMaterial(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -6454,9 +7146,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        VesselMaterial.encode = function encode(message, writer) {
+        VesselMaterial.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -6474,7 +7170,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         VesselMaterial.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -6488,12 +7184,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        VesselMaterial.decode = function decode(reader, length) {
+        VesselMaterial.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.VesselMaterial();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.VesselMaterial();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -6504,9 +7216,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -6535,10 +7252,14 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        VesselMaterial.verify = function verify(message) {
+        VesselMaterial.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -6551,7 +7272,7 @@ export const ord = $root.ord = (() => {
                 case 6:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
             return null;
@@ -6565,9 +7286,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.VesselMaterial} VesselMaterial
          */
-        VesselMaterial.fromObject = function fromObject(object) {
+        VesselMaterial.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.VesselMaterial)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.VesselMaterial: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.VesselMaterial();
             switch (object.type) {
             default:
@@ -6619,17 +7346,21 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        VesselMaterial.toObject = function toObject(message, options) {
+        VesselMaterial.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
                 object.details = "";
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.VesselMaterial.VesselMaterialType[message.type] === undefined ? message.type : $root.ord.VesselMaterial.VesselMaterialType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
             return object;
         };
@@ -6708,7 +7439,7 @@ export const ord = $root.ord = (() => {
         function VesselAttachment(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -6749,9 +7480,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        VesselAttachment.encode = function encode(message, writer) {
+        VesselAttachment.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -6769,7 +7504,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         VesselAttachment.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -6783,12 +7518,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        VesselAttachment.decode = function decode(reader, length) {
+        VesselAttachment.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.VesselAttachment();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.VesselAttachment();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -6799,9 +7550,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -6830,10 +7586,14 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        VesselAttachment.verify = function verify(message) {
+        VesselAttachment.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -6857,7 +7617,7 @@ export const ord = $root.ord = (() => {
                 case 17:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
             return null;
@@ -6871,9 +7631,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.VesselAttachment} VesselAttachment
          */
-        VesselAttachment.fromObject = function fromObject(object) {
+        VesselAttachment.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.VesselAttachment)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.VesselAttachment: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.VesselAttachment();
             switch (object.type) {
             default:
@@ -6969,17 +7735,21 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        VesselAttachment.toObject = function toObject(message, options) {
+        VesselAttachment.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
                 object.details = "";
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.VesselAttachment.VesselAttachmentType[message.type] === undefined ? message.type : $root.ord.VesselAttachment.VesselAttachmentType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
             return object;
         };
@@ -7080,7 +7850,7 @@ export const ord = $root.ord = (() => {
         function VesselPreparation(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -7121,9 +7891,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        VesselPreparation.encode = function encode(message, writer) {
+        VesselPreparation.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -7141,7 +7915,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         VesselPreparation.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -7155,12 +7929,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        VesselPreparation.decode = function decode(reader, length) {
+        VesselPreparation.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.VesselPreparation();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.VesselPreparation();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -7171,9 +7961,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -7202,10 +7997,14 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        VesselPreparation.verify = function verify(message) {
+        VesselPreparation.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -7218,7 +8017,7 @@ export const ord = $root.ord = (() => {
                 case 6:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
             return null;
@@ -7232,9 +8031,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.VesselPreparation} VesselPreparation
          */
-        VesselPreparation.fromObject = function fromObject(object) {
+        VesselPreparation.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.VesselPreparation)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.VesselPreparation: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.VesselPreparation();
             switch (object.type) {
             default:
@@ -7286,17 +8091,21 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        VesselPreparation.toObject = function toObject(message, options) {
+        VesselPreparation.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
                 object.details = "";
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.VesselPreparation.VesselPreparationType[message.type] === undefined ? message.type : $root.ord.VesselPreparation.VesselPreparationType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
             return object;
         };
@@ -7379,7 +8188,7 @@ export const ord = $root.ord = (() => {
             this.automationCode = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -7453,11 +8262,15 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ReactionSetup.encode = function encode(message, writer) {
+        ReactionSetup.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.vessel != null && Object.hasOwnProperty.call(message, "vessel"))
-                $root.ord.Vessel.encode(message.vessel, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                $root.ord.Vessel.encode(message.vessel, writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             if (message.isAutomated != null && Object.hasOwnProperty.call(message, "isAutomated"))
                 writer.uint32(/* id 2, wireType 0 =*/16).bool(message.isAutomated);
             if (message.automationPlatform != null && Object.hasOwnProperty.call(message, "automationPlatform"))
@@ -7465,10 +8278,10 @@ export const ord = $root.ord = (() => {
             if (message.automationCode != null && Object.hasOwnProperty.call(message, "automationCode"))
                 for (let keys = Object.keys(message.automationCode), i = 0; i < keys.length; ++i) {
                     writer.uint32(/* id 4, wireType 2 =*/34).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
-                    $root.ord.Data.encode(message.automationCode[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                    $root.ord.Data.encode(message.automationCode[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim().ldelim();
                 }
             if (message.environment != null && Object.hasOwnProperty.call(message, "environment"))
-                $root.ord.ReactionSetup.ReactionEnvironment.encode(message.environment, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+                $root.ord.ReactionSetup.ReactionEnvironment.encode(message.environment, writer.uint32(/* id 5, wireType 2 =*/42).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -7482,7 +8295,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ReactionSetup.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -7496,15 +8309,31 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ReactionSetup.decode = function decode(reader, length) {
+        ReactionSetup.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionSetup(), key, value;
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message, key, value;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.ReactionSetup();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.vessel = $root.ord.Vessel.decode(reader, reader.uint32());
+                        message.vessel = $root.ord.Vessel.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 2: {
@@ -7519,6 +8348,9 @@ export const ord = $root.ord = (() => {
                         if (message.automationCode === $util.emptyObject)
                             message.automationCode = {};
                         let end2 = reader.uint32() + reader.pos;
+                        if (end2 > reader.len)
+                            throw RangeError("index out of range");
+                        reader.len = end2;
                         key = "";
                         value = null;
                         while (reader.pos < end2) {
@@ -7528,24 +8360,34 @@ export const ord = $root.ord = (() => {
                                 key = reader.string();
                                 break;
                             case 2:
-                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                value = $root.ord.Data.decode(reader, reader.uint32(), undefined, long + 1);
                                 break;
                             default:
-                                reader.skipType(tag2 & 7);
+                                reader.skipType(tag2 & 7, long);
                                 break;
                             }
                         }
+                        if (reader.pos !== end2)
+                            throw RangeError("index out of range");
+                        reader.len = end;
+                        if (key === "__proto__")
+                            $util.makeProp(message.automationCode, key);
                         message.automationCode[key] = value;
                         break;
                     }
                 case 5: {
-                        message.environment = $root.ord.ReactionSetup.ReactionEnvironment.decode(reader, reader.uint32());
+                        message.environment = $root.ord.ReactionSetup.ReactionEnvironment.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -7574,35 +8416,39 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ReactionSetup.verify = function verify(message) {
+        ReactionSetup.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.vessel != null && message.hasOwnProperty("vessel")) {
-                let error = $root.ord.Vessel.verify(message.vessel);
+            if (message.vessel != null && Object.hasOwnProperty.call(message, "vessel")) {
+                let error = $root.ord.Vessel.verify(message.vessel, long + 1);
                 if (error)
                     return "vessel." + error;
             }
-            if (message.isAutomated != null && message.hasOwnProperty("isAutomated")) {
+            if (message.isAutomated != null && Object.hasOwnProperty.call(message, "isAutomated")) {
                 properties._isAutomated = 1;
                 if (typeof message.isAutomated !== "boolean")
                     return "isAutomated: boolean expected";
             }
-            if (message.automationPlatform != null && message.hasOwnProperty("automationPlatform"))
+            if (message.automationPlatform != null && Object.hasOwnProperty.call(message, "automationPlatform"))
                 if (!$util.isString(message.automationPlatform))
                     return "automationPlatform: string expected";
-            if (message.automationCode != null && message.hasOwnProperty("automationCode")) {
+            if (message.automationCode != null && Object.hasOwnProperty.call(message, "automationCode")) {
                 if (!$util.isObject(message.automationCode))
                     return "automationCode: object expected";
                 let key = Object.keys(message.automationCode);
                 for (let i = 0; i < key.length; ++i) {
-                    let error = $root.ord.Data.verify(message.automationCode[key[i]]);
+                    let error = $root.ord.Data.verify(message.automationCode[key[i]], long + 1);
                     if (error)
                         return "automationCode." + error;
                 }
             }
-            if (message.environment != null && message.hasOwnProperty("environment")) {
-                let error = $root.ord.ReactionSetup.ReactionEnvironment.verify(message.environment);
+            if (message.environment != null && Object.hasOwnProperty.call(message, "environment")) {
+                let error = $root.ord.ReactionSetup.ReactionEnvironment.verify(message.environment, long + 1);
                 if (error)
                     return "environment." + error;
             }
@@ -7617,33 +8463,41 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.ReactionSetup} ReactionSetup
          */
-        ReactionSetup.fromObject = function fromObject(object) {
+        ReactionSetup.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.ReactionSetup)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.ReactionSetup: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.ReactionSetup();
             if (object.vessel != null) {
-                if (typeof object.vessel !== "object")
+                if (!$util.isObject(object.vessel))
                     throw TypeError(".ord.ReactionSetup.vessel: object expected");
-                message.vessel = $root.ord.Vessel.fromObject(object.vessel);
+                message.vessel = $root.ord.Vessel.fromObject(object.vessel, long + 1);
             }
             if (object.isAutomated != null)
                 message.isAutomated = Boolean(object.isAutomated);
             if (object.automationPlatform != null)
                 message.automationPlatform = String(object.automationPlatform);
             if (object.automationCode) {
-                if (typeof object.automationCode !== "object")
+                if (!$util.isObject(object.automationCode))
                     throw TypeError(".ord.ReactionSetup.automationCode: object expected");
                 message.automationCode = {};
                 for (let keys = Object.keys(object.automationCode), i = 0; i < keys.length; ++i) {
-                    if (typeof object.automationCode[keys[i]] !== "object")
+                    if (keys[i] === "__proto__")
+                        $util.makeProp(message.automationCode, keys[i]);
+                    if (!$util.isObject(object.automationCode[keys[i]]))
                         throw TypeError(".ord.ReactionSetup.automationCode: object expected");
-                    message.automationCode[keys[i]] = $root.ord.Data.fromObject(object.automationCode[keys[i]]);
+                    message.automationCode[keys[i]] = $root.ord.Data.fromObject(object.automationCode[keys[i]], long + 1);
                 }
             }
             if (object.environment != null) {
-                if (typeof object.environment !== "object")
+                if (!$util.isObject(object.environment))
                     throw TypeError(".ord.ReactionSetup.environment: object expected");
-                message.environment = $root.ord.ReactionSetup.ReactionEnvironment.fromObject(object.environment);
+                message.environment = $root.ord.ReactionSetup.ReactionEnvironment.fromObject(object.environment, long + 1);
             }
             return message;
         };
@@ -7657,9 +8511,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ReactionSetup.toObject = function toObject(message, options) {
+        ReactionSetup.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.objects || options.defaults)
                 object.automationCode = {};
@@ -7668,23 +8526,26 @@ export const ord = $root.ord = (() => {
                 object.automationPlatform = "";
                 object.environment = null;
             }
-            if (message.vessel != null && message.hasOwnProperty("vessel"))
-                object.vessel = $root.ord.Vessel.toObject(message.vessel, options);
-            if (message.isAutomated != null && message.hasOwnProperty("isAutomated")) {
+            if (message.vessel != null && Object.hasOwnProperty.call(message, "vessel"))
+                object.vessel = $root.ord.Vessel.toObject(message.vessel, options, q + 1);
+            if (message.isAutomated != null && Object.hasOwnProperty.call(message, "isAutomated")) {
                 object.isAutomated = message.isAutomated;
                 if (options.oneofs)
                     object._isAutomated = "isAutomated";
             }
-            if (message.automationPlatform != null && message.hasOwnProperty("automationPlatform"))
+            if (message.automationPlatform != null && Object.hasOwnProperty.call(message, "automationPlatform"))
                 object.automationPlatform = message.automationPlatform;
             let keys2;
             if (message.automationCode && (keys2 = Object.keys(message.automationCode)).length) {
                 object.automationCode = {};
-                for (let j = 0; j < keys2.length; ++j)
-                    object.automationCode[keys2[j]] = $root.ord.Data.toObject(message.automationCode[keys2[j]], options);
+                for (let j = 0; j < keys2.length; ++j) {
+                    if (keys2[j] === "__proto__")
+                        $util.makeProp(object.automationCode, keys2[j]);
+                    object.automationCode[keys2[j]] = $root.ord.Data.toObject(message.automationCode[keys2[j]], options, q + 1);
+                }
             }
-            if (message.environment != null && message.hasOwnProperty("environment"))
-                object.environment = $root.ord.ReactionSetup.ReactionEnvironment.toObject(message.environment, options);
+            if (message.environment != null && Object.hasOwnProperty.call(message, "environment"))
+                object.environment = $root.ord.ReactionSetup.ReactionEnvironment.toObject(message.environment, options, q + 1);
             return object;
         };
 
@@ -7735,7 +8596,7 @@ export const ord = $root.ord = (() => {
             function ReactionEnvironment(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -7776,9 +8637,13 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            ReactionEnvironment.encode = function encode(message, writer) {
+            ReactionEnvironment.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
                 if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -7796,7 +8661,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             ReactionEnvironment.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -7810,12 +8675,28 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            ReactionEnvironment.decode = function decode(reader, length) {
+            ReactionEnvironment.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionSetup.ReactionEnvironment();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.ReactionSetup.ReactionEnvironment();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.type = reader.int32();
@@ -7826,9 +8707,14 @@ export const ord = $root.ord = (() => {
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -7857,10 +8743,14 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            ReactionEnvironment.verify = function verify(message) {
+            ReactionEnvironment.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     switch (message.type) {
                     default:
                         return "type: enum value expected";
@@ -7872,7 +8762,7 @@ export const ord = $root.ord = (() => {
                     case 5:
                         break;
                     }
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     if (!$util.isString(message.details))
                         return "details: string expected";
                 return null;
@@ -7886,9 +8776,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.ReactionSetup.ReactionEnvironment} ReactionEnvironment
              */
-            ReactionEnvironment.fromObject = function fromObject(object) {
+            ReactionEnvironment.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.ReactionSetup.ReactionEnvironment)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.ReactionSetup.ReactionEnvironment: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.ReactionSetup.ReactionEnvironment();
                 switch (object.type) {
                 default:
@@ -7936,17 +8832,21 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            ReactionEnvironment.toObject = function toObject(message, options) {
+            ReactionEnvironment.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.type = options.enums === String ? "UNSPECIFIED" : 0;
                     object.details = "";
                 }
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     object.type = options.enums === String ? $root.ord.ReactionSetup.ReactionEnvironment.ReactionEnvironmentType[message.type] === undefined ? message.type : $root.ord.ReactionSetup.ReactionEnvironment.ReactionEnvironmentType[message.type] : message.type;
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     object.details = message.details;
                 return object;
             };
@@ -8034,7 +8934,7 @@ export const ord = $root.ord = (() => {
         function ReactionConditions(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -8160,21 +9060,25 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ReactionConditions.encode = function encode(message, writer) {
+        ReactionConditions.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.temperature != null && Object.hasOwnProperty.call(message, "temperature"))
-                $root.ord.TemperatureConditions.encode(message.temperature, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                $root.ord.TemperatureConditions.encode(message.temperature, writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             if (message.pressure != null && Object.hasOwnProperty.call(message, "pressure"))
-                $root.ord.PressureConditions.encode(message.pressure, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+                $root.ord.PressureConditions.encode(message.pressure, writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim();
             if (message.stirring != null && Object.hasOwnProperty.call(message, "stirring"))
-                $root.ord.StirringConditions.encode(message.stirring, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                $root.ord.StirringConditions.encode(message.stirring, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             if (message.illumination != null && Object.hasOwnProperty.call(message, "illumination"))
-                $root.ord.IlluminationConditions.encode(message.illumination, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                $root.ord.IlluminationConditions.encode(message.illumination, writer.uint32(/* id 4, wireType 2 =*/34).fork(), q + 1).ldelim();
             if (message.electrochemistry != null && Object.hasOwnProperty.call(message, "electrochemistry"))
-                $root.ord.ElectrochemistryConditions.encode(message.electrochemistry, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+                $root.ord.ElectrochemistryConditions.encode(message.electrochemistry, writer.uint32(/* id 5, wireType 2 =*/42).fork(), q + 1).ldelim();
             if (message.flow != null && Object.hasOwnProperty.call(message, "flow"))
-                $root.ord.FlowConditions.encode(message.flow, writer.uint32(/* id 6, wireType 2 =*/50).fork()).ldelim();
+                $root.ord.FlowConditions.encode(message.flow, writer.uint32(/* id 6, wireType 2 =*/50).fork(), q + 1).ldelim();
             if (message.reflux != null && Object.hasOwnProperty.call(message, "reflux"))
                 writer.uint32(/* id 7, wireType 0 =*/56).bool(message.reflux);
             if (message.ph != null && Object.hasOwnProperty.call(message, "ph"))
@@ -8196,7 +9100,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ReactionConditions.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -8210,35 +9114,51 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ReactionConditions.decode = function decode(reader, length) {
+        ReactionConditions.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionConditions();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.ReactionConditions();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.temperature = $root.ord.TemperatureConditions.decode(reader, reader.uint32());
+                        message.temperature = $root.ord.TemperatureConditions.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 2: {
-                        message.pressure = $root.ord.PressureConditions.decode(reader, reader.uint32());
+                        message.pressure = $root.ord.PressureConditions.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 3: {
-                        message.stirring = $root.ord.StirringConditions.decode(reader, reader.uint32());
+                        message.stirring = $root.ord.StirringConditions.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 4: {
-                        message.illumination = $root.ord.IlluminationConditions.decode(reader, reader.uint32());
+                        message.illumination = $root.ord.IlluminationConditions.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 5: {
-                        message.electrochemistry = $root.ord.ElectrochemistryConditions.decode(reader, reader.uint32());
+                        message.electrochemistry = $root.ord.ElectrochemistryConditions.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 6: {
-                        message.flow = $root.ord.FlowConditions.decode(reader, reader.uint32());
+                        message.flow = $root.ord.FlowConditions.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 7: {
@@ -8258,9 +9178,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -8289,56 +9214,60 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ReactionConditions.verify = function verify(message) {
+        ReactionConditions.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.temperature != null && message.hasOwnProperty("temperature")) {
-                let error = $root.ord.TemperatureConditions.verify(message.temperature);
+            if (message.temperature != null && Object.hasOwnProperty.call(message, "temperature")) {
+                let error = $root.ord.TemperatureConditions.verify(message.temperature, long + 1);
                 if (error)
                     return "temperature." + error;
             }
-            if (message.pressure != null && message.hasOwnProperty("pressure")) {
-                let error = $root.ord.PressureConditions.verify(message.pressure);
+            if (message.pressure != null && Object.hasOwnProperty.call(message, "pressure")) {
+                let error = $root.ord.PressureConditions.verify(message.pressure, long + 1);
                 if (error)
                     return "pressure." + error;
             }
-            if (message.stirring != null && message.hasOwnProperty("stirring")) {
-                let error = $root.ord.StirringConditions.verify(message.stirring);
+            if (message.stirring != null && Object.hasOwnProperty.call(message, "stirring")) {
+                let error = $root.ord.StirringConditions.verify(message.stirring, long + 1);
                 if (error)
                     return "stirring." + error;
             }
-            if (message.illumination != null && message.hasOwnProperty("illumination")) {
-                let error = $root.ord.IlluminationConditions.verify(message.illumination);
+            if (message.illumination != null && Object.hasOwnProperty.call(message, "illumination")) {
+                let error = $root.ord.IlluminationConditions.verify(message.illumination, long + 1);
                 if (error)
                     return "illumination." + error;
             }
-            if (message.electrochemistry != null && message.hasOwnProperty("electrochemistry")) {
-                let error = $root.ord.ElectrochemistryConditions.verify(message.electrochemistry);
+            if (message.electrochemistry != null && Object.hasOwnProperty.call(message, "electrochemistry")) {
+                let error = $root.ord.ElectrochemistryConditions.verify(message.electrochemistry, long + 1);
                 if (error)
                     return "electrochemistry." + error;
             }
-            if (message.flow != null && message.hasOwnProperty("flow")) {
-                let error = $root.ord.FlowConditions.verify(message.flow);
+            if (message.flow != null && Object.hasOwnProperty.call(message, "flow")) {
+                let error = $root.ord.FlowConditions.verify(message.flow, long + 1);
                 if (error)
                     return "flow." + error;
             }
-            if (message.reflux != null && message.hasOwnProperty("reflux")) {
+            if (message.reflux != null && Object.hasOwnProperty.call(message, "reflux")) {
                 properties._reflux = 1;
                 if (typeof message.reflux !== "boolean")
                     return "reflux: boolean expected";
             }
-            if (message.ph != null && message.hasOwnProperty("ph")) {
+            if (message.ph != null && Object.hasOwnProperty.call(message, "ph")) {
                 properties._ph = 1;
                 if (typeof message.ph !== "number")
                     return "ph: number expected";
             }
-            if (message.conditionsAreDynamic != null && message.hasOwnProperty("conditionsAreDynamic")) {
+            if (message.conditionsAreDynamic != null && Object.hasOwnProperty.call(message, "conditionsAreDynamic")) {
                 properties._conditionsAreDynamic = 1;
                 if (typeof message.conditionsAreDynamic !== "boolean")
                     return "conditionsAreDynamic: boolean expected";
             }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
             return null;
@@ -8352,39 +9281,45 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.ReactionConditions} ReactionConditions
          */
-        ReactionConditions.fromObject = function fromObject(object) {
+        ReactionConditions.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.ReactionConditions)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.ReactionConditions: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.ReactionConditions();
             if (object.temperature != null) {
-                if (typeof object.temperature !== "object")
+                if (!$util.isObject(object.temperature))
                     throw TypeError(".ord.ReactionConditions.temperature: object expected");
-                message.temperature = $root.ord.TemperatureConditions.fromObject(object.temperature);
+                message.temperature = $root.ord.TemperatureConditions.fromObject(object.temperature, long + 1);
             }
             if (object.pressure != null) {
-                if (typeof object.pressure !== "object")
+                if (!$util.isObject(object.pressure))
                     throw TypeError(".ord.ReactionConditions.pressure: object expected");
-                message.pressure = $root.ord.PressureConditions.fromObject(object.pressure);
+                message.pressure = $root.ord.PressureConditions.fromObject(object.pressure, long + 1);
             }
             if (object.stirring != null) {
-                if (typeof object.stirring !== "object")
+                if (!$util.isObject(object.stirring))
                     throw TypeError(".ord.ReactionConditions.stirring: object expected");
-                message.stirring = $root.ord.StirringConditions.fromObject(object.stirring);
+                message.stirring = $root.ord.StirringConditions.fromObject(object.stirring, long + 1);
             }
             if (object.illumination != null) {
-                if (typeof object.illumination !== "object")
+                if (!$util.isObject(object.illumination))
                     throw TypeError(".ord.ReactionConditions.illumination: object expected");
-                message.illumination = $root.ord.IlluminationConditions.fromObject(object.illumination);
+                message.illumination = $root.ord.IlluminationConditions.fromObject(object.illumination, long + 1);
             }
             if (object.electrochemistry != null) {
-                if (typeof object.electrochemistry !== "object")
+                if (!$util.isObject(object.electrochemistry))
                     throw TypeError(".ord.ReactionConditions.electrochemistry: object expected");
-                message.electrochemistry = $root.ord.ElectrochemistryConditions.fromObject(object.electrochemistry);
+                message.electrochemistry = $root.ord.ElectrochemistryConditions.fromObject(object.electrochemistry, long + 1);
             }
             if (object.flow != null) {
-                if (typeof object.flow !== "object")
+                if (!$util.isObject(object.flow))
                     throw TypeError(".ord.ReactionConditions.flow: object expected");
-                message.flow = $root.ord.FlowConditions.fromObject(object.flow);
+                message.flow = $root.ord.FlowConditions.fromObject(object.flow, long + 1);
             }
             if (object.reflux != null)
                 message.reflux = Boolean(object.reflux);
@@ -8406,9 +9341,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ReactionConditions.toObject = function toObject(message, options) {
+        ReactionConditions.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.temperature = null;
@@ -8419,34 +9358,34 @@ export const ord = $root.ord = (() => {
                 object.flow = null;
                 object.details = "";
             }
-            if (message.temperature != null && message.hasOwnProperty("temperature"))
-                object.temperature = $root.ord.TemperatureConditions.toObject(message.temperature, options);
-            if (message.pressure != null && message.hasOwnProperty("pressure"))
-                object.pressure = $root.ord.PressureConditions.toObject(message.pressure, options);
-            if (message.stirring != null && message.hasOwnProperty("stirring"))
-                object.stirring = $root.ord.StirringConditions.toObject(message.stirring, options);
-            if (message.illumination != null && message.hasOwnProperty("illumination"))
-                object.illumination = $root.ord.IlluminationConditions.toObject(message.illumination, options);
-            if (message.electrochemistry != null && message.hasOwnProperty("electrochemistry"))
-                object.electrochemistry = $root.ord.ElectrochemistryConditions.toObject(message.electrochemistry, options);
-            if (message.flow != null && message.hasOwnProperty("flow"))
-                object.flow = $root.ord.FlowConditions.toObject(message.flow, options);
-            if (message.reflux != null && message.hasOwnProperty("reflux")) {
+            if (message.temperature != null && Object.hasOwnProperty.call(message, "temperature"))
+                object.temperature = $root.ord.TemperatureConditions.toObject(message.temperature, options, q + 1);
+            if (message.pressure != null && Object.hasOwnProperty.call(message, "pressure"))
+                object.pressure = $root.ord.PressureConditions.toObject(message.pressure, options, q + 1);
+            if (message.stirring != null && Object.hasOwnProperty.call(message, "stirring"))
+                object.stirring = $root.ord.StirringConditions.toObject(message.stirring, options, q + 1);
+            if (message.illumination != null && Object.hasOwnProperty.call(message, "illumination"))
+                object.illumination = $root.ord.IlluminationConditions.toObject(message.illumination, options, q + 1);
+            if (message.electrochemistry != null && Object.hasOwnProperty.call(message, "electrochemistry"))
+                object.electrochemistry = $root.ord.ElectrochemistryConditions.toObject(message.electrochemistry, options, q + 1);
+            if (message.flow != null && Object.hasOwnProperty.call(message, "flow"))
+                object.flow = $root.ord.FlowConditions.toObject(message.flow, options, q + 1);
+            if (message.reflux != null && Object.hasOwnProperty.call(message, "reflux")) {
                 object.reflux = message.reflux;
                 if (options.oneofs)
                     object._reflux = "reflux";
             }
-            if (message.ph != null && message.hasOwnProperty("ph")) {
+            if (message.ph != null && Object.hasOwnProperty.call(message, "ph")) {
                 object.ph = options.json && !isFinite(message.ph) ? String(message.ph) : message.ph;
                 if (options.oneofs)
                     object._ph = "ph";
             }
-            if (message.conditionsAreDynamic != null && message.hasOwnProperty("conditionsAreDynamic")) {
+            if (message.conditionsAreDynamic != null && Object.hasOwnProperty.call(message, "conditionsAreDynamic")) {
                 object.conditionsAreDynamic = message.conditionsAreDynamic;
                 if (options.oneofs)
                     object._conditionsAreDynamic = "conditionsAreDynamic";
             }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
             return object;
         };
@@ -8503,7 +9442,7 @@ export const ord = $root.ord = (() => {
             this.measurements = [];
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -8552,16 +9491,20 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        TemperatureConditions.encode = function encode(message, writer) {
+        TemperatureConditions.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.control != null && Object.hasOwnProperty.call(message, "control"))
-                $root.ord.TemperatureConditions.TemperatureControl.encode(message.control, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                $root.ord.TemperatureConditions.TemperatureControl.encode(message.control, writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             if (message.setpoint != null && Object.hasOwnProperty.call(message, "setpoint"))
-                $root.ord.Temperature.encode(message.setpoint, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+                $root.ord.Temperature.encode(message.setpoint, writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim();
             if (message.measurements != null && message.measurements.length)
                 for (let i = 0; i < message.measurements.length; ++i)
-                    $root.ord.TemperatureConditions.TemperatureMeasurement.encode(message.measurements[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                    $root.ord.TemperatureConditions.TemperatureMeasurement.encode(message.measurements[i], writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -8575,7 +9518,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         TemperatureConditions.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -8589,31 +9532,52 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        TemperatureConditions.decode = function decode(reader, length) {
+        TemperatureConditions.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.TemperatureConditions();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.TemperatureConditions();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.control = $root.ord.TemperatureConditions.TemperatureControl.decode(reader, reader.uint32());
+                        message.control = $root.ord.TemperatureConditions.TemperatureControl.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 2: {
-                        message.setpoint = $root.ord.Temperature.decode(reader, reader.uint32());
+                        message.setpoint = $root.ord.Temperature.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 3: {
                         if (!(message.measurements && message.measurements.length))
                             message.measurements = [];
-                        message.measurements.push($root.ord.TemperatureConditions.TemperatureMeasurement.decode(reader, reader.uint32()));
+                        message.measurements.push($root.ord.TemperatureConditions.TemperatureMeasurement.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -8642,24 +9606,28 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        TemperatureConditions.verify = function verify(message) {
+        TemperatureConditions.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.control != null && message.hasOwnProperty("control")) {
-                let error = $root.ord.TemperatureConditions.TemperatureControl.verify(message.control);
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.control != null && Object.hasOwnProperty.call(message, "control")) {
+                let error = $root.ord.TemperatureConditions.TemperatureControl.verify(message.control, long + 1);
                 if (error)
                     return "control." + error;
             }
-            if (message.setpoint != null && message.hasOwnProperty("setpoint")) {
-                let error = $root.ord.Temperature.verify(message.setpoint);
+            if (message.setpoint != null && Object.hasOwnProperty.call(message, "setpoint")) {
+                let error = $root.ord.Temperature.verify(message.setpoint, long + 1);
                 if (error)
                     return "setpoint." + error;
             }
-            if (message.measurements != null && message.hasOwnProperty("measurements")) {
+            if (message.measurements != null && Object.hasOwnProperty.call(message, "measurements")) {
                 if (!Array.isArray(message.measurements))
                     return "measurements: array expected";
                 for (let i = 0; i < message.measurements.length; ++i) {
-                    let error = $root.ord.TemperatureConditions.TemperatureMeasurement.verify(message.measurements[i]);
+                    let error = $root.ord.TemperatureConditions.TemperatureMeasurement.verify(message.measurements[i], long + 1);
                     if (error)
                         return "measurements." + error;
                 }
@@ -8675,28 +9643,34 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.TemperatureConditions} TemperatureConditions
          */
-        TemperatureConditions.fromObject = function fromObject(object) {
+        TemperatureConditions.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.TemperatureConditions)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.TemperatureConditions: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.TemperatureConditions();
             if (object.control != null) {
-                if (typeof object.control !== "object")
+                if (!$util.isObject(object.control))
                     throw TypeError(".ord.TemperatureConditions.control: object expected");
-                message.control = $root.ord.TemperatureConditions.TemperatureControl.fromObject(object.control);
+                message.control = $root.ord.TemperatureConditions.TemperatureControl.fromObject(object.control, long + 1);
             }
             if (object.setpoint != null) {
-                if (typeof object.setpoint !== "object")
+                if (!$util.isObject(object.setpoint))
                     throw TypeError(".ord.TemperatureConditions.setpoint: object expected");
-                message.setpoint = $root.ord.Temperature.fromObject(object.setpoint);
+                message.setpoint = $root.ord.Temperature.fromObject(object.setpoint, long + 1);
             }
             if (object.measurements) {
                 if (!Array.isArray(object.measurements))
                     throw TypeError(".ord.TemperatureConditions.measurements: array expected");
                 message.measurements = [];
                 for (let i = 0; i < object.measurements.length; ++i) {
-                    if (typeof object.measurements[i] !== "object")
+                    if (!$util.isObject(object.measurements[i]))
                         throw TypeError(".ord.TemperatureConditions.measurements: object expected");
-                    message.measurements[i] = $root.ord.TemperatureConditions.TemperatureMeasurement.fromObject(object.measurements[i]);
+                    message.measurements[i] = $root.ord.TemperatureConditions.TemperatureMeasurement.fromObject(object.measurements[i], long + 1);
                 }
             }
             return message;
@@ -8711,9 +9685,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        TemperatureConditions.toObject = function toObject(message, options) {
+        TemperatureConditions.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.arrays || options.defaults)
                 object.measurements = [];
@@ -8721,14 +9699,14 @@ export const ord = $root.ord = (() => {
                 object.control = null;
                 object.setpoint = null;
             }
-            if (message.control != null && message.hasOwnProperty("control"))
-                object.control = $root.ord.TemperatureConditions.TemperatureControl.toObject(message.control, options);
-            if (message.setpoint != null && message.hasOwnProperty("setpoint"))
-                object.setpoint = $root.ord.Temperature.toObject(message.setpoint, options);
+            if (message.control != null && Object.hasOwnProperty.call(message, "control"))
+                object.control = $root.ord.TemperatureConditions.TemperatureControl.toObject(message.control, options, q + 1);
+            if (message.setpoint != null && Object.hasOwnProperty.call(message, "setpoint"))
+                object.setpoint = $root.ord.Temperature.toObject(message.setpoint, options, q + 1);
             if (message.measurements && message.measurements.length) {
                 object.measurements = [];
                 for (let j = 0; j < message.measurements.length; ++j)
-                    object.measurements[j] = $root.ord.TemperatureConditions.TemperatureMeasurement.toObject(message.measurements[j], options);
+                    object.measurements[j] = $root.ord.TemperatureConditions.TemperatureMeasurement.toObject(message.measurements[j], options, q + 1);
             }
             return object;
         };
@@ -8780,7 +9758,7 @@ export const ord = $root.ord = (() => {
             function TemperatureControl(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -8821,9 +9799,13 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            TemperatureControl.encode = function encode(message, writer) {
+            TemperatureControl.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
                 if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -8841,7 +9823,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             TemperatureControl.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -8855,12 +9837,28 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            TemperatureControl.decode = function decode(reader, length) {
+            TemperatureControl.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.TemperatureConditions.TemperatureControl();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.TemperatureConditions.TemperatureControl();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.type = reader.int32();
@@ -8871,9 +9869,14 @@ export const ord = $root.ord = (() => {
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -8902,10 +9905,14 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            TemperatureControl.verify = function verify(message) {
+            TemperatureControl.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     switch (message.type) {
                     default:
                         return "type: enum value expected";
@@ -8923,7 +9930,7 @@ export const ord = $root.ord = (() => {
                     case 11:
                         break;
                     }
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     if (!$util.isString(message.details))
                         return "details: string expected";
                 return null;
@@ -8937,9 +9944,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.TemperatureConditions.TemperatureControl} TemperatureControl
              */
-            TemperatureControl.fromObject = function fromObject(object) {
+            TemperatureControl.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.TemperatureConditions.TemperatureControl)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.TemperatureConditions.TemperatureControl: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.TemperatureConditions.TemperatureControl();
                 switch (object.type) {
                 default:
@@ -9011,17 +10024,21 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            TemperatureControl.toObject = function toObject(message, options) {
+            TemperatureControl.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.type = options.enums === String ? "UNSPECIFIED" : 0;
                     object.details = "";
                 }
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     object.type = options.enums === String ? $root.ord.TemperatureConditions.TemperatureControl.TemperatureControlType[message.type] === undefined ? message.type : $root.ord.TemperatureConditions.TemperatureControl.TemperatureControlType[message.type] : message.type;
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     object.details = message.details;
                 return object;
             };
@@ -9112,7 +10129,7 @@ export const ord = $root.ord = (() => {
             function TemperatureMeasurement(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -9169,17 +10186,21 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            TemperatureMeasurement.encode = function encode(message, writer) {
+            TemperatureMeasurement.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
                 if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     writer.uint32(/* id 2, wireType 2 =*/18).string(message.details);
                 if (message.time != null && Object.hasOwnProperty.call(message, "time"))
-                    $root.ord.Time.encode(message.time, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                    $root.ord.Time.encode(message.time, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
                 if (message.temperature != null && Object.hasOwnProperty.call(message, "temperature"))
-                    $root.ord.Temperature.encode(message.temperature, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                    $root.ord.Temperature.encode(message.temperature, writer.uint32(/* id 4, wireType 2 =*/34).fork(), q + 1).ldelim();
                 return writer;
             };
 
@@ -9193,7 +10214,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             TemperatureMeasurement.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -9207,12 +10228,28 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            TemperatureMeasurement.decode = function decode(reader, length) {
+            TemperatureMeasurement.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.TemperatureConditions.TemperatureMeasurement();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.TemperatureConditions.TemperatureMeasurement();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.type = reader.int32();
@@ -9223,17 +10260,22 @@ export const ord = $root.ord = (() => {
                             break;
                         }
                     case 3: {
-                            message.time = $root.ord.Time.decode(reader, reader.uint32());
+                            message.time = $root.ord.Time.decode(reader, reader.uint32(), undefined, long + 1);
                             break;
                         }
                     case 4: {
-                            message.temperature = $root.ord.Temperature.decode(reader, reader.uint32());
+                            message.temperature = $root.ord.Temperature.decode(reader, reader.uint32(), undefined, long + 1);
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -9262,10 +10304,14 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            TemperatureMeasurement.verify = function verify(message) {
+            TemperatureMeasurement.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     switch (message.type) {
                     default:
                         return "type: enum value expected";
@@ -9276,16 +10322,16 @@ export const ord = $root.ord = (() => {
                     case 4:
                         break;
                     }
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     if (!$util.isString(message.details))
                         return "details: string expected";
-                if (message.time != null && message.hasOwnProperty("time")) {
-                    let error = $root.ord.Time.verify(message.time);
+                if (message.time != null && Object.hasOwnProperty.call(message, "time")) {
+                    let error = $root.ord.Time.verify(message.time, long + 1);
                     if (error)
                         return "time." + error;
                 }
-                if (message.temperature != null && message.hasOwnProperty("temperature")) {
-                    let error = $root.ord.Temperature.verify(message.temperature);
+                if (message.temperature != null && Object.hasOwnProperty.call(message, "temperature")) {
+                    let error = $root.ord.Temperature.verify(message.temperature, long + 1);
                     if (error)
                         return "temperature." + error;
                 }
@@ -9300,9 +10346,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.TemperatureConditions.TemperatureMeasurement} TemperatureMeasurement
              */
-            TemperatureMeasurement.fromObject = function fromObject(object) {
+            TemperatureMeasurement.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.TemperatureConditions.TemperatureMeasurement)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.TemperatureConditions.TemperatureMeasurement: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.TemperatureConditions.TemperatureMeasurement();
                 switch (object.type) {
                 default:
@@ -9335,14 +10387,14 @@ export const ord = $root.ord = (() => {
                 if (object.details != null)
                     message.details = String(object.details);
                 if (object.time != null) {
-                    if (typeof object.time !== "object")
+                    if (!$util.isObject(object.time))
                         throw TypeError(".ord.TemperatureConditions.TemperatureMeasurement.time: object expected");
-                    message.time = $root.ord.Time.fromObject(object.time);
+                    message.time = $root.ord.Time.fromObject(object.time, long + 1);
                 }
                 if (object.temperature != null) {
-                    if (typeof object.temperature !== "object")
+                    if (!$util.isObject(object.temperature))
                         throw TypeError(".ord.TemperatureConditions.TemperatureMeasurement.temperature: object expected");
-                    message.temperature = $root.ord.Temperature.fromObject(object.temperature);
+                    message.temperature = $root.ord.Temperature.fromObject(object.temperature, long + 1);
                 }
                 return message;
             };
@@ -9356,9 +10408,13 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            TemperatureMeasurement.toObject = function toObject(message, options) {
+            TemperatureMeasurement.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.type = options.enums === String ? "UNSPECIFIED" : 0;
@@ -9366,14 +10422,14 @@ export const ord = $root.ord = (() => {
                     object.time = null;
                     object.temperature = null;
                 }
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     object.type = options.enums === String ? $root.ord.TemperatureConditions.TemperatureMeasurement.TemperatureMeasurementType[message.type] === undefined ? message.type : $root.ord.TemperatureConditions.TemperatureMeasurement.TemperatureMeasurementType[message.type] : message.type;
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     object.details = message.details;
-                if (message.time != null && message.hasOwnProperty("time"))
-                    object.time = $root.ord.Time.toObject(message.time, options);
-                if (message.temperature != null && message.hasOwnProperty("temperature"))
-                    object.temperature = $root.ord.Temperature.toObject(message.temperature, options);
+                if (message.time != null && Object.hasOwnProperty.call(message, "time"))
+                    object.time = $root.ord.Time.toObject(message.time, options, q + 1);
+                if (message.temperature != null && Object.hasOwnProperty.call(message, "temperature"))
+                    object.temperature = $root.ord.Temperature.toObject(message.temperature, options, q + 1);
                 return object;
             };
 
@@ -9453,7 +10509,7 @@ export const ord = $root.ord = (() => {
             this.measurements = [];
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -9510,18 +10566,22 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        PressureConditions.encode = function encode(message, writer) {
+        PressureConditions.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.control != null && Object.hasOwnProperty.call(message, "control"))
-                $root.ord.PressureConditions.PressureControl.encode(message.control, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                $root.ord.PressureConditions.PressureControl.encode(message.control, writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             if (message.setpoint != null && Object.hasOwnProperty.call(message, "setpoint"))
-                $root.ord.Pressure.encode(message.setpoint, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+                $root.ord.Pressure.encode(message.setpoint, writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim();
             if (message.atmosphere != null && Object.hasOwnProperty.call(message, "atmosphere"))
-                $root.ord.PressureConditions.Atmosphere.encode(message.atmosphere, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                $root.ord.PressureConditions.Atmosphere.encode(message.atmosphere, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             if (message.measurements != null && message.measurements.length)
                 for (let i = 0; i < message.measurements.length; ++i)
-                    $root.ord.PressureConditions.PressureMeasurement.encode(message.measurements[i], writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                    $root.ord.PressureConditions.PressureMeasurement.encode(message.measurements[i], writer.uint32(/* id 4, wireType 2 =*/34).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -9535,7 +10595,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         PressureConditions.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -9549,35 +10609,56 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        PressureConditions.decode = function decode(reader, length) {
+        PressureConditions.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.PressureConditions();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.PressureConditions();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.control = $root.ord.PressureConditions.PressureControl.decode(reader, reader.uint32());
+                        message.control = $root.ord.PressureConditions.PressureControl.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 2: {
-                        message.setpoint = $root.ord.Pressure.decode(reader, reader.uint32());
+                        message.setpoint = $root.ord.Pressure.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 3: {
-                        message.atmosphere = $root.ord.PressureConditions.Atmosphere.decode(reader, reader.uint32());
+                        message.atmosphere = $root.ord.PressureConditions.Atmosphere.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 4: {
                         if (!(message.measurements && message.measurements.length))
                             message.measurements = [];
-                        message.measurements.push($root.ord.PressureConditions.PressureMeasurement.decode(reader, reader.uint32()));
+                        message.measurements.push($root.ord.PressureConditions.PressureMeasurement.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -9606,29 +10687,33 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        PressureConditions.verify = function verify(message) {
+        PressureConditions.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.control != null && message.hasOwnProperty("control")) {
-                let error = $root.ord.PressureConditions.PressureControl.verify(message.control);
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.control != null && Object.hasOwnProperty.call(message, "control")) {
+                let error = $root.ord.PressureConditions.PressureControl.verify(message.control, long + 1);
                 if (error)
                     return "control." + error;
             }
-            if (message.setpoint != null && message.hasOwnProperty("setpoint")) {
-                let error = $root.ord.Pressure.verify(message.setpoint);
+            if (message.setpoint != null && Object.hasOwnProperty.call(message, "setpoint")) {
+                let error = $root.ord.Pressure.verify(message.setpoint, long + 1);
                 if (error)
                     return "setpoint." + error;
             }
-            if (message.atmosphere != null && message.hasOwnProperty("atmosphere")) {
-                let error = $root.ord.PressureConditions.Atmosphere.verify(message.atmosphere);
+            if (message.atmosphere != null && Object.hasOwnProperty.call(message, "atmosphere")) {
+                let error = $root.ord.PressureConditions.Atmosphere.verify(message.atmosphere, long + 1);
                 if (error)
                     return "atmosphere." + error;
             }
-            if (message.measurements != null && message.hasOwnProperty("measurements")) {
+            if (message.measurements != null && Object.hasOwnProperty.call(message, "measurements")) {
                 if (!Array.isArray(message.measurements))
                     return "measurements: array expected";
                 for (let i = 0; i < message.measurements.length; ++i) {
-                    let error = $root.ord.PressureConditions.PressureMeasurement.verify(message.measurements[i]);
+                    let error = $root.ord.PressureConditions.PressureMeasurement.verify(message.measurements[i], long + 1);
                     if (error)
                         return "measurements." + error;
                 }
@@ -9644,33 +10729,39 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.PressureConditions} PressureConditions
          */
-        PressureConditions.fromObject = function fromObject(object) {
+        PressureConditions.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.PressureConditions)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.PressureConditions: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.PressureConditions();
             if (object.control != null) {
-                if (typeof object.control !== "object")
+                if (!$util.isObject(object.control))
                     throw TypeError(".ord.PressureConditions.control: object expected");
-                message.control = $root.ord.PressureConditions.PressureControl.fromObject(object.control);
+                message.control = $root.ord.PressureConditions.PressureControl.fromObject(object.control, long + 1);
             }
             if (object.setpoint != null) {
-                if (typeof object.setpoint !== "object")
+                if (!$util.isObject(object.setpoint))
                     throw TypeError(".ord.PressureConditions.setpoint: object expected");
-                message.setpoint = $root.ord.Pressure.fromObject(object.setpoint);
+                message.setpoint = $root.ord.Pressure.fromObject(object.setpoint, long + 1);
             }
             if (object.atmosphere != null) {
-                if (typeof object.atmosphere !== "object")
+                if (!$util.isObject(object.atmosphere))
                     throw TypeError(".ord.PressureConditions.atmosphere: object expected");
-                message.atmosphere = $root.ord.PressureConditions.Atmosphere.fromObject(object.atmosphere);
+                message.atmosphere = $root.ord.PressureConditions.Atmosphere.fromObject(object.atmosphere, long + 1);
             }
             if (object.measurements) {
                 if (!Array.isArray(object.measurements))
                     throw TypeError(".ord.PressureConditions.measurements: array expected");
                 message.measurements = [];
                 for (let i = 0; i < object.measurements.length; ++i) {
-                    if (typeof object.measurements[i] !== "object")
+                    if (!$util.isObject(object.measurements[i]))
                         throw TypeError(".ord.PressureConditions.measurements: object expected");
-                    message.measurements[i] = $root.ord.PressureConditions.PressureMeasurement.fromObject(object.measurements[i]);
+                    message.measurements[i] = $root.ord.PressureConditions.PressureMeasurement.fromObject(object.measurements[i], long + 1);
                 }
             }
             return message;
@@ -9685,9 +10776,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        PressureConditions.toObject = function toObject(message, options) {
+        PressureConditions.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.arrays || options.defaults)
                 object.measurements = [];
@@ -9696,16 +10791,16 @@ export const ord = $root.ord = (() => {
                 object.setpoint = null;
                 object.atmosphere = null;
             }
-            if (message.control != null && message.hasOwnProperty("control"))
-                object.control = $root.ord.PressureConditions.PressureControl.toObject(message.control, options);
-            if (message.setpoint != null && message.hasOwnProperty("setpoint"))
-                object.setpoint = $root.ord.Pressure.toObject(message.setpoint, options);
-            if (message.atmosphere != null && message.hasOwnProperty("atmosphere"))
-                object.atmosphere = $root.ord.PressureConditions.Atmosphere.toObject(message.atmosphere, options);
+            if (message.control != null && Object.hasOwnProperty.call(message, "control"))
+                object.control = $root.ord.PressureConditions.PressureControl.toObject(message.control, options, q + 1);
+            if (message.setpoint != null && Object.hasOwnProperty.call(message, "setpoint"))
+                object.setpoint = $root.ord.Pressure.toObject(message.setpoint, options, q + 1);
+            if (message.atmosphere != null && Object.hasOwnProperty.call(message, "atmosphere"))
+                object.atmosphere = $root.ord.PressureConditions.Atmosphere.toObject(message.atmosphere, options, q + 1);
             if (message.measurements && message.measurements.length) {
                 object.measurements = [];
                 for (let j = 0; j < message.measurements.length; ++j)
-                    object.measurements[j] = $root.ord.PressureConditions.PressureMeasurement.toObject(message.measurements[j], options);
+                    object.measurements[j] = $root.ord.PressureConditions.PressureMeasurement.toObject(message.measurements[j], options, q + 1);
             }
             return object;
         };
@@ -9757,7 +10852,7 @@ export const ord = $root.ord = (() => {
             function PressureControl(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -9798,9 +10893,13 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            PressureControl.encode = function encode(message, writer) {
+            PressureControl.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
                 if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -9818,7 +10917,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             PressureControl.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -9832,12 +10931,28 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            PressureControl.decode = function decode(reader, length) {
+            PressureControl.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.PressureConditions.PressureControl();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.PressureConditions.PressureControl();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.type = reader.int32();
@@ -9848,9 +10963,14 @@ export const ord = $root.ord = (() => {
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -9879,10 +10999,14 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            PressureControl.verify = function verify(message) {
+            PressureControl.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     switch (message.type) {
                     default:
                         return "type: enum value expected";
@@ -9894,7 +11018,7 @@ export const ord = $root.ord = (() => {
                     case 5:
                         break;
                     }
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     if (!$util.isString(message.details))
                         return "details: string expected";
                 return null;
@@ -9908,9 +11032,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.PressureConditions.PressureControl} PressureControl
              */
-            PressureControl.fromObject = function fromObject(object) {
+            PressureControl.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.PressureConditions.PressureControl)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.PressureConditions.PressureControl: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.PressureConditions.PressureControl();
                 switch (object.type) {
                 default:
@@ -9958,17 +11088,21 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            PressureControl.toObject = function toObject(message, options) {
+            PressureControl.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.type = options.enums === String ? "UNSPECIFIED" : 0;
                     object.details = "";
                 }
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     object.type = options.enums === String ? $root.ord.PressureConditions.PressureControl.PressureControlType[message.type] === undefined ? message.type : $root.ord.PressureConditions.PressureControl.PressureControlType[message.type] : message.type;
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     object.details = message.details;
                 return object;
             };
@@ -10045,7 +11179,7 @@ export const ord = $root.ord = (() => {
             function Atmosphere(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -10086,9 +11220,13 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            Atmosphere.encode = function encode(message, writer) {
+            Atmosphere.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
                 if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -10106,7 +11244,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             Atmosphere.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -10120,12 +11258,28 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            Atmosphere.decode = function decode(reader, length) {
+            Atmosphere.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.PressureConditions.Atmosphere();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.PressureConditions.Atmosphere();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.type = reader.int32();
@@ -10136,9 +11290,14 @@ export const ord = $root.ord = (() => {
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -10167,10 +11326,14 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            Atmosphere.verify = function verify(message) {
+            Atmosphere.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     switch (message.type) {
                     default:
                         return "type: enum value expected";
@@ -10190,7 +11353,7 @@ export const ord = $root.ord = (() => {
                     case 13:
                         break;
                     }
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     if (!$util.isString(message.details))
                         return "details: string expected";
                 return null;
@@ -10204,9 +11367,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.PressureConditions.Atmosphere} Atmosphere
              */
-            Atmosphere.fromObject = function fromObject(object) {
+            Atmosphere.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.PressureConditions.Atmosphere)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.PressureConditions.Atmosphere: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.PressureConditions.Atmosphere();
                 switch (object.type) {
                 default:
@@ -10286,17 +11455,21 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            Atmosphere.toObject = function toObject(message, options) {
+            Atmosphere.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.type = options.enums === String ? "UNSPECIFIED" : 0;
                     object.details = "";
                 }
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     object.type = options.enums === String ? $root.ord.PressureConditions.Atmosphere.AtmosphereType[message.type] === undefined ? message.type : $root.ord.PressureConditions.Atmosphere.AtmosphereType[message.type] : message.type;
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     object.details = message.details;
                 return object;
             };
@@ -10391,7 +11564,7 @@ export const ord = $root.ord = (() => {
             function PressureMeasurement(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -10448,17 +11621,21 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            PressureMeasurement.encode = function encode(message, writer) {
+            PressureMeasurement.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
                 if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     writer.uint32(/* id 2, wireType 2 =*/18).string(message.details);
                 if (message.time != null && Object.hasOwnProperty.call(message, "time"))
-                    $root.ord.Time.encode(message.time, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                    $root.ord.Time.encode(message.time, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
                 if (message.pressure != null && Object.hasOwnProperty.call(message, "pressure"))
-                    $root.ord.Pressure.encode(message.pressure, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                    $root.ord.Pressure.encode(message.pressure, writer.uint32(/* id 4, wireType 2 =*/34).fork(), q + 1).ldelim();
                 return writer;
             };
 
@@ -10472,7 +11649,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             PressureMeasurement.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -10486,12 +11663,28 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            PressureMeasurement.decode = function decode(reader, length) {
+            PressureMeasurement.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.PressureConditions.PressureMeasurement();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.PressureConditions.PressureMeasurement();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.type = reader.int32();
@@ -10502,17 +11695,22 @@ export const ord = $root.ord = (() => {
                             break;
                         }
                     case 3: {
-                            message.time = $root.ord.Time.decode(reader, reader.uint32());
+                            message.time = $root.ord.Time.decode(reader, reader.uint32(), undefined, long + 1);
                             break;
                         }
                     case 4: {
-                            message.pressure = $root.ord.Pressure.decode(reader, reader.uint32());
+                            message.pressure = $root.ord.Pressure.decode(reader, reader.uint32(), undefined, long + 1);
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -10541,10 +11739,14 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            PressureMeasurement.verify = function verify(message) {
+            PressureMeasurement.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     switch (message.type) {
                     default:
                         return "type: enum value expected";
@@ -10553,16 +11755,16 @@ export const ord = $root.ord = (() => {
                     case 2:
                         break;
                     }
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     if (!$util.isString(message.details))
                         return "details: string expected";
-                if (message.time != null && message.hasOwnProperty("time")) {
-                    let error = $root.ord.Time.verify(message.time);
+                if (message.time != null && Object.hasOwnProperty.call(message, "time")) {
+                    let error = $root.ord.Time.verify(message.time, long + 1);
                     if (error)
                         return "time." + error;
                 }
-                if (message.pressure != null && message.hasOwnProperty("pressure")) {
-                    let error = $root.ord.Pressure.verify(message.pressure);
+                if (message.pressure != null && Object.hasOwnProperty.call(message, "pressure")) {
+                    let error = $root.ord.Pressure.verify(message.pressure, long + 1);
                     if (error)
                         return "pressure." + error;
                 }
@@ -10577,9 +11779,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.PressureConditions.PressureMeasurement} PressureMeasurement
              */
-            PressureMeasurement.fromObject = function fromObject(object) {
+            PressureMeasurement.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.PressureConditions.PressureMeasurement)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.PressureConditions.PressureMeasurement: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.PressureConditions.PressureMeasurement();
                 switch (object.type) {
                 default:
@@ -10604,14 +11812,14 @@ export const ord = $root.ord = (() => {
                 if (object.details != null)
                     message.details = String(object.details);
                 if (object.time != null) {
-                    if (typeof object.time !== "object")
+                    if (!$util.isObject(object.time))
                         throw TypeError(".ord.PressureConditions.PressureMeasurement.time: object expected");
-                    message.time = $root.ord.Time.fromObject(object.time);
+                    message.time = $root.ord.Time.fromObject(object.time, long + 1);
                 }
                 if (object.pressure != null) {
-                    if (typeof object.pressure !== "object")
+                    if (!$util.isObject(object.pressure))
                         throw TypeError(".ord.PressureConditions.PressureMeasurement.pressure: object expected");
-                    message.pressure = $root.ord.Pressure.fromObject(object.pressure);
+                    message.pressure = $root.ord.Pressure.fromObject(object.pressure, long + 1);
                 }
                 return message;
             };
@@ -10625,9 +11833,13 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            PressureMeasurement.toObject = function toObject(message, options) {
+            PressureMeasurement.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.type = options.enums === String ? "UNSPECIFIED" : 0;
@@ -10635,14 +11847,14 @@ export const ord = $root.ord = (() => {
                     object.time = null;
                     object.pressure = null;
                 }
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     object.type = options.enums === String ? $root.ord.PressureConditions.PressureMeasurement.PressureMeasurementType[message.type] === undefined ? message.type : $root.ord.PressureConditions.PressureMeasurement.PressureMeasurementType[message.type] : message.type;
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     object.details = message.details;
-                if (message.time != null && message.hasOwnProperty("time"))
-                    object.time = $root.ord.Time.toObject(message.time, options);
-                if (message.pressure != null && message.hasOwnProperty("pressure"))
-                    object.pressure = $root.ord.Pressure.toObject(message.pressure, options);
+                if (message.time != null && Object.hasOwnProperty.call(message, "time"))
+                    object.time = $root.ord.Time.toObject(message.time, options, q + 1);
+                if (message.pressure != null && Object.hasOwnProperty.call(message, "pressure"))
+                    object.pressure = $root.ord.Pressure.toObject(message.pressure, options, q + 1);
                 return object;
             };
 
@@ -10716,7 +11928,7 @@ export const ord = $root.ord = (() => {
         function StirringConditions(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -10765,15 +11977,19 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        StirringConditions.encode = function encode(message, writer) {
+        StirringConditions.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.details);
             if (message.rate != null && Object.hasOwnProperty.call(message, "rate"))
-                $root.ord.StirringConditions.StirringRate.encode(message.rate, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                $root.ord.StirringConditions.StirringRate.encode(message.rate, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -10787,7 +12003,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         StirringConditions.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -10801,12 +12017,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        StirringConditions.decode = function decode(reader, length) {
+        StirringConditions.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.StirringConditions();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.StirringConditions();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -10817,13 +12049,18 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 3: {
-                        message.rate = $root.ord.StirringConditions.StirringRate.decode(reader, reader.uint32());
+                        message.rate = $root.ord.StirringConditions.StirringRate.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -10852,10 +12089,14 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        StirringConditions.verify = function verify(message) {
+        StirringConditions.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -10869,11 +12110,11 @@ export const ord = $root.ord = (() => {
                 case 7:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
-            if (message.rate != null && message.hasOwnProperty("rate")) {
-                let error = $root.ord.StirringConditions.StirringRate.verify(message.rate);
+            if (message.rate != null && Object.hasOwnProperty.call(message, "rate")) {
+                let error = $root.ord.StirringConditions.StirringRate.verify(message.rate, long + 1);
                 if (error)
                     return "rate." + error;
             }
@@ -10888,9 +12129,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.StirringConditions} StirringConditions
          */
-        StirringConditions.fromObject = function fromObject(object) {
+        StirringConditions.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.StirringConditions)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.StirringConditions: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.StirringConditions();
             switch (object.type) {
             default:
@@ -10935,9 +12182,9 @@ export const ord = $root.ord = (() => {
             if (object.details != null)
                 message.details = String(object.details);
             if (object.rate != null) {
-                if (typeof object.rate !== "object")
+                if (!$util.isObject(object.rate))
                     throw TypeError(".ord.StirringConditions.rate: object expected");
-                message.rate = $root.ord.StirringConditions.StirringRate.fromObject(object.rate);
+                message.rate = $root.ord.StirringConditions.StirringRate.fromObject(object.rate, long + 1);
             }
             return message;
         };
@@ -10951,21 +12198,25 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        StirringConditions.toObject = function toObject(message, options) {
+        StirringConditions.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
                 object.details = "";
                 object.rate = null;
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.StirringConditions.StirringMethodType[message.type] === undefined ? message.type : $root.ord.StirringConditions.StirringMethodType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
-            if (message.rate != null && message.hasOwnProperty("rate"))
-                object.rate = $root.ord.StirringConditions.StirringRate.toObject(message.rate, options);
+            if (message.rate != null && Object.hasOwnProperty.call(message, "rate"))
+                object.rate = $root.ord.StirringConditions.StirringRate.toObject(message.rate, options, q + 1);
             return object;
         };
 
@@ -11043,7 +12294,7 @@ export const ord = $root.ord = (() => {
             function StirringRate(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -11092,9 +12343,13 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            StirringRate.encode = function encode(message, writer) {
+            StirringRate.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
                 if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -11114,7 +12369,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             StirringRate.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -11128,12 +12383,28 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            StirringRate.decode = function decode(reader, length) {
+            StirringRate.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.StirringConditions.StirringRate();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.StirringConditions.StirringRate();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.type = reader.int32();
@@ -11148,9 +12419,14 @@ export const ord = $root.ord = (() => {
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -11179,10 +12455,14 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            StirringRate.verify = function verify(message) {
+            StirringRate.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     switch (message.type) {
                     default:
                         return "type: enum value expected";
@@ -11192,10 +12472,10 @@ export const ord = $root.ord = (() => {
                     case 3:
                         break;
                     }
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     if (!$util.isString(message.details))
                         return "details: string expected";
-                if (message.rpm != null && message.hasOwnProperty("rpm"))
+                if (message.rpm != null && Object.hasOwnProperty.call(message, "rpm"))
                     if (!$util.isInteger(message.rpm))
                         return "rpm: integer expected";
                 return null;
@@ -11209,9 +12489,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.StirringConditions.StirringRate} StirringRate
              */
-            StirringRate.fromObject = function fromObject(object) {
+            StirringRate.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.StirringConditions.StirringRate)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.StirringConditions.StirringRate: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.StirringConditions.StirringRate();
                 switch (object.type) {
                 default:
@@ -11253,20 +12539,24 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            StirringRate.toObject = function toObject(message, options) {
+            StirringRate.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.type = options.enums === String ? "UNSPECIFIED" : 0;
                     object.details = "";
                     object.rpm = 0;
                 }
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     object.type = options.enums === String ? $root.ord.StirringConditions.StirringRate.StirringRateType[message.type] === undefined ? message.type : $root.ord.StirringConditions.StirringRate.StirringRateType[message.type] : message.type;
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     object.details = message.details;
-                if (message.rpm != null && message.hasOwnProperty("rpm"))
+                if (message.rpm != null && Object.hasOwnProperty.call(message, "rpm"))
                     object.rpm = message.rpm;
                 return object;
             };
@@ -11345,7 +12635,7 @@ export const ord = $root.ord = (() => {
         function IlluminationConditions(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -11410,19 +12700,23 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        IlluminationConditions.encode = function encode(message, writer) {
+        IlluminationConditions.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.details);
             if (message.peakWavelength != null && Object.hasOwnProperty.call(message, "peakWavelength"))
-                $root.ord.Wavelength.encode(message.peakWavelength, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                $root.ord.Wavelength.encode(message.peakWavelength, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             if (message.color != null && Object.hasOwnProperty.call(message, "color"))
                 writer.uint32(/* id 4, wireType 2 =*/34).string(message.color);
             if (message.distanceToVessel != null && Object.hasOwnProperty.call(message, "distanceToVessel"))
-                $root.ord.Length.encode(message.distanceToVessel, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+                $root.ord.Length.encode(message.distanceToVessel, writer.uint32(/* id 5, wireType 2 =*/42).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -11436,7 +12730,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         IlluminationConditions.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -11450,12 +12744,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        IlluminationConditions.decode = function decode(reader, length) {
+        IlluminationConditions.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.IlluminationConditions();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.IlluminationConditions();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -11466,7 +12776,7 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 3: {
-                        message.peakWavelength = $root.ord.Wavelength.decode(reader, reader.uint32());
+                        message.peakWavelength = $root.ord.Wavelength.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 4: {
@@ -11474,13 +12784,18 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 5: {
-                        message.distanceToVessel = $root.ord.Length.decode(reader, reader.uint32());
+                        message.distanceToVessel = $root.ord.Length.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -11509,10 +12824,14 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        IlluminationConditions.verify = function verify(message) {
+        IlluminationConditions.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -11527,19 +12846,19 @@ export const ord = $root.ord = (() => {
                 case 8:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
-            if (message.peakWavelength != null && message.hasOwnProperty("peakWavelength")) {
-                let error = $root.ord.Wavelength.verify(message.peakWavelength);
+            if (message.peakWavelength != null && Object.hasOwnProperty.call(message, "peakWavelength")) {
+                let error = $root.ord.Wavelength.verify(message.peakWavelength, long + 1);
                 if (error)
                     return "peakWavelength." + error;
             }
-            if (message.color != null && message.hasOwnProperty("color"))
+            if (message.color != null && Object.hasOwnProperty.call(message, "color"))
                 if (!$util.isString(message.color))
                     return "color: string expected";
-            if (message.distanceToVessel != null && message.hasOwnProperty("distanceToVessel")) {
-                let error = $root.ord.Length.verify(message.distanceToVessel);
+            if (message.distanceToVessel != null && Object.hasOwnProperty.call(message, "distanceToVessel")) {
+                let error = $root.ord.Length.verify(message.distanceToVessel, long + 1);
                 if (error)
                     return "distanceToVessel." + error;
             }
@@ -11554,9 +12873,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.IlluminationConditions} IlluminationConditions
          */
-        IlluminationConditions.fromObject = function fromObject(object) {
+        IlluminationConditions.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.IlluminationConditions)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.IlluminationConditions: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.IlluminationConditions();
             switch (object.type) {
             default:
@@ -11605,16 +12930,16 @@ export const ord = $root.ord = (() => {
             if (object.details != null)
                 message.details = String(object.details);
             if (object.peakWavelength != null) {
-                if (typeof object.peakWavelength !== "object")
+                if (!$util.isObject(object.peakWavelength))
                     throw TypeError(".ord.IlluminationConditions.peakWavelength: object expected");
-                message.peakWavelength = $root.ord.Wavelength.fromObject(object.peakWavelength);
+                message.peakWavelength = $root.ord.Wavelength.fromObject(object.peakWavelength, long + 1);
             }
             if (object.color != null)
                 message.color = String(object.color);
             if (object.distanceToVessel != null) {
-                if (typeof object.distanceToVessel !== "object")
+                if (!$util.isObject(object.distanceToVessel))
                     throw TypeError(".ord.IlluminationConditions.distanceToVessel: object expected");
-                message.distanceToVessel = $root.ord.Length.fromObject(object.distanceToVessel);
+                message.distanceToVessel = $root.ord.Length.fromObject(object.distanceToVessel, long + 1);
             }
             return message;
         };
@@ -11628,9 +12953,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        IlluminationConditions.toObject = function toObject(message, options) {
+        IlluminationConditions.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
@@ -11639,16 +12968,16 @@ export const ord = $root.ord = (() => {
                 object.color = "";
                 object.distanceToVessel = null;
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.IlluminationConditions.IlluminationType[message.type] === undefined ? message.type : $root.ord.IlluminationConditions.IlluminationType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
-            if (message.peakWavelength != null && message.hasOwnProperty("peakWavelength"))
-                object.peakWavelength = $root.ord.Wavelength.toObject(message.peakWavelength, options);
-            if (message.color != null && message.hasOwnProperty("color"))
+            if (message.peakWavelength != null && Object.hasOwnProperty.call(message, "peakWavelength"))
+                object.peakWavelength = $root.ord.Wavelength.toObject(message.peakWavelength, options, q + 1);
+            if (message.color != null && Object.hasOwnProperty.call(message, "color"))
                 object.color = message.color;
-            if (message.distanceToVessel != null && message.hasOwnProperty("distanceToVessel"))
-                object.distanceToVessel = $root.ord.Length.toObject(message.distanceToVessel, options);
+            if (message.distanceToVessel != null && Object.hasOwnProperty.call(message, "distanceToVessel"))
+                object.distanceToVessel = $root.ord.Length.toObject(message.distanceToVessel, options, q + 1);
             return object;
         };
 
@@ -11738,7 +13067,7 @@ export const ord = $root.ord = (() => {
             this.measurements = [];
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -11835,28 +13164,32 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ElectrochemistryConditions.encode = function encode(message, writer) {
+        ElectrochemistryConditions.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.details);
             if (message.current != null && Object.hasOwnProperty.call(message, "current"))
-                $root.ord.Current.encode(message.current, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                $root.ord.Current.encode(message.current, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             if (message.voltage != null && Object.hasOwnProperty.call(message, "voltage"))
-                $root.ord.Voltage.encode(message.voltage, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                $root.ord.Voltage.encode(message.voltage, writer.uint32(/* id 4, wireType 2 =*/34).fork(), q + 1).ldelim();
             if (message.anodeMaterial != null && Object.hasOwnProperty.call(message, "anodeMaterial"))
                 writer.uint32(/* id 5, wireType 2 =*/42).string(message.anodeMaterial);
             if (message.cathodeMaterial != null && Object.hasOwnProperty.call(message, "cathodeMaterial"))
                 writer.uint32(/* id 6, wireType 2 =*/50).string(message.cathodeMaterial);
             if (message.electrodeSeparation != null && Object.hasOwnProperty.call(message, "electrodeSeparation"))
-                $root.ord.Length.encode(message.electrodeSeparation, writer.uint32(/* id 7, wireType 2 =*/58).fork()).ldelim();
+                $root.ord.Length.encode(message.electrodeSeparation, writer.uint32(/* id 7, wireType 2 =*/58).fork(), q + 1).ldelim();
             if (message.measurements != null && message.measurements.length)
                 for (let i = 0; i < message.measurements.length; ++i)
-                    $root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.encode(message.measurements[i], writer.uint32(/* id 8, wireType 2 =*/66).fork()).ldelim();
+                    $root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.encode(message.measurements[i], writer.uint32(/* id 8, wireType 2 =*/66).fork(), q + 1).ldelim();
             if (message.cell != null && Object.hasOwnProperty.call(message, "cell"))
-                $root.ord.ElectrochemistryConditions.ElectrochemistryCell.encode(message.cell, writer.uint32(/* id 9, wireType 2 =*/74).fork()).ldelim();
+                $root.ord.ElectrochemistryConditions.ElectrochemistryCell.encode(message.cell, writer.uint32(/* id 9, wireType 2 =*/74).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -11870,7 +13203,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ElectrochemistryConditions.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -11884,12 +13217,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ElectrochemistryConditions.decode = function decode(reader, length) {
+        ElectrochemistryConditions.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ElectrochemistryConditions();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.ElectrochemistryConditions();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -11900,11 +13249,11 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 3: {
-                        message.current = $root.ord.Current.decode(reader, reader.uint32());
+                        message.current = $root.ord.Current.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 4: {
-                        message.voltage = $root.ord.Voltage.decode(reader, reader.uint32());
+                        message.voltage = $root.ord.Voltage.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 5: {
@@ -11916,23 +13265,28 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 7: {
-                        message.electrodeSeparation = $root.ord.Length.decode(reader, reader.uint32());
+                        message.electrodeSeparation = $root.ord.Length.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 8: {
                         if (!(message.measurements && message.measurements.length))
                             message.measurements = [];
-                        message.measurements.push($root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.decode(reader, reader.uint32()));
+                        message.measurements.push($root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 9: {
-                        message.cell = $root.ord.ElectrochemistryConditions.ElectrochemistryCell.decode(reader, reader.uint32());
+                        message.cell = $root.ord.ElectrochemistryConditions.ElectrochemistryCell.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -11961,10 +13315,14 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ElectrochemistryConditions.verify = function verify(message) {
+        ElectrochemistryConditions.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -11974,41 +13332,41 @@ export const ord = $root.ord = (() => {
                 case 3:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
-            if (message.current != null && message.hasOwnProperty("current")) {
-                let error = $root.ord.Current.verify(message.current);
+            if (message.current != null && Object.hasOwnProperty.call(message, "current")) {
+                let error = $root.ord.Current.verify(message.current, long + 1);
                 if (error)
                     return "current." + error;
             }
-            if (message.voltage != null && message.hasOwnProperty("voltage")) {
-                let error = $root.ord.Voltage.verify(message.voltage);
+            if (message.voltage != null && Object.hasOwnProperty.call(message, "voltage")) {
+                let error = $root.ord.Voltage.verify(message.voltage, long + 1);
                 if (error)
                     return "voltage." + error;
             }
-            if (message.anodeMaterial != null && message.hasOwnProperty("anodeMaterial"))
+            if (message.anodeMaterial != null && Object.hasOwnProperty.call(message, "anodeMaterial"))
                 if (!$util.isString(message.anodeMaterial))
                     return "anodeMaterial: string expected";
-            if (message.cathodeMaterial != null && message.hasOwnProperty("cathodeMaterial"))
+            if (message.cathodeMaterial != null && Object.hasOwnProperty.call(message, "cathodeMaterial"))
                 if (!$util.isString(message.cathodeMaterial))
                     return "cathodeMaterial: string expected";
-            if (message.electrodeSeparation != null && message.hasOwnProperty("electrodeSeparation")) {
-                let error = $root.ord.Length.verify(message.electrodeSeparation);
+            if (message.electrodeSeparation != null && Object.hasOwnProperty.call(message, "electrodeSeparation")) {
+                let error = $root.ord.Length.verify(message.electrodeSeparation, long + 1);
                 if (error)
                     return "electrodeSeparation." + error;
             }
-            if (message.measurements != null && message.hasOwnProperty("measurements")) {
+            if (message.measurements != null && Object.hasOwnProperty.call(message, "measurements")) {
                 if (!Array.isArray(message.measurements))
                     return "measurements: array expected";
                 for (let i = 0; i < message.measurements.length; ++i) {
-                    let error = $root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.verify(message.measurements[i]);
+                    let error = $root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.verify(message.measurements[i], long + 1);
                     if (error)
                         return "measurements." + error;
                 }
             }
-            if (message.cell != null && message.hasOwnProperty("cell")) {
-                let error = $root.ord.ElectrochemistryConditions.ElectrochemistryCell.verify(message.cell);
+            if (message.cell != null && Object.hasOwnProperty.call(message, "cell")) {
+                let error = $root.ord.ElectrochemistryConditions.ElectrochemistryCell.verify(message.cell, long + 1);
                 if (error)
                     return "cell." + error;
             }
@@ -12023,9 +13381,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.ElectrochemistryConditions} ElectrochemistryConditions
          */
-        ElectrochemistryConditions.fromObject = function fromObject(object) {
+        ElectrochemistryConditions.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.ElectrochemistryConditions)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.ElectrochemistryConditions: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.ElectrochemistryConditions();
             switch (object.type) {
             default:
@@ -12054,38 +13418,38 @@ export const ord = $root.ord = (() => {
             if (object.details != null)
                 message.details = String(object.details);
             if (object.current != null) {
-                if (typeof object.current !== "object")
+                if (!$util.isObject(object.current))
                     throw TypeError(".ord.ElectrochemistryConditions.current: object expected");
-                message.current = $root.ord.Current.fromObject(object.current);
+                message.current = $root.ord.Current.fromObject(object.current, long + 1);
             }
             if (object.voltage != null) {
-                if (typeof object.voltage !== "object")
+                if (!$util.isObject(object.voltage))
                     throw TypeError(".ord.ElectrochemistryConditions.voltage: object expected");
-                message.voltage = $root.ord.Voltage.fromObject(object.voltage);
+                message.voltage = $root.ord.Voltage.fromObject(object.voltage, long + 1);
             }
             if (object.anodeMaterial != null)
                 message.anodeMaterial = String(object.anodeMaterial);
             if (object.cathodeMaterial != null)
                 message.cathodeMaterial = String(object.cathodeMaterial);
             if (object.electrodeSeparation != null) {
-                if (typeof object.electrodeSeparation !== "object")
+                if (!$util.isObject(object.electrodeSeparation))
                     throw TypeError(".ord.ElectrochemistryConditions.electrodeSeparation: object expected");
-                message.electrodeSeparation = $root.ord.Length.fromObject(object.electrodeSeparation);
+                message.electrodeSeparation = $root.ord.Length.fromObject(object.electrodeSeparation, long + 1);
             }
             if (object.measurements) {
                 if (!Array.isArray(object.measurements))
                     throw TypeError(".ord.ElectrochemistryConditions.measurements: array expected");
                 message.measurements = [];
                 for (let i = 0; i < object.measurements.length; ++i) {
-                    if (typeof object.measurements[i] !== "object")
+                    if (!$util.isObject(object.measurements[i]))
                         throw TypeError(".ord.ElectrochemistryConditions.measurements: object expected");
-                    message.measurements[i] = $root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.fromObject(object.measurements[i]);
+                    message.measurements[i] = $root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.fromObject(object.measurements[i], long + 1);
                 }
             }
             if (object.cell != null) {
-                if (typeof object.cell !== "object")
+                if (!$util.isObject(object.cell))
                     throw TypeError(".ord.ElectrochemistryConditions.cell: object expected");
-                message.cell = $root.ord.ElectrochemistryConditions.ElectrochemistryCell.fromObject(object.cell);
+                message.cell = $root.ord.ElectrochemistryConditions.ElectrochemistryCell.fromObject(object.cell, long + 1);
             }
             return message;
         };
@@ -12099,9 +13463,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ElectrochemistryConditions.toObject = function toObject(message, options) {
+        ElectrochemistryConditions.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.arrays || options.defaults)
                 object.measurements = [];
@@ -12115,27 +13483,27 @@ export const ord = $root.ord = (() => {
                 object.electrodeSeparation = null;
                 object.cell = null;
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.ElectrochemistryConditions.ElectrochemistryType[message.type] === undefined ? message.type : $root.ord.ElectrochemistryConditions.ElectrochemistryType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
-            if (message.current != null && message.hasOwnProperty("current"))
-                object.current = $root.ord.Current.toObject(message.current, options);
-            if (message.voltage != null && message.hasOwnProperty("voltage"))
-                object.voltage = $root.ord.Voltage.toObject(message.voltage, options);
-            if (message.anodeMaterial != null && message.hasOwnProperty("anodeMaterial"))
+            if (message.current != null && Object.hasOwnProperty.call(message, "current"))
+                object.current = $root.ord.Current.toObject(message.current, options, q + 1);
+            if (message.voltage != null && Object.hasOwnProperty.call(message, "voltage"))
+                object.voltage = $root.ord.Voltage.toObject(message.voltage, options, q + 1);
+            if (message.anodeMaterial != null && Object.hasOwnProperty.call(message, "anodeMaterial"))
                 object.anodeMaterial = message.anodeMaterial;
-            if (message.cathodeMaterial != null && message.hasOwnProperty("cathodeMaterial"))
+            if (message.cathodeMaterial != null && Object.hasOwnProperty.call(message, "cathodeMaterial"))
                 object.cathodeMaterial = message.cathodeMaterial;
-            if (message.electrodeSeparation != null && message.hasOwnProperty("electrodeSeparation"))
-                object.electrodeSeparation = $root.ord.Length.toObject(message.electrodeSeparation, options);
+            if (message.electrodeSeparation != null && Object.hasOwnProperty.call(message, "electrodeSeparation"))
+                object.electrodeSeparation = $root.ord.Length.toObject(message.electrodeSeparation, options, q + 1);
             if (message.measurements && message.measurements.length) {
                 object.measurements = [];
                 for (let j = 0; j < message.measurements.length; ++j)
-                    object.measurements[j] = $root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.toObject(message.measurements[j], options);
+                    object.measurements[j] = $root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.toObject(message.measurements[j], options, q + 1);
             }
-            if (message.cell != null && message.hasOwnProperty("cell"))
-                object.cell = $root.ord.ElectrochemistryConditions.ElectrochemistryCell.toObject(message.cell, options);
+            if (message.cell != null && Object.hasOwnProperty.call(message, "cell"))
+                object.cell = $root.ord.ElectrochemistryConditions.ElectrochemistryCell.toObject(message.cell, options, q + 1);
             return object;
         };
 
@@ -12205,7 +13573,7 @@ export const ord = $root.ord = (() => {
             function ElectrochemistryMeasurement(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -12254,15 +13622,19 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            ElectrochemistryMeasurement.encode = function encode(message, writer) {
+            ElectrochemistryMeasurement.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.time != null && Object.hasOwnProperty.call(message, "time"))
-                    $root.ord.Time.encode(message.time, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                    $root.ord.Time.encode(message.time, writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
                 if (message.current != null && Object.hasOwnProperty.call(message, "current"))
-                    $root.ord.Current.encode(message.current, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+                    $root.ord.Current.encode(message.current, writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim();
                 if (message.voltage != null && Object.hasOwnProperty.call(message, "voltage"))
-                    $root.ord.Voltage.encode(message.voltage, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                    $root.ord.Voltage.encode(message.voltage, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
                 return writer;
             };
 
@@ -12276,7 +13648,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             ElectrochemistryMeasurement.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -12290,29 +13662,50 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            ElectrochemistryMeasurement.decode = function decode(reader, length) {
+            ElectrochemistryMeasurement.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
-                            message.time = $root.ord.Time.decode(reader, reader.uint32());
+                            message.time = $root.ord.Time.decode(reader, reader.uint32(), undefined, long + 1);
                             break;
                         }
                     case 2: {
-                            message.current = $root.ord.Current.decode(reader, reader.uint32());
+                            message.current = $root.ord.Current.decode(reader, reader.uint32(), undefined, long + 1);
                             break;
                         }
                     case 3: {
-                            message.voltage = $root.ord.Voltage.decode(reader, reader.uint32());
+                            message.voltage = $root.ord.Voltage.decode(reader, reader.uint32(), undefined, long + 1);
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -12341,21 +13734,25 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            ElectrochemistryMeasurement.verify = function verify(message) {
+            ElectrochemistryMeasurement.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.time != null && message.hasOwnProperty("time")) {
-                    let error = $root.ord.Time.verify(message.time);
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.time != null && Object.hasOwnProperty.call(message, "time")) {
+                    let error = $root.ord.Time.verify(message.time, long + 1);
                     if (error)
                         return "time." + error;
                 }
-                if (message.current != null && message.hasOwnProperty("current")) {
-                    let error = $root.ord.Current.verify(message.current);
+                if (message.current != null && Object.hasOwnProperty.call(message, "current")) {
+                    let error = $root.ord.Current.verify(message.current, long + 1);
                     if (error)
                         return "current." + error;
                 }
-                if (message.voltage != null && message.hasOwnProperty("voltage")) {
-                    let error = $root.ord.Voltage.verify(message.voltage);
+                if (message.voltage != null && Object.hasOwnProperty.call(message, "voltage")) {
+                    let error = $root.ord.Voltage.verify(message.voltage, long + 1);
                     if (error)
                         return "voltage." + error;
                 }
@@ -12370,24 +13767,30 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.ElectrochemistryConditions.ElectrochemistryMeasurement} ElectrochemistryMeasurement
              */
-            ElectrochemistryMeasurement.fromObject = function fromObject(object) {
+            ElectrochemistryMeasurement.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.ElectrochemistryConditions.ElectrochemistryMeasurement: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.ElectrochemistryConditions.ElectrochemistryMeasurement();
                 if (object.time != null) {
-                    if (typeof object.time !== "object")
+                    if (!$util.isObject(object.time))
                         throw TypeError(".ord.ElectrochemistryConditions.ElectrochemistryMeasurement.time: object expected");
-                    message.time = $root.ord.Time.fromObject(object.time);
+                    message.time = $root.ord.Time.fromObject(object.time, long + 1);
                 }
                 if (object.current != null) {
-                    if (typeof object.current !== "object")
+                    if (!$util.isObject(object.current))
                         throw TypeError(".ord.ElectrochemistryConditions.ElectrochemistryMeasurement.current: object expected");
-                    message.current = $root.ord.Current.fromObject(object.current);
+                    message.current = $root.ord.Current.fromObject(object.current, long + 1);
                 }
                 if (object.voltage != null) {
-                    if (typeof object.voltage !== "object")
+                    if (!$util.isObject(object.voltage))
                         throw TypeError(".ord.ElectrochemistryConditions.ElectrochemistryMeasurement.voltage: object expected");
-                    message.voltage = $root.ord.Voltage.fromObject(object.voltage);
+                    message.voltage = $root.ord.Voltage.fromObject(object.voltage, long + 1);
                 }
                 return message;
             };
@@ -12401,21 +13804,25 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            ElectrochemistryMeasurement.toObject = function toObject(message, options) {
+            ElectrochemistryMeasurement.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.time = null;
                     object.current = null;
                     object.voltage = null;
                 }
-                if (message.time != null && message.hasOwnProperty("time"))
-                    object.time = $root.ord.Time.toObject(message.time, options);
-                if (message.current != null && message.hasOwnProperty("current"))
-                    object.current = $root.ord.Current.toObject(message.current, options);
-                if (message.voltage != null && message.hasOwnProperty("voltage"))
-                    object.voltage = $root.ord.Voltage.toObject(message.voltage, options);
+                if (message.time != null && Object.hasOwnProperty.call(message, "time"))
+                    object.time = $root.ord.Time.toObject(message.time, options, q + 1);
+                if (message.current != null && Object.hasOwnProperty.call(message, "current"))
+                    object.current = $root.ord.Current.toObject(message.current, options, q + 1);
+                if (message.voltage != null && Object.hasOwnProperty.call(message, "voltage"))
+                    object.voltage = $root.ord.Voltage.toObject(message.voltage, options, q + 1);
                 return object;
             };
 
@@ -12469,7 +13876,7 @@ export const ord = $root.ord = (() => {
             function ElectrochemistryCell(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -12510,9 +13917,13 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            ElectrochemistryCell.encode = function encode(message, writer) {
+            ElectrochemistryCell.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
                 if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -12530,7 +13941,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             ElectrochemistryCell.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -12544,12 +13955,28 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            ElectrochemistryCell.decode = function decode(reader, length) {
+            ElectrochemistryCell.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ElectrochemistryConditions.ElectrochemistryCell();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.ElectrochemistryConditions.ElectrochemistryCell();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.type = reader.int32();
@@ -12560,9 +13987,14 @@ export const ord = $root.ord = (() => {
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -12591,10 +14023,14 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            ElectrochemistryCell.verify = function verify(message) {
+            ElectrochemistryCell.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     switch (message.type) {
                     default:
                         return "type: enum value expected";
@@ -12604,7 +14040,7 @@ export const ord = $root.ord = (() => {
                     case 3:
                         break;
                     }
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     if (!$util.isString(message.details))
                         return "details: string expected";
                 return null;
@@ -12618,9 +14054,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.ElectrochemistryConditions.ElectrochemistryCell} ElectrochemistryCell
              */
-            ElectrochemistryCell.fromObject = function fromObject(object) {
+            ElectrochemistryCell.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.ElectrochemistryConditions.ElectrochemistryCell)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.ElectrochemistryConditions.ElectrochemistryCell: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.ElectrochemistryConditions.ElectrochemistryCell();
                 switch (object.type) {
                 default:
@@ -12660,17 +14102,21 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            ElectrochemistryCell.toObject = function toObject(message, options) {
+            ElectrochemistryCell.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.type = options.enums === String ? "UNSPECIFIED" : 0;
                     object.details = "";
                 }
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     object.type = options.enums === String ? $root.ord.ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType[message.type] === undefined ? message.type : $root.ord.ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType[message.type] : message.type;
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     object.details = message.details;
                 return object;
             };
@@ -12748,7 +14194,7 @@ export const ord = $root.ord = (() => {
         function FlowConditions(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -12805,9 +14251,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        FlowConditions.encode = function encode(message, writer) {
+        FlowConditions.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -12815,7 +14265,7 @@ export const ord = $root.ord = (() => {
             if (message.pumpType != null && Object.hasOwnProperty.call(message, "pumpType"))
                 writer.uint32(/* id 3, wireType 2 =*/26).string(message.pumpType);
             if (message.tubing != null && Object.hasOwnProperty.call(message, "tubing"))
-                $root.ord.FlowConditions.Tubing.encode(message.tubing, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                $root.ord.FlowConditions.Tubing.encode(message.tubing, writer.uint32(/* id 4, wireType 2 =*/34).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -12829,7 +14279,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         FlowConditions.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -12843,12 +14293,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        FlowConditions.decode = function decode(reader, length) {
+        FlowConditions.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.FlowConditions();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.FlowConditions();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -12863,13 +14329,18 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 4: {
-                        message.tubing = $root.ord.FlowConditions.Tubing.decode(reader, reader.uint32());
+                        message.tubing = $root.ord.FlowConditions.Tubing.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -12898,10 +14369,14 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        FlowConditions.verify = function verify(message) {
+        FlowConditions.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -12912,14 +14387,14 @@ export const ord = $root.ord = (() => {
                 case 4:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
-            if (message.pumpType != null && message.hasOwnProperty("pumpType"))
+            if (message.pumpType != null && Object.hasOwnProperty.call(message, "pumpType"))
                 if (!$util.isString(message.pumpType))
                     return "pumpType: string expected";
-            if (message.tubing != null && message.hasOwnProperty("tubing")) {
-                let error = $root.ord.FlowConditions.Tubing.verify(message.tubing);
+            if (message.tubing != null && Object.hasOwnProperty.call(message, "tubing")) {
+                let error = $root.ord.FlowConditions.Tubing.verify(message.tubing, long + 1);
                 if (error)
                     return "tubing." + error;
             }
@@ -12934,9 +14409,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.FlowConditions} FlowConditions
          */
-        FlowConditions.fromObject = function fromObject(object) {
+        FlowConditions.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.FlowConditions)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.FlowConditions: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.FlowConditions();
             switch (object.type) {
             default:
@@ -12971,9 +14452,9 @@ export const ord = $root.ord = (() => {
             if (object.pumpType != null)
                 message.pumpType = String(object.pumpType);
             if (object.tubing != null) {
-                if (typeof object.tubing !== "object")
+                if (!$util.isObject(object.tubing))
                     throw TypeError(".ord.FlowConditions.tubing: object expected");
-                message.tubing = $root.ord.FlowConditions.Tubing.fromObject(object.tubing);
+                message.tubing = $root.ord.FlowConditions.Tubing.fromObject(object.tubing, long + 1);
             }
             return message;
         };
@@ -12987,9 +14468,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        FlowConditions.toObject = function toObject(message, options) {
+        FlowConditions.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
@@ -12997,14 +14482,14 @@ export const ord = $root.ord = (() => {
                 object.pumpType = "";
                 object.tubing = null;
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.FlowConditions.FlowType[message.type] === undefined ? message.type : $root.ord.FlowConditions.FlowType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
-            if (message.pumpType != null && message.hasOwnProperty("pumpType"))
+            if (message.pumpType != null && Object.hasOwnProperty.call(message, "pumpType"))
                 object.pumpType = message.pumpType;
-            if (message.tubing != null && message.hasOwnProperty("tubing"))
-                object.tubing = $root.ord.FlowConditions.Tubing.toObject(message.tubing, options);
+            if (message.tubing != null && Object.hasOwnProperty.call(message, "tubing"))
+                object.tubing = $root.ord.FlowConditions.Tubing.toObject(message.tubing, options, q + 1);
             return object;
         };
 
@@ -13076,7 +14561,7 @@ export const ord = $root.ord = (() => {
             function Tubing(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -13125,15 +14610,19 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            Tubing.encode = function encode(message, writer) {
+            Tubing.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
                 if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     writer.uint32(/* id 2, wireType 2 =*/18).string(message.details);
                 if (message.diameter != null && Object.hasOwnProperty.call(message, "diameter"))
-                    $root.ord.Length.encode(message.diameter, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                    $root.ord.Length.encode(message.diameter, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
                 return writer;
             };
 
@@ -13147,7 +14636,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             Tubing.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -13161,12 +14650,28 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            Tubing.decode = function decode(reader, length) {
+            Tubing.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.FlowConditions.Tubing();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.FlowConditions.Tubing();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.type = reader.int32();
@@ -13177,13 +14682,18 @@ export const ord = $root.ord = (() => {
                             break;
                         }
                     case 3: {
-                            message.diameter = $root.ord.Length.decode(reader, reader.uint32());
+                            message.diameter = $root.ord.Length.decode(reader, reader.uint32(), undefined, long + 1);
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -13212,10 +14722,14 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            Tubing.verify = function verify(message) {
+            Tubing.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     switch (message.type) {
                     default:
                         return "type: enum value expected";
@@ -13233,11 +14747,11 @@ export const ord = $root.ord = (() => {
                     case 11:
                         break;
                     }
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     if (!$util.isString(message.details))
                         return "details: string expected";
-                if (message.diameter != null && message.hasOwnProperty("diameter")) {
-                    let error = $root.ord.Length.verify(message.diameter);
+                if (message.diameter != null && Object.hasOwnProperty.call(message, "diameter")) {
+                    let error = $root.ord.Length.verify(message.diameter, long + 1);
                     if (error)
                         return "diameter." + error;
                 }
@@ -13252,9 +14766,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.FlowConditions.Tubing} Tubing
              */
-            Tubing.fromObject = function fromObject(object) {
+            Tubing.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.FlowConditions.Tubing)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.FlowConditions.Tubing: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.FlowConditions.Tubing();
                 switch (object.type) {
                 default:
@@ -13315,9 +14835,9 @@ export const ord = $root.ord = (() => {
                 if (object.details != null)
                     message.details = String(object.details);
                 if (object.diameter != null) {
-                    if (typeof object.diameter !== "object")
+                    if (!$util.isObject(object.diameter))
                         throw TypeError(".ord.FlowConditions.Tubing.diameter: object expected");
-                    message.diameter = $root.ord.Length.fromObject(object.diameter);
+                    message.diameter = $root.ord.Length.fromObject(object.diameter, long + 1);
                 }
                 return message;
             };
@@ -13331,21 +14851,25 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            Tubing.toObject = function toObject(message, options) {
+            Tubing.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.type = options.enums === String ? "UNSPECIFIED" : 0;
                     object.details = "";
                     object.diameter = null;
                 }
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     object.type = options.enums === String ? $root.ord.FlowConditions.Tubing.TubingType[message.type] === undefined ? message.type : $root.ord.FlowConditions.Tubing.TubingType[message.type] : message.type;
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     object.details = message.details;
-                if (message.diameter != null && message.hasOwnProperty("diameter"))
-                    object.diameter = $root.ord.Length.toObject(message.diameter, options);
+                if (message.diameter != null && Object.hasOwnProperty.call(message, "diameter"))
+                    object.diameter = $root.ord.Length.toObject(message.diameter, options, q + 1);
                 return object;
             };
 
@@ -13443,7 +14967,7 @@ export const ord = $root.ord = (() => {
         function ReactionNotes(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -13585,9 +15109,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ReactionNotes.encode = function encode(message, writer) {
+        ReactionNotes.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.isHeterogeneous != null && Object.hasOwnProperty.call(message, "isHeterogeneous"))
                 writer.uint32(/* id 1, wireType 0 =*/8).bool(message.isHeterogeneous);
             if (message.formsPrecipitate != null && Object.hasOwnProperty.call(message, "formsPrecipitate"))
@@ -13619,7 +15147,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ReactionNotes.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -13633,12 +15161,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ReactionNotes.decode = function decode(reader, length) {
+        ReactionNotes.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionNotes();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.ReactionNotes();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.isHeterogeneous = reader.bool();
@@ -13677,9 +15221,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -13708,49 +15257,53 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ReactionNotes.verify = function verify(message) {
+        ReactionNotes.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.isHeterogeneous != null && message.hasOwnProperty("isHeterogeneous")) {
+            if (message.isHeterogeneous != null && Object.hasOwnProperty.call(message, "isHeterogeneous")) {
                 properties._isHeterogeneous = 1;
                 if (typeof message.isHeterogeneous !== "boolean")
                     return "isHeterogeneous: boolean expected";
             }
-            if (message.formsPrecipitate != null && message.hasOwnProperty("formsPrecipitate")) {
+            if (message.formsPrecipitate != null && Object.hasOwnProperty.call(message, "formsPrecipitate")) {
                 properties._formsPrecipitate = 1;
                 if (typeof message.formsPrecipitate !== "boolean")
                     return "formsPrecipitate: boolean expected";
             }
-            if (message.isExothermic != null && message.hasOwnProperty("isExothermic")) {
+            if (message.isExothermic != null && Object.hasOwnProperty.call(message, "isExothermic")) {
                 properties._isExothermic = 1;
                 if (typeof message.isExothermic !== "boolean")
                     return "isExothermic: boolean expected";
             }
-            if (message.offgasses != null && message.hasOwnProperty("offgasses")) {
+            if (message.offgasses != null && Object.hasOwnProperty.call(message, "offgasses")) {
                 properties._offgasses = 1;
                 if (typeof message.offgasses !== "boolean")
                     return "offgasses: boolean expected";
             }
-            if (message.isSensitiveToMoisture != null && message.hasOwnProperty("isSensitiveToMoisture")) {
+            if (message.isSensitiveToMoisture != null && Object.hasOwnProperty.call(message, "isSensitiveToMoisture")) {
                 properties._isSensitiveToMoisture = 1;
                 if (typeof message.isSensitiveToMoisture !== "boolean")
                     return "isSensitiveToMoisture: boolean expected";
             }
-            if (message.isSensitiveToOxygen != null && message.hasOwnProperty("isSensitiveToOxygen")) {
+            if (message.isSensitiveToOxygen != null && Object.hasOwnProperty.call(message, "isSensitiveToOxygen")) {
                 properties._isSensitiveToOxygen = 1;
                 if (typeof message.isSensitiveToOxygen !== "boolean")
                     return "isSensitiveToOxygen: boolean expected";
             }
-            if (message.isSensitiveToLight != null && message.hasOwnProperty("isSensitiveToLight")) {
+            if (message.isSensitiveToLight != null && Object.hasOwnProperty.call(message, "isSensitiveToLight")) {
                 properties._isSensitiveToLight = 1;
                 if (typeof message.isSensitiveToLight !== "boolean")
                     return "isSensitiveToLight: boolean expected";
             }
-            if (message.safetyNotes != null && message.hasOwnProperty("safetyNotes"))
+            if (message.safetyNotes != null && Object.hasOwnProperty.call(message, "safetyNotes"))
                 if (!$util.isString(message.safetyNotes))
                     return "safetyNotes: string expected";
-            if (message.procedureDetails != null && message.hasOwnProperty("procedureDetails"))
+            if (message.procedureDetails != null && Object.hasOwnProperty.call(message, "procedureDetails"))
                 if (!$util.isString(message.procedureDetails))
                     return "procedureDetails: string expected";
             return null;
@@ -13764,9 +15317,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.ReactionNotes} ReactionNotes
          */
-        ReactionNotes.fromObject = function fromObject(object) {
+        ReactionNotes.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.ReactionNotes)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.ReactionNotes: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.ReactionNotes();
             if (object.isHeterogeneous != null)
                 message.isHeterogeneous = Boolean(object.isHeterogeneous);
@@ -13798,52 +15357,56 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ReactionNotes.toObject = function toObject(message, options) {
+        ReactionNotes.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.safetyNotes = "";
                 object.procedureDetails = "";
             }
-            if (message.isHeterogeneous != null && message.hasOwnProperty("isHeterogeneous")) {
+            if (message.isHeterogeneous != null && Object.hasOwnProperty.call(message, "isHeterogeneous")) {
                 object.isHeterogeneous = message.isHeterogeneous;
                 if (options.oneofs)
                     object._isHeterogeneous = "isHeterogeneous";
             }
-            if (message.formsPrecipitate != null && message.hasOwnProperty("formsPrecipitate")) {
+            if (message.formsPrecipitate != null && Object.hasOwnProperty.call(message, "formsPrecipitate")) {
                 object.formsPrecipitate = message.formsPrecipitate;
                 if (options.oneofs)
                     object._formsPrecipitate = "formsPrecipitate";
             }
-            if (message.isExothermic != null && message.hasOwnProperty("isExothermic")) {
+            if (message.isExothermic != null && Object.hasOwnProperty.call(message, "isExothermic")) {
                 object.isExothermic = message.isExothermic;
                 if (options.oneofs)
                     object._isExothermic = "isExothermic";
             }
-            if (message.offgasses != null && message.hasOwnProperty("offgasses")) {
+            if (message.offgasses != null && Object.hasOwnProperty.call(message, "offgasses")) {
                 object.offgasses = message.offgasses;
                 if (options.oneofs)
                     object._offgasses = "offgasses";
             }
-            if (message.isSensitiveToMoisture != null && message.hasOwnProperty("isSensitiveToMoisture")) {
+            if (message.isSensitiveToMoisture != null && Object.hasOwnProperty.call(message, "isSensitiveToMoisture")) {
                 object.isSensitiveToMoisture = message.isSensitiveToMoisture;
                 if (options.oneofs)
                     object._isSensitiveToMoisture = "isSensitiveToMoisture";
             }
-            if (message.isSensitiveToOxygen != null && message.hasOwnProperty("isSensitiveToOxygen")) {
+            if (message.isSensitiveToOxygen != null && Object.hasOwnProperty.call(message, "isSensitiveToOxygen")) {
                 object.isSensitiveToOxygen = message.isSensitiveToOxygen;
                 if (options.oneofs)
                     object._isSensitiveToOxygen = "isSensitiveToOxygen";
             }
-            if (message.isSensitiveToLight != null && message.hasOwnProperty("isSensitiveToLight")) {
+            if (message.isSensitiveToLight != null && Object.hasOwnProperty.call(message, "isSensitiveToLight")) {
                 object.isSensitiveToLight = message.isSensitiveToLight;
                 if (options.oneofs)
                     object._isSensitiveToLight = "isSensitiveToLight";
             }
-            if (message.safetyNotes != null && message.hasOwnProperty("safetyNotes"))
+            if (message.safetyNotes != null && Object.hasOwnProperty.call(message, "safetyNotes"))
                 object.safetyNotes = message.safetyNotes;
-            if (message.procedureDetails != null && message.hasOwnProperty("procedureDetails"))
+            if (message.procedureDetails != null && Object.hasOwnProperty.call(message, "procedureDetails"))
                 object.procedureDetails = message.procedureDetails;
             return object;
         };
@@ -13899,7 +15462,7 @@ export const ord = $root.ord = (() => {
         function ReactionObservation(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -13948,15 +15511,19 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ReactionObservation.encode = function encode(message, writer) {
+        ReactionObservation.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.time != null && Object.hasOwnProperty.call(message, "time"))
-                $root.ord.Time.encode(message.time, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                $root.ord.Time.encode(message.time, writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             if (message.comment != null && Object.hasOwnProperty.call(message, "comment"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.comment);
             if (message.image != null && Object.hasOwnProperty.call(message, "image"))
-                $root.ord.Data.encode(message.image, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                $root.ord.Data.encode(message.image, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -13970,7 +15537,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ReactionObservation.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -13984,15 +15551,31 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ReactionObservation.decode = function decode(reader, length) {
+        ReactionObservation.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionObservation();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.ReactionObservation();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.time = $root.ord.Time.decode(reader, reader.uint32());
+                        message.time = $root.ord.Time.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 2: {
@@ -14000,13 +15583,18 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 3: {
-                        message.image = $root.ord.Data.decode(reader, reader.uint32());
+                        message.image = $root.ord.Data.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -14035,19 +15623,23 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ReactionObservation.verify = function verify(message) {
+        ReactionObservation.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.time != null && message.hasOwnProperty("time")) {
-                let error = $root.ord.Time.verify(message.time);
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.time != null && Object.hasOwnProperty.call(message, "time")) {
+                let error = $root.ord.Time.verify(message.time, long + 1);
                 if (error)
                     return "time." + error;
             }
-            if (message.comment != null && message.hasOwnProperty("comment"))
+            if (message.comment != null && Object.hasOwnProperty.call(message, "comment"))
                 if (!$util.isString(message.comment))
                     return "comment: string expected";
-            if (message.image != null && message.hasOwnProperty("image")) {
-                let error = $root.ord.Data.verify(message.image);
+            if (message.image != null && Object.hasOwnProperty.call(message, "image")) {
+                let error = $root.ord.Data.verify(message.image, long + 1);
                 if (error)
                     return "image." + error;
             }
@@ -14062,21 +15654,27 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.ReactionObservation} ReactionObservation
          */
-        ReactionObservation.fromObject = function fromObject(object) {
+        ReactionObservation.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.ReactionObservation)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.ReactionObservation: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.ReactionObservation();
             if (object.time != null) {
-                if (typeof object.time !== "object")
+                if (!$util.isObject(object.time))
                     throw TypeError(".ord.ReactionObservation.time: object expected");
-                message.time = $root.ord.Time.fromObject(object.time);
+                message.time = $root.ord.Time.fromObject(object.time, long + 1);
             }
             if (object.comment != null)
                 message.comment = String(object.comment);
             if (object.image != null) {
-                if (typeof object.image !== "object")
+                if (!$util.isObject(object.image))
                     throw TypeError(".ord.ReactionObservation.image: object expected");
-                message.image = $root.ord.Data.fromObject(object.image);
+                message.image = $root.ord.Data.fromObject(object.image, long + 1);
             }
             return message;
         };
@@ -14090,21 +15688,25 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ReactionObservation.toObject = function toObject(message, options) {
+        ReactionObservation.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.time = null;
                 object.comment = "";
                 object.image = null;
             }
-            if (message.time != null && message.hasOwnProperty("time"))
-                object.time = $root.ord.Time.toObject(message.time, options);
-            if (message.comment != null && message.hasOwnProperty("comment"))
+            if (message.time != null && Object.hasOwnProperty.call(message, "time"))
+                object.time = $root.ord.Time.toObject(message.time, options, q + 1);
+            if (message.comment != null && Object.hasOwnProperty.call(message, "comment"))
                 object.comment = message.comment;
-            if (message.image != null && message.hasOwnProperty("image"))
-                object.image = $root.ord.Data.toObject(message.image, options);
+            if (message.image != null && Object.hasOwnProperty.call(message, "image"))
+                object.image = $root.ord.Data.toObject(message.image, options, q + 1);
             return object;
         };
 
@@ -14166,7 +15768,7 @@ export const ord = $root.ord = (() => {
         function ReactionWorkup(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -14286,25 +15888,29 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ReactionWorkup.encode = function encode(message, writer) {
+        ReactionWorkup.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.details);
             if (message.duration != null && Object.hasOwnProperty.call(message, "duration"))
-                $root.ord.Time.encode(message.duration, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                $root.ord.Time.encode(message.duration, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             if (message.input != null && Object.hasOwnProperty.call(message, "input"))
-                $root.ord.ReactionInput.encode(message.input, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                $root.ord.ReactionInput.encode(message.input, writer.uint32(/* id 4, wireType 2 =*/34).fork(), q + 1).ldelim();
             if (message.amount != null && Object.hasOwnProperty.call(message, "amount"))
-                $root.ord.Amount.encode(message.amount, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+                $root.ord.Amount.encode(message.amount, writer.uint32(/* id 5, wireType 2 =*/42).fork(), q + 1).ldelim();
             if (message.temperature != null && Object.hasOwnProperty.call(message, "temperature"))
-                $root.ord.TemperatureConditions.encode(message.temperature, writer.uint32(/* id 6, wireType 2 =*/50).fork()).ldelim();
+                $root.ord.TemperatureConditions.encode(message.temperature, writer.uint32(/* id 6, wireType 2 =*/50).fork(), q + 1).ldelim();
             if (message.keepPhase != null && Object.hasOwnProperty.call(message, "keepPhase"))
                 writer.uint32(/* id 7, wireType 2 =*/58).string(message.keepPhase);
             if (message.stirring != null && Object.hasOwnProperty.call(message, "stirring"))
-                $root.ord.StirringConditions.encode(message.stirring, writer.uint32(/* id 8, wireType 2 =*/66).fork()).ldelim();
+                $root.ord.StirringConditions.encode(message.stirring, writer.uint32(/* id 8, wireType 2 =*/66).fork(), q + 1).ldelim();
             if (message.targetPh != null && Object.hasOwnProperty.call(message, "targetPh"))
                 writer.uint32(/* id 9, wireType 5 =*/77).float(message.targetPh);
             if (message.isAutomated != null && Object.hasOwnProperty.call(message, "isAutomated"))
@@ -14322,7 +15928,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ReactionWorkup.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -14336,12 +15942,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ReactionWorkup.decode = function decode(reader, length) {
+        ReactionWorkup.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionWorkup();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.ReactionWorkup();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -14352,19 +15974,19 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 3: {
-                        message.duration = $root.ord.Time.decode(reader, reader.uint32());
+                        message.duration = $root.ord.Time.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 4: {
-                        message.input = $root.ord.ReactionInput.decode(reader, reader.uint32());
+                        message.input = $root.ord.ReactionInput.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 5: {
-                        message.amount = $root.ord.Amount.decode(reader, reader.uint32());
+                        message.amount = $root.ord.Amount.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 6: {
-                        message.temperature = $root.ord.TemperatureConditions.decode(reader, reader.uint32());
+                        message.temperature = $root.ord.TemperatureConditions.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 7: {
@@ -14372,7 +15994,7 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 8: {
-                        message.stirring = $root.ord.StirringConditions.decode(reader, reader.uint32());
+                        message.stirring = $root.ord.StirringConditions.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 9: {
@@ -14384,9 +16006,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -14415,11 +16042,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ReactionWorkup.verify = function verify(message) {
+        ReactionWorkup.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -14444,43 +16075,43 @@ export const ord = $root.ord = (() => {
                 case 18:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
-            if (message.duration != null && message.hasOwnProperty("duration")) {
-                let error = $root.ord.Time.verify(message.duration);
+            if (message.duration != null && Object.hasOwnProperty.call(message, "duration")) {
+                let error = $root.ord.Time.verify(message.duration, long + 1);
                 if (error)
                     return "duration." + error;
             }
-            if (message.input != null && message.hasOwnProperty("input")) {
-                let error = $root.ord.ReactionInput.verify(message.input);
+            if (message.input != null && Object.hasOwnProperty.call(message, "input")) {
+                let error = $root.ord.ReactionInput.verify(message.input, long + 1);
                 if (error)
                     return "input." + error;
             }
-            if (message.amount != null && message.hasOwnProperty("amount")) {
-                let error = $root.ord.Amount.verify(message.amount);
+            if (message.amount != null && Object.hasOwnProperty.call(message, "amount")) {
+                let error = $root.ord.Amount.verify(message.amount, long + 1);
                 if (error)
                     return "amount." + error;
             }
-            if (message.temperature != null && message.hasOwnProperty("temperature")) {
-                let error = $root.ord.TemperatureConditions.verify(message.temperature);
+            if (message.temperature != null && Object.hasOwnProperty.call(message, "temperature")) {
+                let error = $root.ord.TemperatureConditions.verify(message.temperature, long + 1);
                 if (error)
                     return "temperature." + error;
             }
-            if (message.keepPhase != null && message.hasOwnProperty("keepPhase"))
+            if (message.keepPhase != null && Object.hasOwnProperty.call(message, "keepPhase"))
                 if (!$util.isString(message.keepPhase))
                     return "keepPhase: string expected";
-            if (message.stirring != null && message.hasOwnProperty("stirring")) {
-                let error = $root.ord.StirringConditions.verify(message.stirring);
+            if (message.stirring != null && Object.hasOwnProperty.call(message, "stirring")) {
+                let error = $root.ord.StirringConditions.verify(message.stirring, long + 1);
                 if (error)
                     return "stirring." + error;
             }
-            if (message.targetPh != null && message.hasOwnProperty("targetPh")) {
+            if (message.targetPh != null && Object.hasOwnProperty.call(message, "targetPh")) {
                 properties._targetPh = 1;
                 if (typeof message.targetPh !== "number")
                     return "targetPh: number expected";
             }
-            if (message.isAutomated != null && message.hasOwnProperty("isAutomated")) {
+            if (message.isAutomated != null && Object.hasOwnProperty.call(message, "isAutomated")) {
                 properties._isAutomated = 1;
                 if (typeof message.isAutomated !== "boolean")
                     return "isAutomated: boolean expected";
@@ -14496,9 +16127,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.ReactionWorkup} ReactionWorkup
          */
-        ReactionWorkup.fromObject = function fromObject(object) {
+        ReactionWorkup.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.ReactionWorkup)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.ReactionWorkup: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.ReactionWorkup();
             switch (object.type) {
             default:
@@ -14587,31 +16224,31 @@ export const ord = $root.ord = (() => {
             if (object.details != null)
                 message.details = String(object.details);
             if (object.duration != null) {
-                if (typeof object.duration !== "object")
+                if (!$util.isObject(object.duration))
                     throw TypeError(".ord.ReactionWorkup.duration: object expected");
-                message.duration = $root.ord.Time.fromObject(object.duration);
+                message.duration = $root.ord.Time.fromObject(object.duration, long + 1);
             }
             if (object.input != null) {
-                if (typeof object.input !== "object")
+                if (!$util.isObject(object.input))
                     throw TypeError(".ord.ReactionWorkup.input: object expected");
-                message.input = $root.ord.ReactionInput.fromObject(object.input);
+                message.input = $root.ord.ReactionInput.fromObject(object.input, long + 1);
             }
             if (object.amount != null) {
-                if (typeof object.amount !== "object")
+                if (!$util.isObject(object.amount))
                     throw TypeError(".ord.ReactionWorkup.amount: object expected");
-                message.amount = $root.ord.Amount.fromObject(object.amount);
+                message.amount = $root.ord.Amount.fromObject(object.amount, long + 1);
             }
             if (object.temperature != null) {
-                if (typeof object.temperature !== "object")
+                if (!$util.isObject(object.temperature))
                     throw TypeError(".ord.ReactionWorkup.temperature: object expected");
-                message.temperature = $root.ord.TemperatureConditions.fromObject(object.temperature);
+                message.temperature = $root.ord.TemperatureConditions.fromObject(object.temperature, long + 1);
             }
             if (object.keepPhase != null)
                 message.keepPhase = String(object.keepPhase);
             if (object.stirring != null) {
-                if (typeof object.stirring !== "object")
+                if (!$util.isObject(object.stirring))
                     throw TypeError(".ord.ReactionWorkup.stirring: object expected");
-                message.stirring = $root.ord.StirringConditions.fromObject(object.stirring);
+                message.stirring = $root.ord.StirringConditions.fromObject(object.stirring, long + 1);
             }
             if (object.targetPh != null)
                 message.targetPh = Number(object.targetPh);
@@ -14629,9 +16266,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ReactionWorkup.toObject = function toObject(message, options) {
+        ReactionWorkup.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.type = options.enums === String ? "UNSPECIFIED" : 0;
@@ -14643,28 +16284,28 @@ export const ord = $root.ord = (() => {
                 object.keepPhase = "";
                 object.stirring = null;
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.ReactionWorkup.ReactionWorkupType[message.type] === undefined ? message.type : $root.ord.ReactionWorkup.ReactionWorkupType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
-            if (message.duration != null && message.hasOwnProperty("duration"))
-                object.duration = $root.ord.Time.toObject(message.duration, options);
-            if (message.input != null && message.hasOwnProperty("input"))
-                object.input = $root.ord.ReactionInput.toObject(message.input, options);
-            if (message.amount != null && message.hasOwnProperty("amount"))
-                object.amount = $root.ord.Amount.toObject(message.amount, options);
-            if (message.temperature != null && message.hasOwnProperty("temperature"))
-                object.temperature = $root.ord.TemperatureConditions.toObject(message.temperature, options);
-            if (message.keepPhase != null && message.hasOwnProperty("keepPhase"))
+            if (message.duration != null && Object.hasOwnProperty.call(message, "duration"))
+                object.duration = $root.ord.Time.toObject(message.duration, options, q + 1);
+            if (message.input != null && Object.hasOwnProperty.call(message, "input"))
+                object.input = $root.ord.ReactionInput.toObject(message.input, options, q + 1);
+            if (message.amount != null && Object.hasOwnProperty.call(message, "amount"))
+                object.amount = $root.ord.Amount.toObject(message.amount, options, q + 1);
+            if (message.temperature != null && Object.hasOwnProperty.call(message, "temperature"))
+                object.temperature = $root.ord.TemperatureConditions.toObject(message.temperature, options, q + 1);
+            if (message.keepPhase != null && Object.hasOwnProperty.call(message, "keepPhase"))
                 object.keepPhase = message.keepPhase;
-            if (message.stirring != null && message.hasOwnProperty("stirring"))
-                object.stirring = $root.ord.StirringConditions.toObject(message.stirring, options);
-            if (message.targetPh != null && message.hasOwnProperty("targetPh")) {
+            if (message.stirring != null && Object.hasOwnProperty.call(message, "stirring"))
+                object.stirring = $root.ord.StirringConditions.toObject(message.stirring, options, q + 1);
+            if (message.targetPh != null && Object.hasOwnProperty.call(message, "targetPh")) {
                 object.targetPh = options.json && !isFinite(message.targetPh) ? String(message.targetPh) : message.targetPh;
                 if (options.oneofs)
                     object._targetPh = "targetPh";
             }
-            if (message.isAutomated != null && message.hasOwnProperty("isAutomated")) {
+            if (message.isAutomated != null && Object.hasOwnProperty.call(message, "isAutomated")) {
                 object.isAutomated = message.isAutomated;
                 if (options.oneofs)
                     object._isAutomated = "isAutomated";
@@ -14781,7 +16422,7 @@ export const ord = $root.ord = (() => {
             this.analyses = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -14838,20 +16479,24 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ReactionOutcome.encode = function encode(message, writer) {
+        ReactionOutcome.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.reactionTime != null && Object.hasOwnProperty.call(message, "reactionTime"))
-                $root.ord.Time.encode(message.reactionTime, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                $root.ord.Time.encode(message.reactionTime, writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             if (message.conversion != null && Object.hasOwnProperty.call(message, "conversion"))
-                $root.ord.Percentage.encode(message.conversion, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+                $root.ord.Percentage.encode(message.conversion, writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim();
             if (message.products != null && message.products.length)
                 for (let i = 0; i < message.products.length; ++i)
-                    $root.ord.ProductCompound.encode(message.products[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                    $root.ord.ProductCompound.encode(message.products[i], writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             if (message.analyses != null && Object.hasOwnProperty.call(message, "analyses"))
                 for (let keys = Object.keys(message.analyses), i = 0; i < keys.length; ++i) {
                     writer.uint32(/* id 4, wireType 2 =*/34).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
-                    $root.ord.Analysis.encode(message.analyses[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                    $root.ord.Analysis.encode(message.analyses[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim().ldelim();
                 }
             return writer;
         };
@@ -14866,7 +16511,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ReactionOutcome.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -14880,31 +16525,50 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ReactionOutcome.decode = function decode(reader, length) {
+        ReactionOutcome.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionOutcome(), key, value;
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message, key, value;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.ReactionOutcome();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.reactionTime = $root.ord.Time.decode(reader, reader.uint32());
+                        message.reactionTime = $root.ord.Time.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 2: {
-                        message.conversion = $root.ord.Percentage.decode(reader, reader.uint32());
+                        message.conversion = $root.ord.Percentage.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 3: {
                         if (!(message.products && message.products.length))
                             message.products = [];
-                        message.products.push($root.ord.ProductCompound.decode(reader, reader.uint32()));
+                        message.products.push($root.ord.ProductCompound.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 4: {
                         if (message.analyses === $util.emptyObject)
                             message.analyses = {};
                         let end2 = reader.uint32() + reader.pos;
+                        if (end2 > reader.len)
+                            throw RangeError("index out of range");
+                        reader.len = end2;
                         key = "";
                         value = null;
                         while (reader.pos < end2) {
@@ -14914,20 +16578,30 @@ export const ord = $root.ord = (() => {
                                 key = reader.string();
                                 break;
                             case 2:
-                                value = $root.ord.Analysis.decode(reader, reader.uint32());
+                                value = $root.ord.Analysis.decode(reader, reader.uint32(), undefined, long + 1);
                                 break;
                             default:
-                                reader.skipType(tag2 & 7);
+                                reader.skipType(tag2 & 7, long);
                                 break;
                             }
                         }
+                        if (reader.pos !== end2)
+                            throw RangeError("index out of range");
+                        reader.len = end;
+                        if (key === "__proto__")
+                            $util.makeProp(message.analyses, key);
                         message.analyses[key] = value;
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -14956,34 +16630,38 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ReactionOutcome.verify = function verify(message) {
+        ReactionOutcome.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.reactionTime != null && message.hasOwnProperty("reactionTime")) {
-                let error = $root.ord.Time.verify(message.reactionTime);
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.reactionTime != null && Object.hasOwnProperty.call(message, "reactionTime")) {
+                let error = $root.ord.Time.verify(message.reactionTime, long + 1);
                 if (error)
                     return "reactionTime." + error;
             }
-            if (message.conversion != null && message.hasOwnProperty("conversion")) {
-                let error = $root.ord.Percentage.verify(message.conversion);
+            if (message.conversion != null && Object.hasOwnProperty.call(message, "conversion")) {
+                let error = $root.ord.Percentage.verify(message.conversion, long + 1);
                 if (error)
                     return "conversion." + error;
             }
-            if (message.products != null && message.hasOwnProperty("products")) {
+            if (message.products != null && Object.hasOwnProperty.call(message, "products")) {
                 if (!Array.isArray(message.products))
                     return "products: array expected";
                 for (let i = 0; i < message.products.length; ++i) {
-                    let error = $root.ord.ProductCompound.verify(message.products[i]);
+                    let error = $root.ord.ProductCompound.verify(message.products[i], long + 1);
                     if (error)
                         return "products." + error;
                 }
             }
-            if (message.analyses != null && message.hasOwnProperty("analyses")) {
+            if (message.analyses != null && Object.hasOwnProperty.call(message, "analyses")) {
                 if (!$util.isObject(message.analyses))
                     return "analyses: object expected";
                 let key = Object.keys(message.analyses);
                 for (let i = 0; i < key.length; ++i) {
-                    let error = $root.ord.Analysis.verify(message.analyses[key[i]]);
+                    let error = $root.ord.Analysis.verify(message.analyses[key[i]], long + 1);
                     if (error)
                         return "analyses." + error;
                 }
@@ -14999,38 +16677,46 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.ReactionOutcome} ReactionOutcome
          */
-        ReactionOutcome.fromObject = function fromObject(object) {
+        ReactionOutcome.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.ReactionOutcome)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.ReactionOutcome: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.ReactionOutcome();
             if (object.reactionTime != null) {
-                if (typeof object.reactionTime !== "object")
+                if (!$util.isObject(object.reactionTime))
                     throw TypeError(".ord.ReactionOutcome.reactionTime: object expected");
-                message.reactionTime = $root.ord.Time.fromObject(object.reactionTime);
+                message.reactionTime = $root.ord.Time.fromObject(object.reactionTime, long + 1);
             }
             if (object.conversion != null) {
-                if (typeof object.conversion !== "object")
+                if (!$util.isObject(object.conversion))
                     throw TypeError(".ord.ReactionOutcome.conversion: object expected");
-                message.conversion = $root.ord.Percentage.fromObject(object.conversion);
+                message.conversion = $root.ord.Percentage.fromObject(object.conversion, long + 1);
             }
             if (object.products) {
                 if (!Array.isArray(object.products))
                     throw TypeError(".ord.ReactionOutcome.products: array expected");
                 message.products = [];
                 for (let i = 0; i < object.products.length; ++i) {
-                    if (typeof object.products[i] !== "object")
+                    if (!$util.isObject(object.products[i]))
                         throw TypeError(".ord.ReactionOutcome.products: object expected");
-                    message.products[i] = $root.ord.ProductCompound.fromObject(object.products[i]);
+                    message.products[i] = $root.ord.ProductCompound.fromObject(object.products[i], long + 1);
                 }
             }
             if (object.analyses) {
-                if (typeof object.analyses !== "object")
+                if (!$util.isObject(object.analyses))
                     throw TypeError(".ord.ReactionOutcome.analyses: object expected");
                 message.analyses = {};
                 for (let keys = Object.keys(object.analyses), i = 0; i < keys.length; ++i) {
-                    if (typeof object.analyses[keys[i]] !== "object")
+                    if (keys[i] === "__proto__")
+                        $util.makeProp(message.analyses, keys[i]);
+                    if (!$util.isObject(object.analyses[keys[i]]))
                         throw TypeError(".ord.ReactionOutcome.analyses: object expected");
-                    message.analyses[keys[i]] = $root.ord.Analysis.fromObject(object.analyses[keys[i]]);
+                    message.analyses[keys[i]] = $root.ord.Analysis.fromObject(object.analyses[keys[i]], long + 1);
                 }
             }
             return message;
@@ -15045,9 +16731,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ReactionOutcome.toObject = function toObject(message, options) {
+        ReactionOutcome.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.arrays || options.defaults)
                 object.products = [];
@@ -15057,20 +16747,23 @@ export const ord = $root.ord = (() => {
                 object.reactionTime = null;
                 object.conversion = null;
             }
-            if (message.reactionTime != null && message.hasOwnProperty("reactionTime"))
-                object.reactionTime = $root.ord.Time.toObject(message.reactionTime, options);
-            if (message.conversion != null && message.hasOwnProperty("conversion"))
-                object.conversion = $root.ord.Percentage.toObject(message.conversion, options);
+            if (message.reactionTime != null && Object.hasOwnProperty.call(message, "reactionTime"))
+                object.reactionTime = $root.ord.Time.toObject(message.reactionTime, options, q + 1);
+            if (message.conversion != null && Object.hasOwnProperty.call(message, "conversion"))
+                object.conversion = $root.ord.Percentage.toObject(message.conversion, options, q + 1);
             if (message.products && message.products.length) {
                 object.products = [];
                 for (let j = 0; j < message.products.length; ++j)
-                    object.products[j] = $root.ord.ProductCompound.toObject(message.products[j], options);
+                    object.products[j] = $root.ord.ProductCompound.toObject(message.products[j], options, q + 1);
             }
             let keys2;
             if (message.analyses && (keys2 = Object.keys(message.analyses)).length) {
                 object.analyses = {};
-                for (let j = 0; j < keys2.length; ++j)
-                    object.analyses[keys2[j]] = $root.ord.Analysis.toObject(message.analyses[keys2[j]], options);
+                for (let j = 0; j < keys2.length; ++j) {
+                    if (keys2[j] === "__proto__")
+                        $util.makeProp(object.analyses, keys2[j]);
+                    object.analyses[keys2[j]] = $root.ord.Analysis.toObject(message.analyses[keys2[j]], options, q + 1);
+                }
             }
             return object;
         };
@@ -15133,7 +16826,7 @@ export const ord = $root.ord = (() => {
             this.features = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -15223,25 +16916,29 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ProductCompound.encode = function encode(message, writer) {
+        ProductCompound.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.identifiers != null && message.identifiers.length)
                 for (let i = 0; i < message.identifiers.length; ++i)
-                    $root.ord.CompoundIdentifier.encode(message.identifiers[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                    $root.ord.CompoundIdentifier.encode(message.identifiers[i], writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             if (message.isDesiredProduct != null && Object.hasOwnProperty.call(message, "isDesiredProduct"))
                 writer.uint32(/* id 2, wireType 0 =*/16).bool(message.isDesiredProduct);
             if (message.measurements != null && message.measurements.length)
                 for (let i = 0; i < message.measurements.length; ++i)
-                    $root.ord.ProductMeasurement.encode(message.measurements[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                    $root.ord.ProductMeasurement.encode(message.measurements[i], writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             if (message.isolatedColor != null && Object.hasOwnProperty.call(message, "isolatedColor"))
                 writer.uint32(/* id 4, wireType 2 =*/34).string(message.isolatedColor);
             if (message.texture != null && Object.hasOwnProperty.call(message, "texture"))
-                $root.ord.Texture.encode(message.texture, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+                $root.ord.Texture.encode(message.texture, writer.uint32(/* id 5, wireType 2 =*/42).fork(), q + 1).ldelim();
             if (message.features != null && Object.hasOwnProperty.call(message, "features"))
                 for (let keys = Object.keys(message.features), i = 0; i < keys.length; ++i) {
                     writer.uint32(/* id 6, wireType 2 =*/50).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
-                    $root.ord.Data.encode(message.features[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                    $root.ord.Data.encode(message.features[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim().ldelim();
                 }
             if (message.reactionRole != null && Object.hasOwnProperty.call(message, "reactionRole"))
                 writer.uint32(/* id 7, wireType 0 =*/56).int32(message.reactionRole);
@@ -15258,7 +16955,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ProductCompound.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -15272,17 +16969,33 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ProductCompound.decode = function decode(reader, length) {
+        ProductCompound.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ProductCompound(), key, value;
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message, key, value;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.ProductCompound();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         if (!(message.identifiers && message.identifiers.length))
                             message.identifiers = [];
-                        message.identifiers.push($root.ord.CompoundIdentifier.decode(reader, reader.uint32()));
+                        message.identifiers.push($root.ord.CompoundIdentifier.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 2: {
@@ -15292,7 +17005,7 @@ export const ord = $root.ord = (() => {
                 case 3: {
                         if (!(message.measurements && message.measurements.length))
                             message.measurements = [];
-                        message.measurements.push($root.ord.ProductMeasurement.decode(reader, reader.uint32()));
+                        message.measurements.push($root.ord.ProductMeasurement.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 4: {
@@ -15300,13 +17013,16 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 5: {
-                        message.texture = $root.ord.Texture.decode(reader, reader.uint32());
+                        message.texture = $root.ord.Texture.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 6: {
                         if (message.features === $util.emptyObject)
                             message.features = {};
                         let end2 = reader.uint32() + reader.pos;
+                        if (end2 > reader.len)
+                            throw RangeError("index out of range");
+                        reader.len = end2;
                         key = "";
                         value = null;
                         while (reader.pos < end2) {
@@ -15316,13 +17032,18 @@ export const ord = $root.ord = (() => {
                                 key = reader.string();
                                 break;
                             case 2:
-                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                value = $root.ord.Data.decode(reader, reader.uint32(), undefined, long + 1);
                                 break;
                             default:
-                                reader.skipType(tag2 & 7);
+                                reader.skipType(tag2 & 7, long);
                                 break;
                             }
                         }
+                        if (reader.pos !== end2)
+                            throw RangeError("index out of range");
+                        reader.len = end;
+                        if (key === "__proto__")
+                            $util.makeProp(message.features, key);
                         message.features[key] = value;
                         break;
                     }
@@ -15331,9 +17052,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -15362,52 +17088,56 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ProductCompound.verify = function verify(message) {
+        ProductCompound.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.identifiers != null && message.hasOwnProperty("identifiers")) {
+            if (message.identifiers != null && Object.hasOwnProperty.call(message, "identifiers")) {
                 if (!Array.isArray(message.identifiers))
                     return "identifiers: array expected";
                 for (let i = 0; i < message.identifiers.length; ++i) {
-                    let error = $root.ord.CompoundIdentifier.verify(message.identifiers[i]);
+                    let error = $root.ord.CompoundIdentifier.verify(message.identifiers[i], long + 1);
                     if (error)
                         return "identifiers." + error;
                 }
             }
-            if (message.isDesiredProduct != null && message.hasOwnProperty("isDesiredProduct")) {
+            if (message.isDesiredProduct != null && Object.hasOwnProperty.call(message, "isDesiredProduct")) {
                 properties._isDesiredProduct = 1;
                 if (typeof message.isDesiredProduct !== "boolean")
                     return "isDesiredProduct: boolean expected";
             }
-            if (message.measurements != null && message.hasOwnProperty("measurements")) {
+            if (message.measurements != null && Object.hasOwnProperty.call(message, "measurements")) {
                 if (!Array.isArray(message.measurements))
                     return "measurements: array expected";
                 for (let i = 0; i < message.measurements.length; ++i) {
-                    let error = $root.ord.ProductMeasurement.verify(message.measurements[i]);
+                    let error = $root.ord.ProductMeasurement.verify(message.measurements[i], long + 1);
                     if (error)
                         return "measurements." + error;
                 }
             }
-            if (message.isolatedColor != null && message.hasOwnProperty("isolatedColor"))
+            if (message.isolatedColor != null && Object.hasOwnProperty.call(message, "isolatedColor"))
                 if (!$util.isString(message.isolatedColor))
                     return "isolatedColor: string expected";
-            if (message.texture != null && message.hasOwnProperty("texture")) {
-                let error = $root.ord.Texture.verify(message.texture);
+            if (message.texture != null && Object.hasOwnProperty.call(message, "texture")) {
+                let error = $root.ord.Texture.verify(message.texture, long + 1);
                 if (error)
                     return "texture." + error;
             }
-            if (message.features != null && message.hasOwnProperty("features")) {
+            if (message.features != null && Object.hasOwnProperty.call(message, "features")) {
                 if (!$util.isObject(message.features))
                     return "features: object expected";
                 let key = Object.keys(message.features);
                 for (let i = 0; i < key.length; ++i) {
-                    let error = $root.ord.Data.verify(message.features[key[i]]);
+                    let error = $root.ord.Data.verify(message.features[key[i]], long + 1);
                     if (error)
                         return "features." + error;
                 }
             }
-            if (message.reactionRole != null && message.hasOwnProperty("reactionRole"))
+            if (message.reactionRole != null && Object.hasOwnProperty.call(message, "reactionRole"))
                 switch (message.reactionRole) {
                 default:
                     return "reactionRole: enum value expected";
@@ -15435,18 +17165,24 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.ProductCompound} ProductCompound
          */
-        ProductCompound.fromObject = function fromObject(object) {
+        ProductCompound.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.ProductCompound)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.ProductCompound: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.ProductCompound();
             if (object.identifiers) {
                 if (!Array.isArray(object.identifiers))
                     throw TypeError(".ord.ProductCompound.identifiers: array expected");
                 message.identifiers = [];
                 for (let i = 0; i < object.identifiers.length; ++i) {
-                    if (typeof object.identifiers[i] !== "object")
+                    if (!$util.isObject(object.identifiers[i]))
                         throw TypeError(".ord.ProductCompound.identifiers: object expected");
-                    message.identifiers[i] = $root.ord.CompoundIdentifier.fromObject(object.identifiers[i]);
+                    message.identifiers[i] = $root.ord.CompoundIdentifier.fromObject(object.identifiers[i], long + 1);
                 }
             }
             if (object.isDesiredProduct != null)
@@ -15456,26 +17192,28 @@ export const ord = $root.ord = (() => {
                     throw TypeError(".ord.ProductCompound.measurements: array expected");
                 message.measurements = [];
                 for (let i = 0; i < object.measurements.length; ++i) {
-                    if (typeof object.measurements[i] !== "object")
+                    if (!$util.isObject(object.measurements[i]))
                         throw TypeError(".ord.ProductCompound.measurements: object expected");
-                    message.measurements[i] = $root.ord.ProductMeasurement.fromObject(object.measurements[i]);
+                    message.measurements[i] = $root.ord.ProductMeasurement.fromObject(object.measurements[i], long + 1);
                 }
             }
             if (object.isolatedColor != null)
                 message.isolatedColor = String(object.isolatedColor);
             if (object.texture != null) {
-                if (typeof object.texture !== "object")
+                if (!$util.isObject(object.texture))
                     throw TypeError(".ord.ProductCompound.texture: object expected");
-                message.texture = $root.ord.Texture.fromObject(object.texture);
+                message.texture = $root.ord.Texture.fromObject(object.texture, long + 1);
             }
             if (object.features) {
-                if (typeof object.features !== "object")
+                if (!$util.isObject(object.features))
                     throw TypeError(".ord.ProductCompound.features: object expected");
                 message.features = {};
                 for (let keys = Object.keys(object.features), i = 0; i < keys.length; ++i) {
-                    if (typeof object.features[keys[i]] !== "object")
+                    if (keys[i] === "__proto__")
+                        $util.makeProp(message.features, keys[i]);
+                    if (!$util.isObject(object.features[keys[i]]))
                         throw TypeError(".ord.ProductCompound.features: object expected");
-                    message.features[keys[i]] = $root.ord.Data.fromObject(object.features[keys[i]]);
+                    message.features[keys[i]] = $root.ord.Data.fromObject(object.features[keys[i]], long + 1);
                 }
             }
             switch (object.reactionRole) {
@@ -15542,9 +17280,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ProductCompound.toObject = function toObject(message, options) {
+        ProductCompound.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.arrays || options.defaults) {
                 object.identifiers = [];
@@ -15560,9 +17302,9 @@ export const ord = $root.ord = (() => {
             if (message.identifiers && message.identifiers.length) {
                 object.identifiers = [];
                 for (let j = 0; j < message.identifiers.length; ++j)
-                    object.identifiers[j] = $root.ord.CompoundIdentifier.toObject(message.identifiers[j], options);
+                    object.identifiers[j] = $root.ord.CompoundIdentifier.toObject(message.identifiers[j], options, q + 1);
             }
-            if (message.isDesiredProduct != null && message.hasOwnProperty("isDesiredProduct")) {
+            if (message.isDesiredProduct != null && Object.hasOwnProperty.call(message, "isDesiredProduct")) {
                 object.isDesiredProduct = message.isDesiredProduct;
                 if (options.oneofs)
                     object._isDesiredProduct = "isDesiredProduct";
@@ -15570,19 +17312,22 @@ export const ord = $root.ord = (() => {
             if (message.measurements && message.measurements.length) {
                 object.measurements = [];
                 for (let j = 0; j < message.measurements.length; ++j)
-                    object.measurements[j] = $root.ord.ProductMeasurement.toObject(message.measurements[j], options);
+                    object.measurements[j] = $root.ord.ProductMeasurement.toObject(message.measurements[j], options, q + 1);
             }
-            if (message.isolatedColor != null && message.hasOwnProperty("isolatedColor"))
+            if (message.isolatedColor != null && Object.hasOwnProperty.call(message, "isolatedColor"))
                 object.isolatedColor = message.isolatedColor;
-            if (message.texture != null && message.hasOwnProperty("texture"))
-                object.texture = $root.ord.Texture.toObject(message.texture, options);
+            if (message.texture != null && Object.hasOwnProperty.call(message, "texture"))
+                object.texture = $root.ord.Texture.toObject(message.texture, options, q + 1);
             let keys2;
             if (message.features && (keys2 = Object.keys(message.features)).length) {
                 object.features = {};
-                for (let j = 0; j < keys2.length; ++j)
-                    object.features[keys2[j]] = $root.ord.Data.toObject(message.features[keys2[j]], options);
+                for (let j = 0; j < keys2.length; ++j) {
+                    if (keys2[j] === "__proto__")
+                        $util.makeProp(object.features, keys2[j]);
+                    object.features[keys2[j]] = $root.ord.Data.toObject(message.features[keys2[j]], options, q + 1);
+                }
             }
-            if (message.reactionRole != null && message.hasOwnProperty("reactionRole"))
+            if (message.reactionRole != null && Object.hasOwnProperty.call(message, "reactionRole"))
                 object.reactionRole = options.enums === String ? $root.ord.ReactionRole.ReactionRoleType[message.reactionRole] === undefined ? message.reactionRole : $root.ord.ReactionRole.ReactionRoleType[message.reactionRole] : message.reactionRole;
             return object;
         };
@@ -15650,7 +17395,7 @@ export const ord = $root.ord = (() => {
         function ProductMeasurement(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -15827,9 +17572,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ProductMeasurement.encode = function encode(message, writer) {
+        ProductMeasurement.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.analysisKey != null && Object.hasOwnProperty.call(message, "analysisKey"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.analysisKey);
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
@@ -15843,23 +17592,23 @@ export const ord = $root.ord = (() => {
             if (message.usesAuthenticStandard != null && Object.hasOwnProperty.call(message, "usesAuthenticStandard"))
                 writer.uint32(/* id 6, wireType 0 =*/48).bool(message.usesAuthenticStandard);
             if (message.authenticStandard != null && Object.hasOwnProperty.call(message, "authenticStandard"))
-                $root.ord.Compound.encode(message.authenticStandard, writer.uint32(/* id 7, wireType 2 =*/58).fork()).ldelim();
+                $root.ord.Compound.encode(message.authenticStandard, writer.uint32(/* id 7, wireType 2 =*/58).fork(), q + 1).ldelim();
             if (message.percentage != null && Object.hasOwnProperty.call(message, "percentage"))
-                $root.ord.Percentage.encode(message.percentage, writer.uint32(/* id 8, wireType 2 =*/66).fork()).ldelim();
+                $root.ord.Percentage.encode(message.percentage, writer.uint32(/* id 8, wireType 2 =*/66).fork(), q + 1).ldelim();
             if (message.floatValue != null && Object.hasOwnProperty.call(message, "floatValue"))
-                $root.ord.FloatValue.encode(message.floatValue, writer.uint32(/* id 9, wireType 2 =*/74).fork()).ldelim();
+                $root.ord.FloatValue.encode(message.floatValue, writer.uint32(/* id 9, wireType 2 =*/74).fork(), q + 1).ldelim();
             if (message.stringValue != null && Object.hasOwnProperty.call(message, "stringValue"))
                 writer.uint32(/* id 10, wireType 2 =*/82).string(message.stringValue);
             if (message.amount != null && Object.hasOwnProperty.call(message, "amount"))
-                $root.ord.Amount.encode(message.amount, writer.uint32(/* id 11, wireType 2 =*/90).fork()).ldelim();
+                $root.ord.Amount.encode(message.amount, writer.uint32(/* id 11, wireType 2 =*/90).fork(), q + 1).ldelim();
             if (message.retentionTime != null && Object.hasOwnProperty.call(message, "retentionTime"))
-                $root.ord.Time.encode(message.retentionTime, writer.uint32(/* id 12, wireType 2 =*/98).fork()).ldelim();
+                $root.ord.Time.encode(message.retentionTime, writer.uint32(/* id 12, wireType 2 =*/98).fork(), q + 1).ldelim();
             if (message.massSpecDetails != null && Object.hasOwnProperty.call(message, "massSpecDetails"))
-                $root.ord.ProductMeasurement.MassSpecMeasurementDetails.encode(message.massSpecDetails, writer.uint32(/* id 13, wireType 2 =*/106).fork()).ldelim();
+                $root.ord.ProductMeasurement.MassSpecMeasurementDetails.encode(message.massSpecDetails, writer.uint32(/* id 13, wireType 2 =*/106).fork(), q + 1).ldelim();
             if (message.selectivity != null && Object.hasOwnProperty.call(message, "selectivity"))
-                $root.ord.ProductMeasurement.Selectivity.encode(message.selectivity, writer.uint32(/* id 14, wireType 2 =*/114).fork()).ldelim();
+                $root.ord.ProductMeasurement.Selectivity.encode(message.selectivity, writer.uint32(/* id 14, wireType 2 =*/114).fork(), q + 1).ldelim();
             if (message.wavelength != null && Object.hasOwnProperty.call(message, "wavelength"))
-                $root.ord.Wavelength.encode(message.wavelength, writer.uint32(/* id 15, wireType 2 =*/122).fork()).ldelim();
+                $root.ord.Wavelength.encode(message.wavelength, writer.uint32(/* id 15, wireType 2 =*/122).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -15873,7 +17622,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ProductMeasurement.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -15887,12 +17636,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ProductMeasurement.decode = function decode(reader, length) {
+        ProductMeasurement.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ProductMeasurement();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.ProductMeasurement();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.analysisKey = reader.string();
@@ -15919,15 +17684,15 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 7: {
-                        message.authenticStandard = $root.ord.Compound.decode(reader, reader.uint32());
+                        message.authenticStandard = $root.ord.Compound.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 8: {
-                        message.percentage = $root.ord.Percentage.decode(reader, reader.uint32());
+                        message.percentage = $root.ord.Percentage.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 9: {
-                        message.floatValue = $root.ord.FloatValue.decode(reader, reader.uint32());
+                        message.floatValue = $root.ord.FloatValue.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 10: {
@@ -15935,29 +17700,34 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 11: {
-                        message.amount = $root.ord.Amount.decode(reader, reader.uint32());
+                        message.amount = $root.ord.Amount.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 12: {
-                        message.retentionTime = $root.ord.Time.decode(reader, reader.uint32());
+                        message.retentionTime = $root.ord.Time.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 13: {
-                        message.massSpecDetails = $root.ord.ProductMeasurement.MassSpecMeasurementDetails.decode(reader, reader.uint32());
+                        message.massSpecDetails = $root.ord.ProductMeasurement.MassSpecMeasurementDetails.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 14: {
-                        message.selectivity = $root.ord.ProductMeasurement.Selectivity.decode(reader, reader.uint32());
+                        message.selectivity = $root.ord.ProductMeasurement.Selectivity.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 15: {
-                        message.wavelength = $root.ord.Wavelength.decode(reader, reader.uint32());
+                        message.wavelength = $root.ord.Wavelength.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -15986,14 +17756,18 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ProductMeasurement.verify = function verify(message) {
+        ProductMeasurement.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.analysisKey != null && message.hasOwnProperty("analysisKey"))
+            if (message.analysisKey != null && Object.hasOwnProperty.call(message, "analysisKey"))
                 if (!$util.isString(message.analysisKey))
                     return "analysisKey: string expected";
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -16009,81 +17783,81 @@ export const ord = $root.ord = (() => {
                 case 9:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
-            if (message.usesInternalStandard != null && message.hasOwnProperty("usesInternalStandard")) {
+            if (message.usesInternalStandard != null && Object.hasOwnProperty.call(message, "usesInternalStandard")) {
                 properties._usesInternalStandard = 1;
                 if (typeof message.usesInternalStandard !== "boolean")
                     return "usesInternalStandard: boolean expected";
             }
-            if (message.isNormalized != null && message.hasOwnProperty("isNormalized")) {
+            if (message.isNormalized != null && Object.hasOwnProperty.call(message, "isNormalized")) {
                 properties._isNormalized = 1;
                 if (typeof message.isNormalized !== "boolean")
                     return "isNormalized: boolean expected";
             }
-            if (message.usesAuthenticStandard != null && message.hasOwnProperty("usesAuthenticStandard")) {
+            if (message.usesAuthenticStandard != null && Object.hasOwnProperty.call(message, "usesAuthenticStandard")) {
                 properties._usesAuthenticStandard = 1;
                 if (typeof message.usesAuthenticStandard !== "boolean")
                     return "usesAuthenticStandard: boolean expected";
             }
-            if (message.authenticStandard != null && message.hasOwnProperty("authenticStandard")) {
-                let error = $root.ord.Compound.verify(message.authenticStandard);
+            if (message.authenticStandard != null && Object.hasOwnProperty.call(message, "authenticStandard")) {
+                let error = $root.ord.Compound.verify(message.authenticStandard, long + 1);
                 if (error)
                     return "authenticStandard." + error;
             }
-            if (message.percentage != null && message.hasOwnProperty("percentage")) {
+            if (message.percentage != null && Object.hasOwnProperty.call(message, "percentage")) {
                 properties.value = 1;
                 {
-                    let error = $root.ord.Percentage.verify(message.percentage);
+                    let error = $root.ord.Percentage.verify(message.percentage, long + 1);
                     if (error)
                         return "percentage." + error;
                 }
             }
-            if (message.floatValue != null && message.hasOwnProperty("floatValue")) {
+            if (message.floatValue != null && Object.hasOwnProperty.call(message, "floatValue")) {
                 if (properties.value === 1)
                     return "value: multiple values";
                 properties.value = 1;
                 {
-                    let error = $root.ord.FloatValue.verify(message.floatValue);
+                    let error = $root.ord.FloatValue.verify(message.floatValue, long + 1);
                     if (error)
                         return "floatValue." + error;
                 }
             }
-            if (message.stringValue != null && message.hasOwnProperty("stringValue")) {
+            if (message.stringValue != null && Object.hasOwnProperty.call(message, "stringValue")) {
                 if (properties.value === 1)
                     return "value: multiple values";
                 properties.value = 1;
                 if (!$util.isString(message.stringValue))
                     return "stringValue: string expected";
             }
-            if (message.amount != null && message.hasOwnProperty("amount")) {
+            if (message.amount != null && Object.hasOwnProperty.call(message, "amount")) {
                 if (properties.value === 1)
                     return "value: multiple values";
                 properties.value = 1;
                 {
-                    let error = $root.ord.Amount.verify(message.amount);
+                    let error = $root.ord.Amount.verify(message.amount, long + 1);
                     if (error)
                         return "amount." + error;
                 }
             }
-            if (message.retentionTime != null && message.hasOwnProperty("retentionTime")) {
-                let error = $root.ord.Time.verify(message.retentionTime);
+            if (message.retentionTime != null && Object.hasOwnProperty.call(message, "retentionTime")) {
+                let error = $root.ord.Time.verify(message.retentionTime, long + 1);
                 if (error)
                     return "retentionTime." + error;
             }
-            if (message.massSpecDetails != null && message.hasOwnProperty("massSpecDetails")) {
-                let error = $root.ord.ProductMeasurement.MassSpecMeasurementDetails.verify(message.massSpecDetails);
+            if (message.massSpecDetails != null && Object.hasOwnProperty.call(message, "massSpecDetails")) {
+                let error = $root.ord.ProductMeasurement.MassSpecMeasurementDetails.verify(message.massSpecDetails, long + 1);
                 if (error)
                     return "massSpecDetails." + error;
             }
-            if (message.selectivity != null && message.hasOwnProperty("selectivity")) {
-                let error = $root.ord.ProductMeasurement.Selectivity.verify(message.selectivity);
+            if (message.selectivity != null && Object.hasOwnProperty.call(message, "selectivity")) {
+                let error = $root.ord.ProductMeasurement.Selectivity.verify(message.selectivity, long + 1);
                 if (error)
                     return "selectivity." + error;
             }
-            if (message.wavelength != null && message.hasOwnProperty("wavelength")) {
-                let error = $root.ord.Wavelength.verify(message.wavelength);
+            if (message.wavelength != null && Object.hasOwnProperty.call(message, "wavelength")) {
+                let error = $root.ord.Wavelength.verify(message.wavelength, long + 1);
                 if (error)
                     return "wavelength." + error;
             }
@@ -16098,9 +17872,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.ProductMeasurement} ProductMeasurement
          */
-        ProductMeasurement.fromObject = function fromObject(object) {
+        ProductMeasurement.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.ProductMeasurement)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.ProductMeasurement: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.ProductMeasurement();
             if (object.analysisKey != null)
                 message.analysisKey = String(object.analysisKey);
@@ -16161,46 +17941,46 @@ export const ord = $root.ord = (() => {
             if (object.usesAuthenticStandard != null)
                 message.usesAuthenticStandard = Boolean(object.usesAuthenticStandard);
             if (object.authenticStandard != null) {
-                if (typeof object.authenticStandard !== "object")
+                if (!$util.isObject(object.authenticStandard))
                     throw TypeError(".ord.ProductMeasurement.authenticStandard: object expected");
-                message.authenticStandard = $root.ord.Compound.fromObject(object.authenticStandard);
+                message.authenticStandard = $root.ord.Compound.fromObject(object.authenticStandard, long + 1);
             }
             if (object.percentage != null) {
-                if (typeof object.percentage !== "object")
+                if (!$util.isObject(object.percentage))
                     throw TypeError(".ord.ProductMeasurement.percentage: object expected");
-                message.percentage = $root.ord.Percentage.fromObject(object.percentage);
+                message.percentage = $root.ord.Percentage.fromObject(object.percentage, long + 1);
             }
             if (object.floatValue != null) {
-                if (typeof object.floatValue !== "object")
+                if (!$util.isObject(object.floatValue))
                     throw TypeError(".ord.ProductMeasurement.floatValue: object expected");
-                message.floatValue = $root.ord.FloatValue.fromObject(object.floatValue);
+                message.floatValue = $root.ord.FloatValue.fromObject(object.floatValue, long + 1);
             }
             if (object.stringValue != null)
                 message.stringValue = String(object.stringValue);
             if (object.amount != null) {
-                if (typeof object.amount !== "object")
+                if (!$util.isObject(object.amount))
                     throw TypeError(".ord.ProductMeasurement.amount: object expected");
-                message.amount = $root.ord.Amount.fromObject(object.amount);
+                message.amount = $root.ord.Amount.fromObject(object.amount, long + 1);
             }
             if (object.retentionTime != null) {
-                if (typeof object.retentionTime !== "object")
+                if (!$util.isObject(object.retentionTime))
                     throw TypeError(".ord.ProductMeasurement.retentionTime: object expected");
-                message.retentionTime = $root.ord.Time.fromObject(object.retentionTime);
+                message.retentionTime = $root.ord.Time.fromObject(object.retentionTime, long + 1);
             }
             if (object.massSpecDetails != null) {
-                if (typeof object.massSpecDetails !== "object")
+                if (!$util.isObject(object.massSpecDetails))
                     throw TypeError(".ord.ProductMeasurement.massSpecDetails: object expected");
-                message.massSpecDetails = $root.ord.ProductMeasurement.MassSpecMeasurementDetails.fromObject(object.massSpecDetails);
+                message.massSpecDetails = $root.ord.ProductMeasurement.MassSpecMeasurementDetails.fromObject(object.massSpecDetails, long + 1);
             }
             if (object.selectivity != null) {
-                if (typeof object.selectivity !== "object")
+                if (!$util.isObject(object.selectivity))
                     throw TypeError(".ord.ProductMeasurement.selectivity: object expected");
-                message.selectivity = $root.ord.ProductMeasurement.Selectivity.fromObject(object.selectivity);
+                message.selectivity = $root.ord.ProductMeasurement.Selectivity.fromObject(object.selectivity, long + 1);
             }
             if (object.wavelength != null) {
-                if (typeof object.wavelength !== "object")
+                if (!$util.isObject(object.wavelength))
                     throw TypeError(".ord.ProductMeasurement.wavelength: object expected");
-                message.wavelength = $root.ord.Wavelength.fromObject(object.wavelength);
+                message.wavelength = $root.ord.Wavelength.fromObject(object.wavelength, long + 1);
             }
             return message;
         };
@@ -16214,9 +17994,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ProductMeasurement.toObject = function toObject(message, options) {
+        ProductMeasurement.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.analysisKey = "";
@@ -16228,57 +18012,57 @@ export const ord = $root.ord = (() => {
                 object.selectivity = null;
                 object.wavelength = null;
             }
-            if (message.analysisKey != null && message.hasOwnProperty("analysisKey"))
+            if (message.analysisKey != null && Object.hasOwnProperty.call(message, "analysisKey"))
                 object.analysisKey = message.analysisKey;
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.ProductMeasurement.ProductMeasurementType[message.type] === undefined ? message.type : $root.ord.ProductMeasurement.ProductMeasurementType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
-            if (message.usesInternalStandard != null && message.hasOwnProperty("usesInternalStandard")) {
+            if (message.usesInternalStandard != null && Object.hasOwnProperty.call(message, "usesInternalStandard")) {
                 object.usesInternalStandard = message.usesInternalStandard;
                 if (options.oneofs)
                     object._usesInternalStandard = "usesInternalStandard";
             }
-            if (message.isNormalized != null && message.hasOwnProperty("isNormalized")) {
+            if (message.isNormalized != null && Object.hasOwnProperty.call(message, "isNormalized")) {
                 object.isNormalized = message.isNormalized;
                 if (options.oneofs)
                     object._isNormalized = "isNormalized";
             }
-            if (message.usesAuthenticStandard != null && message.hasOwnProperty("usesAuthenticStandard")) {
+            if (message.usesAuthenticStandard != null && Object.hasOwnProperty.call(message, "usesAuthenticStandard")) {
                 object.usesAuthenticStandard = message.usesAuthenticStandard;
                 if (options.oneofs)
                     object._usesAuthenticStandard = "usesAuthenticStandard";
             }
-            if (message.authenticStandard != null && message.hasOwnProperty("authenticStandard"))
-                object.authenticStandard = $root.ord.Compound.toObject(message.authenticStandard, options);
-            if (message.percentage != null && message.hasOwnProperty("percentage")) {
-                object.percentage = $root.ord.Percentage.toObject(message.percentage, options);
+            if (message.authenticStandard != null && Object.hasOwnProperty.call(message, "authenticStandard"))
+                object.authenticStandard = $root.ord.Compound.toObject(message.authenticStandard, options, q + 1);
+            if (message.percentage != null && Object.hasOwnProperty.call(message, "percentage")) {
+                object.percentage = $root.ord.Percentage.toObject(message.percentage, options, q + 1);
                 if (options.oneofs)
                     object.value = "percentage";
             }
-            if (message.floatValue != null && message.hasOwnProperty("floatValue")) {
-                object.floatValue = $root.ord.FloatValue.toObject(message.floatValue, options);
+            if (message.floatValue != null && Object.hasOwnProperty.call(message, "floatValue")) {
+                object.floatValue = $root.ord.FloatValue.toObject(message.floatValue, options, q + 1);
                 if (options.oneofs)
                     object.value = "floatValue";
             }
-            if (message.stringValue != null && message.hasOwnProperty("stringValue")) {
+            if (message.stringValue != null && Object.hasOwnProperty.call(message, "stringValue")) {
                 object.stringValue = message.stringValue;
                 if (options.oneofs)
                     object.value = "stringValue";
             }
-            if (message.amount != null && message.hasOwnProperty("amount")) {
-                object.amount = $root.ord.Amount.toObject(message.amount, options);
+            if (message.amount != null && Object.hasOwnProperty.call(message, "amount")) {
+                object.amount = $root.ord.Amount.toObject(message.amount, options, q + 1);
                 if (options.oneofs)
                     object.value = "amount";
             }
-            if (message.retentionTime != null && message.hasOwnProperty("retentionTime"))
-                object.retentionTime = $root.ord.Time.toObject(message.retentionTime, options);
-            if (message.massSpecDetails != null && message.hasOwnProperty("massSpecDetails"))
-                object.massSpecDetails = $root.ord.ProductMeasurement.MassSpecMeasurementDetails.toObject(message.massSpecDetails, options);
-            if (message.selectivity != null && message.hasOwnProperty("selectivity"))
-                object.selectivity = $root.ord.ProductMeasurement.Selectivity.toObject(message.selectivity, options);
-            if (message.wavelength != null && message.hasOwnProperty("wavelength"))
-                object.wavelength = $root.ord.Wavelength.toObject(message.wavelength, options);
+            if (message.retentionTime != null && Object.hasOwnProperty.call(message, "retentionTime"))
+                object.retentionTime = $root.ord.Time.toObject(message.retentionTime, options, q + 1);
+            if (message.massSpecDetails != null && Object.hasOwnProperty.call(message, "massSpecDetails"))
+                object.massSpecDetails = $root.ord.ProductMeasurement.MassSpecMeasurementDetails.toObject(message.massSpecDetails, options, q + 1);
+            if (message.selectivity != null && Object.hasOwnProperty.call(message, "selectivity"))
+                object.selectivity = $root.ord.ProductMeasurement.Selectivity.toObject(message.selectivity, options, q + 1);
+            if (message.wavelength != null && Object.hasOwnProperty.call(message, "wavelength"))
+                object.wavelength = $root.ord.Wavelength.toObject(message.wavelength, options, q + 1);
             return object;
         };
 
@@ -16363,7 +18147,7 @@ export const ord = $root.ord = (() => {
                 this.eicMasses = [];
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -16443,9 +18227,13 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            MassSpecMeasurementDetails.encode = function encode(message, writer) {
+            MassSpecMeasurementDetails.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
                 if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -16473,7 +18261,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             MassSpecMeasurementDetails.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -16487,12 +18275,28 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            MassSpecMeasurementDetails.decode = function decode(reader, length) {
+            MassSpecMeasurementDetails.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ProductMeasurement.MassSpecMeasurementDetails();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.ProductMeasurement.MassSpecMeasurementDetails();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.type = reader.int32();
@@ -16515,16 +18319,27 @@ export const ord = $root.ord = (() => {
                                 message.eicMasses = [];
                             if ((tag & 7) === 2) {
                                 let end2 = reader.uint32() + reader.pos;
+                                if (end2 > reader.len)
+                                    throw RangeError("index out of range");
+                                reader.len = end2;
                                 while (reader.pos < end2)
                                     message.eicMasses.push(reader.float());
+                                if (reader.pos !== end2)
+                                    throw RangeError("index out of range");
+                                reader.len = end;
                             } else
                                 message.eicMasses.push(reader.float());
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -16553,11 +18368,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            MassSpecMeasurementDetails.verify = function verify(message) {
+            MassSpecMeasurementDetails.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
                 let properties = {};
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     switch (message.type) {
                     default:
                         return "type: enum value expected";
@@ -16569,20 +18388,20 @@ export const ord = $root.ord = (() => {
                     case 5:
                         break;
                     }
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     if (!$util.isString(message.details))
                         return "details: string expected";
-                if (message.ticMinimumMz != null && message.hasOwnProperty("ticMinimumMz")) {
+                if (message.ticMinimumMz != null && Object.hasOwnProperty.call(message, "ticMinimumMz")) {
                     properties._ticMinimumMz = 1;
                     if (typeof message.ticMinimumMz !== "number")
                         return "ticMinimumMz: number expected";
                 }
-                if (message.ticMaximumMz != null && message.hasOwnProperty("ticMaximumMz")) {
+                if (message.ticMaximumMz != null && Object.hasOwnProperty.call(message, "ticMaximumMz")) {
                     properties._ticMaximumMz = 1;
                     if (typeof message.ticMaximumMz !== "number")
                         return "ticMaximumMz: number expected";
                 }
-                if (message.eicMasses != null && message.hasOwnProperty("eicMasses")) {
+                if (message.eicMasses != null && Object.hasOwnProperty.call(message, "eicMasses")) {
                     if (!Array.isArray(message.eicMasses))
                         return "eicMasses: array expected";
                     for (let i = 0; i < message.eicMasses.length; ++i)
@@ -16600,9 +18419,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.ProductMeasurement.MassSpecMeasurementDetails} MassSpecMeasurementDetails
              */
-            MassSpecMeasurementDetails.fromObject = function fromObject(object) {
+            MassSpecMeasurementDetails.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.ProductMeasurement.MassSpecMeasurementDetails)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.ProductMeasurement.MassSpecMeasurementDetails: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.ProductMeasurement.MassSpecMeasurementDetails();
                 switch (object.type) {
                 default:
@@ -16661,9 +18486,13 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            MassSpecMeasurementDetails.toObject = function toObject(message, options) {
+            MassSpecMeasurementDetails.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.arrays || options.defaults)
                     object.eicMasses = [];
@@ -16671,16 +18500,16 @@ export const ord = $root.ord = (() => {
                     object.type = options.enums === String ? "UNSPECIFIED" : 0;
                     object.details = "";
                 }
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     object.type = options.enums === String ? $root.ord.ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType[message.type] === undefined ? message.type : $root.ord.ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType[message.type] : message.type;
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     object.details = message.details;
-                if (message.ticMinimumMz != null && message.hasOwnProperty("ticMinimumMz")) {
+                if (message.ticMinimumMz != null && Object.hasOwnProperty.call(message, "ticMinimumMz")) {
                     object.ticMinimumMz = options.json && !isFinite(message.ticMinimumMz) ? String(message.ticMinimumMz) : message.ticMinimumMz;
                     if (options.oneofs)
                         object._ticMinimumMz = "ticMinimumMz";
                 }
-                if (message.ticMaximumMz != null && message.hasOwnProperty("ticMaximumMz")) {
+                if (message.ticMaximumMz != null && Object.hasOwnProperty.call(message, "ticMaximumMz")) {
                     object.ticMaximumMz = options.json && !isFinite(message.ticMaximumMz) ? String(message.ticMaximumMz) : message.ticMaximumMz;
                     if (options.oneofs)
                         object._ticMaximumMz = "ticMaximumMz";
@@ -16765,7 +18594,7 @@ export const ord = $root.ord = (() => {
             function Selectivity(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -16806,9 +18635,13 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            Selectivity.encode = function encode(message, writer) {
+            Selectivity.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
                 if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -16826,7 +18659,7 @@ export const ord = $root.ord = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             Selectivity.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -16840,12 +18673,28 @@ export const ord = $root.ord = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            Selectivity.decode = function decode(reader, length) {
+            Selectivity.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ProductMeasurement.Selectivity();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord.ProductMeasurement.Selectivity();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.type = reader.int32();
@@ -16856,9 +18705,14 @@ export const ord = $root.ord = (() => {
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -16887,10 +18741,14 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            Selectivity.verify = function verify(message) {
+            Selectivity.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     switch (message.type) {
                     default:
                         return "type: enum value expected";
@@ -16903,7 +18761,7 @@ export const ord = $root.ord = (() => {
                     case 6:
                         break;
                     }
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     if (!$util.isString(message.details))
                         return "details: string expected";
                 return null;
@@ -16917,9 +18775,15 @@ export const ord = $root.ord = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord.ProductMeasurement.Selectivity} Selectivity
              */
-            Selectivity.fromObject = function fromObject(object) {
+            Selectivity.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord.ProductMeasurement.Selectivity)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord.ProductMeasurement.Selectivity: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord.ProductMeasurement.Selectivity();
                 switch (object.type) {
                 default:
@@ -16971,17 +18835,21 @@ export const ord = $root.ord = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            Selectivity.toObject = function toObject(message, options) {
+            Selectivity.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
                 if (options.defaults) {
                     object.type = options.enums === String ? "UNSPECIFIED" : 0;
                     object.details = "";
                 }
-                if (message.type != null && message.hasOwnProperty("type"))
+                if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                     object.type = options.enums === String ? $root.ord.ProductMeasurement.Selectivity.SelectivityType[message.type] === undefined ? message.type : $root.ord.ProductMeasurement.Selectivity.SelectivityType[message.type] : message.type;
-                if (message.details != null && message.hasOwnProperty("details"))
+                if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                     object.details = message.details;
                 return object;
             };
@@ -17062,7 +18930,7 @@ export const ord = $root.ord = (() => {
         function DateTime(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -17095,9 +18963,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        DateTime.encode = function encode(message, writer) {
+        DateTime.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.value);
             return writer;
@@ -17113,7 +18985,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         DateTime.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -17127,21 +18999,42 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        DateTime.decode = function decode(reader, length) {
+        DateTime.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.DateTime();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.DateTime();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.string();
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -17170,10 +19063,14 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        DateTime.verify = function verify(message) {
+        DateTime.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.value != null && message.hasOwnProperty("value"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 if (!$util.isString(message.value))
                     return "value: string expected";
             return null;
@@ -17187,9 +19084,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.DateTime} DateTime
          */
-        DateTime.fromObject = function fromObject(object) {
+        DateTime.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.DateTime)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.DateTime: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.DateTime();
             if (object.value != null)
                 message.value = String(object.value);
@@ -17205,13 +19108,17 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        DateTime.toObject = function toObject(message, options) {
+        DateTime.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.value = "";
-            if (message.value != null && message.hasOwnProperty("value"))
+            if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 object.value = message.value;
             return object;
         };
@@ -17272,7 +19179,7 @@ export const ord = $root.ord = (() => {
             this.data = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -17362,9 +19269,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Analysis.encode = function encode(message, writer) {
+        Analysis.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.type);
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
@@ -17376,12 +19287,12 @@ export const ord = $root.ord = (() => {
             if (message.data != null && Object.hasOwnProperty.call(message, "data"))
                 for (let keys = Object.keys(message.data), i = 0; i < keys.length; ++i) {
                     writer.uint32(/* id 5, wireType 2 =*/42).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
-                    $root.ord.Data.encode(message.data[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                    $root.ord.Data.encode(message.data[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim().ldelim();
                 }
             if (message.instrumentManufacturer != null && Object.hasOwnProperty.call(message, "instrumentManufacturer"))
                 writer.uint32(/* id 6, wireType 2 =*/50).string(message.instrumentManufacturer);
             if (message.instrumentLastCalibrated != null && Object.hasOwnProperty.call(message, "instrumentLastCalibrated"))
-                $root.ord.DateTime.encode(message.instrumentLastCalibrated, writer.uint32(/* id 7, wireType 2 =*/58).fork()).ldelim();
+                $root.ord.DateTime.encode(message.instrumentLastCalibrated, writer.uint32(/* id 7, wireType 2 =*/58).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -17395,7 +19306,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Analysis.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -17409,12 +19320,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Analysis.decode = function decode(reader, length) {
+        Analysis.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Analysis(), key, value;
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message, key, value;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Analysis();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.type = reader.int32();
@@ -17436,6 +19363,9 @@ export const ord = $root.ord = (() => {
                         if (message.data === $util.emptyObject)
                             message.data = {};
                         let end2 = reader.uint32() + reader.pos;
+                        if (end2 > reader.len)
+                            throw RangeError("index out of range");
+                        reader.len = end2;
                         key = "";
                         value = null;
                         while (reader.pos < end2) {
@@ -17445,13 +19375,18 @@ export const ord = $root.ord = (() => {
                                 key = reader.string();
                                 break;
                             case 2:
-                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                value = $root.ord.Data.decode(reader, reader.uint32(), undefined, long + 1);
                                 break;
                             default:
-                                reader.skipType(tag2 & 7);
+                                reader.skipType(tag2 & 7, long);
                                 break;
                             }
                         }
+                        if (reader.pos !== end2)
+                            throw RangeError("index out of range");
+                        reader.len = end;
+                        if (key === "__proto__")
+                            $util.makeProp(message.data, key);
                         message.data[key] = value;
                         break;
                     }
@@ -17460,13 +19395,18 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 7: {
-                        message.instrumentLastCalibrated = $root.ord.DateTime.decode(reader, reader.uint32());
+                        message.instrumentLastCalibrated = $root.ord.DateTime.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -17495,11 +19435,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Analysis.verify = function verify(message) {
+        Analysis.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 switch (message.type) {
                 default:
                     return "type: enum value expected";
@@ -17531,32 +19475,32 @@ export const ord = $root.ord = (() => {
                 case 25:
                     break;
                 }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
-            if (message.chmoId != null && message.hasOwnProperty("chmoId"))
+            if (message.chmoId != null && Object.hasOwnProperty.call(message, "chmoId"))
                 if (!$util.isInteger(message.chmoId))
                     return "chmoId: integer expected";
-            if (message.isOfIsolatedSpecies != null && message.hasOwnProperty("isOfIsolatedSpecies")) {
+            if (message.isOfIsolatedSpecies != null && Object.hasOwnProperty.call(message, "isOfIsolatedSpecies")) {
                 properties._isOfIsolatedSpecies = 1;
                 if (typeof message.isOfIsolatedSpecies !== "boolean")
                     return "isOfIsolatedSpecies: boolean expected";
             }
-            if (message.data != null && message.hasOwnProperty("data")) {
+            if (message.data != null && Object.hasOwnProperty.call(message, "data")) {
                 if (!$util.isObject(message.data))
                     return "data: object expected";
                 let key = Object.keys(message.data);
                 for (let i = 0; i < key.length; ++i) {
-                    let error = $root.ord.Data.verify(message.data[key[i]]);
+                    let error = $root.ord.Data.verify(message.data[key[i]], long + 1);
                     if (error)
                         return "data." + error;
                 }
             }
-            if (message.instrumentManufacturer != null && message.hasOwnProperty("instrumentManufacturer"))
+            if (message.instrumentManufacturer != null && Object.hasOwnProperty.call(message, "instrumentManufacturer"))
                 if (!$util.isString(message.instrumentManufacturer))
                     return "instrumentManufacturer: string expected";
-            if (message.instrumentLastCalibrated != null && message.hasOwnProperty("instrumentLastCalibrated")) {
-                let error = $root.ord.DateTime.verify(message.instrumentLastCalibrated);
+            if (message.instrumentLastCalibrated != null && Object.hasOwnProperty.call(message, "instrumentLastCalibrated")) {
+                let error = $root.ord.DateTime.verify(message.instrumentLastCalibrated, long + 1);
                 if (error)
                     return "instrumentLastCalibrated." + error;
             }
@@ -17571,9 +19515,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Analysis} Analysis
          */
-        Analysis.fromObject = function fromObject(object) {
+        Analysis.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Analysis)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Analysis: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Analysis();
             switch (object.type) {
             default:
@@ -17694,21 +19644,23 @@ export const ord = $root.ord = (() => {
             if (object.isOfIsolatedSpecies != null)
                 message.isOfIsolatedSpecies = Boolean(object.isOfIsolatedSpecies);
             if (object.data) {
-                if (typeof object.data !== "object")
+                if (!$util.isObject(object.data))
                     throw TypeError(".ord.Analysis.data: object expected");
                 message.data = {};
                 for (let keys = Object.keys(object.data), i = 0; i < keys.length; ++i) {
-                    if (typeof object.data[keys[i]] !== "object")
+                    if (keys[i] === "__proto__")
+                        $util.makeProp(message.data, keys[i]);
+                    if (!$util.isObject(object.data[keys[i]]))
                         throw TypeError(".ord.Analysis.data: object expected");
-                    message.data[keys[i]] = $root.ord.Data.fromObject(object.data[keys[i]]);
+                    message.data[keys[i]] = $root.ord.Data.fromObject(object.data[keys[i]], long + 1);
                 }
             }
             if (object.instrumentManufacturer != null)
                 message.instrumentManufacturer = String(object.instrumentManufacturer);
             if (object.instrumentLastCalibrated != null) {
-                if (typeof object.instrumentLastCalibrated !== "object")
+                if (!$util.isObject(object.instrumentLastCalibrated))
                     throw TypeError(".ord.Analysis.instrumentLastCalibrated: object expected");
-                message.instrumentLastCalibrated = $root.ord.DateTime.fromObject(object.instrumentLastCalibrated);
+                message.instrumentLastCalibrated = $root.ord.DateTime.fromObject(object.instrumentLastCalibrated, long + 1);
             }
             return message;
         };
@@ -17722,9 +19674,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Analysis.toObject = function toObject(message, options) {
+        Analysis.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.objects || options.defaults)
                 object.data = {};
@@ -17735,13 +19691,13 @@ export const ord = $root.ord = (() => {
                 object.instrumentManufacturer = "";
                 object.instrumentLastCalibrated = null;
             }
-            if (message.type != null && message.hasOwnProperty("type"))
+            if (message.type != null && Object.hasOwnProperty.call(message, "type"))
                 object.type = options.enums === String ? $root.ord.Analysis.AnalysisType[message.type] === undefined ? message.type : $root.ord.Analysis.AnalysisType[message.type] : message.type;
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
-            if (message.chmoId != null && message.hasOwnProperty("chmoId"))
+            if (message.chmoId != null && Object.hasOwnProperty.call(message, "chmoId"))
                 object.chmoId = message.chmoId;
-            if (message.isOfIsolatedSpecies != null && message.hasOwnProperty("isOfIsolatedSpecies")) {
+            if (message.isOfIsolatedSpecies != null && Object.hasOwnProperty.call(message, "isOfIsolatedSpecies")) {
                 object.isOfIsolatedSpecies = message.isOfIsolatedSpecies;
                 if (options.oneofs)
                     object._isOfIsolatedSpecies = "isOfIsolatedSpecies";
@@ -17749,13 +19705,16 @@ export const ord = $root.ord = (() => {
             let keys2;
             if (message.data && (keys2 = Object.keys(message.data)).length) {
                 object.data = {};
-                for (let j = 0; j < keys2.length; ++j)
-                    object.data[keys2[j]] = $root.ord.Data.toObject(message.data[keys2[j]], options);
+                for (let j = 0; j < keys2.length; ++j) {
+                    if (keys2[j] === "__proto__")
+                        $util.makeProp(object.data, keys2[j]);
+                    object.data[keys2[j]] = $root.ord.Data.toObject(message.data[keys2[j]], options, q + 1);
+                }
             }
-            if (message.instrumentManufacturer != null && message.hasOwnProperty("instrumentManufacturer"))
+            if (message.instrumentManufacturer != null && Object.hasOwnProperty.call(message, "instrumentManufacturer"))
                 object.instrumentManufacturer = message.instrumentManufacturer;
-            if (message.instrumentLastCalibrated != null && message.hasOwnProperty("instrumentLastCalibrated"))
-                object.instrumentLastCalibrated = $root.ord.DateTime.toObject(message.instrumentLastCalibrated, options);
+            if (message.instrumentLastCalibrated != null && Object.hasOwnProperty.call(message, "instrumentLastCalibrated"))
+                object.instrumentLastCalibrated = $root.ord.DateTime.toObject(message.instrumentLastCalibrated, options, q + 1);
             return object;
         };
 
@@ -17881,7 +19840,7 @@ export const ord = $root.ord = (() => {
             this.reactionMetadata = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -17995,15 +19954,19 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ReactionProvenance.encode = function encode(message, writer) {
+        ReactionProvenance.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.experimenter != null && Object.hasOwnProperty.call(message, "experimenter"))
-                $root.ord.Person.encode(message.experimenter, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                $root.ord.Person.encode(message.experimenter, writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             if (message.city != null && Object.hasOwnProperty.call(message, "city"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.city);
             if (message.experimentStart != null && Object.hasOwnProperty.call(message, "experimentStart"))
-                $root.ord.DateTime.encode(message.experimentStart, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                $root.ord.DateTime.encode(message.experimentStart, writer.uint32(/* id 3, wireType 2 =*/26).fork(), q + 1).ldelim();
             if (message.doi != null && Object.hasOwnProperty.call(message, "doi"))
                 writer.uint32(/* id 4, wireType 2 =*/34).string(message.doi);
             if (message.patent != null && Object.hasOwnProperty.call(message, "patent"))
@@ -18011,14 +19974,14 @@ export const ord = $root.ord = (() => {
             if (message.publicationUrl != null && Object.hasOwnProperty.call(message, "publicationUrl"))
                 writer.uint32(/* id 6, wireType 2 =*/50).string(message.publicationUrl);
             if (message.recordCreated != null && Object.hasOwnProperty.call(message, "recordCreated"))
-                $root.ord.RecordEvent.encode(message.recordCreated, writer.uint32(/* id 7, wireType 2 =*/58).fork()).ldelim();
+                $root.ord.RecordEvent.encode(message.recordCreated, writer.uint32(/* id 7, wireType 2 =*/58).fork(), q + 1).ldelim();
             if (message.recordModified != null && message.recordModified.length)
                 for (let i = 0; i < message.recordModified.length; ++i)
-                    $root.ord.RecordEvent.encode(message.recordModified[i], writer.uint32(/* id 8, wireType 2 =*/66).fork()).ldelim();
+                    $root.ord.RecordEvent.encode(message.recordModified[i], writer.uint32(/* id 8, wireType 2 =*/66).fork(), q + 1).ldelim();
             if (message.reactionMetadata != null && Object.hasOwnProperty.call(message, "reactionMetadata"))
                 for (let keys = Object.keys(message.reactionMetadata), i = 0; i < keys.length; ++i) {
                     writer.uint32(/* id 9, wireType 2 =*/74).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
-                    $root.ord.Data.encode(message.reactionMetadata[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                    $root.ord.Data.encode(message.reactionMetadata[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim().ldelim();
                 }
             if (message.isMined != null && Object.hasOwnProperty.call(message, "isMined"))
                 writer.uint32(/* id 10, wireType 0 =*/80).bool(message.isMined);
@@ -18035,7 +19998,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         ReactionProvenance.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -18049,15 +20012,31 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ReactionProvenance.decode = function decode(reader, length) {
+        ReactionProvenance.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.ReactionProvenance(), key, value;
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message, key, value;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.ReactionProvenance();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.experimenter = $root.ord.Person.decode(reader, reader.uint32());
+                        message.experimenter = $root.ord.Person.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 2: {
@@ -18065,7 +20044,7 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 3: {
-                        message.experimentStart = $root.ord.DateTime.decode(reader, reader.uint32());
+                        message.experimentStart = $root.ord.DateTime.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 4: {
@@ -18081,19 +20060,22 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 case 7: {
-                        message.recordCreated = $root.ord.RecordEvent.decode(reader, reader.uint32());
+                        message.recordCreated = $root.ord.RecordEvent.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 8: {
                         if (!(message.recordModified && message.recordModified.length))
                             message.recordModified = [];
-                        message.recordModified.push($root.ord.RecordEvent.decode(reader, reader.uint32()));
+                        message.recordModified.push($root.ord.RecordEvent.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 9: {
                         if (message.reactionMetadata === $util.emptyObject)
                             message.reactionMetadata = {};
                         let end2 = reader.uint32() + reader.pos;
+                        if (end2 > reader.len)
+                            throw RangeError("index out of range");
+                        reader.len = end2;
                         key = "";
                         value = null;
                         while (reader.pos < end2) {
@@ -18103,13 +20085,18 @@ export const ord = $root.ord = (() => {
                                 key = reader.string();
                                 break;
                             case 2:
-                                value = $root.ord.Data.decode(reader, reader.uint32());
+                                value = $root.ord.Data.decode(reader, reader.uint32(), undefined, long + 1);
                                 break;
                             default:
-                                reader.skipType(tag2 & 7);
+                                reader.skipType(tag2 & 7, long);
                                 break;
                             }
                         }
+                        if (reader.pos !== end2)
+                            throw RangeError("index out of range");
+                        reader.len = end;
+                        if (key === "__proto__")
+                            $util.makeProp(message.reactionMetadata, key);
                         message.reactionMetadata[key] = value;
                         break;
                     }
@@ -18118,9 +20105,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -18149,57 +20141,61 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ReactionProvenance.verify = function verify(message) {
+        ReactionProvenance.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.experimenter != null && message.hasOwnProperty("experimenter")) {
-                let error = $root.ord.Person.verify(message.experimenter);
+            if (message.experimenter != null && Object.hasOwnProperty.call(message, "experimenter")) {
+                let error = $root.ord.Person.verify(message.experimenter, long + 1);
                 if (error)
                     return "experimenter." + error;
             }
-            if (message.city != null && message.hasOwnProperty("city"))
+            if (message.city != null && Object.hasOwnProperty.call(message, "city"))
                 if (!$util.isString(message.city))
                     return "city: string expected";
-            if (message.experimentStart != null && message.hasOwnProperty("experimentStart")) {
-                let error = $root.ord.DateTime.verify(message.experimentStart);
+            if (message.experimentStart != null && Object.hasOwnProperty.call(message, "experimentStart")) {
+                let error = $root.ord.DateTime.verify(message.experimentStart, long + 1);
                 if (error)
                     return "experimentStart." + error;
             }
-            if (message.doi != null && message.hasOwnProperty("doi"))
+            if (message.doi != null && Object.hasOwnProperty.call(message, "doi"))
                 if (!$util.isString(message.doi))
                     return "doi: string expected";
-            if (message.patent != null && message.hasOwnProperty("patent"))
+            if (message.patent != null && Object.hasOwnProperty.call(message, "patent"))
                 if (!$util.isString(message.patent))
                     return "patent: string expected";
-            if (message.publicationUrl != null && message.hasOwnProperty("publicationUrl"))
+            if (message.publicationUrl != null && Object.hasOwnProperty.call(message, "publicationUrl"))
                 if (!$util.isString(message.publicationUrl))
                     return "publicationUrl: string expected";
-            if (message.recordCreated != null && message.hasOwnProperty("recordCreated")) {
-                let error = $root.ord.RecordEvent.verify(message.recordCreated);
+            if (message.recordCreated != null && Object.hasOwnProperty.call(message, "recordCreated")) {
+                let error = $root.ord.RecordEvent.verify(message.recordCreated, long + 1);
                 if (error)
                     return "recordCreated." + error;
             }
-            if (message.recordModified != null && message.hasOwnProperty("recordModified")) {
+            if (message.recordModified != null && Object.hasOwnProperty.call(message, "recordModified")) {
                 if (!Array.isArray(message.recordModified))
                     return "recordModified: array expected";
                 for (let i = 0; i < message.recordModified.length; ++i) {
-                    let error = $root.ord.RecordEvent.verify(message.recordModified[i]);
+                    let error = $root.ord.RecordEvent.verify(message.recordModified[i], long + 1);
                     if (error)
                         return "recordModified." + error;
                 }
             }
-            if (message.reactionMetadata != null && message.hasOwnProperty("reactionMetadata")) {
+            if (message.reactionMetadata != null && Object.hasOwnProperty.call(message, "reactionMetadata")) {
                 if (!$util.isObject(message.reactionMetadata))
                     return "reactionMetadata: object expected";
                 let key = Object.keys(message.reactionMetadata);
                 for (let i = 0; i < key.length; ++i) {
-                    let error = $root.ord.Data.verify(message.reactionMetadata[key[i]]);
+                    let error = $root.ord.Data.verify(message.reactionMetadata[key[i]], long + 1);
                     if (error)
                         return "reactionMetadata." + error;
                 }
             }
-            if (message.isMined != null && message.hasOwnProperty("isMined")) {
+            if (message.isMined != null && Object.hasOwnProperty.call(message, "isMined")) {
                 properties._isMined = 1;
                 if (typeof message.isMined !== "boolean")
                     return "isMined: boolean expected";
@@ -18215,21 +20211,27 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.ReactionProvenance} ReactionProvenance
          */
-        ReactionProvenance.fromObject = function fromObject(object) {
+        ReactionProvenance.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.ReactionProvenance)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.ReactionProvenance: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.ReactionProvenance();
             if (object.experimenter != null) {
-                if (typeof object.experimenter !== "object")
+                if (!$util.isObject(object.experimenter))
                     throw TypeError(".ord.ReactionProvenance.experimenter: object expected");
-                message.experimenter = $root.ord.Person.fromObject(object.experimenter);
+                message.experimenter = $root.ord.Person.fromObject(object.experimenter, long + 1);
             }
             if (object.city != null)
                 message.city = String(object.city);
             if (object.experimentStart != null) {
-                if (typeof object.experimentStart !== "object")
+                if (!$util.isObject(object.experimentStart))
                     throw TypeError(".ord.ReactionProvenance.experimentStart: object expected");
-                message.experimentStart = $root.ord.DateTime.fromObject(object.experimentStart);
+                message.experimentStart = $root.ord.DateTime.fromObject(object.experimentStart, long + 1);
             }
             if (object.doi != null)
                 message.doi = String(object.doi);
@@ -18238,28 +20240,30 @@ export const ord = $root.ord = (() => {
             if (object.publicationUrl != null)
                 message.publicationUrl = String(object.publicationUrl);
             if (object.recordCreated != null) {
-                if (typeof object.recordCreated !== "object")
+                if (!$util.isObject(object.recordCreated))
                     throw TypeError(".ord.ReactionProvenance.recordCreated: object expected");
-                message.recordCreated = $root.ord.RecordEvent.fromObject(object.recordCreated);
+                message.recordCreated = $root.ord.RecordEvent.fromObject(object.recordCreated, long + 1);
             }
             if (object.recordModified) {
                 if (!Array.isArray(object.recordModified))
                     throw TypeError(".ord.ReactionProvenance.recordModified: array expected");
                 message.recordModified = [];
                 for (let i = 0; i < object.recordModified.length; ++i) {
-                    if (typeof object.recordModified[i] !== "object")
+                    if (!$util.isObject(object.recordModified[i]))
                         throw TypeError(".ord.ReactionProvenance.recordModified: object expected");
-                    message.recordModified[i] = $root.ord.RecordEvent.fromObject(object.recordModified[i]);
+                    message.recordModified[i] = $root.ord.RecordEvent.fromObject(object.recordModified[i], long + 1);
                 }
             }
             if (object.reactionMetadata) {
-                if (typeof object.reactionMetadata !== "object")
+                if (!$util.isObject(object.reactionMetadata))
                     throw TypeError(".ord.ReactionProvenance.reactionMetadata: object expected");
                 message.reactionMetadata = {};
                 for (let keys = Object.keys(object.reactionMetadata), i = 0; i < keys.length; ++i) {
-                    if (typeof object.reactionMetadata[keys[i]] !== "object")
+                    if (keys[i] === "__proto__")
+                        $util.makeProp(message.reactionMetadata, keys[i]);
+                    if (!$util.isObject(object.reactionMetadata[keys[i]]))
                         throw TypeError(".ord.ReactionProvenance.reactionMetadata: object expected");
-                    message.reactionMetadata[keys[i]] = $root.ord.Data.fromObject(object.reactionMetadata[keys[i]]);
+                    message.reactionMetadata[keys[i]] = $root.ord.Data.fromObject(object.reactionMetadata[keys[i]], long + 1);
                 }
             }
             if (object.isMined != null)
@@ -18276,9 +20280,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ReactionProvenance.toObject = function toObject(message, options) {
+        ReactionProvenance.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.arrays || options.defaults)
                 object.recordModified = [];
@@ -18293,32 +20301,35 @@ export const ord = $root.ord = (() => {
                 object.publicationUrl = "";
                 object.recordCreated = null;
             }
-            if (message.experimenter != null && message.hasOwnProperty("experimenter"))
-                object.experimenter = $root.ord.Person.toObject(message.experimenter, options);
-            if (message.city != null && message.hasOwnProperty("city"))
+            if (message.experimenter != null && Object.hasOwnProperty.call(message, "experimenter"))
+                object.experimenter = $root.ord.Person.toObject(message.experimenter, options, q + 1);
+            if (message.city != null && Object.hasOwnProperty.call(message, "city"))
                 object.city = message.city;
-            if (message.experimentStart != null && message.hasOwnProperty("experimentStart"))
-                object.experimentStart = $root.ord.DateTime.toObject(message.experimentStart, options);
-            if (message.doi != null && message.hasOwnProperty("doi"))
+            if (message.experimentStart != null && Object.hasOwnProperty.call(message, "experimentStart"))
+                object.experimentStart = $root.ord.DateTime.toObject(message.experimentStart, options, q + 1);
+            if (message.doi != null && Object.hasOwnProperty.call(message, "doi"))
                 object.doi = message.doi;
-            if (message.patent != null && message.hasOwnProperty("patent"))
+            if (message.patent != null && Object.hasOwnProperty.call(message, "patent"))
                 object.patent = message.patent;
-            if (message.publicationUrl != null && message.hasOwnProperty("publicationUrl"))
+            if (message.publicationUrl != null && Object.hasOwnProperty.call(message, "publicationUrl"))
                 object.publicationUrl = message.publicationUrl;
-            if (message.recordCreated != null && message.hasOwnProperty("recordCreated"))
-                object.recordCreated = $root.ord.RecordEvent.toObject(message.recordCreated, options);
+            if (message.recordCreated != null && Object.hasOwnProperty.call(message, "recordCreated"))
+                object.recordCreated = $root.ord.RecordEvent.toObject(message.recordCreated, options, q + 1);
             if (message.recordModified && message.recordModified.length) {
                 object.recordModified = [];
                 for (let j = 0; j < message.recordModified.length; ++j)
-                    object.recordModified[j] = $root.ord.RecordEvent.toObject(message.recordModified[j], options);
+                    object.recordModified[j] = $root.ord.RecordEvent.toObject(message.recordModified[j], options, q + 1);
             }
             let keys2;
             if (message.reactionMetadata && (keys2 = Object.keys(message.reactionMetadata)).length) {
                 object.reactionMetadata = {};
-                for (let j = 0; j < keys2.length; ++j)
-                    object.reactionMetadata[keys2[j]] = $root.ord.Data.toObject(message.reactionMetadata[keys2[j]], options);
+                for (let j = 0; j < keys2.length; ++j) {
+                    if (keys2[j] === "__proto__")
+                        $util.makeProp(object.reactionMetadata, keys2[j]);
+                    object.reactionMetadata[keys2[j]] = $root.ord.Data.toObject(message.reactionMetadata[keys2[j]], options, q + 1);
+                }
             }
-            if (message.isMined != null && message.hasOwnProperty("isMined")) {
+            if (message.isMined != null && Object.hasOwnProperty.call(message, "isMined")) {
                 object.isMined = message.isMined;
                 if (options.oneofs)
                     object._isMined = "isMined";
@@ -18379,7 +20390,7 @@ export const ord = $root.ord = (() => {
         function Person(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -18444,9 +20455,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Person.encode = function encode(message, writer) {
+        Person.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.username != null && Object.hasOwnProperty.call(message, "username"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.username);
             if (message.name != null && Object.hasOwnProperty.call(message, "name"))
@@ -18470,7 +20485,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Person.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -18484,12 +20499,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Person.decode = function decode(reader, length) {
+        Person.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Person();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Person();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.username = reader.string();
@@ -18512,9 +20543,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -18543,22 +20579,26 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Person.verify = function verify(message) {
+        Person.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.username != null && message.hasOwnProperty("username"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.username != null && Object.hasOwnProperty.call(message, "username"))
                 if (!$util.isString(message.username))
                     return "username: string expected";
-            if (message.name != null && message.hasOwnProperty("name"))
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
                 if (!$util.isString(message.name))
                     return "name: string expected";
-            if (message.orcid != null && message.hasOwnProperty("orcid"))
+            if (message.orcid != null && Object.hasOwnProperty.call(message, "orcid"))
                 if (!$util.isString(message.orcid))
                     return "orcid: string expected";
-            if (message.organization != null && message.hasOwnProperty("organization"))
+            if (message.organization != null && Object.hasOwnProperty.call(message, "organization"))
                 if (!$util.isString(message.organization))
                     return "organization: string expected";
-            if (message.email != null && message.hasOwnProperty("email"))
+            if (message.email != null && Object.hasOwnProperty.call(message, "email"))
                 if (!$util.isString(message.email))
                     return "email: string expected";
             return null;
@@ -18572,9 +20612,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Person} Person
          */
-        Person.fromObject = function fromObject(object) {
+        Person.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Person)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Person: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Person();
             if (object.username != null)
                 message.username = String(object.username);
@@ -18598,9 +20644,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Person.toObject = function toObject(message, options) {
+        Person.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.username = "";
@@ -18609,15 +20659,15 @@ export const ord = $root.ord = (() => {
                 object.organization = "";
                 object.email = "";
             }
-            if (message.username != null && message.hasOwnProperty("username"))
+            if (message.username != null && Object.hasOwnProperty.call(message, "username"))
                 object.username = message.username;
-            if (message.name != null && message.hasOwnProperty("name"))
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
                 object.name = message.name;
-            if (message.orcid != null && message.hasOwnProperty("orcid"))
+            if (message.orcid != null && Object.hasOwnProperty.call(message, "orcid"))
                 object.orcid = message.orcid;
-            if (message.organization != null && message.hasOwnProperty("organization"))
+            if (message.organization != null && Object.hasOwnProperty.call(message, "organization"))
                 object.organization = message.organization;
-            if (message.email != null && message.hasOwnProperty("email"))
+            if (message.email != null && Object.hasOwnProperty.call(message, "email"))
                 object.email = message.email;
             return object;
         };
@@ -18673,7 +20723,7 @@ export const ord = $root.ord = (() => {
         function RecordEvent(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -18722,13 +20772,17 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        RecordEvent.encode = function encode(message, writer) {
+        RecordEvent.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.time != null && Object.hasOwnProperty.call(message, "time"))
-                $root.ord.DateTime.encode(message.time, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                $root.ord.DateTime.encode(message.time, writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             if (message.person != null && Object.hasOwnProperty.call(message, "person"))
-                $root.ord.Person.encode(message.person, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+                $root.ord.Person.encode(message.person, writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim();
             if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 writer.uint32(/* id 3, wireType 2 =*/26).string(message.details);
             return writer;
@@ -18744,7 +20798,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         RecordEvent.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -18758,19 +20812,35 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        RecordEvent.decode = function decode(reader, length) {
+        RecordEvent.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.RecordEvent();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.RecordEvent();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.time = $root.ord.DateTime.decode(reader, reader.uint32());
+                        message.time = $root.ord.DateTime.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 2: {
-                        message.person = $root.ord.Person.decode(reader, reader.uint32());
+                        message.person = $root.ord.Person.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 3: {
@@ -18778,9 +20848,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -18809,20 +20884,24 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        RecordEvent.verify = function verify(message) {
+        RecordEvent.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.time != null && message.hasOwnProperty("time")) {
-                let error = $root.ord.DateTime.verify(message.time);
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.time != null && Object.hasOwnProperty.call(message, "time")) {
+                let error = $root.ord.DateTime.verify(message.time, long + 1);
                 if (error)
                     return "time." + error;
             }
-            if (message.person != null && message.hasOwnProperty("person")) {
-                let error = $root.ord.Person.verify(message.person);
+            if (message.person != null && Object.hasOwnProperty.call(message, "person")) {
+                let error = $root.ord.Person.verify(message.person, long + 1);
                 if (error)
                     return "person." + error;
             }
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 if (!$util.isString(message.details))
                     return "details: string expected";
             return null;
@@ -18836,19 +20915,25 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.RecordEvent} RecordEvent
          */
-        RecordEvent.fromObject = function fromObject(object) {
+        RecordEvent.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.RecordEvent)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.RecordEvent: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.RecordEvent();
             if (object.time != null) {
-                if (typeof object.time !== "object")
+                if (!$util.isObject(object.time))
                     throw TypeError(".ord.RecordEvent.time: object expected");
-                message.time = $root.ord.DateTime.fromObject(object.time);
+                message.time = $root.ord.DateTime.fromObject(object.time, long + 1);
             }
             if (object.person != null) {
-                if (typeof object.person !== "object")
+                if (!$util.isObject(object.person))
                     throw TypeError(".ord.RecordEvent.person: object expected");
-                message.person = $root.ord.Person.fromObject(object.person);
+                message.person = $root.ord.Person.fromObject(object.person, long + 1);
             }
             if (object.details != null)
                 message.details = String(object.details);
@@ -18864,20 +20949,24 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        RecordEvent.toObject = function toObject(message, options) {
+        RecordEvent.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.time = null;
                 object.person = null;
                 object.details = "";
             }
-            if (message.time != null && message.hasOwnProperty("time"))
-                object.time = $root.ord.DateTime.toObject(message.time, options);
-            if (message.person != null && message.hasOwnProperty("person"))
-                object.person = $root.ord.Person.toObject(message.person, options);
-            if (message.details != null && message.hasOwnProperty("details"))
+            if (message.time != null && Object.hasOwnProperty.call(message, "time"))
+                object.time = $root.ord.DateTime.toObject(message.time, options, q + 1);
+            if (message.person != null && Object.hasOwnProperty.call(message, "person"))
+                object.person = $root.ord.Person.toObject(message.person, options, q + 1);
+            if (message.details != null && Object.hasOwnProperty.call(message, "details"))
                 object.details = message.details;
             return object;
         };
@@ -18941,7 +21030,7 @@ export const ord = $root.ord = (() => {
         function Time(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -19005,9 +21094,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Time.encode = function encode(message, writer) {
+        Time.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
             if (message.precision != null && Object.hasOwnProperty.call(message, "precision"))
@@ -19027,7 +21120,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Time.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -19041,12 +21134,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Time.decode = function decode(reader, length) {
+        Time.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Time();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Time();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.float();
@@ -19061,9 +21170,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -19092,21 +21206,25 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Time.verify = function verify(message) {
+        Time.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 properties._value = 1;
                 if (typeof message.value !== "number")
                     return "value: number expected";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 properties._precision = 1;
                 if (typeof message.precision !== "number")
                     return "precision: number expected";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 switch (message.units) {
                 default:
                     return "units: enum value expected";
@@ -19128,9 +21246,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Time} Time
          */
-        Time.fromObject = function fromObject(object) {
+        Time.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Time)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Time: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Time();
             if (object.value != null)
                 message.value = Number(object.value);
@@ -19176,23 +21300,27 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Time.toObject = function toObject(message, options) {
+        Time.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.units = options.enums === String ? "UNSPECIFIED" : 0;
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                 if (options.oneofs)
                     object._value = "value";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 object.precision = options.json && !isFinite(message.precision) ? String(message.precision) : message.precision;
                 if (options.oneofs)
                     object._precision = "precision";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 object.units = options.enums === String ? $root.ord.Time.TimeUnit[message.units] === undefined ? message.units : $root.ord.Time.TimeUnit[message.units] : message.units;
             return object;
         };
@@ -19268,7 +21396,7 @@ export const ord = $root.ord = (() => {
         function Mass(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -19332,9 +21460,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Mass.encode = function encode(message, writer) {
+        Mass.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
             if (message.precision != null && Object.hasOwnProperty.call(message, "precision"))
@@ -19354,7 +21486,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Mass.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -19368,12 +21500,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Mass.decode = function decode(reader, length) {
+        Mass.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Mass();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Mass();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.float();
@@ -19388,9 +21536,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -19419,21 +21572,25 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Mass.verify = function verify(message) {
+        Mass.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 properties._value = 1;
                 if (typeof message.value !== "number")
                     return "value: number expected";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 properties._precision = 1;
                 if (typeof message.precision !== "number")
                     return "precision: number expected";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 switch (message.units) {
                 default:
                     return "units: enum value expected";
@@ -19455,9 +21612,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Mass} Mass
          */
-        Mass.fromObject = function fromObject(object) {
+        Mass.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Mass)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Mass: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Mass();
             if (object.value != null)
                 message.value = Number(object.value);
@@ -19503,23 +21666,27 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Mass.toObject = function toObject(message, options) {
+        Mass.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.units = options.enums === String ? "UNSPECIFIED" : 0;
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                 if (options.oneofs)
                     object._value = "value";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 object.precision = options.json && !isFinite(message.precision) ? String(message.precision) : message.precision;
                 if (options.oneofs)
                     object._precision = "precision";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 object.units = options.enums === String ? $root.ord.Mass.MassUnit[message.units] === undefined ? message.units : $root.ord.Mass.MassUnit[message.units] : message.units;
             return object;
         };
@@ -19595,7 +21762,7 @@ export const ord = $root.ord = (() => {
         function Moles(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -19659,9 +21826,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Moles.encode = function encode(message, writer) {
+        Moles.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
             if (message.precision != null && Object.hasOwnProperty.call(message, "precision"))
@@ -19681,7 +21852,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Moles.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -19695,12 +21866,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Moles.decode = function decode(reader, length) {
+        Moles.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Moles();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Moles();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.float();
@@ -19715,9 +21902,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -19746,21 +21938,25 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Moles.verify = function verify(message) {
+        Moles.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 properties._value = 1;
                 if (typeof message.value !== "number")
                     return "value: number expected";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 properties._precision = 1;
                 if (typeof message.precision !== "number")
                     return "precision: number expected";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 switch (message.units) {
                 default:
                     return "units: enum value expected";
@@ -19782,9 +21978,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Moles} Moles
          */
-        Moles.fromObject = function fromObject(object) {
+        Moles.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Moles)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Moles: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Moles();
             if (object.value != null)
                 message.value = Number(object.value);
@@ -19830,23 +22032,27 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Moles.toObject = function toObject(message, options) {
+        Moles.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.units = options.enums === String ? "UNSPECIFIED" : 0;
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                 if (options.oneofs)
                     object._value = "value";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 object.precision = options.json && !isFinite(message.precision) ? String(message.precision) : message.precision;
                 if (options.oneofs)
                     object._precision = "precision";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 object.units = options.enums === String ? $root.ord.Moles.MolesUnit[message.units] === undefined ? message.units : $root.ord.Moles.MolesUnit[message.units] : message.units;
             return object;
         };
@@ -19922,7 +22128,7 @@ export const ord = $root.ord = (() => {
         function Volume(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -19986,9 +22192,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Volume.encode = function encode(message, writer) {
+        Volume.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
             if (message.precision != null && Object.hasOwnProperty.call(message, "precision"))
@@ -20008,7 +22218,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Volume.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -20022,12 +22232,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Volume.decode = function decode(reader, length) {
+        Volume.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Volume();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Volume();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.float();
@@ -20042,9 +22268,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -20073,21 +22304,25 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Volume.verify = function verify(message) {
+        Volume.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 properties._value = 1;
                 if (typeof message.value !== "number")
                     return "value: number expected";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 properties._precision = 1;
                 if (typeof message.precision !== "number")
                     return "precision: number expected";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 switch (message.units) {
                 default:
                     return "units: enum value expected";
@@ -20109,9 +22344,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Volume} Volume
          */
-        Volume.fromObject = function fromObject(object) {
+        Volume.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Volume)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Volume: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Volume();
             if (object.value != null)
                 message.value = Number(object.value);
@@ -20157,23 +22398,27 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Volume.toObject = function toObject(message, options) {
+        Volume.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.units = options.enums === String ? "UNSPECIFIED" : 0;
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                 if (options.oneofs)
                     object._value = "value";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 object.precision = options.json && !isFinite(message.precision) ? String(message.precision) : message.precision;
                 if (options.oneofs)
                     object._precision = "precision";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 object.units = options.enums === String ? $root.ord.Volume.VolumeUnit[message.units] === undefined ? message.units : $root.ord.Volume.VolumeUnit[message.units] : message.units;
             return object;
         };
@@ -20249,7 +22494,7 @@ export const ord = $root.ord = (() => {
         function Concentration(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -20313,9 +22558,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Concentration.encode = function encode(message, writer) {
+        Concentration.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
             if (message.precision != null && Object.hasOwnProperty.call(message, "precision"))
@@ -20335,7 +22584,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Concentration.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -20349,12 +22598,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Concentration.decode = function decode(reader, length) {
+        Concentration.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Concentration();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Concentration();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.float();
@@ -20369,9 +22634,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -20400,21 +22670,25 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Concentration.verify = function verify(message) {
+        Concentration.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 properties._value = 1;
                 if (typeof message.value !== "number")
                     return "value: number expected";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 properties._precision = 1;
                 if (typeof message.precision !== "number")
                     return "precision: number expected";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 switch (message.units) {
                 default:
                     return "units: enum value expected";
@@ -20435,9 +22709,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Concentration} Concentration
          */
-        Concentration.fromObject = function fromObject(object) {
+        Concentration.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Concentration)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Concentration: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Concentration();
             if (object.value != null)
                 message.value = Number(object.value);
@@ -20479,23 +22759,27 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Concentration.toObject = function toObject(message, options) {
+        Concentration.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.units = options.enums === String ? "UNSPECIFIED" : 0;
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                 if (options.oneofs)
                     object._value = "value";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 object.precision = options.json && !isFinite(message.precision) ? String(message.precision) : message.precision;
                 if (options.oneofs)
                     object._precision = "precision";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 object.units = options.enums === String ? $root.ord.Concentration.ConcentrationUnit[message.units] === undefined ? message.units : $root.ord.Concentration.ConcentrationUnit[message.units] : message.units;
             return object;
         };
@@ -20569,7 +22853,7 @@ export const ord = $root.ord = (() => {
         function Pressure(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -20633,9 +22917,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Pressure.encode = function encode(message, writer) {
+        Pressure.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
             if (message.precision != null && Object.hasOwnProperty.call(message, "precision"))
@@ -20655,7 +22943,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Pressure.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -20669,12 +22957,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Pressure.decode = function decode(reader, length) {
+        Pressure.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Pressure();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Pressure();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.float();
@@ -20689,9 +22993,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -20720,21 +23029,25 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Pressure.verify = function verify(message) {
+        Pressure.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 properties._value = 1;
                 if (typeof message.value !== "number")
                     return "value: number expected";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 properties._precision = 1;
                 if (typeof message.precision !== "number")
                     return "precision: number expected";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 switch (message.units) {
                 default:
                     return "units: enum value expected";
@@ -20760,9 +23073,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Pressure} Pressure
          */
-        Pressure.fromObject = function fromObject(object) {
+        Pressure.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Pressure)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Pressure: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Pressure();
             if (object.value != null)
                 message.value = Number(object.value);
@@ -20824,23 +23143,27 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Pressure.toObject = function toObject(message, options) {
+        Pressure.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.units = options.enums === String ? "UNSPECIFIED" : 0;
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                 if (options.oneofs)
                     object._value = "value";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 object.precision = options.json && !isFinite(message.precision) ? String(message.precision) : message.precision;
                 if (options.oneofs)
                     object._precision = "precision";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 object.units = options.enums === String ? $root.ord.Pressure.PressureUnit[message.units] === undefined ? message.units : $root.ord.Pressure.PressureUnit[message.units] : message.units;
             return object;
         };
@@ -20924,7 +23247,7 @@ export const ord = $root.ord = (() => {
         function Temperature(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -20988,9 +23311,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Temperature.encode = function encode(message, writer) {
+        Temperature.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
             if (message.precision != null && Object.hasOwnProperty.call(message, "precision"))
@@ -21010,7 +23337,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Temperature.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -21024,12 +23351,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Temperature.decode = function decode(reader, length) {
+        Temperature.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Temperature();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Temperature();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.float();
@@ -21044,9 +23387,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -21075,21 +23423,25 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Temperature.verify = function verify(message) {
+        Temperature.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 properties._value = 1;
                 if (typeof message.value !== "number")
                     return "value: number expected";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 properties._precision = 1;
                 if (typeof message.precision !== "number")
                     return "precision: number expected";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 switch (message.units) {
                 default:
                     return "units: enum value expected";
@@ -21110,9 +23462,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Temperature} Temperature
          */
-        Temperature.fromObject = function fromObject(object) {
+        Temperature.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Temperature)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Temperature: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Temperature();
             if (object.value != null)
                 message.value = Number(object.value);
@@ -21154,23 +23512,27 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Temperature.toObject = function toObject(message, options) {
+        Temperature.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.units = options.enums === String ? "UNSPECIFIED" : 0;
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                 if (options.oneofs)
                     object._value = "value";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 object.precision = options.json && !isFinite(message.precision) ? String(message.precision) : message.precision;
                 if (options.oneofs)
                     object._precision = "precision";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 object.units = options.enums === String ? $root.ord.Temperature.TemperatureUnit[message.units] === undefined ? message.units : $root.ord.Temperature.TemperatureUnit[message.units] : message.units;
             return object;
         };
@@ -21244,7 +23606,7 @@ export const ord = $root.ord = (() => {
         function Current(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -21308,9 +23670,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Current.encode = function encode(message, writer) {
+        Current.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
             if (message.precision != null && Object.hasOwnProperty.call(message, "precision"))
@@ -21330,7 +23696,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Current.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -21344,12 +23710,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Current.decode = function decode(reader, length) {
+        Current.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Current();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Current();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.float();
@@ -21364,9 +23746,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -21395,21 +23782,25 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Current.verify = function verify(message) {
+        Current.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 properties._value = 1;
                 if (typeof message.value !== "number")
                     return "value: number expected";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 properties._precision = 1;
                 if (typeof message.precision !== "number")
                     return "precision: number expected";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 switch (message.units) {
                 default:
                     return "units: enum value expected";
@@ -21429,9 +23820,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Current} Current
          */
-        Current.fromObject = function fromObject(object) {
+        Current.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Current)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Current: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Current();
             if (object.value != null)
                 message.value = Number(object.value);
@@ -21469,23 +23866,27 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Current.toObject = function toObject(message, options) {
+        Current.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.units = options.enums === String ? "UNSPECIFIED" : 0;
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                 if (options.oneofs)
                     object._value = "value";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 object.precision = options.json && !isFinite(message.precision) ? String(message.precision) : message.precision;
                 if (options.oneofs)
                     object._precision = "precision";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 object.units = options.enums === String ? $root.ord.Current.CurrentUnit[message.units] === undefined ? message.units : $root.ord.Current.CurrentUnit[message.units] : message.units;
             return object;
         };
@@ -21557,7 +23958,7 @@ export const ord = $root.ord = (() => {
         function Voltage(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -21621,9 +24022,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Voltage.encode = function encode(message, writer) {
+        Voltage.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
             if (message.precision != null && Object.hasOwnProperty.call(message, "precision"))
@@ -21643,7 +24048,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Voltage.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -21657,12 +24062,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Voltage.decode = function decode(reader, length) {
+        Voltage.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Voltage();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Voltage();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.float();
@@ -21677,9 +24098,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -21708,21 +24134,25 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Voltage.verify = function verify(message) {
+        Voltage.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 properties._value = 1;
                 if (typeof message.value !== "number")
                     return "value: number expected";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 properties._precision = 1;
                 if (typeof message.precision !== "number")
                     return "precision: number expected";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 switch (message.units) {
                 default:
                     return "units: enum value expected";
@@ -21742,9 +24172,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Voltage} Voltage
          */
-        Voltage.fromObject = function fromObject(object) {
+        Voltage.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Voltage)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Voltage: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Voltage();
             if (object.value != null)
                 message.value = Number(object.value);
@@ -21782,23 +24218,27 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Voltage.toObject = function toObject(message, options) {
+        Voltage.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.units = options.enums === String ? "UNSPECIFIED" : 0;
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                 if (options.oneofs)
                     object._value = "value";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 object.precision = options.json && !isFinite(message.precision) ? String(message.precision) : message.precision;
                 if (options.oneofs)
                     object._precision = "precision";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 object.units = options.enums === String ? $root.ord.Voltage.VoltageUnit[message.units] === undefined ? message.units : $root.ord.Voltage.VoltageUnit[message.units] : message.units;
             return object;
         };
@@ -21870,7 +24310,7 @@ export const ord = $root.ord = (() => {
         function Length(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -21934,9 +24374,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Length.encode = function encode(message, writer) {
+        Length.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
             if (message.precision != null && Object.hasOwnProperty.call(message, "precision"))
@@ -21956,7 +24400,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Length.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -21970,12 +24414,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Length.decode = function decode(reader, length) {
+        Length.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Length();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Length();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.float();
@@ -21990,9 +24450,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -22021,21 +24486,25 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Length.verify = function verify(message) {
+        Length.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 properties._value = 1;
                 if (typeof message.value !== "number")
                     return "value: number expected";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 properties._precision = 1;
                 if (typeof message.precision !== "number")
                     return "precision: number expected";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 switch (message.units) {
                 default:
                     return "units: enum value expected";
@@ -22058,9 +24527,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Length} Length
          */
-        Length.fromObject = function fromObject(object) {
+        Length.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Length)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Length: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Length();
             if (object.value != null)
                 message.value = Number(object.value);
@@ -22110,23 +24585,27 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Length.toObject = function toObject(message, options) {
+        Length.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.units = options.enums === String ? "UNSPECIFIED" : 0;
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                 if (options.oneofs)
                     object._value = "value";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 object.precision = options.json && !isFinite(message.precision) ? String(message.precision) : message.precision;
                 if (options.oneofs)
                     object._precision = "precision";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 object.units = options.enums === String ? $root.ord.Length.LengthUnit[message.units] === undefined ? message.units : $root.ord.Length.LengthUnit[message.units] : message.units;
             return object;
         };
@@ -22204,7 +24683,7 @@ export const ord = $root.ord = (() => {
         function Wavelength(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -22268,9 +24747,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Wavelength.encode = function encode(message, writer) {
+        Wavelength.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
             if (message.precision != null && Object.hasOwnProperty.call(message, "precision"))
@@ -22290,7 +24773,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Wavelength.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -22304,12 +24787,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Wavelength.decode = function decode(reader, length) {
+        Wavelength.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Wavelength();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Wavelength();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.float();
@@ -22324,9 +24823,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -22355,21 +24859,25 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Wavelength.verify = function verify(message) {
+        Wavelength.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 properties._value = 1;
                 if (typeof message.value !== "number")
                     return "value: number expected";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 properties._precision = 1;
                 if (typeof message.precision !== "number")
                     return "precision: number expected";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 switch (message.units) {
                 default:
                     return "units: enum value expected";
@@ -22389,9 +24897,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Wavelength} Wavelength
          */
-        Wavelength.fromObject = function fromObject(object) {
+        Wavelength.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Wavelength)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Wavelength: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Wavelength();
             if (object.value != null)
                 message.value = Number(object.value);
@@ -22429,23 +24943,27 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Wavelength.toObject = function toObject(message, options) {
+        Wavelength.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.units = options.enums === String ? "UNSPECIFIED" : 0;
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                 if (options.oneofs)
                     object._value = "value";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 object.precision = options.json && !isFinite(message.precision) ? String(message.precision) : message.precision;
                 if (options.oneofs)
                     object._precision = "precision";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 object.units = options.enums === String ? $root.ord.Wavelength.WavelengthUnit[message.units] === undefined ? message.units : $root.ord.Wavelength.WavelengthUnit[message.units] : message.units;
             return object;
         };
@@ -22517,7 +25035,7 @@ export const ord = $root.ord = (() => {
         function FlowRate(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -22581,9 +25099,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        FlowRate.encode = function encode(message, writer) {
+        FlowRate.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
             if (message.precision != null && Object.hasOwnProperty.call(message, "precision"))
@@ -22603,7 +25125,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         FlowRate.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -22617,12 +25139,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        FlowRate.decode = function decode(reader, length) {
+        FlowRate.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.FlowRate();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.FlowRate();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.float();
@@ -22637,9 +25175,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -22668,21 +25211,25 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        FlowRate.verify = function verify(message) {
+        FlowRate.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 properties._value = 1;
                 if (typeof message.value !== "number")
                     return "value: number expected";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 properties._precision = 1;
                 if (typeof message.precision !== "number")
                     return "precision: number expected";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 switch (message.units) {
                 default:
                     return "units: enum value expected";
@@ -22705,9 +25252,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.FlowRate} FlowRate
          */
-        FlowRate.fromObject = function fromObject(object) {
+        FlowRate.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.FlowRate)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.FlowRate: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.FlowRate();
             if (object.value != null)
                 message.value = Number(object.value);
@@ -22757,23 +25310,27 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        FlowRate.toObject = function toObject(message, options) {
+        FlowRate.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.units = options.enums === String ? "UNSPECIFIED" : 0;
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                 if (options.oneofs)
                     object._value = "value";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 object.precision = options.json && !isFinite(message.precision) ? String(message.precision) : message.precision;
                 if (options.oneofs)
                     object._precision = "precision";
             }
-            if (message.units != null && message.hasOwnProperty("units"))
+            if (message.units != null && Object.hasOwnProperty.call(message, "units"))
                 object.units = options.enums === String ? $root.ord.FlowRate.FlowRateUnit[message.units] === undefined ? message.units : $root.ord.FlowRate.FlowRateUnit[message.units] : message.units;
             return object;
         };
@@ -22850,7 +25407,7 @@ export const ord = $root.ord = (() => {
         function Percentage(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -22906,9 +25463,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Percentage.encode = function encode(message, writer) {
+        Percentage.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
             if (message.precision != null && Object.hasOwnProperty.call(message, "precision"))
@@ -22926,7 +25487,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Percentage.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -22940,12 +25501,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Percentage.decode = function decode(reader, length) {
+        Percentage.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Percentage();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Percentage();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.float();
@@ -22956,9 +25533,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -22987,16 +25569,20 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Percentage.verify = function verify(message) {
+        Percentage.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 properties._value = 1;
                 if (typeof message.value !== "number")
                     return "value: number expected";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 properties._precision = 1;
                 if (typeof message.precision !== "number")
                     return "precision: number expected";
@@ -23012,9 +25598,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Percentage} Percentage
          */
-        Percentage.fromObject = function fromObject(object) {
+        Percentage.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Percentage)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Percentage: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Percentage();
             if (object.value != null)
                 message.value = Number(object.value);
@@ -23032,16 +25624,20 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Percentage.toObject = function toObject(message, options) {
+        Percentage.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                 if (options.oneofs)
                     object._value = "value";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 object.precision = options.json && !isFinite(message.precision) ? String(message.precision) : message.precision;
                 if (options.oneofs)
                     object._precision = "precision";
@@ -23099,7 +25695,7 @@ export const ord = $root.ord = (() => {
         function FloatValue(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -23155,9 +25751,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        FloatValue.encode = function encode(message, writer) {
+        FloatValue.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
             if (message.precision != null && Object.hasOwnProperty.call(message, "precision"))
@@ -23175,7 +25775,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         FloatValue.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -23189,12 +25789,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        FloatValue.decode = function decode(reader, length) {
+        FloatValue.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.FloatValue();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.FloatValue();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.float();
@@ -23205,9 +25821,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -23236,16 +25857,20 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        FloatValue.verify = function verify(message) {
+        FloatValue.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 properties._value = 1;
                 if (typeof message.value !== "number")
                     return "value: number expected";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 properties._precision = 1;
                 if (typeof message.precision !== "number")
                     return "precision: number expected";
@@ -23261,9 +25886,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.FloatValue} FloatValue
          */
-        FloatValue.fromObject = function fromObject(object) {
+        FloatValue.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.FloatValue)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.FloatValue: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.FloatValue();
             if (object.value != null)
                 message.value = Number(object.value);
@@ -23281,16 +25912,20 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        FloatValue.toObject = function toObject(message, options) {
+        FloatValue.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
-            if (message.value != null && message.hasOwnProperty("value")) {
+            if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                 object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                 if (options.oneofs)
                     object._value = "value";
             }
-            if (message.precision != null && message.hasOwnProperty("precision")) {
+            if (message.precision != null && Object.hasOwnProperty.call(message, "precision")) {
                 object.precision = options.json && !isFinite(message.precision) ? String(message.precision) : message.precision;
                 if (options.oneofs)
                     object._precision = "precision";
@@ -23353,7 +25988,7 @@ export const ord = $root.ord = (() => {
         function Data(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -23448,9 +26083,13 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Data.encode = function encode(message, writer) {
+        Data.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.floatValue != null && Object.hasOwnProperty.call(message, "floatValue"))
                 writer.uint32(/* id 1, wireType 5 =*/13).float(message.floatValue);
             if (message.integerValue != null && Object.hasOwnProperty.call(message, "integerValue"))
@@ -23478,7 +26117,7 @@ export const ord = $root.ord = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Data.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -23492,12 +26131,28 @@ export const ord = $root.ord = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Data.decode = function decode(reader, length) {
+        Data.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Data();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord.Data();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.floatValue = reader.float();
@@ -23528,9 +26183,14 @@ export const ord = $root.ord = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -23559,47 +26219,51 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Data.verify = function verify(message) {
+        Data.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.floatValue != null && message.hasOwnProperty("floatValue")) {
+            if (message.floatValue != null && Object.hasOwnProperty.call(message, "floatValue")) {
                 properties.kind = 1;
                 if (typeof message.floatValue !== "number")
                     return "floatValue: number expected";
             }
-            if (message.integerValue != null && message.hasOwnProperty("integerValue")) {
+            if (message.integerValue != null && Object.hasOwnProperty.call(message, "integerValue")) {
                 if (properties.kind === 1)
                     return "kind: multiple values";
                 properties.kind = 1;
                 if (!$util.isInteger(message.integerValue))
                     return "integerValue: integer expected";
             }
-            if (message.bytesValue != null && message.hasOwnProperty("bytesValue")) {
+            if (message.bytesValue != null && Object.hasOwnProperty.call(message, "bytesValue")) {
                 if (properties.kind === 1)
                     return "kind: multiple values";
                 properties.kind = 1;
                 if (!(message.bytesValue && typeof message.bytesValue.length === "number" || $util.isString(message.bytesValue)))
                     return "bytesValue: buffer expected";
             }
-            if (message.stringValue != null && message.hasOwnProperty("stringValue")) {
+            if (message.stringValue != null && Object.hasOwnProperty.call(message, "stringValue")) {
                 if (properties.kind === 1)
                     return "kind: multiple values";
                 properties.kind = 1;
                 if (!$util.isString(message.stringValue))
                     return "stringValue: string expected";
             }
-            if (message.url != null && message.hasOwnProperty("url")) {
+            if (message.url != null && Object.hasOwnProperty.call(message, "url")) {
                 if (properties.kind === 1)
                     return "kind: multiple values";
                 properties.kind = 1;
                 if (!$util.isString(message.url))
                     return "url: string expected";
             }
-            if (message.description != null && message.hasOwnProperty("description"))
+            if (message.description != null && Object.hasOwnProperty.call(message, "description"))
                 if (!$util.isString(message.description))
                     return "description: string expected";
-            if (message.format != null && message.hasOwnProperty("format"))
+            if (message.format != null && Object.hasOwnProperty.call(message, "format"))
                 if (!$util.isString(message.format))
                     return "format: string expected";
             return null;
@@ -23613,9 +26277,15 @@ export const ord = $root.ord = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord.Data} Data
          */
-        Data.fromObject = function fromObject(object) {
+        Data.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord.Data)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord.Data: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord.Data();
             if (object.floatValue != null)
                 message.floatValue = Number(object.floatValue);
@@ -23646,42 +26316,46 @@ export const ord = $root.ord = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Data.toObject = function toObject(message, options) {
+        Data.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.description = "";
                 object.format = "";
             }
-            if (message.floatValue != null && message.hasOwnProperty("floatValue")) {
+            if (message.floatValue != null && Object.hasOwnProperty.call(message, "floatValue")) {
                 object.floatValue = options.json && !isFinite(message.floatValue) ? String(message.floatValue) : message.floatValue;
                 if (options.oneofs)
                     object.kind = "floatValue";
             }
-            if (message.integerValue != null && message.hasOwnProperty("integerValue")) {
+            if (message.integerValue != null && Object.hasOwnProperty.call(message, "integerValue")) {
                 object.integerValue = message.integerValue;
                 if (options.oneofs)
                     object.kind = "integerValue";
             }
-            if (message.bytesValue != null && message.hasOwnProperty("bytesValue")) {
+            if (message.bytesValue != null && Object.hasOwnProperty.call(message, "bytesValue")) {
                 object.bytesValue = options.bytes === String ? $util.base64.encode(message.bytesValue, 0, message.bytesValue.length) : options.bytes === Array ? Array.prototype.slice.call(message.bytesValue) : message.bytesValue;
                 if (options.oneofs)
                     object.kind = "bytesValue";
             }
-            if (message.stringValue != null && message.hasOwnProperty("stringValue")) {
+            if (message.stringValue != null && Object.hasOwnProperty.call(message, "stringValue")) {
                 object.stringValue = message.stringValue;
                 if (options.oneofs)
                     object.kind = "stringValue";
             }
-            if (message.url != null && message.hasOwnProperty("url")) {
+            if (message.url != null && Object.hasOwnProperty.call(message, "url")) {
                 object.url = message.url;
                 if (options.oneofs)
                     object.kind = "url";
             }
-            if (message.description != null && message.hasOwnProperty("description"))
+            if (message.description != null && Object.hasOwnProperty.call(message, "description"))
                 object.description = message.description;
-            if (message.format != null && message.hasOwnProperty("format"))
+            if (message.format != null && Object.hasOwnProperty.call(message, "format"))
                 object.format = message.format;
             return object;
         };
@@ -23752,7 +26426,7 @@ export const ord_test = $root.ord_test = (() => {
         function Scalar(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -23840,9 +26514,13 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Scalar.encode = function encode(message, writer) {
+        Scalar.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.int32Value != null && Object.hasOwnProperty.call(message, "int32Value"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.int32Value);
             if (message.int64Value != null && Object.hasOwnProperty.call(message, "int64Value"))
@@ -23868,7 +26546,7 @@ export const ord_test = $root.ord_test = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Scalar.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -23882,12 +26560,28 @@ export const ord_test = $root.ord_test = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Scalar.decode = function decode(reader, length) {
+        Scalar.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord_test.Scalar();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord_test.Scalar();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.int32Value = reader.int32();
@@ -23914,9 +26608,14 @@ export const ord_test = $root.ord_test = (() => {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -23945,28 +26644,32 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Scalar.verify = function verify(message) {
+        Scalar.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             let properties = {};
-            if (message.int32Value != null && message.hasOwnProperty("int32Value"))
+            if (message.int32Value != null && Object.hasOwnProperty.call(message, "int32Value"))
                 if (!$util.isInteger(message.int32Value))
                     return "int32Value: integer expected";
-            if (message.int64Value != null && message.hasOwnProperty("int64Value"))
+            if (message.int64Value != null && Object.hasOwnProperty.call(message, "int64Value"))
                 if (!$util.isInteger(message.int64Value) && !(message.int64Value && $util.isInteger(message.int64Value.low) && $util.isInteger(message.int64Value.high)))
                     return "int64Value: integer|Long expected";
-            if (message.floatValue != null && message.hasOwnProperty("floatValue")) {
+            if (message.floatValue != null && Object.hasOwnProperty.call(message, "floatValue")) {
                 properties._floatValue = 1;
                 if (typeof message.floatValue !== "number")
                     return "floatValue: number expected";
             }
-            if (message.stringValue != null && message.hasOwnProperty("stringValue"))
+            if (message.stringValue != null && Object.hasOwnProperty.call(message, "stringValue"))
                 if (!$util.isString(message.stringValue))
                     return "stringValue: string expected";
-            if (message.bytesValue != null && message.hasOwnProperty("bytesValue"))
+            if (message.bytesValue != null && Object.hasOwnProperty.call(message, "bytesValue"))
                 if (!(message.bytesValue && typeof message.bytesValue.length === "number" || $util.isString(message.bytesValue)))
                     return "bytesValue: buffer expected";
-            if (message.boolValue != null && message.hasOwnProperty("boolValue")) {
+            if (message.boolValue != null && Object.hasOwnProperty.call(message, "boolValue")) {
                 properties._boolValue = 1;
                 if (typeof message.boolValue !== "boolean")
                     return "boolValue: boolean expected";
@@ -23982,15 +26685,21 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord_test.Scalar} Scalar
          */
-        Scalar.fromObject = function fromObject(object) {
+        Scalar.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord_test.Scalar)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord_test.Scalar: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord_test.Scalar();
             if (object.int32Value != null)
                 message.int32Value = object.int32Value | 0;
             if (object.int64Value != null)
                 if ($util.Long)
-                    (message.int64Value = $util.Long.fromValue(object.int64Value)).unsigned = false;
+                    message.int64Value = $util.Long.fromValue(object.int64Value, false);
                 else if (typeof object.int64Value === "string")
                     message.int64Value = parseInt(object.int64Value, 10);
                 else if (typeof object.int64Value === "number")
@@ -24020,17 +26729,21 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Scalar.toObject = function toObject(message, options) {
+        Scalar.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults) {
                 object.int32Value = 0;
                 if ($util.Long) {
                     let long = new $util.Long(0, 0, false);
-                    object.int64Value = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object.int64Value = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : typeof BigInt !== "undefined" && options.longs === BigInt ? long.toBigInt() : long;
                 } else
-                    object.int64Value = options.longs === String ? "0" : 0;
+                    object.int64Value = options.longs === String ? "0" : typeof BigInt !== "undefined" && options.longs === BigInt ? BigInt("0") : 0;
                 object.stringValue = "";
                 if (options.bytes === String)
                     object.bytesValue = "";
@@ -24040,23 +26753,25 @@ export const ord_test = $root.ord_test = (() => {
                         object.bytesValue = $util.newBuffer(object.bytesValue);
                 }
             }
-            if (message.int32Value != null && message.hasOwnProperty("int32Value"))
+            if (message.int32Value != null && Object.hasOwnProperty.call(message, "int32Value"))
                 object.int32Value = message.int32Value;
-            if (message.int64Value != null && message.hasOwnProperty("int64Value"))
-                if (typeof message.int64Value === "number")
+            if (message.int64Value != null && Object.hasOwnProperty.call(message, "int64Value"))
+                if (typeof BigInt !== "undefined" && options.longs === BigInt)
+                    object.int64Value = typeof message.int64Value === "number" ? BigInt(message.int64Value) : $util.Long.fromBits(message.int64Value.low >>> 0, message.int64Value.high >>> 0, false).toBigInt();
+                else if (typeof message.int64Value === "number")
                     object.int64Value = options.longs === String ? String(message.int64Value) : message.int64Value;
                 else
                     object.int64Value = options.longs === String ? $util.Long.prototype.toString.call(message.int64Value) : options.longs === Number ? new $util.LongBits(message.int64Value.low >>> 0, message.int64Value.high >>> 0).toNumber() : message.int64Value;
-            if (message.floatValue != null && message.hasOwnProperty("floatValue")) {
+            if (message.floatValue != null && Object.hasOwnProperty.call(message, "floatValue")) {
                 object.floatValue = options.json && !isFinite(message.floatValue) ? String(message.floatValue) : message.floatValue;
                 if (options.oneofs)
                     object._floatValue = "floatValue";
             }
-            if (message.stringValue != null && message.hasOwnProperty("stringValue"))
+            if (message.stringValue != null && Object.hasOwnProperty.call(message, "stringValue"))
                 object.stringValue = message.stringValue;
-            if (message.bytesValue != null && message.hasOwnProperty("bytesValue"))
+            if (message.bytesValue != null && Object.hasOwnProperty.call(message, "bytesValue"))
                 object.bytesValue = options.bytes === String ? $util.base64.encode(message.bytesValue, 0, message.bytesValue.length) : options.bytes === Array ? Array.prototype.slice.call(message.bytesValue) : message.bytesValue;
-            if (message.boolValue != null && message.hasOwnProperty("boolValue")) {
+            if (message.boolValue != null && Object.hasOwnProperty.call(message, "boolValue")) {
                 object.boolValue = message.boolValue;
                 if (options.oneofs)
                     object._boolValue = "boolValue";
@@ -24114,7 +26829,7 @@ export const ord_test = $root.ord_test = (() => {
             this.values = [];
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -24147,9 +26862,13 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        RepeatedScalar.encode = function encode(message, writer) {
+        RepeatedScalar.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.values != null && message.values.length) {
                 writer.uint32(/* id 1, wireType 2 =*/10).fork();
                 for (let i = 0; i < message.values.length; ++i)
@@ -24169,7 +26888,7 @@ export const ord_test = $root.ord_test = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         RepeatedScalar.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -24183,28 +26902,55 @@ export const ord_test = $root.ord_test = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        RepeatedScalar.decode = function decode(reader, length) {
+        RepeatedScalar.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord_test.RepeatedScalar();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord_test.RepeatedScalar();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         if (!(message.values && message.values.length))
                             message.values = [];
                         if ((tag & 7) === 2) {
                             let end2 = reader.uint32() + reader.pos;
+                            if (end2 > reader.len)
+                                throw RangeError("index out of range");
+                            reader.len = end2;
                             while (reader.pos < end2)
                                 message.values.push(reader.float());
+                            if (reader.pos !== end2)
+                                throw RangeError("index out of range");
+                            reader.len = end;
                         } else
                             message.values.push(reader.float());
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -24233,10 +26979,14 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        RepeatedScalar.verify = function verify(message) {
+        RepeatedScalar.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.values != null && message.hasOwnProperty("values")) {
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.values != null && Object.hasOwnProperty.call(message, "values")) {
                 if (!Array.isArray(message.values))
                     return "values: array expected";
                 for (let i = 0; i < message.values.length; ++i)
@@ -24254,9 +27004,15 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord_test.RepeatedScalar} RepeatedScalar
          */
-        RepeatedScalar.fromObject = function fromObject(object) {
+        RepeatedScalar.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord_test.RepeatedScalar)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord_test.RepeatedScalar: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord_test.RepeatedScalar();
             if (object.values) {
                 if (!Array.isArray(object.values))
@@ -24277,9 +27033,13 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        RepeatedScalar.toObject = function toObject(message, options) {
+        RepeatedScalar.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.arrays || options.defaults)
                 object.values = [];
@@ -24340,7 +27100,7 @@ export const ord_test = $root.ord_test = (() => {
         function Enum(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -24373,9 +27133,13 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Enum.encode = function encode(message, writer) {
+        Enum.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.value);
             return writer;
@@ -24391,7 +27155,7 @@ export const ord_test = $root.ord_test = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Enum.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -24405,21 +27169,42 @@ export const ord_test = $root.ord_test = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Enum.decode = function decode(reader, length) {
+        Enum.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord_test.Enum();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord_test.Enum();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         message.value = reader.int32();
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -24448,10 +27233,14 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Enum.verify = function verify(message) {
+        Enum.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.value != null && message.hasOwnProperty("value"))
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 switch (message.value) {
                 default:
                     return "value: enum value expected";
@@ -24471,9 +27260,15 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord_test.Enum} Enum
          */
-        Enum.fromObject = function fromObject(object) {
+        Enum.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord_test.Enum)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord_test.Enum: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord_test.Enum();
             switch (object.value) {
             default:
@@ -24507,13 +27302,17 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Enum.toObject = function toObject(message, options) {
+        Enum.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.value = options.enums === String ? "UNSPECIFIED" : 0;
-            if (message.value != null && message.hasOwnProperty("value"))
+            if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                 object.value = options.enums === String ? $root.ord_test.Enum.EnumValues[message.value] === undefined ? message.value : $root.ord_test.Enum.EnumValues[message.value] : message.value;
             return object;
         };
@@ -24584,7 +27383,7 @@ export const ord_test = $root.ord_test = (() => {
             this.values = [];
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -24617,9 +27416,13 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        RepeatedEnum.encode = function encode(message, writer) {
+        RepeatedEnum.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.values != null && message.values.length) {
                 writer.uint32(/* id 1, wireType 2 =*/10).fork();
                 for (let i = 0; i < message.values.length; ++i)
@@ -24639,7 +27442,7 @@ export const ord_test = $root.ord_test = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         RepeatedEnum.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -24653,28 +27456,55 @@ export const ord_test = $root.ord_test = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        RepeatedEnum.decode = function decode(reader, length) {
+        RepeatedEnum.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord_test.RepeatedEnum();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord_test.RepeatedEnum();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         if (!(message.values && message.values.length))
                             message.values = [];
                         if ((tag & 7) === 2) {
                             let end2 = reader.uint32() + reader.pos;
+                            if (end2 > reader.len)
+                                throw RangeError("index out of range");
+                            reader.len = end2;
                             while (reader.pos < end2)
                                 message.values.push(reader.int32());
+                            if (reader.pos !== end2)
+                                throw RangeError("index out of range");
+                            reader.len = end;
                         } else
                             message.values.push(reader.int32());
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -24703,10 +27533,14 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        RepeatedEnum.verify = function verify(message) {
+        RepeatedEnum.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.values != null && message.hasOwnProperty("values")) {
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.values != null && Object.hasOwnProperty.call(message, "values")) {
                 if (!Array.isArray(message.values))
                     return "values: array expected";
                 for (let i = 0; i < message.values.length; ++i)
@@ -24730,9 +27564,15 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord_test.RepeatedEnum} RepeatedEnum
          */
-        RepeatedEnum.fromObject = function fromObject(object) {
+        RepeatedEnum.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord_test.RepeatedEnum)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord_test.RepeatedEnum: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord_test.RepeatedEnum();
             if (object.values) {
                 if (!Array.isArray(object.values))
@@ -24771,9 +27611,13 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        RepeatedEnum.toObject = function toObject(message, options) {
+        RepeatedEnum.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.arrays || options.defaults)
                 object.values = [];
@@ -24850,7 +27694,7 @@ export const ord_test = $root.ord_test = (() => {
         function Nested(properties) {
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -24883,11 +27727,15 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Nested.encode = function encode(message, writer) {
+        Nested.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.child != null && Object.hasOwnProperty.call(message, "child"))
-                $root.ord_test.Nested.Child.encode(message.child, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                $root.ord_test.Nested.Child.encode(message.child, writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -24901,7 +27749,7 @@ export const ord_test = $root.ord_test = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Nested.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -24915,21 +27763,42 @@ export const ord_test = $root.ord_test = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Nested.decode = function decode(reader, length) {
+        Nested.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord_test.Nested();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord_test.Nested();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
-                        message.child = $root.ord_test.Nested.Child.decode(reader, reader.uint32());
+                        message.child = $root.ord_test.Nested.Child.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -24958,11 +27827,15 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Nested.verify = function verify(message) {
+        Nested.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.child != null && message.hasOwnProperty("child")) {
-                let error = $root.ord_test.Nested.Child.verify(message.child);
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.child != null && Object.hasOwnProperty.call(message, "child")) {
+                let error = $root.ord_test.Nested.Child.verify(message.child, long + 1);
                 if (error)
                     return "child." + error;
             }
@@ -24977,14 +27850,20 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord_test.Nested} Nested
          */
-        Nested.fromObject = function fromObject(object) {
+        Nested.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord_test.Nested)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord_test.Nested: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord_test.Nested();
             if (object.child != null) {
-                if (typeof object.child !== "object")
+                if (!$util.isObject(object.child))
                     throw TypeError(".ord_test.Nested.child: object expected");
-                message.child = $root.ord_test.Nested.Child.fromObject(object.child);
+                message.child = $root.ord_test.Nested.Child.fromObject(object.child, long + 1);
             }
             return message;
         };
@@ -24998,14 +27877,18 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Nested.toObject = function toObject(message, options) {
+        Nested.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.defaults)
                 object.child = null;
-            if (message.child != null && message.hasOwnProperty("child"))
-                object.child = $root.ord_test.Nested.Child.toObject(message.child, options);
+            if (message.child != null && Object.hasOwnProperty.call(message, "child"))
+                object.child = $root.ord_test.Nested.Child.toObject(message.child, options, q + 1);
             return object;
         };
 
@@ -25055,7 +27938,7 @@ export const ord_test = $root.ord_test = (() => {
             function Child(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -25097,9 +27980,13 @@ export const ord_test = $root.ord_test = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            Child.encode = function encode(message, writer) {
+            Child.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                     writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
                 return writer;
@@ -25115,7 +28002,7 @@ export const ord_test = $root.ord_test = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             Child.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -25129,21 +28016,42 @@ export const ord_test = $root.ord_test = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            Child.decode = function decode(reader, length) {
+            Child.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord_test.Nested.Child();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord_test.Nested.Child();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.value = reader.float();
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -25172,11 +28080,15 @@ export const ord_test = $root.ord_test = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            Child.verify = function verify(message) {
+            Child.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
                 let properties = {};
-                if (message.value != null && message.hasOwnProperty("value")) {
+                if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                     properties._value = 1;
                     if (typeof message.value !== "number")
                         return "value: number expected";
@@ -25192,9 +28104,15 @@ export const ord_test = $root.ord_test = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord_test.Nested.Child} Child
              */
-            Child.fromObject = function fromObject(object) {
+            Child.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord_test.Nested.Child)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord_test.Nested.Child: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord_test.Nested.Child();
                 if (object.value != null)
                     message.value = Number(object.value);
@@ -25210,11 +28128,15 @@ export const ord_test = $root.ord_test = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            Child.toObject = function toObject(message, options) {
+            Child.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
-                if (message.value != null && message.hasOwnProperty("value")) {
+                if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                     object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                     if (options.oneofs)
                         object._value = "value";
@@ -25275,7 +28197,7 @@ export const ord_test = $root.ord_test = (() => {
             this.children = [];
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -25308,12 +28230,16 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        RepeatedNested.encode = function encode(message, writer) {
+        RepeatedNested.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.children != null && message.children.length)
                 for (let i = 0; i < message.children.length; ++i)
-                    $root.ord_test.RepeatedNested.Child.encode(message.children[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                    $root.ord_test.RepeatedNested.Child.encode(message.children[i], writer.uint32(/* id 1, wireType 2 =*/10).fork(), q + 1).ldelim();
             return writer;
         };
 
@@ -25327,7 +28253,7 @@ export const ord_test = $root.ord_test = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         RepeatedNested.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -25341,23 +28267,44 @@ export const ord_test = $root.ord_test = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        RepeatedNested.decode = function decode(reader, length) {
+        RepeatedNested.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord_test.RepeatedNested();
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord_test.RepeatedNested();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         if (!(message.children && message.children.length))
                             message.children = [];
-                        message.children.push($root.ord_test.RepeatedNested.Child.decode(reader, reader.uint32()));
+                        message.children.push($root.ord_test.RepeatedNested.Child.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -25386,14 +28333,18 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        RepeatedNested.verify = function verify(message) {
+        RepeatedNested.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.children != null && message.hasOwnProperty("children")) {
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.children != null && Object.hasOwnProperty.call(message, "children")) {
                 if (!Array.isArray(message.children))
                     return "children: array expected";
                 for (let i = 0; i < message.children.length; ++i) {
-                    let error = $root.ord_test.RepeatedNested.Child.verify(message.children[i]);
+                    let error = $root.ord_test.RepeatedNested.Child.verify(message.children[i], long + 1);
                     if (error)
                         return "children." + error;
                 }
@@ -25409,18 +28360,24 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord_test.RepeatedNested} RepeatedNested
          */
-        RepeatedNested.fromObject = function fromObject(object) {
+        RepeatedNested.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord_test.RepeatedNested)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord_test.RepeatedNested: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord_test.RepeatedNested();
             if (object.children) {
                 if (!Array.isArray(object.children))
                     throw TypeError(".ord_test.RepeatedNested.children: array expected");
                 message.children = [];
                 for (let i = 0; i < object.children.length; ++i) {
-                    if (typeof object.children[i] !== "object")
+                    if (!$util.isObject(object.children[i]))
                         throw TypeError(".ord_test.RepeatedNested.children: object expected");
-                    message.children[i] = $root.ord_test.RepeatedNested.Child.fromObject(object.children[i]);
+                    message.children[i] = $root.ord_test.RepeatedNested.Child.fromObject(object.children[i], long + 1);
                 }
             }
             return message;
@@ -25435,16 +28392,20 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        RepeatedNested.toObject = function toObject(message, options) {
+        RepeatedNested.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.arrays || options.defaults)
                 object.children = [];
             if (message.children && message.children.length) {
                 object.children = [];
                 for (let j = 0; j < message.children.length; ++j)
-                    object.children[j] = $root.ord_test.RepeatedNested.Child.toObject(message.children[j], options);
+                    object.children[j] = $root.ord_test.RepeatedNested.Child.toObject(message.children[j], options, q + 1);
             }
             return object;
         };
@@ -25495,7 +28456,7 @@ export const ord_test = $root.ord_test = (() => {
             function Child(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -25537,9 +28498,13 @@ export const ord_test = $root.ord_test = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            Child.encode = function encode(message, writer) {
+            Child.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                     writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
                 return writer;
@@ -25555,7 +28520,7 @@ export const ord_test = $root.ord_test = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             Child.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -25569,21 +28534,42 @@ export const ord_test = $root.ord_test = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            Child.decode = function decode(reader, length) {
+            Child.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord_test.RepeatedNested.Child();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord_test.RepeatedNested.Child();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.value = reader.float();
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -25612,11 +28598,15 @@ export const ord_test = $root.ord_test = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            Child.verify = function verify(message) {
+            Child.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
                 let properties = {};
-                if (message.value != null && message.hasOwnProperty("value")) {
+                if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                     properties._value = 1;
                     if (typeof message.value !== "number")
                         return "value: number expected";
@@ -25632,9 +28622,15 @@ export const ord_test = $root.ord_test = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord_test.RepeatedNested.Child} Child
              */
-            Child.fromObject = function fromObject(object) {
+            Child.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord_test.RepeatedNested.Child)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord_test.RepeatedNested.Child: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord_test.RepeatedNested.Child();
                 if (object.value != null)
                     message.value = Number(object.value);
@@ -25650,11 +28646,15 @@ export const ord_test = $root.ord_test = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            Child.toObject = function toObject(message, options) {
+            Child.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
-                if (message.value != null && message.hasOwnProperty("value")) {
+                if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                     object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                     if (options.oneofs)
                         object._value = "value";
@@ -25715,7 +28715,7 @@ export const ord_test = $root.ord_test = (() => {
             this.values = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -25748,9 +28748,13 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Map.encode = function encode(message, writer) {
+        Map.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.values != null && Object.hasOwnProperty.call(message, "values"))
                 for (let keys = Object.keys(message.values), i = 0; i < keys.length; ++i)
                     writer.uint32(/* id 1, wireType 2 =*/10).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]).uint32(/* id 2, wireType 5 =*/21).float(message.values[keys[i]]).ldelim();
@@ -25767,7 +28771,7 @@ export const ord_test = $root.ord_test = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         Map.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -25781,17 +28785,36 @@ export const ord_test = $root.ord_test = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Map.decode = function decode(reader, length) {
+        Map.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord_test.Map(), key, value;
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message, key, value;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord_test.Map();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         if (message.values === $util.emptyObject)
                             message.values = {};
                         let end2 = reader.uint32() + reader.pos;
+                        if (end2 > reader.len)
+                            throw RangeError("index out of range");
+                        reader.len = end2;
                         key = "";
                         value = 0;
                         while (reader.pos < end2) {
@@ -25804,17 +28827,27 @@ export const ord_test = $root.ord_test = (() => {
                                 value = reader.float();
                                 break;
                             default:
-                                reader.skipType(tag2 & 7);
+                                reader.skipType(tag2 & 7, long);
                                 break;
                             }
                         }
+                        if (reader.pos !== end2)
+                            throw RangeError("index out of range");
+                        reader.len = end;
+                        if (key === "__proto__")
+                            $util.makeProp(message.values, key);
                         message.values[key] = value;
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -25843,10 +28876,14 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Map.verify = function verify(message) {
+        Map.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.values != null && message.hasOwnProperty("values")) {
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.values != null && Object.hasOwnProperty.call(message, "values")) {
                 if (!$util.isObject(message.values))
                     return "values: object expected";
                 let key = Object.keys(message.values);
@@ -25865,16 +28902,25 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord_test.Map} Map
          */
-        Map.fromObject = function fromObject(object) {
+        Map.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord_test.Map)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord_test.Map: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord_test.Map();
             if (object.values) {
-                if (typeof object.values !== "object")
+                if (!$util.isObject(object.values))
                     throw TypeError(".ord_test.Map.values: object expected");
                 message.values = {};
-                for (let keys = Object.keys(object.values), i = 0; i < keys.length; ++i)
+                for (let keys = Object.keys(object.values), i = 0; i < keys.length; ++i) {
+                    if (keys[i] === "__proto__")
+                        $util.makeProp(message.values, keys[i]);
                     message.values[keys[i]] = Number(object.values[keys[i]]);
+                }
             }
             return message;
         };
@@ -25888,17 +28934,24 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Map.toObject = function toObject(message, options) {
+        Map.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.objects || options.defaults)
                 object.values = {};
             let keys2;
             if (message.values && (keys2 = Object.keys(message.values)).length) {
                 object.values = {};
-                for (let j = 0; j < keys2.length; ++j)
+                for (let j = 0; j < keys2.length; ++j) {
+                    if (keys2[j] === "__proto__")
+                        $util.makeProp(object.values, keys2[j]);
                     object.values[keys2[j]] = options.json && !isFinite(message.values[keys2[j]]) ? String(message.values[keys2[j]]) : message.values[keys2[j]];
+                }
             }
             return object;
         };
@@ -25953,7 +29006,7 @@ export const ord_test = $root.ord_test = (() => {
             this.children = {};
             if (properties)
                 for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -25986,13 +29039,17 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        MapNested.encode = function encode(message, writer) {
+        MapNested.encode = function encode(message, writer, q) {
             if (!writer)
                 writer = $Writer.create();
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.children != null && Object.hasOwnProperty.call(message, "children"))
                 for (let keys = Object.keys(message.children), i = 0; i < keys.length; ++i) {
                     writer.uint32(/* id 1, wireType 2 =*/10).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
-                    $root.ord_test.MapNested.Child.encode(message.children[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
+                    $root.ord_test.MapNested.Child.encode(message.children[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork(), q + 1).ldelim().ldelim();
                 }
             return writer;
         };
@@ -26007,7 +29064,7 @@ export const ord_test = $root.ord_test = (() => {
          * @returns {$protobuf.Writer} Writer
          */
         MapNested.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -26021,17 +29078,36 @@ export const ord_test = $root.ord_test = (() => {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        MapNested.decode = function decode(reader, length) {
+        MapNested.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord_test.MapNested(), key, value;
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
+            let end, message, key, value;
+            if (length === undefined)
+                end = reader.len;
+            else {
+                end = reader.pos + length;
+                if (end > reader.len)
+                    throw RangeError("index out of range");
+                length = reader.len;
+                reader.len = end;
+            }
+            message = new $root.ord_test.MapNested();
             while (reader.pos < end) {
                 let tag = reader.uint32();
+                if (tag === error)
+                    break;
                 switch (tag >>> 3) {
                 case 1: {
                         if (message.children === $util.emptyObject)
                             message.children = {};
                         let end2 = reader.uint32() + reader.pos;
+                        if (end2 > reader.len)
+                            throw RangeError("index out of range");
+                        reader.len = end2;
                         key = "";
                         value = null;
                         while (reader.pos < end2) {
@@ -26041,20 +29117,30 @@ export const ord_test = $root.ord_test = (() => {
                                 key = reader.string();
                                 break;
                             case 2:
-                                value = $root.ord_test.MapNested.Child.decode(reader, reader.uint32());
+                                value = $root.ord_test.MapNested.Child.decode(reader, reader.uint32(), undefined, long + 1);
                                 break;
                             default:
-                                reader.skipType(tag2 & 7);
+                                reader.skipType(tag2 & 7, long);
                                 break;
                             }
                         }
+                        if (reader.pos !== end2)
+                            throw RangeError("index out of range");
+                        reader.len = end;
+                        if (key === "__proto__")
+                            $util.makeProp(message.children, key);
                         message.children[key] = value;
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
+            }
+            if (length !== undefined) {
+                if (reader.pos !== end)
+                    throw RangeError("index out of range");
+                reader.len = length;
             }
             return message;
         };
@@ -26083,15 +29169,19 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        MapNested.verify = function verify(message) {
+        MapNested.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.children != null && message.hasOwnProperty("children")) {
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
+            if (message.children != null && Object.hasOwnProperty.call(message, "children")) {
                 if (!$util.isObject(message.children))
                     return "children: object expected";
                 let key = Object.keys(message.children);
                 for (let i = 0; i < key.length; ++i) {
-                    let error = $root.ord_test.MapNested.Child.verify(message.children[key[i]]);
+                    let error = $root.ord_test.MapNested.Child.verify(message.children[key[i]], long + 1);
                     if (error)
                         return "children." + error;
                 }
@@ -26107,18 +29197,26 @@ export const ord_test = $root.ord_test = (() => {
          * @param {Object.<string,*>} object Plain object
          * @returns {ord_test.MapNested} MapNested
          */
-        MapNested.fromObject = function fromObject(object) {
+        MapNested.fromObject = function fromObject(object, long) {
             if (object instanceof $root.ord_test.MapNested)
                 return object;
+            if (!$util.isObject(object))
+                throw TypeError(".ord_test.MapNested: object expected");
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             let message = new $root.ord_test.MapNested();
             if (object.children) {
-                if (typeof object.children !== "object")
+                if (!$util.isObject(object.children))
                     throw TypeError(".ord_test.MapNested.children: object expected");
                 message.children = {};
                 for (let keys = Object.keys(object.children), i = 0; i < keys.length; ++i) {
-                    if (typeof object.children[keys[i]] !== "object")
+                    if (keys[i] === "__proto__")
+                        $util.makeProp(message.children, keys[i]);
+                    if (!$util.isObject(object.children[keys[i]]))
                         throw TypeError(".ord_test.MapNested.children: object expected");
-                    message.children[keys[i]] = $root.ord_test.MapNested.Child.fromObject(object.children[keys[i]]);
+                    message.children[keys[i]] = $root.ord_test.MapNested.Child.fromObject(object.children[keys[i]], long + 1);
                 }
             }
             return message;
@@ -26133,17 +29231,24 @@ export const ord_test = $root.ord_test = (() => {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        MapNested.toObject = function toObject(message, options) {
+        MapNested.toObject = function toObject(message, options, q) {
             if (!options)
                 options = {};
+            if (q === undefined)
+                q = 0;
+            if (q > $util.recursionLimit)
+                throw Error("max depth exceeded");
             let object = {};
             if (options.objects || options.defaults)
                 object.children = {};
             let keys2;
             if (message.children && (keys2 = Object.keys(message.children)).length) {
                 object.children = {};
-                for (let j = 0; j < keys2.length; ++j)
-                    object.children[keys2[j]] = $root.ord_test.MapNested.Child.toObject(message.children[keys2[j]], options);
+                for (let j = 0; j < keys2.length; ++j) {
+                    if (keys2[j] === "__proto__")
+                        $util.makeProp(object.children, keys2[j]);
+                    object.children[keys2[j]] = $root.ord_test.MapNested.Child.toObject(message.children[keys2[j]], options, q + 1);
+                }
             }
             return object;
         };
@@ -26194,7 +29299,7 @@ export const ord_test = $root.ord_test = (() => {
             function Child(properties) {
                 if (properties)
                     for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                        if (properties[keys[i]] != null)
+                        if (properties[keys[i]] != null && keys[i] !== "__proto__")
                             this[keys[i]] = properties[keys[i]];
             }
 
@@ -26236,9 +29341,13 @@ export const ord_test = $root.ord_test = (() => {
              * @param {$protobuf.Writer} [writer] Writer to encode to
              * @returns {$protobuf.Writer} Writer
              */
-            Child.encode = function encode(message, writer) {
+            Child.encode = function encode(message, writer, q) {
                 if (!writer)
                     writer = $Writer.create();
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 if (message.value != null && Object.hasOwnProperty.call(message, "value"))
                     writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
                 return writer;
@@ -26254,7 +29363,7 @@ export const ord_test = $root.ord_test = (() => {
              * @returns {$protobuf.Writer} Writer
              */
             Child.encodeDelimited = function encodeDelimited(message, writer) {
-                return this.encode(message, writer).ldelim();
+                return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
             };
 
             /**
@@ -26268,21 +29377,42 @@ export const ord_test = $root.ord_test = (() => {
              * @throws {Error} If the payload is not a reader or valid buffer
              * @throws {$protobuf.util.ProtocolError} If required fields are missing
              */
-            Child.decode = function decode(reader, length) {
+            Child.decode = function decode(reader, length, error, long) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord_test.MapNested.Child();
+                if (long === undefined)
+                    long = 0;
+                if (long > $Reader.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
+                let end, message;
+                if (length === undefined)
+                    end = reader.len;
+                else {
+                    end = reader.pos + length;
+                    if (end > reader.len)
+                        throw RangeError("index out of range");
+                    length = reader.len;
+                    reader.len = end;
+                }
+                message = new $root.ord_test.MapNested.Child();
                 while (reader.pos < end) {
                     let tag = reader.uint32();
+                    if (tag === error)
+                        break;
                     switch (tag >>> 3) {
                     case 1: {
                             message.value = reader.float();
                             break;
                         }
                     default:
-                        reader.skipType(tag & 7);
+                        reader.skipType(tag & 7, long);
                         break;
                     }
+                }
+                if (length !== undefined) {
+                    if (reader.pos !== end)
+                        throw RangeError("index out of range");
+                    reader.len = length;
                 }
                 return message;
             };
@@ -26311,11 +29441,15 @@ export const ord_test = $root.ord_test = (() => {
              * @param {Object.<string,*>} message Plain object to verify
              * @returns {string|null} `null` if valid, otherwise the reason why it is not
              */
-            Child.verify = function verify(message) {
+            Child.verify = function verify(message, long) {
                 if (typeof message !== "object" || message === null)
                     return "object expected";
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    return "maximum nesting depth exceeded";
                 let properties = {};
-                if (message.value != null && message.hasOwnProperty("value")) {
+                if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                     properties._value = 1;
                     if (typeof message.value !== "number")
                         return "value: number expected";
@@ -26331,9 +29465,15 @@ export const ord_test = $root.ord_test = (() => {
              * @param {Object.<string,*>} object Plain object
              * @returns {ord_test.MapNested.Child} Child
              */
-            Child.fromObject = function fromObject(object) {
+            Child.fromObject = function fromObject(object, long) {
                 if (object instanceof $root.ord_test.MapNested.Child)
                     return object;
+                if (!$util.isObject(object))
+                    throw TypeError(".ord_test.MapNested.Child: object expected");
+                if (long === undefined)
+                    long = 0;
+                if (long > $util.recursionLimit)
+                    throw Error("maximum nesting depth exceeded");
                 let message = new $root.ord_test.MapNested.Child();
                 if (object.value != null)
                     message.value = Number(object.value);
@@ -26349,11 +29489,15 @@ export const ord_test = $root.ord_test = (() => {
              * @param {$protobuf.IConversionOptions} [options] Conversion options
              * @returns {Object.<string,*>} Plain object
              */
-            Child.toObject = function toObject(message, options) {
+            Child.toObject = function toObject(message, options, q) {
                 if (!options)
                     options = {};
+                if (q === undefined)
+                    q = 0;
+                if (q > $util.recursionLimit)
+                    throw Error("max depth exceeded");
                 let object = {};
-                if (message.value != null && message.hasOwnProperty("value")) {
+                if (message.value != null && Object.hasOwnProperty.call(message, "value")) {
                     object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
                     if (options.oneofs)
                         object._value = "value";
