@@ -226,6 +226,24 @@ jobs:
         run: |
           cd js/ord_schema
           npm install-test
+      - name: Require the installed NPM package
+        run: |
+          # Jest runs inside js/ord_schema, where a require that leaves the package and comes
+          # back by the source directory's name still resolves. Only an installed copy sits
+          # under the package's own name, node_modules/ord-schema.
+          package="$(cd js/ord_schema && npm pack --pack-destination "${RUNNER_TEMP}" | tail -n 1)"
+          mkdir "${RUNNER_TEMP}/consumer"
+          cd "${RUNNER_TEMP}/consumer"
+          npm init -y
+          npm install "${RUNNER_TEMP}/${package}"
+          node -e "
+            const ord = require('ord-schema');
+            const dataset = new ord.Dataset();
+            dataset.addReactions(new ord.Reaction());
+            if (ord.Dataset.deserializeBinary(dataset.serializeBinary()).getReactionsList().length !== 1) {
+              process.exit(1);
+            }
+          "
 
   test_publish:
     runs-on: ubuntu-latest

@@ -37,7 +37,7 @@ var global =
     (function () { return this; }).call(null) ||
     Function('return this')();
 
-var ord_schema_proto_reaction_pb = require('../../ord_schema/proto/reaction_pb.js');
+var ord_schema_proto_reaction_pb = require('./reaction_pb.js');
 goog.object.extend(proto, ord_schema_proto_reaction_pb);
 goog.exportSymbol('proto.ord.Dataset', null, global);
 goog.exportSymbol('proto.ord.DatasetExample', null, global);

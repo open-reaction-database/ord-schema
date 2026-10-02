@@ -29,5 +29,12 @@ protoc \
   proto/ord_schema/proto/*.proto \
   --ts_out=./js/ \
 
+# protoc-gen-js and protoc-gen-ts reach a sibling file by climbing to the import root and
+# back down its path, ../../ord_schema/proto/. That leaves the npm package, which installs
+# as node_modules/ord-schema, so point those references at the sibling directly.
+perl -pi -e 's{\.\./\.\./ord_schema/proto/}{./}g' \
+  js/ord_schema/proto/*_pb.js \
+  js/ord_schema/proto/*_pb.d.ts
+
 pbjs -p proto proto/ord_schema/proto/*.proto -o js/ord-schema-protobufjs/index.js -w es6 -t static-module
 pbts js/ord-schema-protobufjs/index.js -o js/ord-schema-protobufjs/index.d.ts

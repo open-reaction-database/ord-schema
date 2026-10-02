@@ -18,7 +18,7 @@
 // file: ord_schema/proto/dataset.proto
 
 import * as jspb from "google-protobuf";
-import * as ord_schema_proto_reaction_pb from "../../ord_schema/proto/reaction_pb";
+import * as ord_schema_proto_reaction_pb from "./reaction_pb";
 
 export class Dataset extends jspb.Message {
   getName(): string;
