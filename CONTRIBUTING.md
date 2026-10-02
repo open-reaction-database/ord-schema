@@ -71,7 +71,8 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
        ```
 
     1. Create a new branch and make your changes. If you edit `proto/ord-schema/proto/*.proto`,
-       [install](https://grpc.io/docs/protoc-installation/) `protoc` and run
+       [install buf](https://buf.build/docs/cli/installation/) and
+       `npm i -g ts-protoc-gen@0.15.0 protobufjs@7.4.0 protobufjs-cli@1.1.3`, then run
        `./compile_proto_wrappers.sh` to rebuild the generated wrappers, and commit those too.
     1. Test your changes by syncing the environment and running the test suite, for example:
        `uv sync --extra tests` then `uv run pytest` (or `pytest` after activating the `.venv` that `uv` creates).
