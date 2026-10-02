@@ -1,0 +1,51 @@
+# Copyright 2026 Open Reaction Database Project Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[tool.bumpversion]
+current_version = "0.8.3"
+commit = true
+tag = true
+message = "Bump version: {current_version} → {new_version} [skip actions]"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "uv.lock"
+search = """
+[[package]]
+name = "ord-schema"
+version = "{current_version}"
+"""
+replace = """
+[[package]]
+name = "ord-schema"
+version = "{new_version}"
+"""
+
+[[tool.bumpversion.files]]
+glob = "js/*/package.json"
+search = '"version": "{current_version}"'
+replace = '"version": "{new_version}"'
+
+# Each lockfile records the package's own version in two entries, both a "version" directly
+# after "name": "ord-schema...". Locked dependencies have no such name line, so one at the
+# same version is left alone.
+[[tool.bumpversion.files]]
+glob = "js/*/package-lock.json"
+regex = true
+search = '"name": "(?P<package>ord-schema[-a-z]*)",(?P<gap>\s+)"version": "{current_version}"'
+replace = '"name": "\g<package>",\g<gap>"version": "{new_version}"'

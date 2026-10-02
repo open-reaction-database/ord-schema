@@ -29,7 +29,7 @@ on:
 
 jobs:
   # PyPA recommends splitting build (low privilege) from publish (OIDC). We keep one job because
-  # bump2version commits locally and we only push to main after PyPI + npm succeed; a second job
+  # bump-my-version commits locally and we only push to main after PyPI + npm succeed; a second job
   # cannot check out that unpublished commit without pushing first or shipping a full repo artifact.
   publish:
     if: github.repository == 'open-reaction-database/ord-schema'
@@ -61,8 +61,8 @@ jobs:
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          uv pip install --system bump2version
-          bump2version "${{ inputs.level }}" --verbose
+          uv pip install --system bump-my-version==1.5.1
+          bump-my-version bump "${{ inputs.level }}" --verbose
       # PyPI Trusted Publishing (OIDC); configure at https://docs.pypi.org/trusted-publishers/
       # for this repo + workflow file publish.yml (no PYPI_API_TOKEN / legacy upload).
       - name: Build Python distributions
@@ -81,16 +81,18 @@ jobs:
       # twine check and check_direct_dependencies.py.
       - name: Publish package distributions to PyPI
         run: uv publish --trusted-publishing always dist/*
+      # npm ci installs exactly what the lockfiles pin, and --ignore-scripts keeps every
+      # dependency's install scripts from running in a job that can mint publishing tokens.
       - name: Build and upload to NPM
         run: |
           cd js/ord-schema
-          npm install
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
           npm run build
           npm publish
       - name: Build and upload to NPM (protobufjs)
         run: |
           cd js/ord-schema-protobufjs
-          npm install
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
           npm run build
           npm publish
       - name: Push version bump and tags

@@ -239,7 +239,8 @@ jobs:
       - name: Test NPM package
         run: |
           cd js/ord-schema
-          npm install-test
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
+          npm test
       - name: Load the installed NPM package
         run: |
           # The generated files reach each other through ../../ord-schema/proto/, which resolves
@@ -319,12 +320,12 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - name: Bump patch without commit (for publish dry-runs)
         run: |
-          uv pip install --system bump2version
-          # Dry-run first: assert .bumpversion.cfg and every configured file still contain the
+          uv pip install --system bump-my-version==1.5.1
+          # Dry-run first: assert .bumpversion.toml and every configured file still contain the
           # expected current_version / search patterns before we mutate the tree (misconfig or
           # version drift fails here without leaving a half-updated checkout).
-          bump2version patch --dry-run --verbose
-          bump2version patch --no-commit --no-tag --verbose
+          bump-my-version bump patch --dry-run --verbose
+          bump-my-version bump patch --no-commit --no-tag --verbose
       - name: Test python
         run: |
           # Same pre-upload steps as publish.yml; PyPI upload runs only on main with secrets.
@@ -337,12 +338,12 @@ jobs:
       - name: Test javascript
         run: |
           cd js/ord-schema
-          npm install
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
           npm run build
           npm publish --dry-run
       - name: Test javascript (protobufjs)
         run: |
           cd js/ord-schema-protobufjs
-          npm install
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
           npm run build
           npm publish --dry-run
