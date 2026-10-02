@@ -1,5 +1,5 @@
 /**
- * Copyright 2024 Open Reaction Database Project Authors
+ * Copyright 2026 Open Reaction Database Project Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -416,7 +416,7 @@ proto.ord.DatasetExample.toObject = function(includeInstance, msg) {
   var f, obj = {
     datasetId: jspb.Message.getFieldWithDefault(msg, 1, ""),
     description: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    url: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    url: jspb.Message.getFieldWithDefault(msg, 13, ""),
     created: (f = msg.getCreated()) && ord$schema_proto_reaction_pb.RecordEvent.toObject(includeInstance, f)
   };
 
@@ -462,7 +462,7 @@ proto.ord.DatasetExample.deserializeBinaryFromReader = function(msg, reader) {
       var value = /** @type {string} */ (reader.readString());
       msg.setDescription(value);
       break;
-    case 3:
+    case 13:
       var value = /** @type {string} */ (reader.readString());
       msg.setUrl(value);
       break;
@@ -517,7 +517,7 @@ proto.ord.DatasetExample.serializeBinaryToWriter = function(message, writer) {
   f = message.getUrl();
   if (f.length > 0) {
     writer.writeString(
-      3,
+      13,
       f
     );
   }
@@ -569,11 +569,11 @@ proto.ord.DatasetExample.prototype.setDescription = function(value) {
 
 
 /**
- * optional string url = 3;
+ * optional string url = 13;
  * @return {string}
  */
 proto.ord.DatasetExample.prototype.getUrl = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 13, ""));
 };
 
 
@@ -582,7 +582,7 @@ proto.ord.DatasetExample.prototype.getUrl = function() {
  * @return {!proto.ord.DatasetExample} returns this
  */
 proto.ord.DatasetExample.prototype.setUrl = function(value) {
-  return jspb.Message.setProto3StringField(this, 3, value);
+  return jspb.Message.setProto3StringField(this, 13, value);
 };
 
 

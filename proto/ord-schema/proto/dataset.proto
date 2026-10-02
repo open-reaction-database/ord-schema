@@ -47,6 +47,6 @@ message Dataset {
 message DatasetExample {
   string dataset_id = 1;
   string description = 2;
-  string url = 3;
+  string url = 13;
   RecordEvent created = 4;
 }

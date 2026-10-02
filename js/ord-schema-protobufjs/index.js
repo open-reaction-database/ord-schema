@@ -454,10 +454,10 @@ export const ord = $root.ord = (() => {
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.datasetId);
             if (message.description != null && Object.hasOwnProperty.call(message, "description"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.description);
-            if (message.url != null && Object.hasOwnProperty.call(message, "url"))
-                writer.uint32(/* id 3, wireType 2 =*/26).string(message.url);
             if (message.created != null && Object.hasOwnProperty.call(message, "created"))
                 $root.ord.RecordEvent.encode(message.created, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+            if (message.url != null && Object.hasOwnProperty.call(message, "url"))
+                writer.uint32(/* id 13, wireType 2 =*/106).string(message.url);
             return writer;
         };
 
@@ -500,7 +500,7 @@ export const ord = $root.ord = (() => {
                         message.description = reader.string();
                         break;
                     }
-                case 3: {
+                case 13: {
                         message.url = reader.string();
                         break;
                     }
@@ -602,17 +602,17 @@ export const ord = $root.ord = (() => {
             if (options.defaults) {
                 object.datasetId = "";
                 object.description = "";
-                object.url = "";
                 object.created = null;
+                object.url = "";
             }
             if (message.datasetId != null && message.hasOwnProperty("datasetId"))
                 object.datasetId = message.datasetId;
             if (message.description != null && message.hasOwnProperty("description"))
                 object.description = message.description;
-            if (message.url != null && message.hasOwnProperty("url"))
-                object.url = message.url;
             if (message.created != null && message.hasOwnProperty("created"))
                 object.created = $root.ord.RecordEvent.toObject(message.created, options);
+            if (message.url != null && message.hasOwnProperty("url"))
+                object.url = message.url;
             return object;
         };
 
