@@ -323,12 +323,13 @@ jobs:
           # of direct (URL) dependencies, which otherwise fails at upload time in publish.yml.
           python .github/scripts/check_direct_dependencies.py dist/*
       - name: Check that the lockfiles bump cleanly
-        # bump2version rewrites every '"version": "<current>"' line in each lockfile. Those
-        # have to be the package's own two entries: a locked dependency at the same version
-        # would be rewritten too, and a missing one means the lockfile lags package.json.
+        # bump2version rewrites every '"version": "<current_version>"' line in each lockfile,
+        # taking current_version from .bumpversion.cfg. Those lines have to be the package's
+        # own two entries: a locked dependency at that version would be rewritten too, and a
+        # missing entry means the lockfile has fallen out of step with the release version.
         run: |
+          version="$(sed -nE 's/^current_version = (.+)$/\1/p' .bumpversion.cfg)"
           for directory in js/ord-schema js/ord-schema-protobufjs; do
-            version="$(node -p "require('./${directory}/package.json').version")"
             count="$(grep -cF "\"version\": \"${version}\"" "${directory}/package-lock.json" || true)"
             if [ "${count}" -ne 2 ]; then
               printf '%s/package-lock.json has %s lines reading "version": "%s", not 2\n' \
