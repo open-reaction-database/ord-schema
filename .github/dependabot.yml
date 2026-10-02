@@ -26,3 +26,13 @@ updates:
       actions:
         patterns:
           - "*"
+  # The code-generation toolchain in package.json. A bump that changes generated output
+  # fails test_proto_wrappers until the pull request also regenerates the wrappers.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      codegen:
+        patterns:
+          - "*"

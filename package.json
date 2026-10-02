@@ -1,0 +1,12 @@
+{
+  "name": "ord-schema-codegen",
+  "private": true,
+  "description": "The pinned toolchain compile_proto_wrappers.sh and the buf CI jobs run; not published.",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@bufbuild/buf": "1.72.0",
+    "protobufjs": "7.4.0",
+    "protobufjs-cli": "1.1.3",
+    "ts-protoc-gen": "0.15.0"
+  }
+}
