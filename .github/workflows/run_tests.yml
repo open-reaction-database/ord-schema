@@ -224,14 +224,14 @@ jobs:
           node-version: '24'
       - name: Test NPM package
         run: |
-          cd js/ord_schema
+          cd js/ord-schema
           npm install-test
       - name: Load the installed NPM package
         run: |
-          # Jest runs inside js/ord_schema, where a require that leaves the package and comes
-          # back by the source directory's name still resolves. Only an installed copy sits
-          # under the package's own name, node_modules/ord-schema.
-          package="$(cd js/ord_schema && npm pack --pack-destination "${RUNNER_TEMP}" | tail -n 1)"
+          # Jest runs against the source tree. This loads the packed package the way a
+          # consumer gets it, from node_modules/ord-schema, so a path that resolves only
+          # inside the repository fails here.
+          package="$(cd js/ord-schema && npm pack --pack-destination "${RUNNER_TEMP}" | tail -n 1)"
           mkdir "${RUNNER_TEMP}/consumer"
           cd "${RUNNER_TEMP}/consumer"
           npm init -y
@@ -290,7 +290,7 @@ jobs:
           python .github/scripts/check_direct_dependencies.py dist/*
       - name: Test javascript
         run: |
-          cd js/ord_schema
+          cd js/ord-schema
           npm install
           npm run build
           npm publish --dry-run
