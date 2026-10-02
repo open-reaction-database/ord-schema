@@ -220,9 +220,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          # buf reads the baseline out of the local clone, so the full fetch is what
-          # supplies it: a shallow checkout has neither main's history nor a ref that
-          # points at it.
+          # buf reads the baseline out of the local clone, which needs the full fetch: a
+          # shallow checkout has neither main's history nor a ref pointing at it.
           fetch-depth: 0
       - uses: bufbuild/buf-action@85aebf73123b5c15fd5528aaecbf9129cddf7fa7 # v1.6.0
         with:
