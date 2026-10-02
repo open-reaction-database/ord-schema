@@ -81,16 +81,18 @@ jobs:
       # twine check and check_direct_dependencies.py.
       - name: Publish package distributions to PyPI
         run: uv publish --trusted-publishing always dist/*
+      # npm ci installs exactly what the lockfiles pin, and --ignore-scripts keeps every
+      # dependency's install scripts from running in a job that can mint publishing tokens.
       - name: Build and upload to NPM
         run: |
           cd js/ord-schema
-          npm install
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
           npm run build
           npm publish
       - name: Build and upload to NPM (protobufjs)
         run: |
           cd js/ord-schema-protobufjs
-          npm install
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
           npm run build
           npm publish
       - name: Push version bump and tags

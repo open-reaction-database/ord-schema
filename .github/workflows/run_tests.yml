@@ -239,7 +239,8 @@ jobs:
       - name: Test NPM package
         run: |
           cd js/ord-schema
-          npm install-test
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
+          npm test
       - name: Load the installed NPM package
         run: |
           # The generated files reach each other through ../../ord-schema/proto/, which resolves
@@ -324,12 +325,12 @@ jobs:
       - name: Test javascript
         run: |
           cd js/ord-schema
-          npm install
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
           npm run build
           npm publish --dry-run
       - name: Test javascript (protobufjs)
         run: |
           cd js/ord-schema-protobufjs
-          npm install
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
           npm run build
           npm publish --dry-run

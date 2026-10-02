@@ -40,3 +40,12 @@ version = "{new_version}"
 glob = "js/*/package.json"
 search = '"version": "{current_version}"'
 replace = '"version": "{new_version}"'
+
+# Each lockfile records the package's own version in two entries, both a "version" directly
+# after "name": "ord-schema...". Locked dependencies have no such name line, so one at the
+# same version is left alone.
+[[tool.bumpversion.files]]
+glob = "js/*/package-lock.json"
+regex = true
+search = '"name": "(?P<package>ord-schema[-a-z]*)",(?P<gap>\s+)"version": "{current_version}"'
+replace = '"name": "\g<package>",\g<gap>"version": "{new_version}"'
