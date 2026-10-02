@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-import * as Dataset from './proto/dataset_pb';
-import * as Reaction from './proto/reaction_pb';
-
-export default {
-    ...Dataset,
-    ...Reaction,
-}
+// index.js assigns module.exports, so its names are named exports here. A default import
+// still works where TypeScript synthesizes one from the module, and declaring a default
+// would claim a property the JavaScript does not have.
+export * from './proto/dataset_pb';
+export * from './proto/reaction_pb';

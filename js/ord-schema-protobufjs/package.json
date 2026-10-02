@@ -3,6 +3,10 @@
   "version": "0.8.3",
   "description": "Schema for the Open Reaction Database",
   "main": "index.js",
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
   "scripts": {
     "build": "webpack",
     "test": "jest"
