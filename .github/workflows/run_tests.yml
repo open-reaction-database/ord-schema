@@ -235,7 +235,9 @@ jobs:
           mkdir "${RUNNER_TEMP}/consumer"
           cd "${RUNNER_TEMP}/consumer"
           npm init -y
-          npm install "${RUNNER_TEMP}/${package}" typescript@5.8.3 @types/google-protobuf@3.15.12
+          # The google-protobuf types the declarations import come from the package's own
+          # dependencies; tsc below fails with TS7016 when they are missing.
+          npm install "${RUNNER_TEMP}/${package}" typescript@5.8.3
           node -e "
             const ord = require('ord-schema');
             const dataset = new ord.Dataset();
@@ -244,14 +246,31 @@ jobs:
               process.exit(1);
             }
           "
-          # The declarations import each other the same way. Under skipLibCheck an import
-          # that does not resolve turns the types into any without an error, so tsc checks the
-          # package's own declarations here.
+          # Node's ESM loader sees only the names index.js lists, and the declarations promise
+          # every name require returns, so each one has to import by name.
+          node --input-type=module -e "
+            import { createRequire } from 'node:module';
+            import * as ord from 'ord-schema';
+            const names = Object.keys(createRequire(import.meta.url)('ord-schema'));
+            const missing = names.filter((name) => !(name in ord));
+            if (missing.length > 0) {
+              console.error('not importable by name from ESM:', missing.join(', '));
+              process.exit(1);
+            }
+          "
+          # The declarations also reach each other through ../../ord-schema/proto/. Under
+          # skipLibCheck an import that does not resolve turns the types into any without an
+          # error, so tsc checks the package's own declarations here: deep imports, named
+          # imports from the entry point, and a default import used as a namespace in value
+          # and type positions.
           cat > consumer.ts <<'EOF'
+          import ord, { Dataset as EntryDataset, Reaction as EntryReaction } from 'ord-schema';
           import { Dataset } from 'ord-schema/proto/dataset_pb';
           import { Reaction } from 'ord-schema/proto/reaction_pb';
           const reactions: Reaction[] = new Dataset().getReactionsList();
-          console.log(reactions.length);
+          const entryReactions: EntryReaction[] = new EntryDataset().getReactionsList();
+          const reaction: ord.Reaction = ord.Reaction.deserializeBinary(new Uint8Array());
+          console.log(reactions.length, entryReactions.length, reaction.getIdentifiersList().length);
           EOF
           npx tsc --noEmit --strict --target es2022 --module esnext --moduleResolution bundler \
             consumer.ts
