@@ -26,7 +26,7 @@ set -ex
 #   --plugin=${HOME}/go/bin/protoc-gen-doc \
 #   --doc_opt=markdown,protos.md:test.proto \
 #   --doc_out=. \
-#   ord_schema/proto/reaction.proto ord_schema/proto/dataset.proto
+#   ord-schema/proto/reaction.proto ord-schema/proto/dataset.proto
 
 # Generate RST for ord-schema.
 sphinx-apidoc -fTM -o ord_schema -t _templates ../ord_schema \

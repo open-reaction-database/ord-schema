@@ -17,28 +17,19 @@
 # Make sure you have protoc in your PATH; see https://grpc.io/docs/protoc-installation/.
 set -ex
 
-# proto/ is the import root. A file's path under it is what protoc embeds in the
-# descriptor and names the generated modules after, so it mirrors the ord_schema.proto
-# package: proto/ord_schema/proto/reaction.proto yields ord_schema/proto/reaction_pb2.py.
-# The JavaScript generators place their output by the same path, so it is written to a
-# scratch directory and moved into the npm package's own directory, js/ord-schema/proto/.
-js_out="$(mktemp -d)"
-trap 'rm -rf "${js_out}"' EXIT
+# proto/ is the import root, and a file's path under it is what protoc embeds in the
+# descriptor and places generated code by. proto/ord-schema/proto/reaction.proto yields
+# ord_schema/proto/reaction_pb2.py, since protoc spells the hyphen as an underscore for
+# Python, and js/ord-schema/proto/reaction_pb.js. The JavaScript files reach each other
+# through ../../ord-schema/proto/, which resolves in the source tree and in an installed
+# package only because the directory shares the npm package's name.
 protoc \
   --proto_path=proto \
   --python_out=. \
   --pyi_out=. \
-  --js_out=import_style=commonjs,binary:"${js_out}" \
-  --ts_out="${js_out}" \
-  proto/ord_schema/proto/*.proto
-mv "${js_out}"/ord_schema/proto/*_pb.* js/ord-schema/proto/
+  --js_out=import_style=commonjs,binary:js \
+  --ts_out=js \
+  proto/ord-schema/proto/*.proto
 
-# protoc-gen-js and protoc-gen-ts reach a sibling file by climbing to the import root and
-# back down its path, ../../ord_schema/proto/, which does not exist inside the package.
-# Point those references at the sibling directly.
-perl -pi -e 's{\.\./\.\./ord_schema/proto/}{./}g' \
-  js/ord-schema/proto/*_pb.js \
-  js/ord-schema/proto/*_pb.d.ts
-
-pbjs -p proto proto/ord_schema/proto/*.proto -o js/ord-schema-protobufjs/index.js -w es6 -t static-module
+pbjs -p proto proto/ord-schema/proto/*.proto -o js/ord-schema-protobufjs/index.js -w es6 -t static-module
 pbts js/ord-schema-protobufjs/index.js -o js/ord-schema-protobufjs/index.d.ts
