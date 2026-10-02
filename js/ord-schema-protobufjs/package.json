@@ -23,7 +23,7 @@
   },
   "homepage": "https://open-reaction-database.org",
   "dependencies": {
-    "protobufjs": "^7.4.0"
+    "protobufjs": "^7.6.6"
   },
   "devDependencies": {
     "jest": "^29.3.1",
