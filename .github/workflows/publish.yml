@@ -104,9 +104,9 @@ jobs:
           gh release create "${TAG}" --generate-notes
 
   # A job of its own, so the buf action and the BSR token never share a job with the
-  # id-token permission above. It pushes the newest release tag rather than taking one
-  # from publish, so it also runs when publish fails after pushing its tag, and a re-run
-  # of an older workflow cannot move latest back to an older release.
+  # id-token permission above. It pushes the newest release tag in the repository, which
+  # lets it run when publish fails after pushing its tag and keeps a re-run of an older
+  # workflow from moving latest back to an older release.
   push_proto:
     needs: publish
     if: ${{ !cancelled() && github.repository == 'open-reaction-database/ord-schema' }}
@@ -116,7 +116,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          # The release tags, which the newest one is chosen from.
+          # Brings in the release tags the push step picks from.
           fetch-depth: 0
       - uses: bufbuild/buf-action@85aebf73123b5c15fd5528aaecbf9129cddf7fa7 # v1.6.0
         with:
