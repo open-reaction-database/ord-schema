@@ -41,6 +41,8 @@ jobs:
     permissions:
       contents: write
       id-token: write  # PyPI + npm trusted publishing (OIDC).
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -58,11 +60,13 @@ jobs:
           # https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
           registry-url: 'https://registry.npmjs.org'
       - name: Bump version
+        id: bump
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
           uv pip install --system bump2version
           bump2version "${{ inputs.level }}" --verbose
+          echo "tag=$(git describe --tags --exact-match HEAD)" >> "${GITHUB_OUTPUT}"
       # PyPI Trusted Publishing (OIDC); configure at https://docs.pypi.org/trusted-publishers/
       # for this repo + workflow file publish.yml (no PYPI_API_TOKEN / legacy upload).
       - name: Build Python distributions
@@ -102,3 +106,27 @@ jobs:
           # https://gist.github.com/rponte/fdc0724dd984088606b0?permalink_comment_id=3064455#gistcomment-3064455
           TAG="$(git tag --sort=-v:refname | head -n 1)"
           gh release create "${TAG}" --generate-notes
+
+  # A job of its own, so the buf action and the BSR token never share a job with the
+  # id-token permission above.
+  push_proto:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.publish.outputs.tag }}
+      - uses: bufbuild/buf-action@85aebf73123b5c15fd5528aaecbf9129cddf7fa7 # v1.6.0
+        with:
+          version: '1.72.0'
+          setup_only: true
+      - name: Push the release to the BSR
+        env:
+          BUF_TOKEN: ${{ secrets.BUF_TOKEN }}
+          TAG: ${{ needs.publish.outputs.tag }}
+        run: >-
+          buf push
+          --label "${TAG}"
+          --source-control-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/$(git rev-parse HEAD)"
