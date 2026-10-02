@@ -306,12 +306,12 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - name: Bump patch without commit (for publish dry-runs)
         run: |
-          uv pip install --system bump2version
-          # Dry-run first: assert .bumpversion.cfg and every configured file still contain the
+          uv pip install --system bump-my-version==1.5.1
+          # Dry-run first: assert .bumpversion.toml and every configured file still contain the
           # expected current_version / search patterns before we mutate the tree (misconfig or
           # version drift fails here without leaving a half-updated checkout).
-          bump2version patch --dry-run --verbose
-          bump2version patch --no-commit --no-tag --verbose
+          bump-my-version bump patch --dry-run --verbose
+          bump-my-version bump patch --no-commit --no-tag --verbose
       - name: Test python
         run: |
           # Same pre-upload steps as publish.yml; PyPI upload runs only on main with secrets.

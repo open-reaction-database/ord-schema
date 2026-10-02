@@ -56,10 +56,10 @@ jobs:
           python-version: '3.11'
       - name: Install ord-schema
         run: uv sync --extra examples --extra tests --locked
-      - name: Verify bump2version config (dry-run)
+      - name: Verify bump-my-version config (dry-run)
         run: |
-          uv pip install --system bump2version
-          bump2version patch --dry-run --verbose
+          uv pip install --system bump-my-version==1.5.1
+          bump-my-version bump patch --dry-run --verbose
       - name: Run ruff
         run: |
           uv run ruff check .
