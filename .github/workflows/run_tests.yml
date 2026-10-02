@@ -224,12 +224,13 @@ jobs:
           # supplies it: a shallow checkout has neither main's history nor a ref that
           # points at it.
           fetch-depth: 0
-      - uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
+      - uses: bufbuild/buf-action@85aebf73123b5c15fd5528aaecbf9129cddf7fa7 # v1.6.0
         with:
           # Pin the CLI: a floating version can report new findings on a schema that
           # did not change.
           version: '1.72.0'
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Install buf only; the next step runs the breaking check with its own baseline.
+          setup_only: true
       - name: Check for breaking schema changes
         # Every .pb.gz and .parquet in ord-data is read by field number, so a renumbering
         # quietly changes what existing records mean instead of failing loudly.
