@@ -36,6 +36,16 @@ updates:
       codegen:
         patterns:
           - "*"
+    ignore:
+      # The bundle protobufjs-cli 2 generates needs the protobufjs 8 runtime and imports
+      # protobufjs/minimal.js by default import. webpack's default production build turns its
+      # assignment to $protobuf.roots["default"] into an assignment to a call and fails, in
+      # this repository's own build and in any consumer's webpack build. The pair moves
+      # together, by hand.
+      - dependency-name: protobufjs
+        update-types: ["version-update:semver-major"]
+      - dependency-name: protobufjs-cli
+        update-types: ["version-update:semver-major"]
   # The published npm packages. Their lockfiles pin what CI and the release install, while
   # consumers resolve from the package.json ranges, which npm publishes and these updates
   # leave alone.
