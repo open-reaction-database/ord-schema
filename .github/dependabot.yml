@@ -37,10 +37,11 @@ updates:
         patterns:
           - "*"
     ignore:
-      # protobufjs-cli 2 needs protobufjs 8 at runtime and emits a default import of
-      # protobufjs/minimal.js. webpack's default production build turns the bundle's
+      # The bundle protobufjs-cli 2 generates needs the protobufjs 8 runtime and imports
+      # protobufjs/minimal.js by default import. webpack's default production build turns its
       # assignment to $protobuf.roots["default"] into an assignment to a call and fails, in
-      # this repository's own build and in any consumer's. The pair moves together, by hand.
+      # this repository's own build and in any consumer's webpack build. The pair moves
+      # together, by hand.
       - dependency-name: protobufjs
         update-types: ["version-update:semver-major"]
       - dependency-name: protobufjs-cli
