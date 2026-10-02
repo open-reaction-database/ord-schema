@@ -72,7 +72,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
@@ -123,7 +123,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
@@ -247,8 +247,37 @@ jobs:
           node-version: '24'
       - name: Test NPM package
         run: |
-          cd js/ord_schema
+          cd js/ord-schema
           npm install-test
+      - name: Load the installed NPM package
+        run: |
+          # The generated files reach each other through ../../ord-schema/proto/, which resolves
+          # only while the package sits in a directory named ord-schema. Jest runs against the
+          # source tree, so this loads the packed package from node_modules as consumers do.
+          package="$(cd js/ord-schema && npm pack --pack-destination "${RUNNER_TEMP}" | tail -n 1)"
+          mkdir "${RUNNER_TEMP}/consumer"
+          cd "${RUNNER_TEMP}/consumer"
+          npm init -y
+          npm install "${RUNNER_TEMP}/${package}" typescript@5.8.3 @types/google-protobuf@3.15.12
+          node -e "
+            const ord = require('ord-schema');
+            const dataset = new ord.Dataset();
+            dataset.addReactions(new ord.Reaction());
+            if (ord.Dataset.deserializeBinary(dataset.serializeBinary()).getReactionsList().length !== 1) {
+              process.exit(1);
+            }
+          "
+          # The declarations import each other the same way. Under skipLibCheck an import
+          # that does not resolve turns the types into any without an error, so tsc checks the
+          # package's own declarations here.
+          cat > consumer.ts <<'EOF'
+          import { Dataset } from 'ord-schema/proto/dataset_pb';
+          import { Reaction } from 'ord-schema/proto/reaction_pb';
+          const reactions: Reaction[] = new Dataset().getReactionsList();
+          console.log(reactions.length);
+          EOF
+          npx tsc --noEmit --strict --target es2022 --module esnext --moduleResolution bundler \
+            consumer.ts
 
   test_publish:
     runs-on: ubuntu-latest
@@ -257,7 +286,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: '3.11'
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -284,7 +313,7 @@ jobs:
           python .github/scripts/check_direct_dependencies.py dist/*
       - name: Test javascript
         run: |
-          cd js/ord_schema
+          cd js/ord-schema
           npm install
           npm run build
           npm publish --dry-run
