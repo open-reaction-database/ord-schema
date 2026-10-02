@@ -17,13 +17,19 @@
 # Make sure you have protoc in your PATH; see https://grpc.io/docs/protoc-installation/.
 set -ex
 
+# proto/ is the import root, and a file's path under it is what protoc embeds in the
+# descriptor and places generated code by. proto/ord-schema/proto/reaction.proto yields
+# ord_schema/proto/reaction_pb2.py, since protoc spells the hyphen as an underscore for
+# Python, and js/ord-schema/proto/reaction_pb.js. The JavaScript files reach each other
+# through ../../ord-schema/proto/, which resolves in the source tree and in an installed
+# package only because the directory shares the npm package's name.
 protoc \
-  --proto_path=.. \
+  --proto_path=proto \
   --python_out=. \
   --pyi_out=. \
   --js_out=import_style=commonjs,binary:js \
-  ../ord-schema/proto/*.proto \
-  --ts_out=./js/ \
+  --ts_out=js \
+  proto/ord-schema/proto/*.proto
 
-pbjs -p proto/*.proto -o js/ord-schema-protobufjs/index.js -w es6 -t static-module
+pbjs -p proto proto/ord-schema/proto/*.proto -o js/ord-schema-protobufjs/index.js -w es6 -t static-module
 pbts js/ord-schema-protobufjs/index.js -o js/ord-schema-protobufjs/index.d.ts

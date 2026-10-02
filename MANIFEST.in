@@ -1,1 +1,1 @@
-include proto/*.proto
+include proto/ord-schema/proto/*.proto

@@ -22,7 +22,7 @@ set -ex
 # NOTE(kearnes): Uncomment this section if we decide to use these docs.
 # go get -u github.com/pseudomuto/protoc-gen-doc/cmd/protoc-gen-doc
 # protoc \
-#   --proto_path=../.. \
+#   --proto_path=../proto \
 #   --plugin=${HOME}/go/bin/protoc-gen-doc \
 #   --doc_opt=markdown,protos.md:test.proto \
 #   --doc_out=. \

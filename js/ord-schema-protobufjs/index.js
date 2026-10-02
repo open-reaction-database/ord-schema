@@ -32,6 +32,619 @@ export const ord = $root.ord = (() => {
      */
     const ord = {};
 
+    ord.Dataset = (function() {
+
+        /**
+         * Properties of a Dataset.
+         * @memberof ord
+         * @interface IDataset
+         * @property {string|null} [name] Dataset name
+         * @property {string|null} [description] Dataset description
+         * @property {Array.<ord.IReaction>|null} [reactions] Dataset reactions
+         * @property {Array.<string>|null} [reactionIds] Dataset reactionIds
+         * @property {string|null} [datasetId] Dataset datasetId
+         */
+
+        /**
+         * Constructs a new Dataset.
+         * @memberof ord
+         * @classdesc Represents a Dataset.
+         * @implements IDataset
+         * @constructor
+         * @param {ord.IDataset=} [properties] Properties to set
+         */
+        function Dataset(properties) {
+            this.reactions = [];
+            this.reactionIds = [];
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * Dataset name.
+         * @member {string} name
+         * @memberof ord.Dataset
+         * @instance
+         */
+        Dataset.prototype.name = "";
+
+        /**
+         * Dataset description.
+         * @member {string} description
+         * @memberof ord.Dataset
+         * @instance
+         */
+        Dataset.prototype.description = "";
+
+        /**
+         * Dataset reactions.
+         * @member {Array.<ord.IReaction>} reactions
+         * @memberof ord.Dataset
+         * @instance
+         */
+        Dataset.prototype.reactions = $util.emptyArray;
+
+        /**
+         * Dataset reactionIds.
+         * @member {Array.<string>} reactionIds
+         * @memberof ord.Dataset
+         * @instance
+         */
+        Dataset.prototype.reactionIds = $util.emptyArray;
+
+        /**
+         * Dataset datasetId.
+         * @member {string} datasetId
+         * @memberof ord.Dataset
+         * @instance
+         */
+        Dataset.prototype.datasetId = "";
+
+        /**
+         * Creates a new Dataset instance using the specified properties.
+         * @function create
+         * @memberof ord.Dataset
+         * @static
+         * @param {ord.IDataset=} [properties] Properties to set
+         * @returns {ord.Dataset} Dataset instance
+         */
+        Dataset.create = function create(properties) {
+            return new Dataset(properties);
+        };
+
+        /**
+         * Encodes the specified Dataset message. Does not implicitly {@link ord.Dataset.verify|verify} messages.
+         * @function encode
+         * @memberof ord.Dataset
+         * @static
+         * @param {ord.IDataset} message Dataset message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        Dataset.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.name);
+            if (message.description != null && Object.hasOwnProperty.call(message, "description"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.description);
+            if (message.reactions != null && message.reactions.length)
+                for (let i = 0; i < message.reactions.length; ++i)
+                    $root.ord.Reaction.encode(message.reactions[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+            if (message.reactionIds != null && message.reactionIds.length)
+                for (let i = 0; i < message.reactionIds.length; ++i)
+                    writer.uint32(/* id 4, wireType 2 =*/34).string(message.reactionIds[i]);
+            if (message.datasetId != null && Object.hasOwnProperty.call(message, "datasetId"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.datasetId);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified Dataset message, length delimited. Does not implicitly {@link ord.Dataset.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof ord.Dataset
+         * @static
+         * @param {ord.IDataset} message Dataset message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        Dataset.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a Dataset message from the specified reader or buffer.
+         * @function decode
+         * @memberof ord.Dataset
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {ord.Dataset} Dataset
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        Dataset.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.Dataset();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1: {
+                        message.name = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.description = reader.string();
+                        break;
+                    }
+                case 3: {
+                        if (!(message.reactions && message.reactions.length))
+                            message.reactions = [];
+                        message.reactions.push($root.ord.Reaction.decode(reader, reader.uint32()));
+                        break;
+                    }
+                case 4: {
+                        if (!(message.reactionIds && message.reactionIds.length))
+                            message.reactionIds = [];
+                        message.reactionIds.push(reader.string());
+                        break;
+                    }
+                case 5: {
+                        message.datasetId = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a Dataset message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof ord.Dataset
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {ord.Dataset} Dataset
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        Dataset.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a Dataset message.
+         * @function verify
+         * @memberof ord.Dataset
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        Dataset.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.name != null && message.hasOwnProperty("name"))
+                if (!$util.isString(message.name))
+                    return "name: string expected";
+            if (message.description != null && message.hasOwnProperty("description"))
+                if (!$util.isString(message.description))
+                    return "description: string expected";
+            if (message.reactions != null && message.hasOwnProperty("reactions")) {
+                if (!Array.isArray(message.reactions))
+                    return "reactions: array expected";
+                for (let i = 0; i < message.reactions.length; ++i) {
+                    let error = $root.ord.Reaction.verify(message.reactions[i]);
+                    if (error)
+                        return "reactions." + error;
+                }
+            }
+            if (message.reactionIds != null && message.hasOwnProperty("reactionIds")) {
+                if (!Array.isArray(message.reactionIds))
+                    return "reactionIds: array expected";
+                for (let i = 0; i < message.reactionIds.length; ++i)
+                    if (!$util.isString(message.reactionIds[i]))
+                        return "reactionIds: string[] expected";
+            }
+            if (message.datasetId != null && message.hasOwnProperty("datasetId"))
+                if (!$util.isString(message.datasetId))
+                    return "datasetId: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a Dataset message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof ord.Dataset
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {ord.Dataset} Dataset
+         */
+        Dataset.fromObject = function fromObject(object) {
+            if (object instanceof $root.ord.Dataset)
+                return object;
+            let message = new $root.ord.Dataset();
+            if (object.name != null)
+                message.name = String(object.name);
+            if (object.description != null)
+                message.description = String(object.description);
+            if (object.reactions) {
+                if (!Array.isArray(object.reactions))
+                    throw TypeError(".ord.Dataset.reactions: array expected");
+                message.reactions = [];
+                for (let i = 0; i < object.reactions.length; ++i) {
+                    if (typeof object.reactions[i] !== "object")
+                        throw TypeError(".ord.Dataset.reactions: object expected");
+                    message.reactions[i] = $root.ord.Reaction.fromObject(object.reactions[i]);
+                }
+            }
+            if (object.reactionIds) {
+                if (!Array.isArray(object.reactionIds))
+                    throw TypeError(".ord.Dataset.reactionIds: array expected");
+                message.reactionIds = [];
+                for (let i = 0; i < object.reactionIds.length; ++i)
+                    message.reactionIds[i] = String(object.reactionIds[i]);
+            }
+            if (object.datasetId != null)
+                message.datasetId = String(object.datasetId);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a Dataset message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof ord.Dataset
+         * @static
+         * @param {ord.Dataset} message Dataset
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        Dataset.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.arrays || options.defaults) {
+                object.reactions = [];
+                object.reactionIds = [];
+            }
+            if (options.defaults) {
+                object.name = "";
+                object.description = "";
+                object.datasetId = "";
+            }
+            if (message.name != null && message.hasOwnProperty("name"))
+                object.name = message.name;
+            if (message.description != null && message.hasOwnProperty("description"))
+                object.description = message.description;
+            if (message.reactions && message.reactions.length) {
+                object.reactions = [];
+                for (let j = 0; j < message.reactions.length; ++j)
+                    object.reactions[j] = $root.ord.Reaction.toObject(message.reactions[j], options);
+            }
+            if (message.reactionIds && message.reactionIds.length) {
+                object.reactionIds = [];
+                for (let j = 0; j < message.reactionIds.length; ++j)
+                    object.reactionIds[j] = message.reactionIds[j];
+            }
+            if (message.datasetId != null && message.hasOwnProperty("datasetId"))
+                object.datasetId = message.datasetId;
+            return object;
+        };
+
+        /**
+         * Converts this Dataset to JSON.
+         * @function toJSON
+         * @memberof ord.Dataset
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        Dataset.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for Dataset
+         * @function getTypeUrl
+         * @memberof ord.Dataset
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        Dataset.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/ord.Dataset";
+        };
+
+        return Dataset;
+    })();
+
+    ord.DatasetExample = (function() {
+
+        /**
+         * Properties of a DatasetExample.
+         * @memberof ord
+         * @interface IDatasetExample
+         * @property {string|null} [datasetId] DatasetExample datasetId
+         * @property {string|null} [description] DatasetExample description
+         * @property {string|null} [url] DatasetExample url
+         * @property {ord.IRecordEvent|null} [created] DatasetExample created
+         */
+
+        /**
+         * Constructs a new DatasetExample.
+         * @memberof ord
+         * @classdesc Represents a DatasetExample.
+         * @implements IDatasetExample
+         * @constructor
+         * @param {ord.IDatasetExample=} [properties] Properties to set
+         */
+        function DatasetExample(properties) {
+            if (properties)
+                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * DatasetExample datasetId.
+         * @member {string} datasetId
+         * @memberof ord.DatasetExample
+         * @instance
+         */
+        DatasetExample.prototype.datasetId = "";
+
+        /**
+         * DatasetExample description.
+         * @member {string} description
+         * @memberof ord.DatasetExample
+         * @instance
+         */
+        DatasetExample.prototype.description = "";
+
+        /**
+         * DatasetExample url.
+         * @member {string} url
+         * @memberof ord.DatasetExample
+         * @instance
+         */
+        DatasetExample.prototype.url = "";
+
+        /**
+         * DatasetExample created.
+         * @member {ord.IRecordEvent|null|undefined} created
+         * @memberof ord.DatasetExample
+         * @instance
+         */
+        DatasetExample.prototype.created = null;
+
+        /**
+         * Creates a new DatasetExample instance using the specified properties.
+         * @function create
+         * @memberof ord.DatasetExample
+         * @static
+         * @param {ord.IDatasetExample=} [properties] Properties to set
+         * @returns {ord.DatasetExample} DatasetExample instance
+         */
+        DatasetExample.create = function create(properties) {
+            return new DatasetExample(properties);
+        };
+
+        /**
+         * Encodes the specified DatasetExample message. Does not implicitly {@link ord.DatasetExample.verify|verify} messages.
+         * @function encode
+         * @memberof ord.DatasetExample
+         * @static
+         * @param {ord.IDatasetExample} message DatasetExample message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        DatasetExample.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.datasetId != null && Object.hasOwnProperty.call(message, "datasetId"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.datasetId);
+            if (message.description != null && Object.hasOwnProperty.call(message, "description"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.description);
+            if (message.url != null && Object.hasOwnProperty.call(message, "url"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.url);
+            if (message.created != null && Object.hasOwnProperty.call(message, "created"))
+                $root.ord.RecordEvent.encode(message.created, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified DatasetExample message, length delimited. Does not implicitly {@link ord.DatasetExample.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof ord.DatasetExample
+         * @static
+         * @param {ord.IDatasetExample} message DatasetExample message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        DatasetExample.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a DatasetExample message from the specified reader or buffer.
+         * @function decode
+         * @memberof ord.DatasetExample
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {ord.DatasetExample} DatasetExample
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        DatasetExample.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.ord.DatasetExample();
+            while (reader.pos < end) {
+                let tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1: {
+                        message.datasetId = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.description = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.url = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.created = $root.ord.RecordEvent.decode(reader, reader.uint32());
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a DatasetExample message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof ord.DatasetExample
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {ord.DatasetExample} DatasetExample
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        DatasetExample.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a DatasetExample message.
+         * @function verify
+         * @memberof ord.DatasetExample
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        DatasetExample.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.datasetId != null && message.hasOwnProperty("datasetId"))
+                if (!$util.isString(message.datasetId))
+                    return "datasetId: string expected";
+            if (message.description != null && message.hasOwnProperty("description"))
+                if (!$util.isString(message.description))
+                    return "description: string expected";
+            if (message.url != null && message.hasOwnProperty("url"))
+                if (!$util.isString(message.url))
+                    return "url: string expected";
+            if (message.created != null && message.hasOwnProperty("created")) {
+                let error = $root.ord.RecordEvent.verify(message.created);
+                if (error)
+                    return "created." + error;
+            }
+            return null;
+        };
+
+        /**
+         * Creates a DatasetExample message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof ord.DatasetExample
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {ord.DatasetExample} DatasetExample
+         */
+        DatasetExample.fromObject = function fromObject(object) {
+            if (object instanceof $root.ord.DatasetExample)
+                return object;
+            let message = new $root.ord.DatasetExample();
+            if (object.datasetId != null)
+                message.datasetId = String(object.datasetId);
+            if (object.description != null)
+                message.description = String(object.description);
+            if (object.url != null)
+                message.url = String(object.url);
+            if (object.created != null) {
+                if (typeof object.created !== "object")
+                    throw TypeError(".ord.DatasetExample.created: object expected");
+                message.created = $root.ord.RecordEvent.fromObject(object.created);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a DatasetExample message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof ord.DatasetExample
+         * @static
+         * @param {ord.DatasetExample} message DatasetExample
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        DatasetExample.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            let object = {};
+            if (options.defaults) {
+                object.datasetId = "";
+                object.description = "";
+                object.url = "";
+                object.created = null;
+            }
+            if (message.datasetId != null && message.hasOwnProperty("datasetId"))
+                object.datasetId = message.datasetId;
+            if (message.description != null && message.hasOwnProperty("description"))
+                object.description = message.description;
+            if (message.url != null && message.hasOwnProperty("url"))
+                object.url = message.url;
+            if (message.created != null && message.hasOwnProperty("created"))
+                object.created = $root.ord.RecordEvent.toObject(message.created, options);
+            return object;
+        };
+
+        /**
+         * Converts this DatasetExample to JSON.
+         * @function toJSON
+         * @memberof ord.DatasetExample
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        DatasetExample.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for DatasetExample
+         * @function getTypeUrl
+         * @memberof ord.DatasetExample
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        DatasetExample.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/ord.DatasetExample";
+        };
+
+        return DatasetExample;
+    })();
+
     ord.Reaction = (function() {
 
         /**

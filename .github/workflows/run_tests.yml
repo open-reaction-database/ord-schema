@@ -226,6 +226,35 @@ jobs:
         run: |
           cd js/ord-schema
           npm install-test
+      - name: Load the installed NPM package
+        run: |
+          # The generated files reach each other through ../../ord-schema/proto/, which resolves
+          # only while the package sits in a directory named ord-schema. Jest runs against the
+          # source tree, so this loads the packed package from node_modules as consumers do.
+          package="$(cd js/ord-schema && npm pack --pack-destination "${RUNNER_TEMP}" | tail -n 1)"
+          mkdir "${RUNNER_TEMP}/consumer"
+          cd "${RUNNER_TEMP}/consumer"
+          npm init -y
+          npm install "${RUNNER_TEMP}/${package}" typescript@5.8.3 @types/google-protobuf@3.15.12
+          node -e "
+            const ord = require('ord-schema');
+            const dataset = new ord.Dataset();
+            dataset.addReactions(new ord.Reaction());
+            if (ord.Dataset.deserializeBinary(dataset.serializeBinary()).getReactionsList().length !== 1) {
+              process.exit(1);
+            }
+          "
+          # The declarations import each other the same way. Under skipLibCheck an import
+          # that does not resolve turns the types into any without an error, so tsc checks the
+          # package's own declarations here.
+          cat > consumer.ts <<'EOF'
+          import { Dataset } from 'ord-schema/proto/dataset_pb';
+          import { Reaction } from 'ord-schema/proto/reaction_pb';
+          const reactions: Reaction[] = new Dataset().getReactionsList();
+          console.log(reactions.length);
+          EOF
+          npx tsc --noEmit --strict --target es2022 --module esnext --moduleResolution bundler \
+            consumer.ts
 
   test_publish:
     runs-on: ubuntu-latest
