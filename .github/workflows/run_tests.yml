@@ -235,8 +235,8 @@ jobs:
           mkdir "${RUNNER_TEMP}/consumer"
           cd "${RUNNER_TEMP}/consumer"
           npm init -y
-          # The package's own dependencies have to supply the google-protobuf types its
-          # declarations import, so only the compiler is installed beside it.
+          # The google-protobuf types the declarations import come from the package's own
+          # dependencies; tsc below fails with TS7016 when they are missing.
           npm install "${RUNNER_TEMP}/${package}" typescript@5.8.3
           node -e "
             const ord = require('ord-schema');

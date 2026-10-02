@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-// index.js assigns module.exports, so its names are named exports here. A default import
-// still works where TypeScript synthesizes one from the module, and declaring a default
-// would claim a property the JavaScript does not have.
+// index.js assigns module.exports, so its names are this module's named exports. TypeScript
+// synthesizes a default import from them where the consumer's settings allow one; declaring
+// a default would claim a `default` property the JavaScript does not have.
 export * from './proto/dataset_pb';
 export * from './proto/reaction_pb';
