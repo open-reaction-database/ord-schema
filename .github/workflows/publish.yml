@@ -123,10 +123,13 @@ jobs:
           version: '1.72.0'
           setup_only: true
       - name: Push the release to the BSR
+        # Only releases reach the BSR, so main, the module's default label, always names the
+        # latest release: a consumer who pins nothing gets the schema the packages ship.
         env:
           BUF_TOKEN: ${{ secrets.BUF_TOKEN }}
           TAG: ${{ needs.publish.outputs.tag }}
         run: >-
           buf push
           --label "${TAG}"
+          --label main
           --source-control-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/$(git rev-parse HEAD)"

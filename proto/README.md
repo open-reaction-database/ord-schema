@@ -19,12 +19,15 @@ uses; it is not part of the schema.
 
 ## Labels
 
-- `main` follows the default branch.
-- Each ord-schema release is labeled with its tag, such as `v0.9.0`, starting with the
-  first release after this module was published.
+Only ord-schema releases are pushed here, starting with the first release after this
+module was published.
+
+- `main`, the default label, is the latest release.
+- Each release is also labeled with its tag, such as `v0.9.0`, so a schema can be pinned
+  to the same release as the packages above.
 
 ## Compatibility
 
-Every pull request runs `buf breaking` against `main` under the `FILE` category, which
-fails on a changed field number, type, or name, or a deleted field or message. It
-checks the wire and generated-code surface, not what a field means.
+Every pull request runs `buf breaking` against the repository's `main` branch under the
+`FILE` category, which fails on a changed field number, type, or name, or a deleted
+field or message. It checks the wire and generated-code surface, not what a field means.
