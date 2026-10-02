@@ -246,10 +246,22 @@ jobs:
               process.exit(1);
             }
           "
-          # The declarations import each other the same way. Under skipLibCheck an import
-          # that does not resolve turns the types into any without an error, so tsc checks the
-          # package's own declarations here: deep imports, named imports from the entry point,
-          # and a default import used as a namespace in both value and type positions.
+          # Node's ESM loader sees only the names index.js lists, and the declarations promise
+          # every name require returns, so each one has to import by name.
+          node --input-type=module -e "
+            import { createRequire } from 'node:module';
+            import * as ord from 'ord-schema';
+            const names = Object.keys(createRequire(import.meta.url)('ord-schema'));
+            const missing = names.filter((name) => !(name in ord));
+            if (missing.length > 0) {
+              console.error('not importable by name from ESM:', missing.join(', '));
+              process.exit(1);
+            }
+          "
+          # The declarations import each other by the same relative paths. Under skipLibCheck
+          # an import that does not resolve turns the types into any without an error, so tsc
+          # checks the package's own declarations here: deep imports, named imports from the
+          # entry point, and a default import used as a namespace in value and type positions.
           cat > consumer.ts <<'EOF'
           import ord, { Dataset as EntryDataset, Reaction as EntryReaction } from 'ord-schema';
           import { Dataset } from 'ord-schema/proto/dataset_pb';

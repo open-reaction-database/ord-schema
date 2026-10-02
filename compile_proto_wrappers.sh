@@ -31,5 +31,23 @@ protoc \
   --ts_out=js \
   proto/ord-schema/proto/*.proto
 
+# Node's ESM loader finds a CommonJS module's export names by reading its source, and the
+# generated files attach theirs through goog.object.extend, which it cannot read. The
+# assignment at the end of index.js never runs; it lists every top-level message where the
+# loader can read it, so named imports work from Node ESM as well as through require.
+names="$(sed -nE 's/^export class ([A-Za-z0-9_]+) .*/    \1,/p' \
+  js/ord-schema/proto/dataset_pb.d.ts \
+  js/ord-schema/proto/reaction_pb.d.ts | LC_ALL=C sort)"
+cat > js/ord-schema/index.js <<EOF
+"use strict";
+module.exports = {
+    ...require('./proto/dataset_pb'),
+    ...require('./proto/reaction_pb'),
+};
+0 && (module.exports = {
+${names}
+});
+EOF
+
 pbjs -p proto proto/ord-schema/proto/*.proto -o js/ord-schema-protobufjs/index.js -w es6 -t static-module
 pbts js/ord-schema-protobufjs/index.js -o js/ord-schema-protobufjs/index.d.ts
