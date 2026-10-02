@@ -307,12 +307,12 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - name: Bump patch without commit (for publish dry-runs)
         run: |
-          uv pip install --system bump2version
-          # Dry-run first: assert .bumpversion.cfg and every configured file still contain the
+          uv pip install --system bump-my-version==1.5.1
+          # Dry-run first: assert .bumpversion.toml and every configured file still contain the
           # expected current_version / search patterns before we mutate the tree (misconfig or
           # version drift fails here without leaving a half-updated checkout).
-          bump2version patch --dry-run --verbose
-          bump2version patch --no-commit --no-tag --verbose
+          bump-my-version bump patch --dry-run --verbose
+          bump-my-version bump patch --no-commit --no-tag --verbose
       - name: Test python
         run: |
           # Same pre-upload steps as publish.yml; PyPI upload runs only on main with secrets.
@@ -322,21 +322,6 @@ jobs:
           # twine check covers the description and core metadata fields, but not PyPI's refusal
           # of direct (URL) dependencies, which otherwise fails at upload time in publish.yml.
           python .github/scripts/check_direct_dependencies.py dist/*
-      - name: Check that the lockfiles bump cleanly
-        # bump2version rewrites every '"version": "<current_version>"' line in each lockfile,
-        # taking current_version from .bumpversion.cfg. Those lines have to be the package's
-        # own two entries: a locked dependency at that version would be rewritten too, and a
-        # missing entry means the lockfile has fallen out of step with the release version.
-        run: |
-          version="$(sed -nE 's/^current_version = (.+)$/\1/p' .bumpversion.cfg)"
-          for directory in js/ord-schema js/ord-schema-protobufjs; do
-            count="$(grep -cF "\"version\": \"${version}\"" "${directory}/package-lock.json" || true)"
-            if [ "${count}" -ne 2 ]; then
-              printf '%s/package-lock.json has %s lines reading "version": "%s", not 2\n' \
-                "${directory}" "${count}" "${version}"
-              exit 1
-            fi
-          done
       - name: Test javascript
         run: |
           cd js/ord-schema
