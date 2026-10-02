@@ -38,7 +38,7 @@ The ``Reaction`` message
 ************************
 
 Every reaction in the ORD is defined by a ``Reaction`` message containing ten
-fields (comments have been removed from the `definition <https://github.com/Open-Reaction-Database/ord-schema/blob/main/ord_schema/proto/reaction.proto>`__
+fields (comments have been removed from the `definition <https://github.com/Open-Reaction-Database/ord-schema/blob/main/proto/ord_schema/proto/reaction.proto>`__
 for clarity):
 
 .. code-block:: proto
@@ -190,7 +190,7 @@ The ``Dataset`` message
 
 A collection of reactions can be aggregated into a ``Dataset`` message that
 includes a description of the dataset and examples of its use in downstream
-applications (comments have been removed from the `definition <https://github.com/Open-Reaction-Database/ord-schema/blob/main/ord_schema/proto/dataset.proto>`__
+applications (comments have been removed from the `definition <https://github.com/Open-Reaction-Database/ord-schema/blob/main/proto/ord_schema/proto/dataset.proto>`__
 for clarity):
 
 .. code-block:: proto

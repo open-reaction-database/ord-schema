@@ -17,16 +17,17 @@
 # Make sure you have protoc in your PATH; see https://grpc.io/docs/protoc-installation/.
 set -ex
 
-# The repository root is the proto import root, so a file's path under it is what protoc
-# embeds in the descriptor and uses to place generated code: ord_schema/proto/reaction.proto
-# yields ord_schema/proto/reaction_pb2.py and js/ord_schema/proto/reaction_pb.js.
+# proto/ is the import root. A file's path under it is what protoc embeds in the
+# descriptor and names the generated modules after, so it mirrors the ord_schema.proto
+# package: proto/ord_schema/proto/reaction.proto yields ord_schema/proto/reaction_pb2.py
+# and js/ord_schema/proto/reaction_pb.js.
 protoc \
-  --proto_path=. \
+  --proto_path=proto \
   --python_out=. \
   --pyi_out=. \
   --js_out=import_style=commonjs,binary:js \
-  ord_schema/proto/*.proto \
+  proto/ord_schema/proto/*.proto \
   --ts_out=./js/ \
 
-pbjs -p . ord_schema/proto/*.proto -o js/ord-schema-protobufjs/index.js -w es6 -t static-module
+pbjs -p proto proto/ord_schema/proto/*.proto -o js/ord-schema-protobufjs/index.js -w es6 -t static-module
 pbts js/ord-schema-protobufjs/index.js -o js/ord-schema-protobufjs/index.d.ts
