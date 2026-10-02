@@ -103,10 +103,10 @@ jobs:
           TAG="$(git tag --sort=-v:refname | head -n 1)"
           gh release create "${TAG}" --generate-notes
 
-  # A job of its own, so the buf action and the BSR token never share a job with the
-  # id-token permission above. It pushes the newest release tag in the repository, which
-  # lets it run when publish fails after pushing its tag and keeps a re-run of an older
-  # workflow from moving latest back to an older release.
+  # A job of its own, so buf and the BSR token never share a job with the id-token
+  # permission above. It pushes the newest release tag in the repository, which lets it run
+  # when publish fails after pushing its tag and keeps a re-run of an older workflow from
+  # moving latest back to an older release.
   push_proto:
     needs: publish
     if: ${{ !cancelled() && github.repository == 'open-reaction-database/ord-schema' }}
@@ -116,12 +116,19 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          # Brings in the release tags the push step picks from.
+          # Brings in the release tags the next step picks from.
           fetch-depth: 0
-      - uses: bufbuild/buf-action@85aebf73123b5c15fd5528aaecbf9129cddf7fa7 # v1.6.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          version: '1.72.0'
-          setup_only: true
+          node-version: '24'
+      - name: Check out the newest release
+        run: |
+          tag="$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
+          git checkout --quiet "${tag}"
+          echo "TAG=${tag}" >> "${GITHUB_ENV}"
+      - name: Install buf
+        # The release's own package-lock.json pins it, in a step without the BSR token.
+        run: npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
       - name: Push the newest release to the BSR
         # Only releases reach the BSR. latest, the module's default label, follows the newest
         # one, as npm's latest dist-tag does, so a consumer who pins nothing gets the schema
@@ -129,7 +136,5 @@ jobs:
         env:
           BUF_TOKEN: ${{ secrets.BUF_TOKEN }}
         run: |
-          tag="$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
-          git checkout --quiet "${tag}"
-          buf push --label "${tag}" --label latest \
+          node_modules/.bin/buf push --label "${TAG}" --label latest \
             --source-control-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/$(git rev-parse HEAD)"

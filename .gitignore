@@ -25,8 +25,9 @@ coverage*
 /dist
 # Folder tracking files
 .DS_Store
-# Node.
+# Node. The root lockfile is tracked: it pins the code-generation toolchain.
 package-lock.json
+!/package-lock.json
 node_modules/
 
 # Claude/working planning docs (local only)

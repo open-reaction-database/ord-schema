@@ -31,7 +31,7 @@ plugins:
     opt:
       - import_style=commonjs
       - binary
-  # The BSR has no ts-protoc-gen plugin, so it runs from PATH: ts-protoc-gen 0.15.0, the
-  # version test_proto_wrappers installs.
+  # The BSR has no ts-protoc-gen plugin, so it runs from PATH, where
+  # compile_proto_wrappers.sh puts the version package-lock.json pins.
   - local: protoc-gen-ts
     out: js

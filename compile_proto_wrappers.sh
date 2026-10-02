@@ -13,10 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Compiles protocol buffers with the plugins pinned in buf.gen.yaml.
-# Requires buf (https://buf.build/docs/cli/installation/) and, on PATH, protoc-gen-ts from
-# ts-protoc-gen and pbjs and pbts from protobufjs-cli; test_proto_wrappers pins all three.
+# Compiles protocol buffers with the plugins pinned in buf.gen.yaml. Requires Node.js.
 set -ex
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+# buf, ts-protoc-gen, pbjs, and pbts come from the versions package-lock.json pins. None of
+# them needs an install script; @bufbuild/buf reaches its binary through a platform package.
+npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
+export PATH="${PWD}/node_modules/.bin:${PATH}"
 
 # proto/ is the module root in buf.yaml, and a file's path under it is what buf embeds in
 # the descriptor and places generated code by. proto/ord-schema/proto/reaction.proto yields
