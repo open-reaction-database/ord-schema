@@ -102,3 +102,34 @@ jobs:
           # https://gist.github.com/rponte/fdc0724dd984088606b0?permalink_comment_id=3064455#gistcomment-3064455
           TAG="$(git tag --sort=-v:refname | head -n 1)"
           gh release create "${TAG}" --generate-notes
+
+  # A job of its own, so the buf action and the BSR token never share a job with the
+  # id-token permission above. It pushes the newest release tag in the repository, which
+  # lets it run when publish fails after pushing its tag and keeps a re-run of an older
+  # workflow from moving latest back to an older release.
+  push_proto:
+    needs: publish
+    if: ${{ !cancelled() && github.repository == 'open-reaction-database/ord-schema' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Brings in the release tags the push step picks from.
+          fetch-depth: 0
+      - uses: bufbuild/buf-action@85aebf73123b5c15fd5528aaecbf9129cddf7fa7 # v1.6.0
+        with:
+          version: '1.72.0'
+          setup_only: true
+      - name: Push the newest release to the BSR
+        # Only releases reach the BSR. latest, the module's default label, follows the newest
+        # one, as npm's latest dist-tag does, so a consumer who pins nothing gets the schema
+        # the packages ship.
+        env:
+          BUF_TOKEN: ${{ secrets.BUF_TOKEN }}
+        run: |
+          tag="$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
+          git checkout --quiet "${tag}"
+          buf push --label "${tag}" --label latest \
+            --source-control-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/$(git rev-parse HEAD)"

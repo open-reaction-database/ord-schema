@@ -15,6 +15,7 @@
 version: v2
 modules:
   - path: proto
+    name: buf.build/open-reaction-database/ord-schema
 lint:
   use:
     - STANDARD
