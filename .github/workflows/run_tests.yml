@@ -226,7 +226,7 @@ jobs:
         run: |
           cd js/ord_schema
           npm install-test
-      - name: Require the installed NPM package
+      - name: Load the installed NPM package
         run: |
           # Jest runs inside js/ord_schema, where a require that leaves the package and comes
           # back by the source directory's name still resolves. Only an installed copy sits
@@ -235,7 +235,7 @@ jobs:
           mkdir "${RUNNER_TEMP}/consumer"
           cd "${RUNNER_TEMP}/consumer"
           npm init -y
-          npm install "${RUNNER_TEMP}/${package}"
+          npm install "${RUNNER_TEMP}/${package}" typescript@5.8.3 @types/google-protobuf@3.15.12
           node -e "
             const ord = require('ord-schema');
             const dataset = new ord.Dataset();
@@ -244,6 +244,17 @@ jobs:
               process.exit(1);
             }
           "
+          # The declarations import their siblings the same way. Under skipLibCheck an import
+          # that does not resolve turns the types into any without an error, so tsc checks the
+          # package's own declarations here.
+          cat > consumer.ts <<'EOF'
+          import { Dataset } from 'ord-schema/proto/dataset_pb';
+          import { Reaction } from 'ord-schema/proto/reaction_pb';
+          const reactions: Reaction[] = new Dataset().getReactionsList();
+          console.log(reactions.length);
+          EOF
+          npx tsc --noEmit --strict --target es2022 --module esnext --moduleResolution bundler \
+            consumer.ts
 
   test_publish:
     runs-on: ubuntu-latest
