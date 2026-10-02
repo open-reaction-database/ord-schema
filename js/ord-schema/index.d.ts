@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-// index.js assigns module.exports, so its names are this module's named exports. TypeScript
-// synthesizes a default import from them where the consumer's settings allow one; declaring
-// a default would claim a `default` property the JavaScript does not have.
+// compile_proto_wrappers.sh writes index.js, which assigns module.exports from these same two
+// modules, so their names are this module's named exports. TypeScript synthesizes a default
+// import from them where the consumer's settings allow one; declaring a default would claim
+// a `default` property the JavaScript does not have.
 export * from './proto/dataset_pb';
 export * from './proto/reaction_pb';
