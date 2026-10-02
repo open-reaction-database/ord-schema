@@ -189,3 +189,61 @@ def test_a_pivots_dir_named_with_a_glob_metacharacter_is_read_literally(
             ("aa", "ord_dataset-aa.parquet"),
             ("bb", "ord_dataset-bb.parquet"),
         ], path
+
+
+def _drop_column(path: pathlib.Path, column: str) -> None:
+    """Rewrites the artifact at ``path`` without ``column``, keeping its footer.
+
+    Stands in for an artifact written before the schema carried that column, by a
+    library version that would not have bumped for it: the stamps are what a run reads
+    to decide the file is current, and they say nothing about its columns.
+
+    Args:
+        path: The artifact to rewrite.
+        column: The column to drop.
+    """
+    table = pq.read_table(path)
+    metadata = table.schema.metadata
+    table = table.drop_columns([column])
+    pq.write_table(table.replace_schema_metadata(metadata), path)
+
+
+def _stamp_an_older_library(path: pathlib.Path) -> None:
+    """Rewrites the artifact at ``path`` as an older library would have stamped it.
+
+    Every column stays where it was, so the file is structurally what this schema
+    declares and only the stamps say otherwise.
+
+    Args:
+        path: The artifact to rewrite.
+    """
+    table = pq.read_table(path)
+    metadata = dict(table.schema.metadata)
+    metadata[b"ord.rdkit_version"] = b"0000.00.0"
+    pq.write_table(table.replace_schema_metadata(metadata), path)
+
+
+def test_a_path_this_run_did_not_name_is_checked_against_the_schema(pivots, tmp_path):
+    # --paths rebuilds one path rather than choosing what to carry, so the tree a
+    # subset run writes into holds the rest at whatever schema wrote them. Those stamp
+    # current and nothing revisits them -- and a corpus reads the whole tree, not the
+    # part this run touched.
+    output = tmp_path / "occurrences"
+    _run(pivots, output)
+    left_behind = occurrences.artifact_paths(output, "inputs.components")[0]
+    _drop_column(left_behind, "reaction_role")
+    with pytest.raises(ValueError, match="did not derive"):
+        _run(pivots, output, "--paths", "outcomes.products")
+
+
+def test_a_path_left_behind_with_old_stamps_and_every_column_is_not_an_error(
+    pivots, tmp_path
+):
+    # Freshness is the reader's policy, not the build's: an artifact short a column
+    # fails every corpus that opens it, while one whose stamps are merely old is
+    # refused only where require_current says so. --force is how an operator asks for
+    # the rewrite.
+    output = tmp_path / "occurrences"
+    _run(pivots, output)
+    _stamp_an_older_library(occurrences.artifact_paths(output, "inputs.components")[0])
+    _run(pivots, output, "--paths", "outcomes.products")
