@@ -289,6 +289,19 @@ jobs:
           npx tsc --noEmit --strict --target es2022 --module esnext --moduleResolution bundler \
             consumer.ts
 
+      - name: Test the protobufjs bundle
+        # Runs against the oldest protobufjs package.json allows, the runtime the bundle's map-key
+        # guard has to work with. The bundle imports "protobufjs/minimal", which bundlers resolve
+        # and Node's ESM loader does not, so the test goes through esbuild, as consumers load it.
+        run: |
+          cd js/ord-schema-protobufjs
+          floor="$(node -p "require('./package.json').dependencies.protobufjs.replace(/^\^/, '')")"
+          npm install --no-save --ignore-scripts --no-audit --no-fund --loglevel=error \
+            "protobufjs@${floor}"
+          npx --yes esbuild@0.28.2 test/map_keys.mjs --bundle --platform=node --format=esm \
+            --log-level=warning --outfile="${RUNNER_TEMP}/map_keys.mjs"
+          node "${RUNNER_TEMP}/map_keys.mjs"
+
   test_publish:
     runs-on: ubuntu-latest
     steps:
