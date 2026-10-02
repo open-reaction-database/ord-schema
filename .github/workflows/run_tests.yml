@@ -258,10 +258,11 @@ jobs:
               process.exit(1);
             }
           "
-          # The declarations import each other by the same relative paths. Under skipLibCheck
-          # an import that does not resolve turns the types into any without an error, so tsc
-          # checks the package's own declarations here: deep imports, named imports from the
-          # entry point, and a default import used as a namespace in value and type positions.
+          # The declarations also reach each other through ../../ord-schema/proto/. Under
+          # skipLibCheck an import that does not resolve turns the types into any without an
+          # error, so tsc checks the package's own declarations here: deep imports, named
+          # imports from the entry point, and a default import used as a namespace in value
+          # and type positions.
           cat > consumer.ts <<'EOF'
           import ord, { Dataset as EntryDataset, Reaction as EntryReaction } from 'ord-schema';
           import { Dataset } from 'ord-schema/proto/dataset_pb';
