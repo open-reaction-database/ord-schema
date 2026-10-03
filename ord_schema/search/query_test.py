@@ -34,7 +34,7 @@ def _compile(payload, **kwargs):
 def _run(compiled, parameters=None):
     """Executes a compiled query against an empty projection, proving it is runnable."""
     connection = duckdb.connect()
-    connection.register(query.TABLE, projection.SCHEMA.empty_table())
+    connection.register(query.TABLE, query.SCHEMA.empty_table())
     try:
         bound = dict(compiled.literals) | (parameters or {})
         return connection.execute(compiled.sql, bound).fetchall()
@@ -224,6 +224,26 @@ def test_compounds_are_bound_not_spelled():
     assert "$thf" in compiled.sql
     assert compiled.compounds == ("thf",)
     assert _run(compiled, {"thf": "C1CCOC1"}) == []
+
+
+def test_the_dataset_a_reaction_came_from_is_queryable():
+    # Not a projection column -- a projection names its dataset only in its footer --
+    # so the relation a query reads carries it beside the projection's own columns.
+    assert query.resolve("dataset_id").type == pa.string()
+    compiled = _compile(
+        {
+            "where": {
+                "op": "eq",
+                "path": "dataset_id",
+                "value": {"literal": "ord_dataset-aa"},
+            }
+        }
+    )
+    assert (
+        compiled.sql
+        == "SELECT reaction_id FROM reactions WHERE dataset_id = $literal_0"
+    )
+    assert _run(compiled) == []
 
 
 def test_a_string_literal_carrying_a_quote_cannot_close_it():

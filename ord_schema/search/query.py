@@ -82,9 +82,19 @@ TABLE = "reactions"
 
 # The per-row column mapping a dataset-local structure_id into the corpus-wide ID
 # space a bitmap parameter is indexed by. Supplied by the executor's relation and
-# absent from the projection schema resolve() defaults to, so a model-supplied path
-# does not reach it.
+# absent from the SCHEMA resolve() defaults to, so a model-supplied path does not reach
+# it.
 STRUCTURE_OFFSET = "structure_offset"
+
+# The dataset each reaction came from. A projection is one file per dataset and names
+# it only in its footer's ``ord.source_dataset_id`` stamp, so the executor supplies the
+# column per file, as it supplies STRUCTURE_OFFSET; unlike that one, a query may read
+# it. NULL for a projection whose source recorded no dataset ID.
+DATASET_ID = "dataset_id"
+
+# The relation a query reads: the projection's columns and DATASET_ID. What resolve()
+# and compile_query() resolve paths against, and what schema.describe() tells a model.
+SCHEMA = projection.SCHEMA.append(pa.field(DATASET_ID, pa.string()))
 
 # A literal as the caller binds it: one of the grammar's scalars, or the instant a
 # string names where it is compared against a date or timestamp column. ``datetime`` is
@@ -139,17 +149,17 @@ class _Routing:
 def executable_schema(schema: pa.Schema | None = None) -> pa.Schema:
     """Returns the schema of the relation a compiled query runs against.
 
-    The executor's relation is the projection plus ``STRUCTURE_OFFSET``, so validating
+    The executor's relation is ``SCHEMA`` plus ``STRUCTURE_OFFSET``, so validating
     compiled SQL (:func:`ord_schema.search.sql.validate`) needs this schema whenever the
-    query carries a structure predicate; the projection schema alone cannot bind it.
+    query carries a structure predicate; ``SCHEMA`` alone cannot bind it.
 
     Args:
-        schema: Base schema; the projection schema by default.
+        schema: Base schema; ``SCHEMA`` by default.
 
     Returns:
         The base schema with the offset column appended.
     """
-    base = schema if schema is not None else projection.SCHEMA
+    base = schema if schema is not None else SCHEMA
     return base.append(pa.field(STRUCTURE_OFFSET, pa.int64()))
 
 
@@ -331,11 +341,11 @@ def _lookup(
 def resolve(
     path: str,
     *,
-    schema: pa.Schema = projection.SCHEMA,
+    schema: pa.Schema = SCHEMA,
     root: str | None = None,
     allow_internal: bool = False,
 ) -> _Resolved:
-    """Resolves a dotted path against the projection schema.
+    """Resolves a dotted path against the relation a query reads.
 
     Descending through a repeated level turns the expression into a list of the
     elements beneath it, so the caller can tell a scalar it may compare from a level it
@@ -1864,7 +1874,7 @@ def _element_relation(
 def compile_query(
     query: Query,
     *,
-    schema: pa.Schema = projection.SCHEMA,
+    schema: pa.Schema = SCHEMA,
     table: str = TABLE,
     index: ElementIndex | None = None,
     pivot: PivotIndex | None = None,
@@ -1874,7 +1884,7 @@ def compile_query(
 
     Args:
         query: The query to compile.
-        schema: Schema to resolve paths against; the projection schema by default.
+        schema: Schema to resolve paths against; ``SCHEMA`` by default.
         table: Relation name to read. Held to an identifier, because it reaches the SQL
             as text: a caller passing ``"reactions, range(1000000000)"`` would otherwise
             get a cross join the ``Query`` never asked for, and the single-relation cost

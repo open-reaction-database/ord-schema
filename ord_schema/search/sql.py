@@ -14,12 +14,12 @@
 
 """Checking the SQL a model wrote before anything runs it.
 
-Validation needs no corpus. ``projection.SCHEMA`` is generated from the proto
-descriptors, so an empty Arrow table carrying it has the real 442-leaf shape, and
-planning a query against that resolves every column reference and type without reading a
-byte of data. The prompt in :mod:`ord_schema.search.schema` renders the same schema
-object, so the columns a model is told about and the columns its query is checked
-against come from one call.
+Validation needs no corpus. ``query.SCHEMA`` is generated from the proto
+descriptors, plus the ``dataset_id`` the executor supplies, so an empty Arrow table
+carrying it has the shape a query runs against, and planning a query against that
+resolves every column reference and type without reading a byte of data. The prompt in
+:mod:`ord_schema.search.schema` renders the same schema object, so the columns a model
+is told about and the columns its query is checked against come from one call.
 
 Two classes of defect are caught, and they are different in kind:
 
@@ -59,7 +59,7 @@ from typing import Any
 import duckdb
 import pyarrow as pa
 
-from ord_schema.artifacts import projection
+from ord_schema.search import query
 
 # The name the model is told to query. The only relation in scope, so no other table is
 # reachable -- which is not the same as no join being expressible, since a query can
@@ -127,7 +127,7 @@ def validate(
     sql: str,
     *,
     parameters: dict[str, Any] | None = None,
-    schema: pa.Schema = projection.SCHEMA,
+    schema: pa.Schema = query.SCHEMA,
 ) -> None:
     """Checks that ``sql`` is a single read-only query this surface will run.
 
@@ -141,7 +141,7 @@ def validate(
             Binding different values later invalidates the result, since constant
             folding can prune a branch at plan time; nothing detects that, so validating
             once and re-binding is the caller's mistake to avoid.
-        schema: Schema to plan against; the projection schema by default.
+        schema: Schema to plan against; ``query.SCHEMA`` by default.
 
     Raises:
         InvalidQueryError: If the SQL does not parse, is more than one statement, is not

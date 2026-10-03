@@ -24,11 +24,12 @@ it. Without them a model has the column and no way to learn the spelling it must
 against, which is a guess it will sometimes get wrong silently. They are read from the
 field's own metadata, so this stays a rendering of the schema and nothing else.
 
-The rendering is generated from ``projection.SCHEMA`` rather than written by hand,
-because that schema is itself generated from the proto descriptors -- a field added
-upstream becomes a column with nobody deciding it should, and a hand-written description
-would silently fall behind it. ``ord_schema.search.sql`` validates against the same
-schema object, so the columns a model is told about and the columns its query is checked
+The rendering is generated from ``query.SCHEMA`` -- the projection's columns plus the
+``dataset_id`` the executor supplies -- rather than written by hand, because the
+projection schema is itself generated from the proto descriptors: a field added upstream
+becomes a column with nobody deciding it should, and a hand-written description would
+silently fall behind it. ``ord_schema.search.sql`` validates against the same schema
+object, so the columns a model is told about and the columns its query is checked
 against cannot disagree.
 
 Types are named in DuckDB's vocabulary rather than Arrow's, since DuckDB is the dialect
@@ -39,6 +40,7 @@ the model writes. Units are already in the column names -- ``setpoint_kelvin``,
 import pyarrow as pa
 
 from ord_schema.artifacts import projection
+from ord_schema.search import query
 
 # Arrow leaf types the projection can hold, in DuckDB's names. Deliberately not a
 # fallback to ``str(dtype)``: a type the projection gains later should surface here as a
@@ -119,11 +121,11 @@ def _render(field: pa.Field, depth: int, lines: list[str]) -> None:
         lines.append(f"{indent}{name}: {_scalar_name(dtype)}{values}")
 
 
-def describe(schema: pa.Schema = projection.SCHEMA) -> str:
+def describe(schema: pa.Schema = query.SCHEMA) -> str:
     """Returns ``schema`` as an indented type tree.
 
     Args:
-        schema: Schema to render; the projection schema by default.
+        schema: Schema to render; ``query.SCHEMA``, what a model may query, by default.
 
     Returns:
         One line per field, two spaces of indentation per level of nesting, with
