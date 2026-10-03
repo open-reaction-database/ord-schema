@@ -213,6 +213,62 @@ def test_reactions_group_by_the_dataset_they_came_from(corpus):
     assert counts == {"ord_dataset-aa": 2, "ord_dataset-bb": 1}
 
 
+def test_a_source_without_a_dataset_id_reads_as_null(tmp_path):
+    # A source recording no dataset ID gets no stamp; its reactions answer is_null and
+    # group under NULL rather than vanishing or borrowing another file's ID.
+    for name, dataset_id, reaction_ids in (
+        ("named", "ord_dataset-named", ["ord-nm01"]),
+        ("unnamed", "", ["ord-un01", "ord-un02"]),
+    ):
+        source = tmp_path / "data" / f"{name}.parquet"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        parquet.save_dataset(
+            dataset_pb2.Dataset(
+                dataset_id=dataset_id,
+                name="test",
+                description="test",
+                reactions=[
+                    _reaction(reaction_id, components=[("CCO", _ROLE.REACTANT)])
+                    for reaction_id in reaction_ids
+                ],
+            ),
+            str(source),
+        )
+        projected = tmp_path / "projections" / source.name
+        projected.parent.mkdir(parents=True, exist_ok=True)
+        projection.write_projection(source, projected)
+        structured = tmp_path / "structures" / source.name
+        structured.parent.mkdir(parents=True, exist_ok=True)
+        structures.write_structures(projected, structured)
+    unnamed = tmp_path / "projections" / "unnamed.parquet"
+    assert base.load_stamps(unnamed).source_dataset_id is None
+    with execute.Corpus(
+        str(tmp_path / "projections" / "*.parquet"),
+        str(tmp_path / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        where = {"op": "is_null", "path": "dataset_id"}
+        assert _search(value, where) == {"ord-un01", "ord-un02"}
+        table = value.search(
+            query.Query.model_validate(
+                {
+                    "aggregate": {
+                        "group_by": ["dataset_id"],
+                        "measures": [{"fn": "count", "name": "n"}],
+                    }
+                }
+            )
+        )
+    counts = dict(
+        zip(
+            table.column("dataset_id").to_pylist(),
+            table.column("n").to_pylist(),
+            strict=True,
+        )
+    )
+    assert counts == {"ord_dataset-named": 1, None: 2}
+
+
 def _role_and_structure(smarts, role):
     return _exists(
         {
