@@ -535,3 +535,4 @@ provenance: STRUCT
     format: VARCHAR
   is_mined: BOOLEAN
 reaction_id: VARCHAR
+dataset_id: VARCHAR

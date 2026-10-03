@@ -20,7 +20,7 @@ import pyarrow as pa
 import pytest
 
 from ord_schema.artifacts import projection
-from ord_schema.search import schema
+from ord_schema.search import query, schema
 
 
 def test_scalars():
@@ -115,7 +115,7 @@ def test_unnamed_leaf_type_raises():
 def test_projection_schema_renders():
     rendered = schema.describe()
     lines = rendered.splitlines()
-    assert len(lines) == sum(1 for _ in _fields(projection.SCHEMA))
+    assert len(lines) == sum(1 for _ in _fields(query.SCHEMA))
     # Unit-carrying names are what let the prompt say nothing about units, and the
     # indentation is the path: conditions -> temperature/pressure -> setpoint.
     assert "conditions: STRUCT" in lines
@@ -123,6 +123,8 @@ def test_projection_schema_renders():
     # The collapsed structural identifier is a top-level column, not nested.
     assert "smiles: VARCHAR" in lines
     assert "reaction_id: VARCHAR" in lines
+    # Supplied per file by the executor, so a model can narrow to one dataset.
+    assert "dataset_id: VARCHAR" in lines
 
 
 def _fields(schema_or_type):

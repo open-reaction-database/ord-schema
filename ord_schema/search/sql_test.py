@@ -146,6 +146,12 @@ def test_an_operator_name_in_a_literal_is_not_an_operator():
     sql.validate("SELECT reaction_id FROM reactions WHERE smiles = 'INOUT_FUNCTION'")
 
 
+def test_a_dataset_filter_validates_by_default():
+    sql.validate(
+        "SELECT reaction_id FROM reactions WHERE dataset_id = 'ord_dataset-aa'"
+    )
+
+
 def test_a_structure_query_validates_against_the_executable_schema():
     # A compiled structure predicate references the executor's offset column, which
     # the bare projection schema cannot bind.

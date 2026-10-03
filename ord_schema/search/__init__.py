@@ -28,7 +28,7 @@ It sits in ``ord-schema`` rather than in a serving repository because these piec
 describe the *data*, not a deployment. A description that tells a model which columns
 exist has to be versioned alongside the code that generates them, or it silently drifts
 from a schema it cannot see; :mod:`ord_schema.search.schema` and
-:mod:`ord_schema.search.sql` both read ``projection.SCHEMA`` for exactly that reason.
+:mod:`ord_schema.search.sql` both read ``query.SCHEMA`` for exactly that reason.
 For the same reason nothing here does HTTP or owns a cache; a server supplies those and
 maps library exceptions onto its own protocol. The one connection held is DuckDB's
 embedded one, opened by :mod:`ord_schema.search.execute` over local artifact files --

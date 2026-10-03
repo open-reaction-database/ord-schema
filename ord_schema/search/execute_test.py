@@ -187,6 +187,32 @@ def _search(corpus, where) -> set[str]:
     return _reactions(corpus.search(query.Query.model_validate({"where": where})))
 
 
+def test_a_search_narrows_to_the_dataset_a_reaction_came_from(corpus):
+    where = {"op": "eq", "path": "dataset_id", "value": {"literal": "ord_dataset-bb"}}
+    assert _search(corpus, where) == {"ord-bb01"}
+
+
+def test_reactions_group_by_the_dataset_they_came_from(corpus):
+    table = corpus.search(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "group_by": ["dataset_id"],
+                    "measures": [{"fn": "count", "name": "n"}],
+                }
+            }
+        )
+    )
+    counts = dict(
+        zip(
+            table.column("dataset_id").to_pylist(),
+            table.column("n").to_pylist(),
+            strict=True,
+        )
+    )
+    assert counts == {"ord_dataset-aa": 2, "ord_dataset-bb": 1}
+
+
 def _role_and_structure(smarts, role):
     return _exists(
         {

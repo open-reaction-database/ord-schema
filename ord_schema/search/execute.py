@@ -462,8 +462,8 @@ def _fingerprint(stamps: Iterable[base.Stamps]) -> str:
 
 def _pair(
     projection_pattern: str, structures_pattern: str, require_current: bool
-) -> tuple[list[tuple[str, str, str]], str]:
-    """Returns (projection, structures, source) triples, verified by their stamps.
+) -> tuple[list[tuple[str, str, str, str | None]], str]:
+    """Returns (projection, structures, source, dataset ID) tuples, verified by stamps.
 
     Args:
         projection_pattern: Glob matching the projection base.
@@ -471,10 +471,11 @@ def _pair(
         require_current: Refuse artifacts not written by the current versions.
 
     Returns:
-        One triple per source dataset, ordered by the source hash, carrying that hash
+        One tuple per source dataset, ordered by the source hash, carrying that hash
         beside the paths -- every artifact derived from the dataset names it, so it is
-        what pairs a pivot with the offset this corpus gave its projection. Also the
-        fingerprint over the stamps this already read to verify them.
+        what pairs a pivot with the offset this corpus gave its projection -- and the
+        dataset ID the projection's stamps record, or None where its source recorded
+        none. Also the fingerprint over the stamps this already read to verify them.
 
     Raises:
         PairingError: If no projection matches, if either side lacks a column this
@@ -497,7 +498,12 @@ def _pair(
             f"counterpart derived from the same source dataset: {orphans}"
         )
     pairs = [
-        (projections[key][0], structure_files[key][0], key)
+        (
+            projections[key][0],
+            structure_files[key][0],
+            key,
+            projections[key][1].source_dataset_id,
+        )
         for key in sorted(projections)
     ]
     fingerprint = _fingerprint(
@@ -1397,12 +1403,14 @@ class Corpus:
         self._occurrences()
         self._library()
 
-    def _prepare(self, pairs: list[tuple[str, str, str]]) -> tuple[int, int]:
+    def _prepare(
+        self, pairs: list[tuple[str, str, str, str | None]]
+    ) -> tuple[int, int]:
         """Publishes the relations, and returns the total and searchable row counts."""
         offsets = []
         total = 0
         stated = 0
-        for projected, structured, source in pairs:
+        for projected, structured, source, dataset_id in pairs:
             with pq.ParquetFile(structured) as artifact:
                 count = artifact.metadata.num_rows
             with pq.ParquetFile(projected) as artifact:
@@ -1421,7 +1429,7 @@ class Corpus:
                     "dataset's molecules; derive the structures artifact from this "
                     "projection again"
                 )
-            offsets.append((projected, structured, total))
+            offsets.append((projected, structured, total, dataset_id))
             # Keyed by the source rather than by the file, so an artifact derived from
             # this projection finds the offset wherever it is filed; see
             # ``_pivot_offsets``.
@@ -1433,6 +1441,9 @@ class Corpus:
                 "structures_filename": [offset[1] for offset in offsets],
                 query.STRUCTURE_OFFSET: pa.array(
                     [offset[2] for offset in offsets], type=pa.int64()
+                ),
+                query.DATASET_ID: pa.array(
+                    [offset[3] for offset in offsets], type=pa.string()
                 ),
             }
         )
@@ -1453,7 +1464,8 @@ class Corpus:
         self._connection.execute(
             f"""
             CREATE VIEW {query.TABLE} AS
-            SELECT p.* EXCLUDE (filename), o.{query.STRUCTURE_OFFSET}
+            SELECT p.* EXCLUDE (filename), o.{query.STRUCTURE_OFFSET},
+                   o.{query.DATASET_ID}
             FROM read_parquet({projection_files}, filename=true) p
             JOIN structure_offsets o ON p.filename = o.projection_filename
             """  # noqa: S608
