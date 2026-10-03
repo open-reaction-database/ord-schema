@@ -123,10 +123,11 @@ is a compile error rather than a wrong answer:
   against a date or timestamp column binds as the instant it names. No literal reaches the
   SQL as text. What the model writes that does is the `limit`, validated as a positive
   integer, and measure and compound names, both held to an identifier shape.
-- A `substructure` ignores stereocenters unless `chirality` is set: a pattern drawn as
-  one enantiomer matches its mirror image and the same molecule recorded without stereo.
-  Set, it keeps only structures whose stereochemistry agrees with the pattern's. The flag
-  is part of the cached match set's key, so the two questions never share an answer.
+- A `substructure` respects the stereocenters its pattern draws, as RDKit does: a
+  pattern drawn as one enantiomer matches that enantiomer, not its mirror image or the
+  same molecule recorded without stereo. `chirality: false` ignores them, for a question
+  about the molecule whatever its configuration. The flag is part of the cached match
+  set's key, so the two questions never share an answer.
 - A `substructure`/`similarity`/`same_compound`/`same_parent` path must name a compound's
   `smiles`, inside a quantifier like any other element predicate.
 - `same_compound` asks "the same compound, however either was drawn"; an `eq` on a `smiles`

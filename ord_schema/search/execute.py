@@ -2147,8 +2147,8 @@ class Corpus:
         library = self._library()
         # maxResults defaults to 1000, which would silently truncate: a broad pattern
         # matches hundreds of thousands of ORD's distinct molecules.
-        # useChirality is stated rather than left to RDKit, whose default honors
-        # stereocenters: the grammar's default ignores them.
+        # Stated even where it matches RDKit's default, so a predicate that opts out of
+        # stereochemistry reaches the match.
         matched = library.GetMatches(
             molecule,
             useChirality=parameter.chirality,

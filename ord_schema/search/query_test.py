@@ -1029,10 +1029,10 @@ def test_equal_structure_predicates_share_one_parameter():
     assert compiled.sql.count("$structure_0") == 2
 
 
-def test_a_substructure_ignores_chirality_unless_asked():
-    assert query.Substructure.model_validate(_substructure()).chirality is False
-    asked = query.Substructure.model_validate(_substructure() | {"chirality": True})
-    assert asked.chirality is True
+def test_a_substructure_respects_stereocenters_unless_told_not_to():
+    assert query.Substructure.model_validate(_substructure()).chirality is True
+    told = query.Substructure.model_validate(_substructure() | {"chirality": False})
+    assert told.chirality is False
 
 
 def test_predicates_differing_only_in_chirality_are_two_parameters():
@@ -1053,14 +1053,14 @@ def test_predicates_differing_only_in_chirality_are_two_parameters():
                         {
                             "op": "exists",
                             "path": "inputs.components",
-                            "where": _substructure(pattern) | {"chirality": True},
+                            "where": _substructure(pattern) | {"chirality": False},
                         },
                     ],
                 }
             }
         )
     )
-    assert [parameter.chirality for parameter in compiled.structures] == [False, True]
+    assert [parameter.chirality for parameter in compiled.structures] == [True, False]
 
 
 def test_similarity_compiles_with_its_threshold():

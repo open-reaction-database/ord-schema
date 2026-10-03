@@ -224,25 +224,19 @@ def chiral_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
         yield value
 
 
-def test_a_substructure_matches_every_stereoisomer_unless_chirality_is_asked(
+def test_a_substructure_matches_the_drawn_stereoisomer_unless_chirality_is_off(
     chiral_corpus,
 ):
     # Asked in both orders on one corpus, because the match set is cached: a cache key
     # that left chirality out would answer the second question with the first one's set.
     pattern = {"op": "substructure", "path": "smiles", "smarts": _ALANINE}
-    assert _search(chiral_corpus, _exists(pattern)) == {
+    assert _search(chiral_corpus, _exists(pattern)) == {"ord-ch01"}
+    assert _search(chiral_corpus, _exists(pattern | {"chirality": False})) == {
         "ord-ch01",
         "ord-ch02",
         "ord-ch03",
     }
-    assert _search(chiral_corpus, _exists(pattern | {"chirality": True})) == {
-        "ord-ch01"
-    }
-    assert _search(chiral_corpus, _exists(pattern)) == {
-        "ord-ch01",
-        "ord-ch02",
-        "ord-ch03",
-    }
+    assert _search(chiral_corpus, _exists(pattern)) == {"ord-ch01"}
 
 
 def _role_and_structure(smarts, role):

@@ -211,7 +211,7 @@ class StructureParameter:
     Exactly one of ``pattern`` and ``compound`` is set. ``pattern`` is a SMARTS for a
     substructure predicate and a SMILES for a similarity one, already validated;
     ``compound`` is a name still to be resolved at execution. ``chirality`` is a
-    substructure predicate's, and False for every other kind.
+    substructure predicate's, and False for every other kind, which has no use for it.
     """
 
     name: str
@@ -465,17 +465,18 @@ class Substructure(_Node):
     ``path`` names a compound's ``smiles``. The query is a SMARTS pattern, or a
     compound name resolved to a molecule at execution; exactly one is given.
 
-    Stereocenters in the query are ignored unless ``chirality`` is set, so a pattern
-    drawn as one enantiomer also matches its mirror image and the same molecule
-    recorded without stereo. Set, the match keeps only structures whose
-    stereochemistry agrees with the query's.
+    A stereocenter drawn in the query is respected, as RDKit respects it: a pattern
+    drawn as one enantiomer matches that enantiomer, not its mirror image or the same
+    molecule recorded without stereo. ``chirality`` false ignores stereocenters, for a
+    question about the molecule whatever its configuration. A query with no
+    stereocenters matches the same structures either way.
     """
 
     op: Literal["substructure"]
     path: str
     smarts: str | None = None
     compound: str | None = None
-    chirality: bool = False
+    chirality: bool = True
 
     @model_validator(mode="after")
     def _check(self) -> "Substructure":
