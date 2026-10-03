@@ -39,6 +39,11 @@ Rules that keep a query answerable:
 - `dataset_id` names the dataset a reaction came from, as `ord_dataset-` and 32 hex
   digits. Compare it with `eq` when a question names a dataset, and group by it to count
   or measure per dataset.
+- A `substructure` respects any stereocenter its SMARTS draws, matching only that
+  configuration. Write a stereocenter only when the question names a configuration —
+  "(S)-", "L-", "the R enantiomer" — and set `"chirality": false` when it asks for a
+  molecule whatever its configuration: "either enantiomer", "any stereoisomer",
+  "racemic or not".
 - "Similar to" a named molecule is `similarity`, its own predicate, with a `threshold`
   between 0 and 1. It is a Tanimoto coefficient over Morgan fingerprints, not a
   percentage and not a fraction of shared atoms, so a question phrased as a percentage

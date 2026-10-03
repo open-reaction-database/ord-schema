@@ -269,6 +269,58 @@ def test_a_source_without_a_dataset_id_reads_as_null(tmp_path):
     assert counts == {"ord_dataset-named": 1, None: 2}
 
 
+_ALANINE = "C[C@@H](N)C(=O)O"
+
+
+@pytest.fixture(scope="module")
+def chiral_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
+    """A corpus holding one alanine enantiomer, its mirror image, and no stereo."""
+    root = tmp_path_factory.mktemp("chiral")
+    reactions = [
+        _reaction("ord-ch01", components=[(_ALANINE, _ROLE.REACTANT)]),
+        _reaction("ord-ch02", components=[("C[C@H](N)C(=O)O", _ROLE.REACTANT)]),
+        _reaction("ord-ch03", components=[("CC(N)C(=O)O", _ROLE.REACTANT)]),
+    ]
+    source = root / "data" / "ord_dataset-ch.parquet"
+    source.parent.mkdir(parents=True)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-ch",
+            name="test",
+            description="test",
+            reactions=reactions,
+        ),
+        str(source),
+    )
+    projected = root / "projections" / source.name
+    projected.parent.mkdir(parents=True)
+    projection.write_projection(source, projected)
+    structured = root / "structures" / source.name
+    structured.parent.mkdir(parents=True)
+    structures.write_structures(projected, structured)
+    with execute.Corpus(
+        str(root / "projections" / "*.parquet"),
+        str(root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        yield value
+
+
+def test_a_substructure_matches_the_drawn_stereoisomer_unless_chirality_is_off(
+    chiral_corpus,
+):
+    # Asked in both orders on one corpus, because the match set is cached: a cache key
+    # that left chirality out would answer the second question with the first one's set.
+    pattern = {"op": "substructure", "path": "smiles", "smarts": _ALANINE}
+    assert _search(chiral_corpus, _exists(pattern)) == {"ord-ch01"}
+    assert _search(chiral_corpus, _exists(pattern | {"chirality": False})) == {
+        "ord-ch01",
+        "ord-ch02",
+        "ord-ch03",
+    }
+    assert _search(chiral_corpus, _exists(pattern)) == {"ord-ch01"}
+
+
 def _role_and_structure(smarts, role):
     return _exists(
         {

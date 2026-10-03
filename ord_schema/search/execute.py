@@ -169,8 +169,9 @@ _PROC_SELF_CGROUP = pathlib.Path("/proc/self/cgroup")
 
 
 # What a structure predicate's answer depends on: the operation, whether the string
-# is read as SMARTS or as SMILES, the string, and the similarity threshold.
-_MatchKey = tuple[str, bool, str, float | None]
+# is read as SMARTS or as SMILES, the string, the similarity threshold, and whether a
+# substructure match honors stereocenters.
+_MatchKey = tuple[str, bool, str, float | None, bool]
 
 
 def _reads_as_smarts(parameter: query.StructureParameter) -> bool:
@@ -2158,8 +2159,13 @@ class Corpus:
         library = self._library()
         # maxResults defaults to 1000, which would silently truncate: a broad pattern
         # matches hundreds of thousands of ORD's distinct molecules.
+        # Stated even where it matches RDKit's default, so a predicate that opts out of
+        # stereochemistry reaches the match.
         matched = library.GetMatches(
-            molecule, numThreads=self._threads, maxResults=len(library) or 1
+            molecule,
+            useChirality=parameter.chirality,
+            numThreads=self._threads,
+            maxResults=len(library) or 1,
         )
         # A library entry is a molecule, not a structure: every ID sharing that molecule
         # matched too, and the answer is stated in IDs.
@@ -2774,7 +2780,13 @@ class Corpus:
         # of the key -- and it is asked of the same function the query molecule comes
         # from, so the two cannot come apart. Resolvers answer in the Kekule form a
         # SMARTS pattern is written in, so a name and a pattern do collide.
-        key = (parameter.op, _reads_as_smarts(parameter), pattern, parameter.threshold)
+        key = (
+            parameter.op,
+            _reads_as_smarts(parameter),
+            pattern,
+            parameter.threshold,
+            parameter.chirality,
+        )
         while True:
             with self._matches_lock:
                 cached = self._matched.get(key)
