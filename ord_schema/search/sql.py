@@ -126,7 +126,7 @@ def _connect(schema: pa.Schema) -> duckdb.DuckDBPyConnection:
 def validate(
     sql: str,
     *,
-    parameters: dict[str, str] | None = None,
+    parameters: dict[str, Any] | None = None,
     schema: pa.Schema = projection.SCHEMA,
 ) -> None:
     """Checks that ``sql`` is a single read-only query this surface will run.

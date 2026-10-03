@@ -118,6 +118,10 @@ is a compile error rather than a wrong answer:
   query is compiled rather than left to fail where it runs.
 - A `{"compound": ...}` value is resolved through [`ord_schema.resolvers`](../resolvers.py) and
   **bound as a parameter**, so the model names compounds and never spells structures.
+- A `{"literal": ...}` value is **bound as a parameter** too, typed: a string compared
+  against a date or timestamp column binds as the instant it names. No literal reaches the
+  SQL as text. What the model writes that does is the `limit`, validated as a positive
+  integer, and measure and compound names, both held to an identifier shape.
 - A `substructure`/`similarity`/`same_compound`/`same_parent` path must name a compound's
   `smiles`, inside a quantifier like any other element predicate.
 - `same_compound` asks "the same compound, however either was drawn"; an `eq` on a `smiles`
@@ -149,9 +153,9 @@ is a compile error rather than a wrong answer:
 
 ## How a query is answered
 
-One `Query` becomes one SQL statement. The chemistry and the compound names are lifted
-out of it and bound as parameters, so what DuckDB runs is a filter over the projection
-and nothing else:
+One `Query` becomes one SQL statement. The chemistry, the compound names, and every
+literal are lifted out of it and bound as parameters, so what DuckDB runs is a filter
+over the projection and nothing else:
 
 ```mermaid
 flowchart TB
@@ -772,7 +776,8 @@ LIMIT 100
 
 `compiled.compounds` names the parameters still to be bound. Resolve each through
 `ord_schema.resolvers` and pass the SMILES at execution — the name never reaches the SQL as
-text.
+text. `compiled.literals` maps every other parameter to its value, already typed, to bind
+as it is.
 
 ### Run it
 
@@ -785,9 +790,13 @@ connection = duckdb.connect()
 connection.execute(
     "CREATE VIEW reactions AS SELECT * FROM read_parquet('projections/*/*.parquet')"
 )
-parameters = {name: resolve_name("name", name)[0] for name in compiled.compounds}
+parameters = dict(compiled.literals)
+parameters.update({name: resolve_name("name", name)[0] for name in compiled.compounds})
 reaction_ids = [row[0] for row in connection.execute(compiled.sql, parameters).fetchall()]
 ```
+
+A connection opened this way reaches whatever the process can. `Corpus` confines its own;
+see [the containment](#containment).
 
 ### Ask for the same component, not merely the same reaction
 
@@ -863,14 +872,31 @@ behind it, callers that asked for no bound included. So a search can outlast its
 report the overrun rather than being stopped at it, and the `TimeoutError` names the phase
 that ran long.
 
-## Not yet solved
+## Containment
 
-Execution has no sandbox. `enable_external_access=false` cannot be combined with a lazy Parquet
-view — only a materialized table survives it — so running against the full corpus needs
-DuckDB's `allowed_directories` or a separate process. That list is four trees for a corpus
-reading everything it can: the projections, the structures, `pivots_dir`, and
-`occurrences_dir`. Compiling from an IR removes the reasons to fear the *query*; it does not
-remove the reasons to contain the *process*.
+Compiling from an IR removes the reasons to fear the *query*; it does not remove the reasons
+to contain the *process*. A `Corpus` holds its DuckDB database to the trees it reads — the
+directories holding its projections and its structures, and `pivots_dir` and
+`occurrences_dir` where it was given them — with external access disabled and the
+configuration locked. A statement that reached it carrying text it should not could read no
+other file, fetch no URL, attach no database, and load no extension, and could not lift any
+of that. `/proc/self/environ`, which holds the process's environment, is one such file.
+
+`enable_external_access=false` alone would not do: it refuses the lazy Parquet views too,
+and only a materialized table survives it. `allowed_directories` is what leaves the views
+readable, and spilling to DuckDB's temporary directory works under it.
+
+Two things it leaves to the deployment:
+
+- **Writes inside the trees.** The list has no read-only form, so a statement could write
+  under a corpus directory, and `Corpus` reads a file rewritten under it as it stands.
+  Mount the trees read-only. `derive_pivots=True` is the one setting that wants `pivots_dir`
+  writable, and it writes through a connection of its own rather than the corpus's.
+- **What a query costs.** Confinement bounds what a statement can reach, not how long it
+  runs or how much it holds; the grammar, `max_rows`, `timeout_seconds`, and `memory_limit`
+  do that.
+
+## Not yet solved
 
 **Text search is deferred, not approximated.** `contains`, `starts_with`, and `ends_with` run
 against any of the projection's 234 string leaves, and searching a short one — a `type`, a
