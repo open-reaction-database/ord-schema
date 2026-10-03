@@ -210,7 +210,8 @@ class StructureParameter:
 
     Exactly one of ``pattern`` and ``compound`` is set. ``pattern`` is a SMARTS for a
     substructure predicate and a SMILES for a similarity one, already validated;
-    ``compound`` is a name still to be resolved at execution.
+    ``compound`` is a name still to be resolved at execution. ``chirality`` is a
+    substructure predicate's, and False for every other kind.
     """
 
     name: str
@@ -218,6 +219,7 @@ class StructureParameter:
     pattern: str | None
     compound: str | None
     threshold: float | None
+    chirality: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -462,12 +464,18 @@ class Substructure(_Node):
 
     ``path`` names a compound's ``smiles``. The query is a SMARTS pattern, or a
     compound name resolved to a molecule at execution; exactly one is given.
+
+    Stereocenters in the query are ignored unless ``chirality`` is set, so a pattern
+    drawn as one enantiomer also matches its mirror image and the same molecule
+    recorded without stereo. Set, the match keeps only structures whose
+    stereochemistry agrees with the query's.
     """
 
     op: Literal["substructure"]
     path: str
     smarts: str | None = None
     compound: str | None = None
+    chirality: bool = False
 
     @model_validator(mode="after")
     def _check(self) -> "Substructure":
@@ -893,13 +901,15 @@ def _structure_parameter(
     """
     pattern = node.smarts if isinstance(node, Substructure) else node.smiles
     threshold = node.threshold if isinstance(node, Similarity) else None
+    chirality = isinstance(node, Substructure) and node.chirality
     for existing in structures:
-        if (existing.op, existing.pattern, existing.compound, existing.threshold) == (
-            node.op,
-            pattern,
-            node.compound,
-            threshold,
-        ):
+        if (
+            existing.op,
+            existing.pattern,
+            existing.compound,
+            existing.threshold,
+            existing.chirality,
+        ) == (node.op, pattern, node.compound, threshold, chirality):
             return existing.name
     parameter = StructureParameter(
         name=f"structure_{len(structures)}",
@@ -907,6 +917,7 @@ def _structure_parameter(
         pattern=pattern,
         compound=node.compound,
         threshold=threshold,
+        chirality=chirality,
     )
     structures.append(parameter)
     return parameter.name

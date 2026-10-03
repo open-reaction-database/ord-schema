@@ -1029,6 +1029,40 @@ def test_equal_structure_predicates_share_one_parameter():
     assert compiled.sql.count("$structure_0") == 2
 
 
+def test_a_substructure_ignores_chirality_unless_asked():
+    assert query.Substructure.model_validate(_substructure()).chirality is False
+    asked = query.Substructure.model_validate(_substructure() | {"chirality": True})
+    assert asked.chirality is True
+
+
+def test_predicates_differing_only_in_chirality_are_two_parameters():
+    # Their match sets differ, so sharing one parameter would answer one of them with
+    # the other's bitmap.
+    pattern = "C[C@@H](N)C(=O)O"
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {
+                "where": {
+                    "op": "and",
+                    "clauses": [
+                        {
+                            "op": "exists",
+                            "path": "inputs.components",
+                            "where": _substructure(pattern),
+                        },
+                        {
+                            "op": "exists",
+                            "path": "inputs.components",
+                            "where": _substructure(pattern) | {"chirality": True},
+                        },
+                    ],
+                }
+            }
+        )
+    )
+    assert [parameter.chirality for parameter in compiled.structures] == [False, True]
+
+
 def test_similarity_compiles_with_its_threshold():
     compiled = query.compile_query(
         query.Query.model_validate(
