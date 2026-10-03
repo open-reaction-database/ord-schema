@@ -1083,6 +1083,106 @@ def test_predicates_differing_only_in_chirality_are_two_parameters():
     assert [parameter.chirality for parameter in compiled.structures] == [True, False]
 
 
+def _reaction_smarts(smarts, **fields):
+    return {"where": {"op": "reaction_smarts", "smarts": smarts} | fields}
+
+
+def test_a_reaction_smarts_needs_a_template():
+    with pytest.raises(ValidationError, match="no templates"):
+        query.Query.model_validate(_reaction_smarts(">>"))
+
+
+def test_a_reaction_smarts_that_does_not_parse_is_refused():
+    with pytest.raises(ValidationError, match="does not parse"):
+        query.Query.model_validate(_reaction_smarts("C(=O>>C"))
+
+
+def test_a_reaction_smarts_compiles_to_one_structure_predicate_per_template():
+    # Reactant templates bind REACTANT components and product templates products, each
+    # in its own quantifier: every template has to match, unlike the cartridge's @>,
+    # which accepts any one per side.
+    compiled = _compile(_reaction_smarts("C(=O)O.N>>C(=O)N"))
+    assert [parameter.pattern for parameter in compiled.structures] == [
+        "C(=O)O",
+        "N",
+        "C(=O)N",
+    ]
+    assert compiled.sql.count("> 0, false)") == 3
+
+
+def test_two_templates_on_a_side_need_two_molecules():
+    # One count over the reactants, of components matching either template; the
+    # single product template needs none.
+    compiled = _compile(_reaction_smarts("C(=O)O.N>>C(=O)N"))
+    assert compiled.sql.count(">= 2)") == 1
+    assert compiled.sql.count("list_distinct(") == 1
+    assert list(compiled.literals.values()) == ["REACTANT"] * 3
+
+
+def test_only_a_count_reduces_distinct_values():
+    reduction = query.Reduction(
+        reduce="min", path="outcomes.products.measurements.percentage.value"
+    )
+    with pytest.raises(ValueError, match="distinct applies to count"):
+        query._reduced(reduction, projection.SCHEMA, distinct=True)
+
+
+def test_every_subset_of_templates_is_counted():
+    # Three reactant templates: three pairs and the triple. Two product templates: one.
+    compiled = _compile(_reaction_smarts("C.N.O>>C.N"))
+    assert compiled.sql.count(">= 2)") == 4
+    assert compiled.sql.count(">= 3)") == 1
+
+
+def test_a_grouped_template_is_one_molecule():
+    compiled = _compile(_reaction_smarts("(C(=O)O.N)>>C(=O)N"))
+    assert [parameter.pattern for parameter in compiled.structures] == [
+        "C(=O)O.N",
+        "C(=O)N",
+    ]
+    assert ">= " not in compiled.sql
+
+
+def test_a_reaction_smarts_holds_at_most_five_templates_per_side():
+    _compile(_reaction_smarts("C.C.C.C.C>>C"))
+    with pytest.raises(ValidationError, match="at most 5"):
+        query.Query.model_validate(_reaction_smarts("C.C.C.C.C.C>>C"))
+
+
+def test_an_agent_template_binds_a_component_that_is_not_a_reactant():
+    compiled = _compile(_reaction_smarts(">[Pd]>"))
+    assert [parameter.pattern for parameter in compiled.structures] == ["[#46]"]
+    assert "reaction_role <> $literal_0" in compiled.sql
+    assert list(compiled.literals.values()) == ["REACTANT"]
+
+
+def test_a_reaction_smarts_ignores_atom_maps():
+    mapped = _compile(_reaction_smarts("[C:1](=O)O.[N:2]>>[C:1](=O)[N:2]"))
+    plain = _compile(_reaction_smarts("C(=O)O.N>>C(=O)N"))
+    assert mapped.sql == plain.sql
+    assert mapped.structures == plain.structures
+
+
+def test_a_reaction_smarts_passes_chirality_to_every_template():
+    respected = _compile(_reaction_smarts("C(=O)O.N>>C(=O)N"))
+    assert {parameter.chirality for parameter in respected.structures} == {True}
+    ignored = _compile(_reaction_smarts("C(=O)O.N>>C(=O)N", chirality=False))
+    assert {parameter.chirality for parameter in ignored.structures} == {False}
+
+
+def test_a_reaction_smarts_is_a_condition_on_the_reaction():
+    with pytest.raises(query.QueryError, match="whole reaction"):
+        _compile(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "inputs.components",
+                    "where": {"op": "reaction_smarts", "smarts": "C>>C"},
+                }
+            }
+        )
+
+
 def test_similarity_compiles_with_its_threshold():
     compiled = query.compile_query(
         query.Query.model_validate(

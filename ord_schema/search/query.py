@@ -60,6 +60,7 @@ local and only the executor knows the offsets that make them one corpus-wide spa
 import dataclasses
 import datetime
 import difflib
+import itertools
 import re
 import warnings
 from collections.abc import Callable
@@ -68,6 +69,7 @@ from typing import Annotated, Any, Literal
 import pyarrow as pa
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from rdkit import Chem
+from rdkit.Chem import rdChemReactions
 
 # Aliased because ``pivot`` is the parameter name a caller passes an index under, and a
 # module shadowed inside the function that needs it is a bug waiting for an edit.
@@ -644,6 +646,91 @@ class SameParent(_Node):
         return self
 
 
+def _reaction_templates(smarts: str) -> tuple[list[str], list[str], list[str]]:
+    """Returns a reaction SMARTS's reactant, agent, and product templates as SMARTS.
+
+    Atom maps are cleared, so a mapped template and the same template unmapped are one
+    pattern; a template grouped with parentheses, ``(A.B)``, stays one template, both
+    pieces in one molecule.
+
+    Args:
+        smarts: The reaction SMARTS.
+
+    Returns:
+        The SMARTS of each reactant, agent, and product template, in order.
+
+    Raises:
+        ValueError: If the SMARTS does not parse.
+    """
+    try:
+        reaction = rdChemReactions.ReactionFromSmarts(smarts)
+    except ValueError as error:
+        raise ValueError(f"reaction SMARTS does not parse: {smarts!r}") from error
+    if reaction is None:
+        raise ValueError(f"reaction SMARTS does not parse: {smarts!r}")
+    sides = []
+    for templates in (
+        reaction.GetReactants(),
+        reaction.GetAgents(),
+        reaction.GetProducts(),
+    ):
+        side = []
+        for template in templates:
+            unmapped = Chem.Mol(template)
+            for atom in unmapped.GetAtoms():
+                atom.SetAtomMapNum(0)
+            side.append(Chem.MolToSmarts(unmapped))
+        sides.append(side)
+    return sides[0], sides[1], sides[2]
+
+
+# Most templates one side of a reaction SMARTS may hold. Giving each its own component
+# costs a count per subset of two or more templates, 2^n - n - 1 of them, so the bound
+# is what keeps a long SMARTS from compiling to an unbounded number of scans. Five
+# covers the four components of an Ugi reaction with one to spare.
+_MOST_TEMPLATES_PER_SIDE = 5
+
+
+class ReactionSmarts(_Node):
+    """The reaction matches a reaction SMARTS, each template on a molecule of its own.
+
+    Each reactant template has to match an input component whose role is ``REACTANT``,
+    each product template a product, and each agent template an input component in any
+    other role. Every template has to match, and two templates on one side have to
+    match two different molecules: ``C(=O)O.N`` names an acid and an amine, and a
+    Boc-protected amine holding both groups is not that, even recorded twice. Grouping
+    with parentheses, ``(C(=O)O.N)``, makes one template of both pieces, matched within
+    one molecule. The RDKit cartridge's ``@>`` accepts any one template per side, which
+    for a two-template query returns several times the reactions the query describes.
+    Atom maps are ignored, as ``@>`` ignores them, so this says which molecules took
+    part and not which atoms changed. ``chirality`` applies to every template, as it
+    does to a ``substructure``.
+    """
+
+    op: Literal["reaction_smarts"]
+    smarts: str
+    chirality: bool = True
+
+    @model_validator(mode="after")
+    def _check(self) -> "ReactionSmarts":
+        reactants, agents, products = _reaction_templates(self.smarts)
+        if not (reactants or agents or products):
+            raise ValueError(f"reaction SMARTS has no templates: {self.smarts!r}")
+        for side in (reactants, agents, products):
+            if len(side) > _MOST_TEMPLATES_PER_SIDE:
+                raise ValueError(
+                    f"reaction SMARTS has {len(side)} templates on one side, and at "
+                    f"most {_MOST_TEMPLATES_PER_SIDE} are supported: {self.smarts!r}"
+                )
+        for template in (*reactants, *agents, *products):
+            # Held to what a substructure accepts, so a template that would match
+            # nothing is refused here rather than returning an empty answer.
+            Substructure.model_validate(
+                {"op": "substructure", "path": "smiles", "smarts": template}
+            )
+        return self
+
+
 # The predicates the executor answers by evaluating chemistry outside the query and
 # binding the match set as a bitmap over structure IDs; see ``_structure``.
 StructurePredicate = Substructure | Similarity | SameCompound | SameParent
@@ -658,7 +745,8 @@ Predicate = Annotated[
     | Substructure
     | Similarity
     | SameCompound
-    | SameParent,
+    | SameParent
+    | ReactionSmarts,
     Field(discriminator="op"),
 ]
 
@@ -680,6 +768,9 @@ _REDUCERS = {
     "sum": "list_sum({expression})",
     "count": "coalesce(len(list_filter({expression}, value -> value IS NOT NULL)), 0)",
 }
+
+# `count` over each value once. list_distinct drops the nulls as well as the repeats.
+_DISTINCT_COUNT = "coalesce(len(list_distinct({expression})), 0)"
 
 # The relation a pivoted reduction reads its elements from. A reduction is only ever
 # compiled where the rows are reactions, and each subquery scopes its own alias, so one
@@ -1254,6 +1345,122 @@ def _quantifier(
     )
 
 
+def _template_sides(
+    node: ReactionSmarts,
+) -> list[tuple[str, dict[str, Any] | None, list[dict[str, Any]]]]:
+    """Returns each side of a reaction SMARTS as the elements its templates must match.
+
+    Args:
+        node: The reaction SMARTS predicate.
+
+    Returns:
+        For the reactants, the agents, and the products in turn: the repeated level
+        their molecules are elements of, the role condition an element must also meet
+        (None for products), and one ``substructure`` per template.
+    """
+    reactants, agents, products = _reaction_templates(node.smarts)
+
+    def structures(templates: list[str]) -> list[dict[str, Any]]:
+        return [
+            {
+                "op": "substructure",
+                "path": "smiles",
+                "smarts": template,
+                "chirality": node.chirality,
+            }
+            for template in templates
+        ]
+
+    def role(op: str) -> dict[str, Any]:
+        return {"op": op, "path": "reaction_role", "value": {"literal": "REACTANT"}}
+
+    return [
+        ("inputs.components", role("eq"), structures(reactants)),
+        ("inputs.components", role("ne"), structures(agents)),
+        ("outcomes.products", None, structures(products)),
+    ]
+
+
+def _element_condition(
+    structure: dict[str, Any], role: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Returns what one element must satisfy: the structure, and the role if any."""
+    if role is None:
+        return structure
+    return {"op": "and", "clauses": [structure, role]}
+
+
+def _expand_reaction_smarts(node: ReactionSmarts) -> And:
+    """Returns the quantifiers a reaction SMARTS stands for, one per template.
+
+    Built from the grammar's own nodes, so each template is routed as any other
+    quantifier is: a reactant template's ``exists`` over components with a structure and
+    a role is exactly what the occurrence index answers. ``_distinct_matches`` adds
+    what gives each template a component of its own.
+
+    Args:
+        node: The reaction SMARTS predicate.
+
+    Returns:
+        A conjunction holding one ``exists`` per template.
+    """
+    clauses = [
+        {"op": "exists", "path": path, "where": _element_condition(structure, role)}
+        for path, role, structures in _template_sides(node)
+        for structure in structures
+    ]
+    return And.model_validate({"op": "and", "clauses": clauses})
+
+
+def _distinct_matches(
+    node: ReactionSmarts,
+    schema: Any,
+    parameters: _Parameters,
+    routing: _Routing,
+) -> list[str]:
+    """Returns the conditions giving each template on a side a molecule of its own.
+
+    Templates can be assigned to distinct molecules exactly when every subset of them
+    matches at least as many molecules between them as it holds templates (Hall's
+    theorem). A subset of one is the template's own ``exists``; each larger subset is a
+    count of the molecules matching any of its templates.
+
+    Args:
+        node: The reaction SMARTS predicate.
+        schema: Schema the levels resolve against.
+        parameters: What the compilation binds so far, appended to by the counts.
+        routing: Where the elements may be read besides the projection's lists.
+
+    Returns:
+        One DuckDB condition per subset of two or more templates on one side.
+    """
+    conditions = []
+    for path, role, structures in _template_sides(node):
+        for size in range(2, len(structures) + 1):
+            for subset in itertools.combinations(structures, size):
+                # Counted as distinct smiles, which the projection writes canonical and
+                # wherever it writes a structure ID: a molecule recorded twice, in two
+                # portions or two outcomes, is still one molecule.
+                count = Reduction.model_validate(
+                    {
+                        "reduce": "count",
+                        "path": f"{path}.smiles",
+                        "where": _element_condition(
+                            {"op": "or", "clauses": list(subset)}, role
+                        ),
+                    }
+                )
+                reduced = _reduced(
+                    count,
+                    schema,
+                    parameters=parameters,
+                    routing=routing,
+                    distinct=True,
+                )
+                conditions.append(f"({reduced} >= {size})")
+    return conditions
+
+
 def _predicate(
     node: Any,
     scope: str | None,
@@ -1283,8 +1490,22 @@ def _predicate(
 
     Raises:
         QueryError: If a path does not resolve, crosses a repeated level without a
-            quantifier, or is compared in a way its type does not allow.
+            quantifier, or is compared in a way its type does not allow, or if a
+            ``reaction_smarts`` sits anywhere but at the row.
     """
+    if isinstance(node, ReactionSmarts):
+        if scope is not None:
+            raise QueryError(
+                "reaction_smarts is a condition on the whole reaction, so it cannot "
+                "sit inside a quantifier or an element filter"
+            )
+        conditions = [
+            _predicate(
+                _expand_reaction_smarts(node), scope, schema, parameters, depth, routing
+            ),
+            *_distinct_matches(node, schema, parameters, routing),
+        ]
+        return "(" + " AND ".join(conditions) + ")"
     if isinstance(node, And | Or):
         keyword = " AND " if isinstance(node, And) else " OR "
         return (
@@ -1365,6 +1586,8 @@ def _pivoted_reduction(
     table: str,
     parameters: _Parameters,
     routing: "_Routing",
+    *,
+    distinct: bool = False,
 ) -> str | None:
     """Returns the reduction as an aggregate over a pivot, where one covers the path.
 
@@ -1378,6 +1601,7 @@ def _pivoted_reduction(
         table: The relation of reactions the subquery correlates to.
         parameters: What the compilation binds so far, appended to as values are met.
         routing: Where a filter's own clauses may be answered. See ``_Routing``.
+        distinct: Whether to reduce each value once; see ``_reduced``.
 
     Returns:
         A correlated scalar subquery over the pivot, or None where no pivot covers the
@@ -1406,8 +1630,9 @@ def _pivoted_reduction(
             1,
             routing,
         )
+    argument = f"DISTINCT {column}" if distinct else column
     return (
-        f"(SELECT {_AGGREGATES[reduction.reduce]}({column}) "  # noqa: S608
+        f"(SELECT {_AGGREGATES[reduction.reduce]}({argument}) "  # noqa: S608
         f"FROM {relation} AS {_REDUCTION_ALIAS} WHERE {condition})"
     )
 
@@ -1451,6 +1676,7 @@ def _reduced(
     *,
     parameters: _Parameters | None = None,
     routing: "_Routing | None" = None,
+    distinct: bool = False,
 ) -> str:
     """Returns the expression reducing a repeated path to one value per reaction.
 
@@ -1461,6 +1687,9 @@ def _reduced(
             meets values; a fresh collection where the caller compiles no filter.
         routing: Where the elements may be read besides the projection's lists, and
             the relation a pivoted reduction correlates to. See ``_Routing``.
+        distinct: Whether a ``count`` counts each value once rather than each element
+            holding one. The grammar has no spelling for it; ``_distinct_matches``
+            passes it.
 
     Returns:
         A DuckDB expression yielding one scalar per reaction. An arithmetic reducer
@@ -1472,7 +1701,10 @@ def _reduced(
             one would give the same query two spellings), if an arithmetic reducer
             reaches a leaf that does not hold numbers, or if a ``where`` quantifies
             over a level of its own.
+        ValueError: If ``distinct`` is asked of a reducer other than ``count``.
     """
+    if distinct and reduction.reduce != "count":
+        raise ValueError(f"distinct applies to count, not {reduction.reduce}")
     collected = _Parameters() if parameters is None else parameters
     where_to_look = _Routing(TABLE) if routing is None else routing
     resolved = resolve(reduction.path, schema=schema)
@@ -1487,7 +1719,7 @@ def _reduced(
         level, _, _ = _reduced_element(reduction)
         _refuse_quantified(reduction.where, level.path, "a reduction's where")
     pivoted = _pivoted_reduction(
-        reduction, where_to_look.table, collected, where_to_look
+        reduction, where_to_look.table, collected, where_to_look, distinct=distinct
     )
     if pivoted is not None:
         return pivoted
@@ -1496,7 +1728,8 @@ def _reduced(
         if reduction.where is None
         else _filtered_elements(reduction, schema, collected, where_to_look)
     )
-    return _REDUCERS[reduction.reduce].format(expression=expression)
+    reducer = _DISTINCT_COUNT if distinct else _REDUCERS[reduction.reduce]
+    return reducer.format(expression=expression)
 
 
 def _measure_argument(
