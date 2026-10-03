@@ -727,10 +727,10 @@ print(schema.describe())
 ```
 
 That renders the projection, and the `dataset_id` the executor supplies, as an indented type
-tree in DuckDB's type names — 538 lines, small enough to sit in a system prompt whole, which is what lets translation stay a
-single tool call rather than a retrieval loop over column metadata. Units ride along in the
-column names (`setpoint_kelvin`, `mass_grams`), so nothing has to explain them, and each enum
-column carries the values it may hold:
+tree in DuckDB's type names — 538 lines, small enough to sit in a system prompt whole, which
+is what lets translation stay a single tool call rather than a retrieval loop over column
+metadata. Units ride along in the column names (`setpoint_kelvin`, `mass_grams`), so nothing
+has to explain them, and each enum column carries the values it may hold:
 
 ```text
       reaction_role: VARCHAR  (UNSPECIFIED | REACTANT | REAGENT | SOLVENT | CATALYST | ...)
