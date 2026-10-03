@@ -588,5 +588,15 @@
     "question": "reactions published in the last five years",
     "why": "no date arithmetic and no notion of today: a translation that hardcodes a year looks right and rots",
     "compiles": false
+  },
+  {
+    "question": "which reactions couple an aryl boronic acid with an aryl bromide or iodide?",
+    "why": "two reactant templates that must both match, where the cartridge's @> accepts either one",
+    "reference": {
+      "where": {
+        "op": "reaction_smarts",
+        "smarts": "cB(O)O.c[Br,I]>>c-c"
+      }
+    }
   }
 ]

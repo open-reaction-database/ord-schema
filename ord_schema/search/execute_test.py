@@ -224,6 +224,83 @@ def chiral_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
         yield value
 
 
+@pytest.fixture(scope="module")
+def reaction_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
+    """Reactions that a reaction SMARTS reading every template keeps apart."""
+    root = tmp_path_factory.mktemp("reactions")
+    acid, amine, amide = "CC(=O)O", "NCc1ccccc1", "CC(=O)NCc1ccccc1"
+    reactions = [
+        # An amide coupling: both templates on REACTANT components, the amide a product.
+        _reaction(
+            "ord-rs01",
+            components=[(acid, _ROLE.REACTANT), (amine, _ROLE.REACTANT)],
+            product=amide,
+        ),
+        # The amine recorded as a reagent, so no REACTANT holds the second template.
+        _reaction(
+            "ord-rs02",
+            components=[(acid, _ROLE.REACTANT), (amine, _ROLE.REAGENT)],
+            product=amide,
+        ),
+        # An esterification: the acid template matches, the product template does not.
+        _reaction(
+            "ord-rs03",
+            components=[(acid, _ROLE.REACTANT), ("CO", _ROLE.REACTANT)],
+            product="CC(=O)OC",
+        ),
+        # The acid and an amide product with no amine anywhere: one reactant template of
+        # two, which is enough for the cartridge's @>.
+        _reaction(
+            "ord-rs04",
+            components=[(acid, _ROLE.REACTANT), ("Cc1ccccc1", _ROLE.REACTANT)],
+            product=amide,
+        ),
+        # A Suzuki coupling with its palladium recorded as a catalyst.
+        _reaction(
+            "ord-rs05",
+            components=[
+                ("Brc1ccccc1", _ROLE.REACTANT),
+                ("OB(O)c1ccccc1", _ROLE.REACTANT),
+                ("[Pd]", _ROLE.CATALYST),
+            ],
+            product="c1ccc(-c2ccccc2)cc1",
+        ),
+    ]
+    source = root / "data" / "ord_dataset-rs.parquet"
+    source.parent.mkdir(parents=True)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-rs",
+            name="test",
+            description="test",
+            reactions=reactions,
+        ),
+        str(source),
+    )
+    projected = root / "projections" / source.name
+    projected.parent.mkdir(parents=True)
+    projection.write_projection(source, projected)
+    structured = root / "structures" / source.name
+    structured.parent.mkdir(parents=True)
+    structures.write_structures(projected, structured)
+    with execute.Corpus(
+        str(root / "projections" / "*.parquet"),
+        str(root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        yield value
+
+
+def test_a_reaction_smarts_needs_every_template_on_its_side(reaction_corpus):
+    where = {"op": "reaction_smarts", "smarts": "C(=O)O.N>>C(=O)N"}
+    assert _search(reaction_corpus, where) == {"ord-rs01"}
+
+
+def test_an_agent_template_finds_a_catalyst(reaction_corpus):
+    where = {"op": "reaction_smarts", "smarts": "cBr.cB(O)O>[Pd]>c-c"}
+    assert _search(reaction_corpus, where) == {"ord-rs05"}
+
+
 def test_a_substructure_matches_the_drawn_stereoisomer_unless_chirality_is_off(
     chiral_corpus,
 ):
@@ -1363,6 +1440,14 @@ def test_the_occurrence_index_binds_the_role_it_filters_on():
     assert "FROM occurrences" in compiled.sql
     assert "SOLVENT" not in compiled.sql
     assert list(compiled.literals.values()) == ["SOLVENT"]
+
+
+def test_a_reaction_smarts_spends_the_occurrence_index_on_its_reactants():
+    # A reactant template compiles to an exists over components with a structure and a
+    # role, which is the shape the index answers without reading the projection.
+    assert _index_spent(
+        {"where": {"op": "reaction_smarts", "smarts": "C(=O)O.N>>C(=O)N"}}
+    )
 
 
 def _no_index_condition(path, fields, allocate, bind):

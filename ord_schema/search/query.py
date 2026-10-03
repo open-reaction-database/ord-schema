@@ -68,6 +68,7 @@ from typing import Annotated, Any, Literal
 import pyarrow as pa
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from rdkit import Chem
+from rdkit.Chem import rdChemReactions
 
 # Aliased because ``pivot`` is the parameter name a caller passes an index under, and a
 # module shadowed inside the function that needs it is a bug waiting for an edit.
@@ -634,6 +635,74 @@ class SameParent(_Node):
         return self
 
 
+def _reaction_templates(smarts: str) -> tuple[list[str], list[str], list[str]]:
+    """Returns a reaction SMARTS's reactant, agent, and product templates as SMARTS.
+
+    Atom maps are cleared, so a mapped template and the same template unmapped are one
+    pattern; a template grouped with parentheses, ``(A.B)``, stays one template, both
+    pieces in one molecule.
+
+    Args:
+        smarts: The reaction SMARTS.
+
+    Returns:
+        The SMARTS of each reactant, agent, and product template, in order.
+
+    Raises:
+        ValueError: If the SMARTS does not parse.
+    """
+    try:
+        reaction = rdChemReactions.ReactionFromSmarts(smarts)
+    except ValueError as error:
+        raise ValueError(f"reaction SMARTS does not parse: {smarts!r}") from error
+    if reaction is None:
+        raise ValueError(f"reaction SMARTS does not parse: {smarts!r}")
+    sides = []
+    for templates in (
+        reaction.GetReactants(),
+        reaction.GetAgents(),
+        reaction.GetProducts(),
+    ):
+        side = []
+        for template in templates:
+            unmapped = Chem.Mol(template)
+            for atom in unmapped.GetAtoms():
+                atom.SetAtomMapNum(0)
+            side.append(Chem.MolToSmarts(unmapped))
+        sides.append(side)
+    return sides[0], sides[1], sides[2]
+
+
+class ReactionSmarts(_Node):
+    """The reaction matches a reaction SMARTS, one template at a time.
+
+    Each reactant template has to match an input component whose role is ``REACTANT``,
+    each product template a product, and each agent template an input component in any
+    other role. Every template has to match: the RDKit cartridge's ``@>`` accepts any
+    one per side, which for a two-template query returns several times the reactions
+    the query describes. Atom maps are ignored, as ``@>`` ignores them, so this says
+    which molecules took part and not which atoms changed. ``chirality`` applies to
+    every template, as it does to a ``substructure``.
+    """
+
+    op: Literal["reaction_smarts"]
+    smarts: str
+    chirality: bool = True
+
+    @model_validator(mode="after")
+    def _check(self) -> "ReactionSmarts":
+        reactants, agents, products = _reaction_templates(self.smarts)
+        if not (reactants or agents or products):
+            raise ValueError(f"reaction SMARTS has no templates: {self.smarts!r}")
+        for template in (*reactants, *agents, *products):
+            # Held to what a substructure accepts, so a template that would match
+            # nothing is refused here rather than returning an empty answer.
+            Substructure.model_validate(
+                {"op": "substructure", "path": "smiles", "smarts": template}
+            )
+        return self
+
+
 # The predicates the executor answers by evaluating chemistry outside the query and
 # binding the match set as a bitmap over structure IDs; see ``_structure``.
 StructurePredicate = Substructure | Similarity | SameCompound | SameParent
@@ -648,7 +717,8 @@ Predicate = Annotated[
     | Substructure
     | Similarity
     | SameCompound
-    | SameParent,
+    | SameParent
+    | ReactionSmarts,
     Field(discriminator="op"),
 ]
 
@@ -1244,6 +1314,55 @@ def _quantifier(
     )
 
 
+def _expand_reaction_smarts(node: ReactionSmarts) -> And:
+    """Returns the quantifiers a reaction SMARTS stands for, one per template.
+
+    Built from the grammar's own nodes, so each template is routed as any other
+    quantifier is: a reactant template's ``exists`` over components with a structure and
+    a role is exactly what the occurrence index answers.
+
+    Args:
+        node: The reaction SMARTS predicate.
+
+    Returns:
+        A conjunction holding one ``exists`` per template.
+    """
+    reactants, agents, products = _reaction_templates(node.smarts)
+
+    def structure(template: str) -> dict[str, Any]:
+        return {
+            "op": "substructure",
+            "path": "smiles",
+            "smarts": template,
+            "chirality": node.chirality,
+        }
+
+    def role(op: str) -> dict[str, Any]:
+        return {"op": op, "path": "reaction_role", "value": {"literal": "REACTANT"}}
+
+    clauses: list[dict[str, Any]] = [
+        {
+            "op": "exists",
+            "path": "inputs.components",
+            "where": {"op": "and", "clauses": [structure(template), role("eq")]},
+        }
+        for template in reactants
+    ]
+    clauses += [
+        {
+            "op": "exists",
+            "path": "inputs.components",
+            "where": {"op": "and", "clauses": [structure(template), role("ne")]},
+        }
+        for template in agents
+    ]
+    clauses += [
+        {"op": "exists", "path": "outcomes.products", "where": structure(template)}
+        for template in products
+    ]
+    return And.model_validate({"op": "and", "clauses": clauses})
+
+
 def _predicate(
     node: Any,
     scope: str | None,
@@ -1273,8 +1392,18 @@ def _predicate(
 
     Raises:
         QueryError: If a path does not resolve, crosses a repeated level without a
-            quantifier, or is compared in a way its type does not allow.
+            quantifier, or is compared in a way its type does not allow, or if a
+            ``reaction_smarts`` sits anywhere but at the row.
     """
+    if isinstance(node, ReactionSmarts):
+        if scope is not None:
+            raise QueryError(
+                "reaction_smarts is a condition on the whole reaction, so it cannot "
+                "sit inside a quantifier or an element filter"
+            )
+        return _predicate(
+            _expand_reaction_smarts(node), scope, schema, parameters, depth, routing
+        )
     if isinstance(node, And | Or):
         keyword = " AND " if isinstance(node, And) else " OR "
         return (

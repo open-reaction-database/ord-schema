@@ -53,6 +53,7 @@ Predicate  = { op: "and" | "or", clauses: [Predicate] }
                threshold: float }
            | { op: "same_compound", path: Path, smiles?: string, compound?: <name> }
            | { op: "same_parent", path: Path, smiles?: string, compound?: <name> }
+           | { op: "reaction_smarts", smarts: string, chirality?: bool }
 
 Value      = { literal: <scalar> } | { compound: <name> }
 
@@ -128,6 +129,15 @@ is a compile error rather than a wrong answer:
   same molecule recorded without stereo. `chirality: false` ignores them, for a question
   about the molecule whatever its configuration. The flag is part of the cached match
   set's key, so the two questions never share an answer.
+- A `reaction_smarts` is a condition on the reaction, refused inside a quantifier, and
+  every template in it has to match: each reactant template a component whose role is
+  `REACTANT`, each product template a product, each agent template a component in any
+  other role. It compiles to one `exists` per template, so a reactant template is answered
+  by the occurrence index like any other. That is stricter than the RDKit cartridge's
+  `@>`, which accepts any one template per side; over a 40,000-reaction sample a Suzuki
+  query returns 7,667 reactions through `@>` and 973 this way
+  ([logbook](https://github.com/open-reaction-database/ord-logbook/blob/main/entries/2026-10-02-reaction-smarts-without-the-cartridge/README.md)).
+  Atom maps are ignored, as `@>` ignores them, and `chirality` applies to every template.
 - A `substructure`/`similarity`/`same_compound`/`same_parent` path must name a compound's
   `smiles`, inside a quantifier like any other element predicate.
 - `same_compound` asks "the same compound, however either was drawn"; an `eq` on a `smiles`
