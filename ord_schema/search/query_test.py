@@ -14,6 +14,7 @@
 
 """Tests for ord_schema.search.query."""
 
+import datetime
 import warnings
 
 import duckdb
@@ -35,7 +36,8 @@ def _run(compiled, parameters=None):
     connection = duckdb.connect()
     connection.register(query.TABLE, projection.SCHEMA.empty_table())
     try:
-        return connection.execute(compiled.sql, parameters or {}).fetchall()
+        bound = dict(compiled.literals) | (parameters or {})
+        return connection.execute(compiled.sql, bound).fetchall()
     finally:
         connection.close()
 
@@ -93,8 +95,9 @@ def test_a_comparison_compiles_to_a_scalar_test():
     )
     assert compiled.sql == (
         "SELECT reaction_id FROM reactions "
-        "WHERE conditions.temperature.setpoint_kelvin > 300.0"
+        "WHERE conditions.temperature.setpoint_kelvin > $literal_0"
     )
+    assert compiled.literals == {"literal_0": 300.0}
     assert compiled.compounds == ()
 
 
@@ -112,7 +115,7 @@ def test_exists_compiles_to_a_list_lambda_never_to_unnest():
     )
     assert "list_filter" in compiled.sql
     assert "UNNEST" not in compiled.sql.upper()
-    sql.validate(compiled.sql)
+    sql.validate(compiled.sql, parameters=compiled.literals)
 
 
 def test_forall_is_the_negation_of_a_counterexample():
@@ -233,6 +236,134 @@ def test_a_string_literal_carrying_a_quote_cannot_close_it():
             }
         }
     )
+    assert "DROP" not in compiled.sql
+    assert list(compiled.literals.values()) == ["'; DROP TABLE reactions; --"]
+    assert _run(compiled) == []
+
+
+_DATES = pa.schema([pa.field("reaction_id", pa.string()), pa.field("day", pa.date32())])
+
+
+@pytest.mark.parametrize(
+    ("path", "literal", "bound", "schema"),
+    [
+        ("conditions.temperature.setpoint_kelvin", 300.5, 300.5, projection.SCHEMA),
+        ("conditions.temperature.setpoint_kelvin", 300, 300, projection.SCHEMA),
+        ("conditions.conditions_are_dynamic", True, True, projection.SCHEMA),
+        (
+            "provenance.record_created.time.timestamp",
+            "2025-01-01T12:30:00",
+            datetime.datetime(2025, 1, 1, 12, 30),
+            projection.SCHEMA,
+        ),
+        ("day", "2025-01-01", datetime.date(2025, 1, 1), _DATES),
+    ],
+)
+def test_every_literal_is_bound_as_a_value_of_its_own_type(
+    path, literal, bound, schema
+):
+    # A number, a boolean, or an instant spelled into the SQL is one more place the
+    # model's input becomes the statement's text; bound, it never is.
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {"where": {"op": "eq", "path": path, "value": {"literal": literal}}}
+        ),
+        schema=schema,
+    )
+    assert list(compiled.literals.values()) == [bound]
+    assert type(next(iter(compiled.literals.values()))) is type(bound)
+    assert str(literal) not in compiled.sql
+    assert "300" not in compiled.sql
+    assert "TRUE" not in compiled.sql
+
+
+def test_a_compound_named_like_a_literal_parameter_is_refused():
+    literal = {"op": "eq", "path": "reaction_id", "value": {"literal": "ord-1"}}
+    with pytest.raises(query.QueryError, match="collide"):
+        _compile(
+            {
+                "where": {
+                    "op": "and",
+                    "clauses": [
+                        literal,
+                        {
+                            "op": "exists",
+                            "path": "inputs.components",
+                            "where": {
+                                "op": "eq",
+                                "path": "smiles",
+                                "value": {"compound": "literal_0"},
+                            },
+                        },
+                    ],
+                }
+            }
+        )
+
+
+def test_a_compound_in_an_ordering_is_checked_for_collisions_too():
+    # An ordering compiles after the where, so a check made between the two would see
+    # the where's structure parameter and miss the ordering's compound.
+    with pytest.raises(query.QueryError, match="collide"):
+        _compile(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "inputs.components",
+                    "where": _substructure(),
+                },
+                "order_by": [
+                    {
+                        "key": {
+                            "reduce": "count",
+                            "path": "inputs.components",
+                            "where": {
+                                "op": "eq",
+                                "path": "smiles",
+                                "value": {"compound": "structure_0"},
+                            },
+                        }
+                    }
+                ],
+            }
+        )
+
+
+def test_a_pivot_that_declines_leaves_no_literal_behind():
+    # The role compiles against the pivot first, and the nested level then fails to
+    # resolve there, so the pivot declines and the elements compile the body again. A
+    # literal the abandoned attempt bound would be one the SQL never names, which DuckDB
+    # refuses as an excess parameter.
+    compiled = _compile(
+        {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {
+                    "op": "and",
+                    "clauses": [
+                        {
+                            "op": "eq",
+                            "path": "reaction_role",
+                            "value": {"literal": "SOLVENT"},
+                        },
+                        {
+                            "op": "exists",
+                            "path": "identifiers",
+                            "where": {
+                                "op": "eq",
+                                "path": "value",
+                                "value": {"literal": "x"},
+                            },
+                        },
+                    ],
+                },
+            }
+        },
+        pivot=lambda path: "pivoted" if path == "inputs.components" else None,
+    )
+    assert "pivoted" not in compiled.sql
+    assert list(compiled.literals.values()) == ["SOLVENT", "x"]
     assert _run(compiled) == []
 
 
@@ -763,35 +894,49 @@ _WHEN = "provenance.record_created.time.timestamp"
 @pytest.mark.parametrize(
     ("op", "literal", "expected"),
     [
-        ("ge", "2025-01-01", "TIMESTAMP '2025-01-01 00:00:00'"),
-        ("lt", "2026-01-01", "TIMESTAMP '2026-01-01 00:00:00'"),
-        ("ge", "2025-01-01 12:30:00", "TIMESTAMP '2025-01-01 12:30:00'"),
-        ("eq", "2025-01-01T12:30:00", "TIMESTAMP '2025-01-01 12:30:00'"),
+        ("ge", "2025-01-01", datetime.datetime(2025, 1, 1)),
+        ("lt", "2026-01-01", datetime.datetime(2026, 1, 1)),
+        ("ge", "2025-01-01 12:30:00", datetime.datetime(2025, 1, 1, 12, 30)),
+        ("eq", "2025-01-01T12:30:00", datetime.datetime(2025, 1, 1, 12, 30)),
     ],
 )
 def test_a_timestamp_compares_against_an_iso_literal(op, literal, expected):
-    # Typed rather than quoted: a bare date reads as that day's midnight, so asking for
-    # a year is a pair of comparisons rather than a text match on the spelling.
+    # Bound as an instant rather than as its spelling: a bare date reads as that day's
+    # midnight, so asking for a year is a pair of comparisons rather than a text match.
     compiled = _compile(
         {"where": {"op": op, "path": _WHEN, "value": {"literal": literal}}}
     )
-    assert expected in compiled.sql
+    assert compiled.literals == {"literal_0": expected}
     assert _run(compiled) == []
 
 
 def test_a_date_column_compares_as_a_date_not_as_text():
     # A string beside a TIMESTAMP casts in DuckDB, but beside a DATE it compares as
-    # text and answers by spelling, so the literal carries its type either way.
-    schema = pa.schema(
-        [pa.field("reaction_id", pa.string()), pa.field("day", pa.date32())]
-    )
+    # text and answers by spelling, so the literal binds as a date either way.
     compiled = query.compile_query(
         query.Query.model_validate(
             {"where": {"op": "ge", "path": "day", "value": {"literal": "2025-01-01"}}}
         ),
-        schema=schema,
+        schema=_DATES,
     )
-    assert "day >= DATE '2025-01-01'" in compiled.sql
+    assert compiled.literals == {"literal_0": datetime.date(2025, 1, 1)}
+    connection = duckdb.connect()
+    connection.register(
+        query.TABLE,
+        pa.table(
+            {
+                "reaction_id": ["ord-1", "ord-2"],
+                "day": [datetime.date(2024, 12, 31), datetime.date(2025, 2, 1)],
+            },
+            schema=_DATES,
+        ),
+    )
+    try:
+        assert connection.execute(compiled.sql, compiled.literals).fetchall() == [
+            ("ord-2",)
+        ]
+    finally:
+        connection.close()
 
 
 @pytest.mark.parametrize(
@@ -1394,7 +1539,7 @@ def _filtered(where=None, reducer="count"):
 def test_a_filtered_reduction_narrows_the_pivot_subquery():
     sql = _pivot_sql(_filtered(_YIELD), pivot=_every_level)
     assert (
-        "WHERE r0.reaction_id = reactions.reaction_id AND r0.element.type = 'YIELD'"
+        "WHERE r0.reaction_id = reactions.reaction_id AND r0.element.type = $literal_0"
     ) in sql
 
 
@@ -1403,7 +1548,7 @@ def test_a_filtered_reduction_narrows_the_list_before_reducing():
     # filtering percentages could not see the type the question asks about.
     sql = _pivot_sql(_filtered(_YIELD))
     assert "list_filter(flatten(" in sql
-    assert "r0 -> r0.type = 'YIELD'" in sql
+    assert "r0 -> r0.type = $literal_0" in sql
     assert sql.index("list_filter(flatten(") < sql.index("x -> x.percentage")
 
 
@@ -1675,7 +1820,7 @@ def test_an_aggregate_over_a_level_reads_the_pivot_rather_than_the_reactions():
 
 def test_the_aggregate_s_where_filters_the_elements_not_the_reactions():
     sql = _over(_SOLVENT_COUNTS)
-    assert "WHERE x0.element.reaction_role = 'SOLVENT'" in sql
+    assert "WHERE x0.element.reaction_role = $literal_0" in sql
     assert "EXISTS" not in sql
 
 
@@ -1692,12 +1837,12 @@ def test_the_query_s_where_still_selects_reactions():
             }
         }
     )
-    assert "x0.element.reaction_role = 'SOLVENT'" in sql
+    assert "x0.element.reaction_role = $literal_0" in sql
     assert (
         "EXISTS (SELECT 1 FROM reactions WHERE reactions.reaction_id = x0.reaction_id"
         in sql
     )
-    assert "setpoint_kelvin > 350" in sql
+    assert "setpoint_kelvin > $literal_1" in sql
 
 
 def test_a_quantifier_in_the_reaction_filter_does_not_take_the_grouped_alias():

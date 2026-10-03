@@ -446,6 +446,46 @@ def test_a_memory_limit_is_given_to_duckdb(corpus_dir):
 
 
 @pytest.mark.parametrize(
+    "statement",
+    [
+        "SELECT * FROM read_text('{outside}')",
+        "COPY (SELECT 1) TO '{outside}.csv'",
+        "ATTACH '{outside}.duckdb' AS elsewhere",
+        "SELECT * FROM read_text('http://169.254.170.2/v2/credentials')",
+        "INSTALL httpfs",
+    ],
+)
+def test_a_search_cursor_reaches_nothing_outside_the_corpus(
+    corpus, tmp_path, statement
+):
+    outside = tmp_path / "secret.txt"
+    outside.write_text("not the corpus's to read\n")
+    cursor = corpus._connection.cursor()
+    try:
+        with pytest.raises(duckdb.PermissionException):
+            cursor.execute(statement.format(outside=outside))
+    finally:
+        cursor.close()
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "SET enable_external_access=true",
+        "SET allowed_directories=['/']",
+        "SET autoload_known_extensions=true",
+    ],
+)
+def test_a_search_cursor_cannot_lift_the_confinement(corpus, statement):
+    cursor = corpus._connection.cursor()
+    try:
+        with pytest.raises(duckdb.InvalidInputException, match="lock"):
+            cursor.execute(statement)
+    finally:
+        cursor.close()
+
+
+@pytest.mark.parametrize(
     ("value", "expected"),
     [
         ("512.0 MiB", 512 * 1024**2),
@@ -1251,9 +1291,9 @@ def _index_spent(body) -> bool:
     """Returns whether the occurrence index takes any clause of this query."""
     spent = False
 
-    def index(path, fields, allocate):
+    def index(path, fields, allocate, bind):
         nonlocal spent
-        condition = execute._index_condition(path, fields, allocate)
+        condition = execute._index_condition(path, fields, allocate, bind)
         spent = spent or condition is not None
         return condition
 
@@ -1261,9 +1301,9 @@ def _index_spent(body) -> bool:
     return spent
 
 
-def _no_index_condition(path, fields, allocate):
+def _no_index_condition(path, fields, allocate, bind):
     """Stands in for _index_condition so every quantifier compiles over the elements."""
-    del path, fields, allocate  # Unused.
+    del path, fields, allocate, bind  # Unused.
 
 
 # Every shape where the index takes a clause. The index answers one quantifier, not the
@@ -1815,23 +1855,27 @@ def test_projections_that_do_not_join_to_their_offsets_are_refused(
     # structures side has been counted against its footers all along; the reactions
     # side was covered only by the occurrence index reaching every structure, and a
     # path read from a pivot artifact reaches them whatever the view holds.
-    elsewhere = tmp_path / "elsewhere"
+    root = tmp_path / "corpus"
+    shutil.copytree(corpus_dir, root)
+    # Filed under a tree the corpus reads, since a copy outside every one is refused by
+    # the confinement before a join could drop its rows.
+    elsewhere = root / "projections" / "elsewhere"
     elsewhere.mkdir()
-    for projected in sorted((corpus_dir / "projections").glob("*.parquet")):
+    for projected in sorted((root / "projections").glob("*.parquet")):
         shutil.copy(projected, elsewhere / projected.name)
     original = execute._sql_paths
 
     def redirected(paths):
         listed = [str(path) for path in paths]
-        if all("projections" in path for path in listed):
+        if all(pathlib.Path(path).parent.name == "projections" for path in listed):
             return original(str(elsewhere / pathlib.Path(path).name) for path in listed)
         return original(listed)
 
     monkeypatch.setattr(execute, "_sql_paths", redirected)
     with pytest.raises(execute.PairingError, match="the projections hold"):
         execute.Corpus(
-            str(corpus_dir / "projections" / "*.parquet"),
-            str(corpus_dir / "structures" / "*.parquet"),
+            str(root / "projections" / "*.parquet"),
+            str(root / "structures" / "*.parquet"),
             resolver={}.__getitem__,
         )
 

@@ -635,6 +635,7 @@ def _index_condition(
     path: str,
     fields: dict[str, str],
     allocate: Callable[[], str],
+    bind: Callable[[str], str],
 ) -> str | None:
     """Returns a row condition standing for an element quantifier, or None.
 
@@ -655,6 +656,7 @@ def _index_condition(
         path: The path the quantifier ranges over.
         fields: Element fields the body requires, mapped to their literals.
         allocate: Names the structure parameter the match set binds under.
+        bind: Binds a field's literal, and names the parameter it binds under.
 
     Returns:
         The condition, or None to leave the quantifier compiled over the elements.
@@ -667,10 +669,10 @@ def _index_condition(
     ]
     role = fields.get(_INDEXED_FIELD)
     if role is not None:
-        conditions.append(f"occurrence.{_INDEXED_FIELD} = {sql_string(role)}")
-    # S608: every fragment is a schema-derived path, a compiler-issued parameter
-    # name, or an escaped literal. The inner relation is aliased so that the outer
-    # reaction_id and the inner one cannot be confused for each other.
+        conditions.append(f"occurrence.{_INDEXED_FIELD} = ${bind(role)}")
+    # S608: every fragment is a path this module indexes or a compiler-issued
+    # parameter name. The inner relation is aliased so that the outer reaction_id and
+    # the inner one cannot be confused for each other.
     return (
         "reaction_id IN (SELECT occurrence.reaction_id "  # noqa: S608
         f"FROM occurrences AS occurrence WHERE {' AND '.join(conditions)})"
@@ -746,6 +748,45 @@ def _cache_footers(connection: duckdb.DuckDBPyConnection) -> None:
         connection: The corpus connection, on the database every cursor shares.
     """
     connection.execute("SET GLOBAL parquet_metadata_cache=true")
+
+
+def _confine(connection: duckdb.DuckDBPyConnection, directories: Iterable[str]) -> None:
+    """Leaves the database able to reach the files under ``directories`` and no others.
+
+    The compiler is what keeps a query to one relation, and this is what holds if the
+    compiler is ever wrong: a statement that reached DuckDB with text it should not
+    carry would otherwise run with this process's filesystem and network. Confined, it
+    cannot read a file outside the corpus's own trees -- ``/proc/self/environ`` among
+    them -- fetch a URL, attach a database, or load an extension, and the configuration
+    is locked, so no statement can lift any of that. Spilling to DuckDB's temporary
+    directory works under it.
+
+    Disabling external access alone would refuse the lazy Parquet views too; a list of
+    allowed directories beside it is the one form that leaves them readable. Writes
+    under those directories are allowed, since DuckDB's list has no read-only form, and
+    mounting the trees read-only is what closes that.
+
+    Each directory is listed as the reads spell it, which DuckDB resolves the way it
+    resolves the reads themselves, relative paths and ``..`` included. One whose name
+    holds a glob metacharacter is listed twice. ``_sql_paths`` escapes it for
+    ``read_parquet``, and DuckDB checks that pattern's text against the list as well as
+    every file the pattern expands to, so either form alone refuses the read. The
+    escaped form opens nothing else: as a pattern it matches only the directory it
+    escapes.
+
+    Set on the database rather than the connection, so every search's cursor is held to
+    it, and after ``_cache_footers``, which the lock would otherwise refuse.
+
+    Args:
+        connection: The corpus connection, on the database every cursor shares.
+        directories: The trees the corpus reads: the projections', the structures', and
+            any pivot or occurrence directory it was given.
+    """
+    spelled = set(directories)
+    allowed = sorted(spelled | {glob.escape(directory) for directory in spelled})
+    connection.execute("SET allowed_directories = $allowed", {"allowed": allowed})
+    connection.execute("SET enable_external_access = false")
+    connection.execute("SET lock_configuration = true")
 
 
 def _cgroup_relative_path(controller: str) -> str:
@@ -1025,7 +1066,8 @@ class Corpus:
     """A searchable pairing of projections with their structures base.
 
     Opens one DuckDB connection over both artifact sets and publishes the relation a
-    compiled query runs against. Use as a context manager, or call ``close``.
+    compiled query runs against. The connection reaches the corpus's own directories
+    and nothing else; see ``_confine``. Use as a context manager, or call ``close``.
     """
 
     def __init__(
@@ -1313,6 +1355,21 @@ class Corpus:
         )
         try:
             _cache_footers(self._connection)
+            _confine(
+                self._connection,
+                [
+                    *(
+                        str(pathlib.Path(path).parent)
+                        for pair in pairs
+                        for path in pair[:2]
+                    ),
+                    *(
+                        directory
+                        for directory in (pivots_dir, occurrences_dir)
+                        if directory is not None
+                    ),
+                ],
+            )
             _warn_when_the_cap_leaves_no_headroom(self._connection)
             self._total, self._searchable = self._prepare(pairs)
             if require_pivots:
@@ -2806,10 +2863,13 @@ class Corpus:
         indexing = False
 
         def index(
-            path: str, fields: dict[str, str], allocate: Callable[[], str]
+            path: str,
+            fields: dict[str, str],
+            allocate: Callable[[], str],
+            bind: Callable[[str], str],
         ) -> str | None:
             nonlocal indexing
-            condition = _index_condition(path, fields, allocate)
+            condition = _index_condition(path, fields, allocate, bind)
             indexing = indexing or condition is not None
             return condition
 
@@ -2855,9 +2915,8 @@ class Corpus:
                 logger.info("the projection answers this query")
             cursor = self._connection.cursor()
             try:
-                parameters: dict[str, Any] = {
-                    name: resolve(name) for name in compiled.compounds
-                }
+                parameters: dict[str, Any] = dict(compiled.literals)
+                parameters.update({name: resolve(name) for name in compiled.compounds})
                 # An external service, so how long it takes is not this corpus's to
                 # predict; a resolver that hangs is the likeliest way a search overruns
                 # without a single slow query in it.
