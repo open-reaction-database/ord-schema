@@ -687,14 +687,14 @@ class ReactionSmarts(_Node):
     Each reactant template has to match an input component whose role is ``REACTANT``,
     each product template a product, and each agent template an input component in any
     other role. Every template has to match, and two templates on one side have to
-    match two different components: ``C(=O)O.N`` names an acid and an amine, and a
-    Boc-protected amine holding both groups is not that. Grouping with parentheses,
-    ``(C(=O)O.N)``, makes one template of both pieces, matched within one molecule. The
-    RDKit cartridge's ``@>`` accepts any one template per side, which for a
-    two-template query returns several times the reactions the query describes. Atom
-    maps are ignored, as ``@>`` ignores them, so this says which molecules took part
-    and not which atoms changed. ``chirality`` applies to every template, as it does to
-    a ``substructure``.
+    match two different molecules: ``C(=O)O.N`` names an acid and an amine, and a
+    Boc-protected amine holding both groups is not that, even recorded twice. Grouping
+    with parentheses, ``(C(=O)O.N)``, makes one template of both pieces, matched within
+    one molecule. The RDKit cartridge's ``@>`` accepts any one template per side, which
+    for a two-template query returns several times the reactions the query describes.
+    Atom maps are ignored, as ``@>`` ignores them, so this says which molecules took
+    part and not which atoms changed. ``chirality`` applies to every template, as it
+    does to a ``substructure``.
     """
 
     op: Literal["reaction_smarts"]
@@ -758,6 +758,9 @@ _REDUCERS = {
     "sum": "list_sum({expression})",
     "count": "coalesce(len(list_filter({expression}, value -> value IS NOT NULL)), 0)",
 }
+
+# `count` over each value once. list_distinct drops the nulls as well as the repeats.
+_DISTINCT_COUNT = "coalesce(len(list_distinct({expression})), 0)"
 
 # The relation a pivoted reduction reads its elements from. A reduction is only ever
 # compiled where the rows are reactions, and each subquery scopes its own alias, so one
@@ -1407,10 +1410,10 @@ def _distinct_matches(
 ) -> list[str]:
     """Returns the conditions giving each template on a side a molecule of its own.
 
-    Templates can be assigned to distinct elements exactly when every subset of them
-    matches at least as many elements between them as it holds templates (Hall's
+    Templates can be assigned to distinct molecules exactly when every subset of them
+    matches at least as many molecules between them as it holds templates (Hall's
     theorem). A subset of one is the template's own ``exists``; each larger subset is a
-    count of the elements matching any of its templates.
+    count of the molecules matching any of its templates.
 
     Args:
         node: The reaction SMARTS predicate.
@@ -1425,8 +1428,9 @@ def _distinct_matches(
     for path, role, structures in _template_sides(node):
         for size in range(2, len(structures) + 1):
             for subset in itertools.combinations(structures, size):
-                # A compound's smiles and structure ID are written both or neither, so
-                # every element a structure matches has a smiles for count to count.
+                # Counted as distinct smiles, which the projection writes canonical and
+                # wherever it writes a structure ID: a molecule recorded twice, in two
+                # portions or two outcomes, is still one molecule.
                 count = Reduction.model_validate(
                     {
                         "reduce": "count",
@@ -1437,7 +1441,11 @@ def _distinct_matches(
                     }
                 )
                 reduced = _reduced(
-                    count, schema, parameters=parameters, routing=routing
+                    count,
+                    schema,
+                    parameters=parameters,
+                    routing=routing,
+                    distinct=True,
                 )
                 conditions.append(f"({reduced} >= {size})")
     return conditions
@@ -1568,6 +1576,8 @@ def _pivoted_reduction(
     table: str,
     parameters: _Parameters,
     routing: "_Routing",
+    *,
+    distinct: bool = False,
 ) -> str | None:
     """Returns the reduction as an aggregate over a pivot, where one covers the path.
 
@@ -1581,6 +1591,7 @@ def _pivoted_reduction(
         table: The relation of reactions the subquery correlates to.
         parameters: What the compilation binds so far, appended to as values are met.
         routing: Where a filter's own clauses may be answered. See ``_Routing``.
+        distinct: Whether to reduce each value once; see ``_reduced``.
 
     Returns:
         A correlated scalar subquery over the pivot, or None where no pivot covers the
@@ -1609,8 +1620,9 @@ def _pivoted_reduction(
             1,
             routing,
         )
+    argument = f"DISTINCT {column}" if distinct else column
     return (
-        f"(SELECT {_AGGREGATES[reduction.reduce]}({column}) "  # noqa: S608
+        f"(SELECT {_AGGREGATES[reduction.reduce]}({argument}) "  # noqa: S608
         f"FROM {relation} AS {_REDUCTION_ALIAS} WHERE {condition})"
     )
 
@@ -1654,6 +1666,7 @@ def _reduced(
     *,
     parameters: _Parameters | None = None,
     routing: "_Routing | None" = None,
+    distinct: bool = False,
 ) -> str:
     """Returns the expression reducing a repeated path to one value per reaction.
 
@@ -1664,6 +1677,9 @@ def _reduced(
             meets values; a fresh collection where the caller compiles no filter.
         routing: Where the elements may be read besides the projection's lists, and
             the relation a pivoted reduction correlates to. See ``_Routing``.
+        distinct: Whether a ``count`` counts each value once rather than each element
+            holding one. The grammar has no spelling for it; ``_distinct_matches``
+            passes it.
 
     Returns:
         A DuckDB expression yielding one scalar per reaction. An arithmetic reducer
@@ -1675,7 +1691,10 @@ def _reduced(
             one would give the same query two spellings), if an arithmetic reducer
             reaches a leaf that does not hold numbers, or if a ``where`` quantifies
             over a level of its own.
+        ValueError: If ``distinct`` is asked of a reducer other than ``count``.
     """
+    if distinct and reduction.reduce != "count":
+        raise ValueError(f"distinct applies to count, not {reduction.reduce}")
     collected = _Parameters() if parameters is None else parameters
     where_to_look = _Routing(TABLE) if routing is None else routing
     resolved = resolve(reduction.path, schema=schema)
@@ -1690,7 +1709,7 @@ def _reduced(
         level, _, _ = _reduced_element(reduction)
         _refuse_quantified(reduction.where, level.path, "a reduction's where")
     pivoted = _pivoted_reduction(
-        reduction, where_to_look.table, collected, where_to_look
+        reduction, where_to_look.table, collected, where_to_look, distinct=distinct
     )
     if pivoted is not None:
         return pivoted
@@ -1699,7 +1718,8 @@ def _reduced(
         if reduction.where is None
         else _filtered_elements(reduction, schema, collected, where_to_look)
     )
-    return _REDUCERS[reduction.reduce].format(expression=expression)
+    reducer = _DISTINCT_COUNT if distinct else _REDUCERS[reduction.reduce]
+    return reducer.format(expression=expression)
 
 
 def _measure_argument(

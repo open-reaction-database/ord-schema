@@ -1095,7 +1095,16 @@ def test_two_templates_on_a_side_need_two_molecules():
     # single product template needs none.
     compiled = _compile(_reaction_smarts("C(=O)O.N>>C(=O)N"))
     assert compiled.sql.count(">= 2)") == 1
+    assert compiled.sql.count("list_distinct(") == 1
     assert list(compiled.literals.values()) == ["REACTANT"] * 3
+
+
+def test_only_a_count_reduces_distinct_values():
+    reduction = query.Reduction(
+        reduce="min", path="outcomes.products.measurements.percentage.value"
+    )
+    with pytest.raises(ValueError, match="distinct applies to count"):
+        query._reduced(reduction, projection.SCHEMA, distinct=True)
 
 
 def test_every_subset_of_templates_is_counted():

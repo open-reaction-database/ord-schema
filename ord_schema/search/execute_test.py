@@ -277,6 +277,17 @@ def reaction_root(tmp_path_factory) -> pathlib.Path:
             ],
             product="CC(=O)NCC(=O)OC",
         ),
+        # The same esterification with N-acetylglycine recorded twice, as two portions
+        # would be: two REACTANT components, one molecule.
+        _reaction(
+            "ord-rs07",
+            components=[
+                ("CC(=O)NCC(=O)O", _ROLE.REACTANT),
+                ("CC(=O)NCC(=O)O", _ROLE.REACTANT),
+                ("CO", _ROLE.REACTANT),
+            ],
+            product="CC(=O)NCC(=O)OC",
+        ),
     ]
     source = root / "data" / "ord_dataset-rs.parquet"
     source.parent.mkdir(parents=True)
@@ -319,7 +330,7 @@ def test_a_grouped_reaction_smarts_matches_both_pieces_in_one_molecule(
     reaction_corpus,
 ):
     where = {"op": "reaction_smarts", "smarts": "(C(=O)O.N)>>C(=O)N"}
-    assert _search(reaction_corpus, where) == {"ord-rs06"}
+    assert _search(reaction_corpus, where) == {"ord-rs06", "ord-rs07"}
 
 
 def test_an_agent_template_finds_a_catalyst(reaction_corpus):
