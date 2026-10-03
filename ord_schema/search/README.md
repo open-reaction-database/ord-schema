@@ -119,9 +119,9 @@ is a compile error rather than a wrong answer:
 - A `{"compound": ...}` value is resolved through [`ord_schema.resolvers`](../resolvers.py) and
   **bound as a parameter**, so the model names compounds and never spells structures.
 - A `{"literal": ...}` value is **bound as a parameter** too, typed: a string compared
-  against a date or timestamp column binds as the instant it names. No value the model
-  writes reaches the SQL as text; the only model-supplied strings that do are measure names
-  and compound names, both held to an identifier shape.
+  against a date or timestamp column binds as the instant it names. No literal reaches the
+  SQL as text. What the model writes that does is the `limit`, validated as a positive
+  integer, and measure and compound names, both held to an identifier shape.
 - A `substructure`/`similarity`/`same_compound`/`same_parent` path must name a compound's
   `smiles`, inside a quantifier like any other element predicate.
 - `same_compound` asks "the same compound, however either was drawn"; an `eq` on a `smiles`

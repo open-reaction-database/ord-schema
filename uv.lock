@@ -2049,7 +2049,7 @@ tests = [
 requires-dist = [
     { name = "anthropic", marker = "extra == 'nl'", specifier = ">=0.120" },
     { name = "coverage", marker = "extra == 'tests'", specifier = ">=5.2.1" },
-    { name = "duckdb", marker = "extra == 'search'", specifier = ">=1.1" },
+    { name = "duckdb", marker = "extra == 'search'", specifier = ">=1.5.1" },
     { name = "huggingface-hub", marker = "extra == 'huggingface'", specifier = ">=0.20" },
     { name = "inflection", marker = "extra == 'orm'", specifier = ">=0.5.1" },
     { name = "inflection", marker = "extra == 'search'", specifier = ">=0.5.1" },

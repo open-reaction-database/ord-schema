@@ -1301,6 +1301,18 @@ def _index_spent(body) -> bool:
     return spent
 
 
+def test_the_occurrence_index_binds_the_role_it_filters_on():
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {"where": _exists({"op": "and", "clauses": [_SUBSTRUCTURE, _SOLVENT]})}
+        ),
+        index=execute._index_condition,
+    )
+    assert "FROM occurrences" in compiled.sql
+    assert "SOLVENT" not in compiled.sql
+    assert list(compiled.literals.values()) == ["SOLVENT"]
+
+
 def _no_index_condition(path, fields, allocate, bind):
     """Stands in for _index_condition so every quantifier compiles over the elements."""
     del path, fields, allocate, bind  # Unused.

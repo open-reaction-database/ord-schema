@@ -62,7 +62,10 @@ Homepage = "https://github.com/Open-Reaction-Database/ord-schema"
 # columns, and the irregular plurals it gets right (analysis_index, datum_index,
 # reaction_metadatum_index) are part of the artifact schema.
 search = [
-    "duckdb>=1.1",
+    # 1.2 added the allowed_directories setting a Corpus confines itself with, and 1.5
+    # the to_arrow_table it returns results through; 1.5.0 raises an internal error
+    # planning the UNNEST shapes sql.validate refuses, which 1.5.1 fixes.
+    "duckdb>=1.5.1",
     "inflection>=0.5.1",
     "pydantic>=2",
 ]
