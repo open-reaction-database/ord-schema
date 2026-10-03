@@ -230,12 +230,14 @@ jobs:
         run: node_modules/.bin/buf breaking --against '.git#ref=origin/main'
       - name: Check for breaking schema changes since the last release
         # The check above compares a change with main, so it cannot see a break already on
-        # main -- one whose breaking.ignore_only entry a later change dropped, say. This
-        # compares with the newest release tag, which is the schema PyPI, npm, and the BSR
-        # serve: publish.yml's push_proto job picks the tag it pushes the same way.
+        # main -- one whose breaking.ignore_only entry a later change dropped, for instance.
+        # This compares with the newest release tag, which is the schema PyPI, npm, and the
+        # BSR serve: publish.yml's push_proto job picks the tag it pushes the same way. The
+        # tag is printed because a release cut while a pull request is open moves it.
         if: ${{ !cancelled() }}
         run: |
           tag="$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
+          echo "Comparing against ${tag}"
           node_modules/.bin/buf breaking --against ".git#tag=${tag}"
 
   test_js:
