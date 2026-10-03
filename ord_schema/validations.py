@@ -59,15 +59,17 @@ class ValidationOptions:
 
 @dataclasses.dataclass
 class ValidationOutput:
-    """Validation output: errors and warnings."""
+    """Validation output: errors, warnings, and suggestions."""
 
     errors: list[str] = dataclasses.field(default_factory=list)
     warnings: list[str] = dataclasses.field(default_factory=list)
+    suggestions: list[str] = dataclasses.field(default_factory=list)
 
     def extend(self, other: "ValidationOutput") -> None:
-        """Appends the errors and warnings from another output to this one."""
+        """Appends the findings from another output to this one."""
         self.errors.extend(other.errors)
         self.warnings.extend(other.warnings)
+        self.suggestions.extend(other.suggestions)
 
 
 class Severity(IntEnum):
@@ -77,6 +79,8 @@ class Severity(IntEnum):
     enumerating members.
     """
 
+    # Detail that could almost always be recorded but was not; nothing is wrong.
+    SUGGESTION = 0
     WARNING = 1
     ERROR = 2
 
@@ -109,6 +113,10 @@ class ValidationContext:
     def warn(self, message: str) -> None:
         """Records a finding worth surfacing that does not fail validation."""
         self.findings.append((message, Severity.WARNING))
+
+    def suggest(self, message: str) -> None:
+        """Records a detail the message could include to be more complete."""
+        self.findings.append((message, Severity.SUGGESTION))
 
 
 def validate_datasets(
@@ -225,8 +233,8 @@ def validate_message(
             validates under ``context.options`` and ignores ``options``.
 
     Returns:
-        Errors and warnings accumulated over the message and, when recursing,
-        its submessages.
+        Errors, warnings, and suggestions accumulated over the message and, when
+        recursing, its submessages.
 
     Raises:
         ValidationError: If any fields are invalid.
@@ -275,8 +283,10 @@ def validate_message(
             if raise_on_error:
                 raise ValidationError(warning_text)
             output.errors.append(warning_text)
-        else:
+        elif severity >= Severity.WARNING:
             output.warnings.append(warning_text)
+        else:
+            output.suggestions.append(warning_text)
     return output
 
 
@@ -720,6 +730,16 @@ def _validate_reaction(
     if options.require_provenance:
         if not message.HasField("provenance"):
             context.error("Reaction requires provenance")
+    if not (
+        message.provenance.doi
+        or message.provenance.patent
+        or message.provenance.publication_url
+    ):
+        # Only a suggestion: an unpublished dataset, such as an ELN export, has no
+        # source to give yet.
+        context.suggest(
+            "Reaction provenance could include a doi, patent, or publication_url"
+        )
 
 
 # Identifier types whose conventional spelling differs from their enum name, for use in

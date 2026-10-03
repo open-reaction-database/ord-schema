@@ -869,6 +869,46 @@ def test_bad_reaction_id(reaction_id):
         _run_validation(message, recurse=False, options=options)
 
 
+def _reaction_with_source(**provenance) -> reaction_pb2.Reaction:
+    message = reaction_pb2.Reaction(provenance=provenance)
+    _ = message.inputs["test"]
+    message.outcomes.add()
+    return message
+
+
+def test_a_reaction_without_a_source_is_only_a_suggestion_by_default():
+    output = _run_validation(_reaction_with_source(), recurse=False)
+    assert output.errors == []
+    assert output.warnings == []
+    assert len(output.suggestions) == 1
+    assert "doi, patent, or publication_url" in output.suggestions[0]
+
+
+@pytest.mark.parametrize(
+    "provenance",
+    [
+        {"doi": "10.1126/science.aap9112"},
+        {"patent": "US20100000001A1"},
+        {"publication_url": "https://example.com"},
+    ],
+)
+def test_any_source_satisfies_the_suggestion(provenance):
+    output = _run_validation(_reaction_with_source(**provenance), recurse=False)
+    assert output.errors == []
+    assert output.suggestions == []
+
+
+def test_suggestions_never_raise_and_are_carried_by_extend():
+    output = validations.ValidationOutput()
+    for _ in range(2):
+        output.extend(
+            _run_validation(_reaction_with_source(), recurse=False, raise_on_error=True)
+        )
+    assert output.errors == []
+    assert len(output.suggestions) == 2
+    assert all(text.startswith("Reaction: ") for text in output.suggestions)
+
+
 def test_missing_provenance():
     message = reaction_pb2.Reaction()
     _ = message.inputs["test"]
