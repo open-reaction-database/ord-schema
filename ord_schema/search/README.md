@@ -580,7 +580,9 @@ as a pair. Pairing is by source dataset rather than by filename, so the two tree
 not share a layout. Structure IDs are dataset-local; the executor's relation
 carries a per-file offset column (`structure_offset`), which is why compiled SQL with a
 structure predicate runs only there — validate it against `query.executable_schema()`
-rather than the bare projection schema.
+rather than the bare projection schema. It also carries `dataset_id`, read from each
+projection's `ord.source_dataset_id` stamp, so a query can narrow to a dataset or group
+by one; it is NULL for a projection whose source recorded no dataset ID.
 
 ### Ask in English
 
@@ -730,11 +732,11 @@ from ord_schema.search import schema
 print(schema.describe())
 ```
 
-That renders the projection as an indented type tree in DuckDB's type names — 442 leaves in 537
-lines, small enough to sit in a system prompt whole, which is what lets translation stay a
-single tool call rather than a retrieval loop over column metadata. Units ride along in the
-column names (`setpoint_kelvin`, `mass_grams`), so nothing has to explain them, and each enum
-column carries the values it may hold:
+That renders the projection, and the `dataset_id` the executor supplies, as an indented type
+tree in DuckDB's type names — 538 lines, small enough to sit in a system prompt whole, which
+is what lets translation stay a single tool call rather than a retrieval loop over column
+metadata. Units ride along in the column names (`setpoint_kelvin`, `mass_grams`), so nothing
+has to explain them, and each enum column carries the values it may hold:
 
 ```text
       reaction_role: VARCHAR  (UNSPECIFIED | REACTANT | REAGENT | SOLVENT | CATALYST | ...)

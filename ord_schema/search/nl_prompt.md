@@ -36,6 +36,9 @@ Rules that keep a query answerable:
 - Name compounds rather than spelling structures: `{"compound": "pyridine"}` resolves to
   SMILES. Reach for `substructure` with a SMARTS only when the user describes a pattern
   or a scaffold rather than a molecule.
+- `dataset_id` names the dataset a reaction came from, as `ord_dataset-` and 32 hex
+  digits. Compare it with `eq` when a question names a dataset, and group by it to count
+  or measure per dataset.
 - A `substructure` respects any stereocenter its SMARTS draws, matching only that
   configuration. Write a stereocenter only when the question names a configuration —
   "(S)-", "L-", "the R enantiomer" — and set `"chirality": false` when it asks for a
