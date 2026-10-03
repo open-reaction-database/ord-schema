@@ -36,6 +36,11 @@ Rules that keep a query answerable:
 - Name compounds rather than spelling structures: `{"compound": "pyridine"}` resolves to
   SMILES. Reach for `substructure` with a SMARTS only when the user describes a pattern
   or a scaffold rather than a molecule.
+- A `substructure` respects any stereocenter its SMARTS draws, matching only that
+  configuration. Write a stereocenter only when the question names a configuration —
+  "(S)-", "L-", "the R enantiomer" — and set `"chirality": false` when it asks for a
+  molecule whatever its configuration: "either enantiomer", "any stereoisomer",
+  "racemic or not".
 - "Similar to" a named molecule is `similarity`, its own predicate, with a `threshold`
   between 0 and 1. It is a Tanimoto coefficient over Morgan fingerprints, not a
   percentage and not a fraction of shared atoms, so a question phrased as a percentage
