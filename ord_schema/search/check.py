@@ -243,7 +243,7 @@ QUERIES: list[dict[str, Any]] = [
     },
     {
         "name": "reaction_smarts",
-        "covers": "a structure quantifier per template, reactants on REACTANT roles",
+        "covers": "a structure quantifier per template, and a count keeping them apart",
         "query": {"where": {"op": "reaction_smarts", "smarts": "C(=O)O.N>>C(=O)N"}},
     },
     {

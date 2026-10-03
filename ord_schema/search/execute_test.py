@@ -225,7 +225,7 @@ def chiral_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
 
 
 @pytest.fixture(scope="module")
-def reaction_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
+def reaction_root(tmp_path_factory) -> pathlib.Path:
     """Reactions that a reaction SMARTS reading every template keeps apart."""
     root = tmp_path_factory.mktemp("reactions")
     acid, amine, amide = "CC(=O)O", "NCc1ccccc1", "CC(=O)NCc1ccccc1"
@@ -265,6 +265,18 @@ def reaction_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
             ],
             product="c1ccc(-c2ccccc2)cc1",
         ),
+        # An esterification of N-acetylglycine, whose one reactant holds both the acid
+        # and the nitrogen, with an amine base as a reagent: every template matches,
+        # but not on two different REACTANT components.
+        _reaction(
+            "ord-rs06",
+            components=[
+                ("CC(=O)NCC(=O)O", _ROLE.REACTANT),
+                ("CO", _ROLE.REACTANT),
+                ("CCN(CC)CC", _ROLE.REAGENT),
+            ],
+            product="CC(=O)NCC(=O)OC",
+        ),
     ]
     source = root / "data" / "ord_dataset-rs.parquet"
     source.parent.mkdir(parents=True)
@@ -283,10 +295,17 @@ def reaction_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
     structured = root / "structures" / source.name
     structured.parent.mkdir(parents=True)
     structures.write_structures(projected, structured)
+    return root
+
+
+@pytest.fixture(scope="module", params=[None, 0], ids=["pivoted", "unpivoted"])
+def reaction_corpus(request, reaction_root) -> Iterator[execute.Corpus]:
+    """The reactions, counted through pivots built in process and through the lists."""
     with execute.Corpus(
-        str(root / "projections" / "*.parquet"),
-        str(root / "structures" / "*.parquet"),
+        str(reaction_root / "projections" / "*.parquet"),
+        str(reaction_root / "structures" / "*.parquet"),
         resolver={}.__getitem__,
+        pivot_budget_bytes=request.param,
     ) as value:
         yield value
 
@@ -294,6 +313,13 @@ def reaction_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
 def test_a_reaction_smarts_needs_every_template_on_its_side(reaction_corpus):
     where = {"op": "reaction_smarts", "smarts": "C(=O)O.N>>C(=O)N"}
     assert _search(reaction_corpus, where) == {"ord-rs01"}
+
+
+def test_a_grouped_reaction_smarts_matches_both_pieces_in_one_molecule(
+    reaction_corpus,
+):
+    where = {"op": "reaction_smarts", "smarts": "(C(=O)O.N)>>C(=O)N"}
+    assert _search(reaction_corpus, where) == {"ord-rs06"}
 
 
 def test_an_agent_template_finds_a_catalyst(reaction_corpus):

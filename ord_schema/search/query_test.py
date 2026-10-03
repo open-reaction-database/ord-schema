@@ -1087,8 +1087,37 @@ def test_a_reaction_smarts_compiles_to_one_structure_predicate_per_template():
         "N",
         "C(=O)N",
     ]
-    assert list(compiled.literals.values()) == ["REACTANT", "REACTANT"]
-    assert compiled.sql.count("list_filter(") == 3
+    assert compiled.sql.count("> 0, false)") == 3
+
+
+def test_two_templates_on_a_side_need_two_molecules():
+    # One count over the reactants, of components matching either template; the
+    # single product template needs none.
+    compiled = _compile(_reaction_smarts("C(=O)O.N>>C(=O)N"))
+    assert compiled.sql.count(">= 2)") == 1
+    assert list(compiled.literals.values()) == ["REACTANT"] * 3
+
+
+def test_every_subset_of_templates_is_counted():
+    # Three reactant templates: three pairs and the triple. Two product templates: one.
+    compiled = _compile(_reaction_smarts("C.N.O>>C.N"))
+    assert compiled.sql.count(">= 2)") == 4
+    assert compiled.sql.count(">= 3)") == 1
+
+
+def test_a_grouped_template_is_one_molecule():
+    compiled = _compile(_reaction_smarts("(C(=O)O.N)>>C(=O)N"))
+    assert [parameter.pattern for parameter in compiled.structures] == [
+        "C(=O)O.N",
+        "C(=O)N",
+    ]
+    assert ">= " not in compiled.sql
+
+
+def test_a_reaction_smarts_holds_at_most_five_templates_per_side():
+    _compile(_reaction_smarts("C.C.C.C.C>>C"))
+    with pytest.raises(ValidationError, match="at most 5"):
+        query.Query.model_validate(_reaction_smarts("C.C.C.C.C.C>>C"))
 
 
 def test_an_agent_template_binds_a_component_that_is_not_a_reactant():

@@ -45,8 +45,10 @@ Rules that keep a query answerable:
   couplings", "reactions turning an aryl bromide into a biaryl" — is a `reaction_smarts`
   on the reaction itself, never inside a quantifier. Every template has to match: each
   reactant template a `REACTANT` component, each product template a product, each agent
-  template between the arrows a component in any other role. Write one template per
-  molecule the question names, and leave atom maps out; they are ignored.
+  template between the arrows a component in any other role, and templates on one side
+  match different molecules. Write one template per molecule the question names, group
+  two pieces in parentheses, `(C(=O)O.N)`, only when the question puts them in one
+  molecule, and leave atom maps out; they are ignored.
 
   ```json
   {"op": "reaction_smarts", "smarts": "C(=O)O.N>>C(=O)N"}

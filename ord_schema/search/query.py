@@ -60,6 +60,7 @@ local and only the executor knows the offsets that make them one corpus-wide spa
 import dataclasses
 import datetime
 import difflib
+import itertools
 import re
 import warnings
 from collections.abc import Callable
@@ -673,16 +674,27 @@ def _reaction_templates(smarts: str) -> tuple[list[str], list[str], list[str]]:
     return sides[0], sides[1], sides[2]
 
 
+# Most templates one side of a reaction SMARTS may hold. Giving each its own component
+# costs a count per subset of two or more templates, 2^n - n - 1 of them, so the bound
+# is what keeps a long SMARTS from compiling to an unbounded number of scans. Five
+# covers the four components of an Ugi reaction with one to spare.
+_MOST_TEMPLATES_PER_SIDE = 5
+
+
 class ReactionSmarts(_Node):
-    """The reaction matches a reaction SMARTS, one template at a time.
+    """The reaction matches a reaction SMARTS, each template on a molecule of its own.
 
     Each reactant template has to match an input component whose role is ``REACTANT``,
     each product template a product, and each agent template an input component in any
-    other role. Every template has to match: the RDKit cartridge's ``@>`` accepts any
-    one per side, which for a two-template query returns several times the reactions
-    the query describes. Atom maps are ignored, as ``@>`` ignores them, so this says
-    which molecules took part and not which atoms changed. ``chirality`` applies to
-    every template, as it does to a ``substructure``.
+    other role. Every template has to match, and two templates on one side have to
+    match two different components: ``C(=O)O.N`` names an acid and an amine, and a
+    Boc-protected amine holding both groups is not that. Grouping with parentheses,
+    ``(C(=O)O.N)``, makes one template of both pieces, matched within one molecule. The
+    RDKit cartridge's ``@>`` accepts any one template per side, which for a
+    two-template query returns several times the reactions the query describes. Atom
+    maps are ignored, as ``@>`` ignores them, so this says which molecules took part
+    and not which atoms changed. ``chirality`` applies to every template, as it does to
+    a ``substructure``.
     """
 
     op: Literal["reaction_smarts"]
@@ -694,6 +706,12 @@ class ReactionSmarts(_Node):
         reactants, agents, products = _reaction_templates(self.smarts)
         if not (reactants or agents or products):
             raise ValueError(f"reaction SMARTS has no templates: {self.smarts!r}")
+        for side in (reactants, agents, products):
+            if len(side) > _MOST_TEMPLATES_PER_SIDE:
+                raise ValueError(
+                    f"reaction SMARTS has {len(side)} templates on one side, and at "
+                    f"most {_MOST_TEMPLATES_PER_SIDE} are supported: {self.smarts!r}"
+                )
         for template in (*reactants, *agents, *products):
             # Held to what a substructure accepts, so a template that would match
             # nothing is refused here rather than returning an empty answer.
@@ -1314,12 +1332,58 @@ def _quantifier(
     )
 
 
+def _template_sides(
+    node: ReactionSmarts,
+) -> list[tuple[str, dict[str, Any] | None, list[dict[str, Any]]]]:
+    """Returns each side of a reaction SMARTS as the elements its templates must match.
+
+    Args:
+        node: The reaction SMARTS predicate.
+
+    Returns:
+        For the reactants, the agents, and the products in turn: the repeated level
+        their molecules are elements of, the role condition an element must also meet
+        (None for products), and one ``substructure`` per template.
+    """
+    reactants, agents, products = _reaction_templates(node.smarts)
+
+    def structures(templates: list[str]) -> list[dict[str, Any]]:
+        return [
+            {
+                "op": "substructure",
+                "path": "smiles",
+                "smarts": template,
+                "chirality": node.chirality,
+            }
+            for template in templates
+        ]
+
+    def role(op: str) -> dict[str, Any]:
+        return {"op": op, "path": "reaction_role", "value": {"literal": "REACTANT"}}
+
+    return [
+        ("inputs.components", role("eq"), structures(reactants)),
+        ("inputs.components", role("ne"), structures(agents)),
+        ("outcomes.products", None, structures(products)),
+    ]
+
+
+def _element_condition(
+    structure: dict[str, Any], role: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Returns what one element must satisfy: the structure, and the role if any."""
+    if role is None:
+        return structure
+    return {"op": "and", "clauses": [structure, role]}
+
+
 def _expand_reaction_smarts(node: ReactionSmarts) -> And:
     """Returns the quantifiers a reaction SMARTS stands for, one per template.
 
     Built from the grammar's own nodes, so each template is routed as any other
     quantifier is: a reactant template's ``exists`` over components with a structure and
-    a role is exactly what the occurrence index answers.
+    a role is exactly what the occurrence index answers. ``_distinct_matches`` adds
+    what gives each template a component of its own.
 
     Args:
         node: The reaction SMARTS predicate.
@@ -1327,40 +1391,56 @@ def _expand_reaction_smarts(node: ReactionSmarts) -> And:
     Returns:
         A conjunction holding one ``exists`` per template.
     """
-    reactants, agents, products = _reaction_templates(node.smarts)
-
-    def structure(template: str) -> dict[str, Any]:
-        return {
-            "op": "substructure",
-            "path": "smiles",
-            "smarts": template,
-            "chirality": node.chirality,
-        }
-
-    def role(op: str) -> dict[str, Any]:
-        return {"op": op, "path": "reaction_role", "value": {"literal": "REACTANT"}}
-
-    clauses: list[dict[str, Any]] = [
-        {
-            "op": "exists",
-            "path": "inputs.components",
-            "where": {"op": "and", "clauses": [structure(template), role("eq")]},
-        }
-        for template in reactants
-    ]
-    clauses += [
-        {
-            "op": "exists",
-            "path": "inputs.components",
-            "where": {"op": "and", "clauses": [structure(template), role("ne")]},
-        }
-        for template in agents
-    ]
-    clauses += [
-        {"op": "exists", "path": "outcomes.products", "where": structure(template)}
-        for template in products
+    clauses = [
+        {"op": "exists", "path": path, "where": _element_condition(structure, role)}
+        for path, role, structures in _template_sides(node)
+        for structure in structures
     ]
     return And.model_validate({"op": "and", "clauses": clauses})
+
+
+def _distinct_matches(
+    node: ReactionSmarts,
+    schema: Any,
+    parameters: _Parameters,
+    routing: _Routing,
+) -> list[str]:
+    """Returns the conditions giving each template on a side a molecule of its own.
+
+    Templates can be assigned to distinct elements exactly when every subset of them
+    matches at least as many elements between them as it holds templates (Hall's
+    theorem). A subset of one is the template's own ``exists``; each larger subset is a
+    count of the elements matching any of its templates.
+
+    Args:
+        node: The reaction SMARTS predicate.
+        schema: Schema the levels resolve against.
+        parameters: What the compilation binds so far, appended to by the counts.
+        routing: Where the elements may be read besides the projection's lists.
+
+    Returns:
+        One DuckDB condition per subset of two or more templates on one side.
+    """
+    conditions = []
+    for path, role, structures in _template_sides(node):
+        for size in range(2, len(structures) + 1):
+            for subset in itertools.combinations(structures, size):
+                # A compound's smiles and structure ID are written both or neither, so
+                # every element a structure matches has a smiles for count to count.
+                count = Reduction.model_validate(
+                    {
+                        "reduce": "count",
+                        "path": f"{path}.smiles",
+                        "where": _element_condition(
+                            {"op": "or", "clauses": list(subset)}, role
+                        ),
+                    }
+                )
+                reduced = _reduced(
+                    count, schema, parameters=parameters, routing=routing
+                )
+                conditions.append(f"({reduced} >= {size})")
+    return conditions
 
 
 def _predicate(
@@ -1401,9 +1481,13 @@ def _predicate(
                 "reaction_smarts is a condition on the whole reaction, so it cannot "
                 "sit inside a quantifier or an element filter"
             )
-        return _predicate(
-            _expand_reaction_smarts(node), scope, schema, parameters, depth, routing
-        )
+        conditions = [
+            _predicate(
+                _expand_reaction_smarts(node), scope, schema, parameters, depth, routing
+            ),
+            *_distinct_matches(node, schema, parameters, routing),
+        ]
+        return "(" + " AND ".join(conditions) + ")"
     if isinstance(node, And | Or):
         keyword = " AND " if isinstance(node, And) else " OR "
         return (
