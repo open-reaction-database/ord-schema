@@ -48,7 +48,8 @@ Rules that keep a query answerable:
   template between the arrows a component in any other role, and templates on one side
   match different molecules. Write one template per molecule the question names, group
   two pieces in parentheses, `(C(=O)O.N)`, only when the question puts them in one
-  molecule, and leave atom maps out; they are ignored.
+  molecule, and leave atom maps out; they are ignored. A stereocenter in a template is
+  respected as in a `substructure`, and `"chirality": false` ignores it.
 
   ```json
   {"op": "reaction_smarts", "smarts": "C(=O)O.N>>C(=O)N"}

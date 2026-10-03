@@ -1144,8 +1144,10 @@ def test_a_reaction_smarts_ignores_atom_maps():
 
 
 def test_a_reaction_smarts_passes_chirality_to_every_template():
-    compiled = _compile(_reaction_smarts("C(=O)O.N>>C(=O)N", chirality=False))
-    assert {parameter.chirality for parameter in compiled.structures} == {False}
+    respected = _compile(_reaction_smarts("C(=O)O.N>>C(=O)N"))
+    assert {parameter.chirality for parameter in respected.structures} == {True}
+    ignored = _compile(_reaction_smarts("C(=O)O.N>>C(=O)N", chirality=False))
+    assert {parameter.chirality for parameter in ignored.structures} == {False}
 
 
 def test_a_reaction_smarts_is_a_condition_on_the_reaction():

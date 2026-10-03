@@ -138,10 +138,9 @@ is a compile error rather than a wrong answer:
   one `exists` per template, which the occurrence index answers for a reactant template,
   and a count of distinct SMILES per subset of two or more templates on a side, which is
   what holds them to different molecules; a side holds at most five templates, which
-  bounds the counts at 26 per side. That is
-  stricter than the RDKit cartridge's `@>`, which accepts any one template per side;
-  over a 40,000-reaction sample a Suzuki query returns 7,667 reactions through `@>` and
-  971 this way
+  bounds the counts at 26 per side. That is stricter than the RDKit cartridge's `@>`,
+  which accepts any one template per side; over a 40,000-reaction sample a Suzuki query
+  returns 7,667 reactions through `@>` and 971 this way
   ([logbook](https://github.com/open-reaction-database/ord-logbook/blob/main/entries/2026-10-02-reaction-smarts-without-the-cartridge/README.md)).
   Atom maps are ignored, as `@>` ignores them, and `chirality` applies to every template.
 - A `substructure`/`similarity`/`same_compound`/`same_parent` path must name a compound's
