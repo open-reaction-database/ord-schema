@@ -1462,4 +1462,11 @@ def parse_doi(doi: str) -> str:
     match = re.search(r"(10\.[\d.]+/[a-zA-Z\d.()\-]+)", doi)
     if not match:
         raise ValueError(f"could not parse DOI: {doi}")
-    return match.group(1)
+    # The suffix class accepts ")", so a wrapper such as "(doi:10....)" leaves a
+    # closing parenthesis on the match. Drop trailing ")" characters that were
+    # not opened inside the match. A balanced suffix, such as
+    # 10.1016/S0022-328X(00)99569-X, is unchanged.
+    parsed = match.group(1)
+    while parsed.endswith(")") and parsed.count(")") > parsed.count("("):
+        parsed = parsed[:-1]
+    return parsed

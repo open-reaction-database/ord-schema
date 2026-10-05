@@ -25,9 +25,13 @@ https://github.com/alexarnimueller/surf (MIT license). Please cite SURF as:
 Nippa, Mueller, Atz, Konrad, Grether, Martin & Schneider (2023), "Simple
 User-Friendly Reaction Format," ChemRxiv, https://doi.org/10.26434/chemrxiv-2023-nfq7h
 
-Example usage:
-python convert_udm_to_ord.py --input my_dataset.xml --output my_dataset.pbtxt
---email me@example.com --person-name "Ada Lovelace" --created-date 2024-01-15
+Example usage::
+
+    python convert_udm_to_ord.py \\
+        --input my_dataset.xml \\
+        --output my_dataset.pbtxt \\
+        --email me@example.com --person-name "Ada Lovelace" \\
+        --created-date 2024-01-15
 """
 
 import argparse
@@ -42,104 +46,26 @@ import xml.etree.ElementTree as ET
 from collections import defaultdict
 from typing import cast
 
-from ord_schema import message_helpers, validations
+from ord_schema import message_helpers, units, validations
 from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
-# Unit normalisation maps
+# Unit resolution
 # ---------------------------------------------------------------------------
 
-_MASS_UNITS: dict[str, reaction_pb2.Mass.MassUnit] = {
-    "kg": reaction_pb2.Mass.KILOGRAM,
-    "kilogram": reaction_pb2.Mass.KILOGRAM,
-    "kilograms": reaction_pb2.Mass.KILOGRAM,
-    "g": reaction_pb2.Mass.GRAM,
-    "gram": reaction_pb2.Mass.GRAM,
-    "grams": reaction_pb2.Mass.GRAM,
-    "mg": reaction_pb2.Mass.MILLIGRAM,
-    "milligram": reaction_pb2.Mass.MILLIGRAM,
-    "milligrams": reaction_pb2.Mass.MILLIGRAM,
-    "ug": reaction_pb2.Mass.MICROGRAM,
-    "µg": reaction_pb2.Mass.MICROGRAM,
-    "microgram": reaction_pb2.Mass.MICROGRAM,
-    "micrograms": reaction_pb2.Mass.MICROGRAM,
-}
+# Spellings live in ord_schema.units so this converter cannot drift from them.
+_UNIT_RESOLVER = units.UnitResolver()
 
-_MOLES_UNITS: dict[str, reaction_pb2.Moles.MolesUnit] = {
-    "mol": reaction_pb2.Moles.MOLE,
-    "mole": reaction_pb2.Moles.MOLE,
-    "moles": reaction_pb2.Moles.MOLE,
-    "mmol": reaction_pb2.Moles.MILLIMOLE,
-    "millimol": reaction_pb2.Moles.MILLIMOLE,
-    "millimole": reaction_pb2.Moles.MILLIMOLE,
-    "millimoles": reaction_pb2.Moles.MILLIMOLE,
-    "umol": reaction_pb2.Moles.MICROMOLE,
-    "µmol": reaction_pb2.Moles.MICROMOLE,
-    "micromole": reaction_pb2.Moles.MICROMOLE,
-    "micromoles": reaction_pb2.Moles.MICROMOLE,
-    "nmol": reaction_pb2.Moles.NANOMOLE,
-    "nanomole": reaction_pb2.Moles.NANOMOLE,
-    "nanomoles": reaction_pb2.Moles.NANOMOLE,
-}
+# UDM unitMass defines "gr" as grain. units.py maps that spelling to gram.
+_UDM_GRAIN_UNIT = "gr"
 
-_TIME_UNITS: dict[str, reaction_pb2.Time.TimeUnit] = {
-    "h": reaction_pb2.Time.HOUR,
-    "hr": reaction_pb2.Time.HOUR,
-    "hour": reaction_pb2.Time.HOUR,
-    "hours": reaction_pb2.Time.HOUR,
-    "min": reaction_pb2.Time.MINUTE,
-    "minute": reaction_pb2.Time.MINUTE,
-    "minutes": reaction_pb2.Time.MINUTE,
-    "s": reaction_pb2.Time.SECOND,
-    "sec": reaction_pb2.Time.SECOND,
-    "second": reaction_pb2.Time.SECOND,
-    "seconds": reaction_pb2.Time.SECOND,
-}
-
-_VOLUME_UNITS: dict[str, reaction_pb2.Volume.VolumeUnit] = {
-    "l": reaction_pb2.Volume.LITER,
-    "liter": reaction_pb2.Volume.LITER,
-    "liters": reaction_pb2.Volume.LITER,
-    "litre": reaction_pb2.Volume.LITER,
-    "litres": reaction_pb2.Volume.LITER,
-    "ml": reaction_pb2.Volume.MILLILITER,
-    "milliliter": reaction_pb2.Volume.MILLILITER,
-    "milliliters": reaction_pb2.Volume.MILLILITER,
-    "millilitre": reaction_pb2.Volume.MILLILITER,
-    "millilitres": reaction_pb2.Volume.MILLILITER,
-    "ul": reaction_pb2.Volume.MICROLITER,
-    "µl": reaction_pb2.Volume.MICROLITER,
-    "microliter": reaction_pb2.Volume.MICROLITER,
-    "microliters": reaction_pb2.Volume.MICROLITER,
-    "nl": reaction_pb2.Volume.NANOLITER,
-    "nanoliter": reaction_pb2.Volume.NANOLITER,
-    "nanoliters": reaction_pb2.Volume.NANOLITER,
-}
-
-_TEMP_UNITS: dict[str, reaction_pb2.Temperature.TemperatureUnit] = {
-    "c": reaction_pb2.Temperature.CELSIUS,
-    "celsius": reaction_pb2.Temperature.CELSIUS,
-    "°c": reaction_pb2.Temperature.CELSIUS,
-    "degc": reaction_pb2.Temperature.CELSIUS,
-    "f": reaction_pb2.Temperature.FAHRENHEIT,
-    "fahrenheit": reaction_pb2.Temperature.FAHRENHEIT,
-    "°f": reaction_pb2.Temperature.FAHRENHEIT,
-    "degf": reaction_pb2.Temperature.FAHRENHEIT,
-    "k": reaction_pb2.Temperature.KELVIN,
-    "kelvin": reaction_pb2.Temperature.KELVIN,
-}
-
-_PRESSURE_UNITS: dict[str, reaction_pb2.Pressure.PressureUnit] = {
-    "bar": reaction_pb2.Pressure.BAR,
-    "atm": reaction_pb2.Pressure.ATMOSPHERE,
-    "atmosphere": reaction_pb2.Pressure.ATMOSPHERE,
-    "atmospheres": reaction_pb2.Pressure.ATMOSPHERE,
-    "psi": reaction_pb2.Pressure.PSI,
-    "kpsi": reaction_pb2.Pressure.KPSI,
-    "torr": reaction_pb2.Pressure.TORR,
+_AMOUNT_DEFAULT_UNITS = {
+    "AMOUNT": "mol",  # molType
+    "SAMPLE_MASS": "g",  # massType
+    "VOLUME": "L",  # VOLUME / volumeRange
 }
 
 _ATMOSPHERE_TYPES: dict[
@@ -158,8 +84,9 @@ _ATMOSPHERE_TYPES: dict[
     "co2": reaction_pb2.PressureConditions.Atmosphere.CARBON_DIOXIDE,
 }
 
-# Tags whose text must reach _normalize_molblock() unstripped; see etree_to_dict().
-_RAW_TEXT_TAGS = frozenset({"MOLSTRUCTURE"})
+# Tags whose text must stay unstripped; see etree_to_dict(). MolBlock and RXN
+# counts lines are column-sensitive.
+_RAW_TEXT_TAGS = frozenset({"MOLSTRUCTURE", "RXNSTRUCTURE"})
 
 # UDM STIRRING is free text ("600 rpm magnetic stir bar"), so the method type is
 # inferred from keywords; order matters because the first match wins.
@@ -385,6 +312,29 @@ _COMBINED_AMOUNT_RE = re.compile(
 )
 
 
+def _resolve_unit(unit_key: str) -> tuple[type, int] | None:
+    """Resolves a UDM unit spelling to an ORD message class and enum value.
+
+    Returns None when the spelling is unknown, forbidden, or ``gr``. UDM
+    ``unitMass`` defines ``gr`` as grain; ``units.py`` uses that spelling for gram.
+    """
+    if not unit_key or unit_key == _UDM_GRAIN_UNIT:
+        return None
+    try:
+        message_cls, enum_value = _UNIT_RESOLVER.resolve_unit(unit_key)
+    except KeyError:
+        return None
+    return message_cls, enum_value
+
+
+def _unit_enum(unit_key: str, message_cls: type) -> int | None:
+    """Returns the enum value when ``unit_key`` resolves to ``message_cls``."""
+    resolved = _resolve_unit(unit_key)
+    if resolved is not None and resolved[0] is message_cls:
+        return resolved[1]
+    return None
+
+
 def _split_combined_amount(text: str) -> tuple[str, str] | None:
     """Splits a combined amount string into (value, unit), or None if not matched."""
     match = _COMBINED_AMOUNT_RE.match(text)
@@ -406,7 +356,7 @@ def _parse_amount(
 
     Returns None if the value cannot be parsed as a finite float.
     """
-    # Failure 1: <AMOUNT unit="g">1.5</AMOUNT> → {'@unit': 'g', '#text': '1.5'}
+    # <AMOUNT unit="g">1.5</AMOUNT> → {'@unit': 'g', '#text': '1.5'} after XML parse.
     # Legacy: <AMOUNT units="g">1.5</AMOUNT> or separate AMOUNT_UNIT child.
     # SURF: <AMOUNT>0.3000 mmol</AMOUNT> (value and unit in one text node).
     if isinstance(value_str, dict):
@@ -443,15 +393,16 @@ def _parse_amount(
     unit_key = unit_text.lower()
 
     amount = reaction_pb2.Amount()
-    if unit_key in _MASS_UNITS:
+    resolved = _resolve_unit(unit_key)
+    if resolved is not None and resolved[0] is reaction_pb2.Mass:
         amount.mass.value = value
-        amount.mass.units = _MASS_UNITS[unit_key]
-    elif unit_key in _MOLES_UNITS:
+        amount.mass.units = resolved[1]
+    elif resolved is not None and resolved[0] is reaction_pb2.Moles:
         amount.moles.value = value
-        amount.moles.units = _MOLES_UNITS[unit_key]
-    elif unit_key in _VOLUME_UNITS:
+        amount.moles.units = resolved[1]
+    elif resolved is not None and resolved[0] is reaction_pb2.Volume:
         amount.volume.value = value
-        amount.volume.units = _VOLUME_UNITS[unit_key]
+        amount.volume.units = resolved[1]
     else:
         amount.unmeasured.type = reaction_pb2.UnmeasuredAmount.CUSTOM
         if unit_text:
@@ -470,11 +421,11 @@ def _compound_amount(compound_entry: dict) -> reaction_pb2.Amount | None:
         if raw is None:
             continue
         unit_raw = compound_entry.get("AMOUNT_UNIT") or compound_entry.get("UNIT")
-        # UDM molType defaults AMOUNT to mol when its unit is omitted.
+        # XSD defaults: molType → mol, massType → g, VOLUME → L.
         parsed = _parse_amount(
             raw,
             unit_raw,
-            default_unit="mol" if key == "AMOUNT" else "",
+            default_unit=_AMOUNT_DEFAULT_UNITS[key],
         )
         if parsed is not None:
             return parsed
@@ -595,9 +546,10 @@ def _build_molecule_lookup(udm: dict) -> dict[str, dict]:
         # SURF often has CAS and no NAME; CAS is still a usable display label.
         entry: dict = {
             "name": _text(molecule.get("NAME")) or _text(molecule.get("CAS"))
-        }  # Failure 11
-        molblock_raw = molecule.get("MOLSTRUCTURE")  # Failure 8
+        }
+        molblock_raw = molecule.get("MOLSTRUCTURE")
         if isinstance(molblock_raw, dict):
+            # Attributes such as format="mol" leave the MolBlock in #text.
             molblock_raw = molblock_raw.get("#text", "")
         if molblock_raw:
             entry["molblock"] = _normalize_molblock(str(molblock_raw))
@@ -633,24 +585,32 @@ def _variation_with_section(variation: dict) -> dict:
 
 
 def _map_rxn_identifiers(reaction: dict, pb2_reaction: reaction_pb2.Reaction) -> None:
-    """Maps UDM RXNSTRUCTURE entries to ORD ReactionIdentifiers."""
-    for structure in _as_list(reaction.get("RXNSTRUCTURE")):
+    """Maps UDM RXNSTRUCTURE entries to ORD ReactionIdentifiers.
+
+    ``format`` is optional and defaults to ``rxn``. With no attributes,
+    ``etree_to_dict`` returns a plain string, which ``_as_list`` would drop.
+    """
+    raw = reaction.get("RXNSTRUCTURE")
+    structures = [raw] if isinstance(raw, str) else _as_list(raw)
+    identifier = reaction_pb2.ReactionIdentifier
+    for structure in structures:
         if isinstance(structure, dict):
             # Schema: format attr + text content. Legacy: @value attribute.
-            udmformat = structure.get("@format", "")
+            # Missing format is the XSD default, rxn, not an unknown type.
+            udmformat = str(structure.get("@format") or "rxn")
             value = _text(structure) or str(structure.get("@value") or "")
         else:
-            udmformat, value = "", str(structure or "")
+            udmformat, value = "rxn", str(structure or "")
         if udmformat == "cdxml":
-            ordtype, orddetails = 1, "cdxml"
+            ordtype, orddetails = identifier.CUSTOM, "cdxml"
         elif udmformat == "rinchi":
-            ordtype, orddetails = 5, ""
+            ordtype, orddetails = identifier.RINCHI, ""
         elif udmformat == "rsmiles":
-            ordtype, orddetails = 2, ""
+            ordtype, orddetails = identifier.REACTION_SMILES, ""
         elif udmformat == "rxn":
-            ordtype, orddetails = 1, "rxn"
+            ordtype, orddetails = identifier.CUSTOM, "rxn"
         else:
-            ordtype, orddetails = 0, ""
+            ordtype, orddetails = identifier.UNSPECIFIED, ""
         pb2_reaction.identifiers.add(type=ordtype, details=orddetails, value=value)
 
 
@@ -817,10 +777,12 @@ def _map_conditions(
     if isinstance(temp, dict):
         parsed = _parse_range(temp)
         unit_key = _attr_unit(temp, "@unit", "@units")
-        units = _TEMP_UNITS.get(unit_key)
-        if units is None and not unit_key:
-            # SURF omits unit; Celsius is the lab default for these exports.
-            units = reaction_pb2.Temperature.CELSIUS
+        # Unitless TEMPERATURE defaults to Celsius (UDM XSD temperatureRange → degC).
+        units = (
+            _unit_enum(unit_key, reaction_pb2.Temperature)
+            if unit_key
+            else reaction_pb2.Temperature.CELSIUS
+        )
         if parsed is not None and units is not None:
             value, precision = parsed
             setpoint = pb2_reaction.conditions.temperature.setpoint
@@ -836,18 +798,20 @@ def _map_conditions(
                 unit_key,
             )
 
-    # Reaxys often omits units and mixes scales (torr vs Pa vs atm); guessing is
-    # unreliable, so setpoint is only written when a recognised unit is present.
-    # The raw number is preserved in conditions.details for domain review.
+    # The XSD default for pressureRange is torr, but Reaxys omits the unit on
+    # values that are not one scale (about 760, and also ~2 and ~4.5e6). Applying
+    # torr would mislabel that file, so a setpoint is written only when a
+    # recognised unit is present. The raw number stays in conditions.details.
     pressure = cg.get("PRESSURE")
     if isinstance(pressure, dict):
         parsed = _parse_range(pressure)
         unit_key = _attr_unit(pressure, "@unit", "@units")
-        if parsed is not None and unit_key in _PRESSURE_UNITS:
+        units = _unit_enum(unit_key, reaction_pb2.Pressure) if unit_key else None
+        if parsed is not None and units is not None:
             value, precision = parsed
             setpoint = pb2_reaction.conditions.pressure.setpoint
             setpoint.value = value
-            setpoint.units = _PRESSURE_UNITS[unit_key]
+            setpoint.units = units
             if precision is not None:
                 setpoint.precision = precision
             captured.add("PRESSURE")
@@ -926,25 +890,20 @@ def _map_conditions(
     if isinstance(time_value, dict):
         parsed_time = _parse_range(time_value)
         unit_key = _attr_unit(time_value, "@unit", "@units")
-        if parsed_time is not None and (not unit_key or unit_key in _TIME_UNITS):
+        if parsed_time is not None and (
+            not unit_key or _unit_enum(unit_key, reaction_pb2.Time) is not None
+        ):
             captured.add("TIME")
 
-    # Setup environment from CONDITION_GROUP PREPARATION when it matches a known env.
+    # Environment only when PREPARATION is a known keyword. Procedure text goes
+    # to notes.procedure_details (_map_notes), including this group's text.
     prep_raw = cg.get("PREPARATION")
     preparations = [prep_raw] if isinstance(prep_raw, str) else _as_list(prep_raw)
     for preparation in preparations:
-        env_key = str(preparation).strip().lower()
-        env_type = _ENVIRONMENT_TYPES.get(env_key)
+        env_type = _ENVIRONMENT_TYPES.get(str(preparation).strip().lower())
         if env_type is not None:
             pb2_reaction.setup.environment.type = env_type
             break
-        if preparation and not pb2_reaction.setup.environment.details:
-            # Free-text prep is not a known environment keyword; CUSTOM + details
-            # satisfies ORD type/details validation.
-            pb2_reaction.setup.environment.type = (
-                reaction_pb2.ReactionSetup.ReactionEnvironment.CUSTOM
-            )
-            pb2_reaction.setup.environment.details = str(preparation)
     if preparations:
         captured.add("PREPARATION")
 
@@ -972,22 +931,37 @@ def _map_conditions(
     )
 
 
+def _preparation_texts(node: dict) -> list[str]:
+    """Returns PREPARATION strings from a CONDITIONS or CONDITION_GROUP node."""
+    raw = node.get("PREPARATION")
+    preps = [raw] if isinstance(raw, str) else _as_list(raw)
+    texts = []
+    for prep in preps:
+        text = _text(prep).strip()
+        if text:
+            texts.append(text)
+    return texts
+
+
 def _map_notes(variation: dict, pb2_reaction: reaction_pb2.Reaction) -> None:
     """Maps UDM procedure text to ORD notes.procedure_details.
 
-    Prefers legacy VARIATION/PROCEDURE, else CONDITIONS/PREPARATION (UDM v6).
+    Prefers legacy VARIATION/PROCEDURE. Otherwise uses PREPARATION text from
+    CONDITIONS or CONDITION_GROUP when it is not an environment keyword.
     """
     procedure = variation.get("PROCEDURE")
     if not procedure:
         conditions = variation.get("CONDITIONS") or {}
+        preps: list[str] = []
         if isinstance(conditions, dict):
-            prep_raw = conditions.get("PREPARATION")
-            preps = [prep_raw] if isinstance(prep_raw, str) else _as_list(prep_raw)
-            # Prefer a PREPARATION that is not an environment keyword.
-            procedure = next(
-                (p for p in preps if str(p).strip().lower() not in _ENVIRONMENT_TYPES),
-                preps[0] if preps else None,
-            )
+            preps.extend(_preparation_texts(conditions))
+            for group in _as_list(conditions.get("CONDITION_GROUP")):
+                if isinstance(group, dict):
+                    preps.extend(_preparation_texts(group))
+        procedure = next(
+            (text for text in preps if text.lower() not in _ENVIRONMENT_TYPES),
+            None,
+        )
     if procedure:
         pb2_reaction.notes.procedure_details = _text(procedure) or str(procedure)
 
@@ -1024,7 +998,7 @@ def _mol_ids_from(node: dict, key: str) -> list[str]:
     """Returns ID strings for a UDM ID field such as PRODUCT_ID or REACTANT_ID."""
     ids: list[str] = []
     raw = node.get(key)
-    # Plain string is dropped by _as_list (same Failure 4 pattern as MODIFICATION_DATE).
+    # Plain-string ID fields are handled before _as_list (which would drop them).
     entries = [raw] if isinstance(raw, str) else _as_list(raw)
     for entry in entries:
         text = _text(entry) if isinstance(entry, dict) else str(entry or "")
@@ -1047,7 +1021,7 @@ def _map_outcomes(
     falls back to VARIATION/PRODUCT_ID then REACTION/PRODUCT_ID resolved through
     the molecule lookup.
     """
-    # Failure 5: don't create an empty outcome for input-only variations.
+    # Do not create an empty outcome for input-only variations.
     duration = _condition_time(variation)
     product_entries = _as_list(variation.get("PRODUCT"))
     product_ids: list[str] = []
@@ -1060,17 +1034,19 @@ def _map_outcomes(
 
     outcome = pb2_reaction.outcomes.add()
 
-    # Reaction time — Failure 7: guard non-finite. UDM v6 uses CONDITIONS/TIME.
+    # Reaction time from CONDITIONS/TIME; non-finite values are dropped in _parse_range.
     if isinstance(duration, dict):
         parsed = _parse_range(duration)
         if parsed is None and "value" in duration:
             parsed = _parse_range(duration["value"])
         if parsed is not None:
             unit_key = _attr_unit(duration, "@unit", "@units")
-            units = _TIME_UNITS.get(unit_key)
-            if units is None and not unit_key:
-                # SURF omits units; hour is the usual scale in these exports.
-                units = reaction_pb2.Time.HOUR
+            # Unitless TIME defaults to hour (UDM XSD timeRange → hr).
+            units = (
+                _unit_enum(unit_key, reaction_pb2.Time)
+                if unit_key
+                else reaction_pb2.Time.HOUR
+            )
             if units is not None:
                 value, precision = parsed
                 outcome.reaction_time.value = value
@@ -1198,39 +1174,47 @@ def _map_provenance(
 ) -> None:
     """Maps UDM provenance fields to ORD ReactionProvenance.
 
-    CLI depositor fields fill gaps when UDM has no SCIENTIST name/email or
-    CREATION_DATE (common in SURF exports). UDM wins when both are present.
-    Username and ORCID have no UDM equivalent in this converter. Dataset
-    ``--name`` / ``--description`` are separate packaging overrides (CLI wins).
+    ``experimenter`` is the UDM SCIENTIST only, and stays unset when the export
+    has none. ``record_created.person`` is that scientist, or the CLI depositor
+    when there is no scientist — never a mix of the two identities. ``--email``
+    still fills ``record_created.person.email`` when the scientist has no email,
+    because ORD validation requires it. Dataset ``--name`` / ``--description``
+    are separate packaging overrides (CLI wins).
     """
     legal = udm.get("LEGAL") or {}
 
-    # Failure 11: PRODUCER may carry XML attributes, producing a dict.
+    # PRODUCER may carry XML attributes; _text reads the #text node.
     producer = _text(legal.get("PRODUCER"))
     if producer:
         pb2_reaction.provenance.experimenter.organization = producer
         pb2_reaction.provenance.record_created.person.organization = producer
 
     scientist_name, scientist_email = _scientist_fields(variation.get("SCIENTIST"))
-    # UDM first, then CLI fallbacks for missing person fields.
-    resolved_name = scientist_name or person_name
-    resolved_email = scientist_email or email
-    if resolved_name:
-        pb2_reaction.provenance.experimenter.name = resolved_name
-        pb2_reaction.provenance.record_created.person.name = resolved_name
-    if resolved_email:
-        pb2_reaction.provenance.experimenter.email = resolved_email
-        pb2_reaction.provenance.record_created.person.email = resolved_email
-    _fill_person(
-        pb2_reaction.provenance.experimenter,
-        username=username,
-        orcid=orcid,
-    )
-    _fill_person(
-        pb2_reaction.provenance.record_created.person,
-        username=username,
-        orcid=orcid,
-    )
+    if scientist_name or scientist_email:
+        if scientist_name:
+            pb2_reaction.provenance.experimenter.name = scientist_name
+            pb2_reaction.provenance.record_created.person.name = scientist_name
+        if scientist_email:
+            pb2_reaction.provenance.experimenter.email = scientist_email
+            pb2_reaction.provenance.record_created.person.email = scientist_email
+        elif email:
+            pb2_reaction.provenance.record_created.person.email = email
+        record_username = ""
+        record_name = scientist_name
+        record_orcid = ""
+        record_email = scientist_email or email
+    else:
+        _fill_person(
+            pb2_reaction.provenance.record_created.person,
+            username=username,
+            name=person_name,
+            orcid=orcid,
+            email=email,
+        )
+        record_username = username
+        record_name = person_name
+        record_orcid = orcid
+        record_email = email
 
     orgs = _as_list(reaction.get("ORGANISATIONS"))
     if orgs:
@@ -1239,7 +1223,7 @@ def _map_provenance(
             pb2_reaction.provenance.city = str(address)
 
     # DOI resolution: per-variation citation overrides global DOI.
-    # Failure 11: DOI element may carry XML attributes.
+    # DOI may carry XML attributes; _normalize_doi reads via _text.
     # SURF: VARIATION/@CIT_ID; strict UDM: VARIATION/CITATION/@CIT_ID.
     global_doi = _normalize_doi(legal.get("DOI"))
     variation_doi = ""
@@ -1274,7 +1258,7 @@ def _map_provenance(
     if creation_date:
         pb2_reaction.provenance.record_created.time.value = str(creation_date)
 
-    # Failure 4: plain-string MODIFICATION_DATE is silently dropped by _as_list.
+    # Plain-string MODIFICATION_DATE is handled without _as_list.
     mod_raw = variation.get("MODIFICATION_DATE")
     mod_dates = [mod_raw] if isinstance(mod_raw, str) else _as_list(mod_raw)
     for mod_date in mod_dates:
@@ -1282,10 +1266,10 @@ def _map_provenance(
         event.time.value = str(mod_date)
         _fill_person(
             event.person,
-            username=username,
-            name=resolved_name,
-            orcid=orcid,
-            email=resolved_email,
+            username=record_username,
+            name=record_name,
+            orcid=record_orcid,
+            email=record_email,
         )
 
     pb2_reaction.provenance.is_mined = False
@@ -1295,12 +1279,16 @@ def _validation_flag_hints(error_text: str) -> str:
     """Returns CLI flag hints for common ORD validation gaps UDM often omits."""
     text = error_text.lower()
     hints: list[str] = []
-    if "email" in text and ("required" in text or "must have" in text):
+    missing_provenance_email = (
+        "user email is required for record_created" in text
+        or "user email is required for record_modified" in text
+    )
+    if missing_provenance_email:
         hints.append(
             "Pass --email when the UDM file has no SCIENTIST/EMAIL "
             "(ORD requires record_created.person.email)."
         )
-    if "time" in text and ("recordevent" in text or "must have" in text):
+    if "recordevent" in text and "time" in text and "must have" in text:
         hints.append(
             "Pass --created-date when the UDM file has no CREATION_DATE "
             "(ORD requires record_created.time)."
@@ -1370,13 +1358,15 @@ def convert(
             override, unlike provenance gap-fill flags below).
         description: Dataset description. When set, overrides the DOI-derived
             default (packaging override).
-        username: Depositor username for provenance (no UDM equivalent).
-        person_name: Depositor display name; fills only when UDM SCIENTIST has
-            no name (UDM wins if both present). Distinct from ``name``.
-        orcid: Depositor ORCID iD for provenance (no UDM equivalent).
-        email: Depositor email; fills only when UDM SCIENTIST has no email (UDM
-            wins if both present). ORD validation requires email on
-            record_created.
+        username: Depositor username. Written to record_created.person only when
+            UDM has no SCIENTIST. Distinct from the experimenter.
+        person_name: Depositor display name. Written to record_created.person
+            only when UDM has no SCIENTIST. Distinct from ``name``.
+        orcid: Depositor ORCID iD. Written to record_created.person only when
+            UDM has no SCIENTIST.
+        email: Depositor email. Fills record_created.person.email when UDM has
+            no SCIENTIST/EMAIL. Not copied onto experimenter. ORD validation
+            requires email on record_created.
         created_date: Depositor record-created timestamp; fills only when UDM
             has no CREATION_DATE (UDM wins if both present). ORD validation
             requires record_created.time.
@@ -1415,7 +1405,7 @@ def convert(
 
     udm = raw["UDM"]
 
-    # Dataset-level metadata — Failure 11: TITLE/DOI may carry XML attributes.
+    # Dataset-level metadata; TITLE/DOI may carry XML attributes (_text reads #text).
     legal = udm.get("LEGAL") or {}
     dataset_name = name or _text(legal.get("TITLE"))
     global_doi = _text(legal.get("DOI"))
@@ -1435,7 +1425,7 @@ def convert(
         sys.exit(1)
     parent_xml = _document_context_xml(root) if include_udm_xml else ""
 
-    # Failure 10: <REACTIONS/> (self-closing) produces None, not {}.
+    # Empty <REACTIONS/> is valid: findall returns no REACTION children.
     for reaction_element in reactions_element.findall("REACTION"):
         reaction = etree_to_dict(reaction_element)["REACTION"]
         reaction_xml = (
@@ -1518,26 +1508,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--username",
         default="",
-        help="Depositor username written into provenance Person.username "
-        "(no UDM equivalent).",
+        help="Depositor username for record_created.person. Applied only when "
+        "UDM has no SCIENTIST (not copied onto experimenter).",
     )
     parser.add_argument(
         "--person-name",
         default="",
-        help="Depositor display name for provenance. Fills only when UDM has no "
-        "SCIENTIST/NAME (UDM wins if both set). Distinct from --name.",
+        help="Depositor display name for record_created.person. Applied only "
+        "when UDM has no SCIENTIST. Distinct from --name.",
     )
     parser.add_argument(
         "--orcid",
         default="",
-        help="Depositor ORCID iD written into provenance Person.orcid "
-        "(no UDM equivalent).",
+        help="Depositor ORCID iD for record_created.person. Applied only when "
+        "UDM has no SCIENTIST (not copied onto experimenter).",
     )
     parser.add_argument(
         "--email",
         default="",
-        help="Depositor email for provenance. Fills only when UDM has no "
-        "SCIENTIST/EMAIL (UDM wins if both set). ORD requires email on "
+        help="Depositor email for record_created.person. Fills when UDM has no "
+        "SCIENTIST/EMAIL. Not copied onto experimenter. ORD requires email on "
         "record_created.",
     )
     parser.add_argument(
@@ -1579,7 +1569,7 @@ def main(args: argparse.Namespace) -> None:
         include_udm_xml=args.include_udm_xml,
     )
 
-    # Failure 9: catch ValidationError and exit cleanly instead of showing a traceback.
+    # Catch ValidationError and exit cleanly with optional CLI hints.
     if not args.no_validate:
         try:
             validations.validate_datasets({"_COMBINED": dataset})
@@ -1593,7 +1583,7 @@ def main(args: argparse.Namespace) -> None:
             )
             sys.exit(1)
 
-    # Failure 3: sanitise dataset name before using as a filename.
+    # Sanitise dataset name before using as a default filename.
     if args.output:
         output_path = pathlib.Path(args.output)
     elif dataset.name:
