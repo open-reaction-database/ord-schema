@@ -39,11 +39,13 @@ Mapped from `<RXNSTRUCTURE>` elements on the parent `<REACTION>` (shared across 
 
 | UDM `@format` attribute | ORD `ReactionIdentifier.type` |
 | --- | --- |
-| `rsmiles` | `REACTION_SMILES` (2) |
-| `rinchi` | `RINCHI` (5) |
-| `cdxml` | `CUSTOM` (1), details = `"cdxml"` |
-| `rxn` | `CUSTOM` (1), details = `"rxn"` |
-| *(other)* | `UNSPECIFIED` (0) |
+| `rsmiles` | `REACTION_SMILES` |
+| `rinchi` | `RINCHI` |
+| `cdxml` | `CUSTOM`, details = `"cdxml"` |
+| `rxn`, or attribute omitted | `CUSTOM`, details = `"rxn"` |
+| *(other)* | `UNSPECIFIED` |
+
+`format` is optional in the XSD and defaults to `rxn`. A `<RXNSTRUCTURE>` with no attributes is a plain string after parsing; that string is kept, not dropped. RXN text is not whitespace-stripped, same as `MOLSTRUCTURE`, because counts lines are column-sensitive.
 
 ---
 
@@ -59,7 +61,7 @@ UDM role blocks do not record addition order or grouping. Every `<REACTANT>`, `<
 | `<SOLVENT>` | role = `SOLVENT` |
 | `REACTION/REACTANT_ID` or `VARIATION/REACTANT_ID` | role = `REACTANT`. Used when no role blocks (Reaxys); resolved via `MOLECULES` |
 | `MOLECULE/@MOL_ID` → `MOLECULES/MOLECULE/@ID` | `Compound.identifiers` (MOLBLOCK or NAME) |
-| `AMOUNT` + `AMOUNT_UNIT` | `Compound.amount` (mass / moles / volume) |
+| `AMOUNT`, `SAMPLE_MASS`, or `VOLUME` (+ optional unit / `AMOUNT_UNIT`) | `Compound.amount` (mass / moles / volume) |
 
 ### Amount parsing
 
@@ -69,11 +71,9 @@ UDM role blocks do not record addition order or grouping. Every `<REACTANT>`, `<
 - Inline attribute: `<AMOUNT unit="g">1.5</AMOUNT>` / `units="g"` (attribute-bearing dict from `etree_to_dict`)
 - Combined string (SURF): `<AMOUNT>0.3000 mmol</AMOUNT>` — value and unit split from the text
 
-Unit strings are matched case-insensitively. A unitless `AMOUNT` defaults to `mol`, as specified by the UDM `molType`. An unsupported unit is stored as `UnmeasuredAmount` (`CUSTOM`) with the original numeric value and unit in `details`; it is not assigned an arbitrary physical quantity type. Non-finite values (`inf`, `nan`, overflow) are silently dropped. When no amount element is present at all, the converter sets `UnmeasuredAmount` (`CUSTOM`, details `"amount not reported in UDM"`) so ORD validation passes.
+Unit strings are matched case-insensitively through `ord_schema.units.UnitResolver`, and the resolved message has to be mass, moles, or volume. Anything else, including an unknown spelling, is stored as `UnmeasuredAmount` (`CUSTOM`) with the original numeric value and unit in `details`. `gr` is left unmeasured: the UDM `unitMass` enumeration defines it as grain, while `units.py` uses that spelling for gram.
 
-**Mass units:** `g`, `mg`, `ug`/`µg`, `kg`
-**Moles units:** `mol`, `mmol`, `umol`/`µmol`, `nmol`
-**Volume units:** `l`, `ml`, `ul`/`µl`, `nl`
+Omitted units follow the XSD defaults: `AMOUNT` → `mol` (`molType`), `SAMPLE_MASS` → `g` (`massType`), `VOLUME` → `L`. Combined value+unit strings (SURF) are split before resolution. Non-finite values (`inf`, `nan`, overflow) are silently dropped. When no amount element is present at all, the converter sets `UnmeasuredAmount` (`CUSTOM`, details `"amount not reported in UDM"`) so ORD validation passes.
 
 ### Molecule identifiers
 
@@ -105,13 +105,13 @@ SURF nests reactants/products/conditions under `VARIATION/SECTION`; the converte
 
 | UDM element | ORD field | Notes |
 | --- | --- | --- |
-| `TEMPERATURE/@unit(s)` + exact or min/max | `conditions.temperature.setpoint` | A complete range maps to midpoint + precision. Units: `c`/`°c`/`degC`, `f`/`°f`, `k`. Missing unit → Celsius |
-| `PRESSURE/@unit(s)` + exact or min/max | `conditions.pressure.setpoint` | A complete range maps to midpoint + precision. Units: `atm`, `bar`, `psi`, `kpsi`, `torr`. **No unit → setpoint omitted**; raw value appended to `conditions.details` |
+| `TEMPERATURE/@unit(s)` + exact or min/max | `conditions.temperature.setpoint` | A complete range maps to midpoint + precision. Unit spellings come from `ord_schema.units` (`degC`, `C`, `K`, …). Missing unit → Celsius (XSD default `degC`) |
+| `PRESSURE/@unit(s)` + exact or min/max | `conditions.pressure.setpoint` | A complete range maps to midpoint + precision. Unit spellings come from `ord_schema.units` (`torr`, `bar`, `atm`, `psi`, `Pa`, `kPa`, `mmHg`, …). **No unit → setpoint omitted**; raw value appended to `conditions.details`. The XSD default is torr, and it is not applied: Reaxys unitless values are not one scale |
 | `PRESSURE/ATMOSPHERE` | `conditions.pressure.atmosphere.type` | `air`, `n2`/`nitrogen`, `ar`/`argon`, `o2`/`oxygen`, `h2`/`hydrogen`, `co`, `co2` |
 | `STIRRING` (text) | `conditions.stirring.details` + `.type` + `.rate.rpm` | See [Stirring](#stirring) |
 | `REFLUX` | `conditions.reflux` | True when value is `true`, `yes`, or `1` |
 | `PH` exact or min/max; `<PH>7.0</PH>` | `conditions.ph` | Complete ranges use the midpoint; the range remains in `details` because ORD pH has no precision field |
-| `PREPARATION` | `setup.environment.type` or `.details` | Known values: `fume hood`, `bench top`, `glove box`, `glove bag`; unknown → `CUSTOM` + `.details` |
+| `PREPARATION` | `setup.environment.type`, or `notes.procedure_details` | Keyword match (`fume hood`, `bench top`, `glove box`, `glove bag`) sets the environment. Any other text, from `CONDITIONS` or `CONDITION_GROUP`, is procedure notes |
 | `VESSEL/VESSEL_TYPE` | `setup.vessel.type` | `round bottom flask`/`rbf`, `vial`, `well plate`, `tube`, `microwave vial`, `nmr tube`, `pressure flask`, `pressure reactor` |
 | `VESSEL/DETAILS` | `setup.vessel.details` | |
 
@@ -141,7 +141,7 @@ An outcome is only created when the variation has a parseable `<DURATION>` (dict
 
 | UDM element | ORD field | Notes |
 | --- | --- | --- |
-| `DURATION` / `CONDITIONS/.../TIME` exact or min/max | `outcome.reaction_time` | Complete range maps to midpoint + precision. Units: `h`/`hr`, `min`, `s`/`sec`. Missing unit → hour |
+| `DURATION` / `CONDITIONS/.../TIME` exact or min/max | `outcome.reaction_time` | Complete range maps to midpoint + precision. Unit spellings come from `ord_schema.units` (`hr`, `min`, `s`, `d`, …). Missing unit → hour (XSD default `hr`) |
 | `PRODUCT/MOLECULE/@MOL_ID` | `outcome.products[].identifiers` | Via molecule lookup |
 | `REACTION/PRODUCT_ID` or `VARIATION/PRODUCT_ID` | `outcome.products[].identifiers` | Used when no `PRODUCT` blocks (Reaxys); resolved via `MOLECULES` |
 | `PRODUCT/YIELD` exact or min/max; `<YIELD>85</YIELD>` | `outcome.products[].measurements[].percentage` | Complete range maps to midpoint + precision; lone bound goes to measurement `details`; non-finite values skipped |
@@ -150,27 +150,25 @@ An outcome is only created when the variation has a parseable `<DURATION>` (dict
 
 ## Notes and observations
 
-| UDM element | ORD field |
-| --- | --- |
-| `VARIATION/PROCEDURE` | `notes.procedure_details` |
-| `VARIATION/COMMENT` | `observations[0].comment` |
+| UDM element | ORD field | Notes |
+| --- | --- | --- |
+| `VARIATION/PROCEDURE` | `notes.procedure_details` | |
+| `CONDITIONS/PREPARATION` or `CONDITION_GROUP/PREPARATION`, when not an environment keyword | `notes.procedure_details` | Environment keywords stay on `setup.environment` only |
+| `VARIATION/COMMENT` | `observations[0].comment` | |
 
 ---
 
 ## Provenance (`ReactionProvenance`)
 
-CLI precedence is asymmetric (see the user guide): `--name` / `--description` **override** UDM dataset metadata; provenance flags below **fill gaps** only (UDM scientist / creation date win when both are set).
+CLI precedence is asymmetric (see the user guide): `--name` / `--description` **override** UDM dataset metadata. When UDM has a `SCIENTIST`, that person is `experimenter` and `record_created.person`; CLI username, name, and ORCID are not merged onto them, and `--email` fills only a missing scientist email on `record_created` / `record_modified`. When UDM has no scientist, CLI depositor flags populate `record_created.person` and `experimenter` stays unset. `--created-date` still fills only a missing `CREATION_DATE`.
 
 | UDM element | ORD field | Notes |
 | --- | --- | --- |
 | `LEGAL/PRODUCER` | `provenance.experimenter.organization` + `record_created.person.organization` | |
-| `VARIATION/SCIENTIST` (bare string) | `provenance.experimenter.name` + `record_created.person.name` | Legacy form |
-| `VARIATION/SCIENTIST/NAME` | `provenance.experimenter.name` + `record_created.person.name` | UDM v6 AUTHOR-shaped form |
-| `VARIATION/SCIENTIST/EMAIL` | `provenance.experimenter.email`, `record_created.person.email`, `record_modified[].person.email` | Filled from `--email` when absent |
-| `--username` | `Person.username` on experimenter / record_created / record_modified | No UDM equivalent in this converter |
-| `--person-name` | `Person.name` when UDM SCIENTIST has no name | Gap-fill only; distinct from `--name` (dataset title override) |
-| `--orcid` | `Person.orcid` | No UDM equivalent in this converter |
-| `--email` | `Person.email` when UDM SCIENTIST has no email | Gap-fill only; required by ORD validation when provenance is present |
+| `VARIATION/SCIENTIST` (bare string or `NAME` / `EMAIL`) | `experimenter`, and the same name/email on `record_created.person` | The experimenter is this scientist only. CLI username, name, and ORCID are not copied onto that person |
+| *(no SCIENTIST)* | `record_created.person` from `--username` / `--person-name` / `--orcid` / `--email` | `experimenter` name, username, ORCID, and email stay unset. Literature exports must not record the depositor as the person who ran the reaction |
+| `--email` when SCIENTIST has no email | `record_created.person.email` and `record_modified[].person.email` only | ORD requires that email. It is not written onto `experimenter` |
+| `--username`, `--person-name`, `--orcid` | `record_created.person` and `record_modified` when UDM has no SCIENTIST | Depositor identity. `--person-name` is distinct from `--name` (dataset title) |
 | `--created-date` | `provenance.record_created.time.value` when UDM has no `CREATION_DATE` | Gap-fill only; required by ORD validation (`RecordEvent.time`) |
 | `LEGAL/DOI` | `provenance.doi` | Overridden by variation-level or reaction-level citation DOI if present |
 | `VARIATION/CITATION/@CIT_ID` or `VARIATION/@CIT_ID` → `CITATIONS/CITATION/@ID/DOI` | `provenance.doi` | Per-variation citation lookup (SURF uses the attribute form). Wins over a reaction-level DOI |
@@ -183,7 +181,7 @@ CLI precedence is asymmetric (see the user guide): `--name` / `--description` **
 
 ### Scientist / email / created date
 
-UDM v6 models `SCIENTIST` like `AUTHOR`: required `NAME`, optional `EMAIL`, `PHONE`, `ORGANISATION`. ORD validation requires an email on `record_created.person` and every `record_modified` person, a `record_created.time`, and at least one of username/name/orcid on that person. When the export omits those fields (common in SURF), pass `--email` / `--person-name` / `--username` / `--orcid` / `--created-date`; **UDM values win when both are present** (unlike `--name` / `--description`, which override dataset packaging fields). Bare-name strings (`<SCIENTIST>Alice</SCIENTIST>`) still map the name field only. Validation failures for these gaps print a Hint naming the flag to pass.
+UDM v6 models `SCIENTIST` like `AUTHOR`: required `NAME`, optional `EMAIL`, `PHONE`, `ORGANISATION`. That person is the experimenter. ORD validation requires an email on `record_created.person` and every `record_modified` person, a `record_created.time`, and at least one of username/name/orcid on that person. When the export has a scientist, `record_created.person` is that scientist, and `--email` fills only a missing email. When the export has no scientist (common in SURF and literature exports), the CLI depositor is `record_created.person` and the experimenter is left unset. `--name` / `--description` still override dataset packaging fields. Bare-name strings (`<SCIENTIST>Alice</SCIENTIST>`) still map the name field only. Validation failures for these gaps print a Hint naming the flag to pass.
 
 ---
 
@@ -201,7 +199,7 @@ UDM v6 models `SCIENTIST` like `AUTHOR`: required `NAME`, optional `EMAIL`, `PHO
 
 The `_text()` helper extracts `#text` from such dicts, falling back to a plain string. The `_parse_amount()` function additionally promotes `@units` to the unit string when no separate `<AMOUNT_UNIT>` element exists.
 
-Text is stripped for every tag except those in `_RAW_TEXT_TAGS` (currently `MOLSTRUCTURE`), whose whitespace is significant; see [Molecule identifiers](#molecule-identifiers).
+Text is stripped for every tag except those in `_RAW_TEXT_TAGS` (`MOLSTRUCTURE` and `RXNSTRUCTURE`), whose whitespace is significant; see [Molecule identifiers](#molecule-identifiers).
 
 With `--include-udm-xml`, each ORD reaction stores its source `<REACTION>` element as `provenance.reaction_metadata["udm_reaction_xml"]` and shared document context (`UDM_VERSION`, `LEGAL`, `ORGANISATIONS`, `CITATIONS`, etc.) as `"udm_parent_xml"`. `REACTIONS` and the potentially large `MOLECULES` lookup are excluded from parent context. This is opt-in because source XML may have a different license.
 
@@ -214,7 +212,7 @@ With `--include-udm-xml`, each ORD reaction stores its source `<REACTION>` eleme
 | `<RXNSTRUCTURE format="cdxml">` value | CDX binary embedded in XML; no ORD SMILES equivalent |
 | `<ANALYSIS>`, `<SPECTRUM>` | ORD `Analysis` proto exists but not yet wired up |
 | `<SCALE>` | No direct ORD equivalent |
-| `<PRESSURE>` value without a unit attribute | Not mapped to `pressure.setpoint` (unit inference unreliable); raw value may appear in `conditions.details` |
+| `<PRESSURE>` value without a unit attribute | Not mapped to `pressure.setpoint`. The XSD default is torr, but Reaxys unitless values span more than one scale (about 760, and also ~2 and ~4.5e6), so the raw value stays in `conditions.details` |
 | `<MODIFICATION_DATE>` nested structures | Plain strings and simple lists are handled; unusual nesting may vary |
 
 ---
@@ -225,14 +223,14 @@ Policies applied when UDM is missing fields that ORD validation still requires. 
 
 | Incomplete UDM pattern | ORD requirement | Converter policy |
 | --- | --- | --- |
-| Elsevier-style DOI with `(…)` in the suffix; URL or `org/…` prefixes | `provenance.doi` must equal `parse_doi(doi)` | `parse_doi` keeps parenthetical suffixes; converter normalizes via `parse_doi` before storing |
+| Elsevier-style DOI with balanced `(…)` in the suffix; URL or `org/…` prefixes; wrappers like `(doi:10.…)` | `provenance.doi` must equal `parse_doi(doi)` | `parse_doi` keeps balanced parenthetical suffixes and trims an unmatched trailing `)` from the regex match; converter normalizes before storing |
 | Products only as `REACTION/PRODUCT_ID` (or `VARIATION/PRODUCT_ID`), no `<PRODUCT>` block | ≥1 `ReactionOutcome` | Resolve IDs through `MOLECULES` into outcome products when no `PRODUCT` blocks exist |
 | `<REACTANT>` / `<REAGENT>` / `<CATALYST>` / `<SOLVENT>` with no addition-order field | One `ReactionInput` | Components of one shared `combined` input; each block keeps its own role and amount |
 | Reactants only as `REACTION/REACTANT_ID` (or `VARIATION/REACTANT_ID`), no role blocks | ≥1 reaction input | Resolve all IDs through `MOLECULES` as components of one shared `REACTANT_IDS` input |
-| `REACTION` has no `VARIATION` | Preserve recoverable reaction-level data | Emit one ORD reaction using reaction-level identifiers and `REACTANT_ID` / `PRODUCT_ID` fallbacks. A non-SMILES identifier-only record may require `--no-validate` |
-| Free-text `PREPARATION` used as environment details | `ReactionEnvironment.type` required if message non-empty | Set `type=CUSTOM` with the free text in `details` |
+| `REACTION` has no `VARIATION` | Preserve recoverable reaction-level data | Emit one ORD reaction using reaction-level identifiers (unattributed `<RXNSTRUCTURE>` → `rxn`) and `REACTANT_ID` / `PRODUCT_ID` fallbacks. A non-SMILES identifier-only record may require `--no-validate` |
+| Free-text `PREPARATION` | Procedure text is not an environment | Write it to `notes.procedure_details`. Set `setup.environment` only when the text is a known environment keyword |
 | Role compound without `AMOUNT` / `SAMPLE_MASS` / `VOLUME` | Every input component needs an `Amount` | `UnmeasuredAmount` with `type=CUSTOM` and details `"amount not reported in UDM"` |
-| `PRESSURE/exact` without `@unit` / `@units` | If setpoint `value` is set, `units` is required | Omit setpoint; record `UDM PRESSURE exact=… (unit omitted; not mapped to setpoint)` in `conditions.details` |
+| `PRESSURE/exact` without `@unit` / `@units` | If setpoint `value` is set, `units` is required | Omit setpoint. The XSD default (torr) is not applied, because unitless Reaxys values are not one scale. Record `UDM PRESSURE value=… (unit omitted; not mapped to setpoint)` in `conditions.details` |
 | Empty `MOLECULE/NAME` and no readable `MOLSTRUCTURE` | Identifier `value` must be non-empty | Use molecule `@ID` as `NAME` |
 | Several `CONDITION_GROUP`s | One `ReactionConditions` message | Set `conditions_are_dynamic`; summarize every group as a stage in `details` — see [Multiple CONDITION_GROUPs](#multiple-condition_groups) |
 

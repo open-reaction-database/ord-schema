@@ -375,6 +375,8 @@ def test_stirring_rpm(dataset):
 def test_environment_fume_hood(dataset):
     env = dataset.reactions[0].setup.environment
     assert env.type == reaction_pb2.ReactionSetup.ReactionEnvironment.FUME_HOOD
+    assert "benzaldehyde" in dataset.reactions[0].notes.procedure_details
+    assert "fume hood" not in dataset.reactions[0].notes.procedure_details.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -428,7 +430,10 @@ def test_provenance_organization(dataset):
 
 
 def test_provenance_scientist(dataset):
-    assert dataset.reactions[0].provenance.experimenter.name == "Test Scientist"
+    """Sample UDM has no SCIENTIST, so the CLI depositor is record_created only."""
+    provenance = dataset.reactions[0].provenance
+    assert provenance.experimenter.name == ""
+    assert provenance.record_created.person.name == "Test Scientist"
 
 
 def test_provenance_creation_date(dataset):
@@ -443,7 +448,7 @@ def test_email_is_recorded_on_provenance(dataset):
     """CLI --email fills provenance when sample UDM has no SCIENTIST."""
     prov = dataset.reactions[0].provenance
     assert prov.record_created.person.email == "test.scientist@example.com"
-    assert prov.experimenter.email == "test.scientist@example.com"
+    assert prov.experimenter.email == ""
 
 
 def test_email_is_recorded_on_modification_records(tmp_path):
@@ -532,10 +537,10 @@ def test_cli_person_flags_fill_missing_scientist(tmp_path):
     assert person.email == "ada@example.com"
     assert "2024-01-15" in dataset.reactions[0].provenance.record_created.time.value
     experimenter = dataset.reactions[0].provenance.experimenter
-    assert experimenter.username == "ada"
-    assert experimenter.name == "Ada Lovelace"
-    assert experimenter.orcid == "0000-0002-1825-0097"
-    assert experimenter.email == "ada@example.com"
+    assert experimenter.username == ""
+    assert experimenter.name == ""
+    assert experimenter.orcid == ""
+    assert experimenter.email == ""
 
 
 def test_udm_creation_date_wins_over_cli(tmp_path):
@@ -576,10 +581,17 @@ def test_validation_flag_hints_cover_common_gaps():
     )
     assert "--person-name" in person_hint
     assert conv._validation_flag_hints("unrelated error") == ""
+    assert conv._validation_flag_hints("Invalid email address: bad@") == ""
+    assert (
+        conv._validation_flag_hints(
+            "Invalid email address: a@b.c\nDataset description is required"
+        )
+        == ""
+    )
 
 
 def test_udm_scientist_wins_over_cli_person_flags(tmp_path):
-    """UDM SCIENTIST name/email are preferred over CLI fallbacks."""
+    """A UDM SCIENTIST is not mixed with the CLI depositor's username or ORCID."""
     xml = textwrap.dedent("""\
         <?xml version="1.0" encoding="UTF-8"?>
         <UDM version="6.0.0">
@@ -605,11 +617,18 @@ def test_udm_scientist_wins_over_cli_person_flags(tmp_path):
         person_name="From CLI",
         email="cli@example.com",
         username="cliuser",
+        orcid="0000-0002-1825-0097",
     )
     person = dataset.reactions[0].provenance.record_created.person
     assert person.name == "From UDM"
     assert person.email == "udm@example.com"
-    assert person.username == "cliuser"
+    assert person.username == ""
+    assert person.orcid == ""
+    experimenter = dataset.reactions[0].provenance.experimenter
+    assert experimenter.name == "From UDM"
+    assert experimenter.email == "udm@example.com"
+    assert experimenter.username == ""
+    assert experimenter.orcid == ""
 
 
 def test_cli_person_name_flag_is_distinct_from_dataset_name(tmp_path):
@@ -869,7 +888,7 @@ def test_cli_name_override(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Failure 1: AMOUNT with inline XML attribute
+# AMOUNT with inline XML attribute
 # ---------------------------------------------------------------------------
 
 
@@ -910,7 +929,7 @@ def test_amount_inline_unit_attribute(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Failure 2: Multiple CONDITION_GROUPs
+# Multiple CONDITION_GROUPs
 # ---------------------------------------------------------------------------
 
 
@@ -1060,7 +1079,7 @@ def test_lone_and_inverted_condition_bounds(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Failure 3: Unsafe filename sanitisation
+# Unsafe filename sanitisation
 # ---------------------------------------------------------------------------
 
 
@@ -1091,7 +1110,7 @@ def test_cli_title_with_slash_does_not_escape(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Failure 4: Modification date as plain string
+# Modification date as plain string
 # ---------------------------------------------------------------------------
 
 
@@ -1119,7 +1138,7 @@ def test_modification_date_string_is_preserved(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Failure 5: No empty outcome for input-only variations
+# No empty outcome for input-only variations
 # ---------------------------------------------------------------------------
 
 
@@ -1267,7 +1286,7 @@ def test_same_mol_in_two_roles_stays_two_components(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Failure 7: Non-finite float values dropped
+# Non-finite float values dropped
 # ---------------------------------------------------------------------------
 
 
@@ -1344,7 +1363,7 @@ def test_invalid_temperature_and_time_are_skipped(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Failure 8: MOLSTRUCTURE with format attribute
+# MOLSTRUCTURE with format attribute
 # ---------------------------------------------------------------------------
 
 
@@ -1447,7 +1466,7 @@ def test_unreadable_molstructure_falls_back_to_name(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Failure 9: ValidationError exits cleanly
+# ValidationError exits cleanly
 # ---------------------------------------------------------------------------
 
 
@@ -1482,7 +1501,7 @@ def test_no_validate_writes_despite_mock_error(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Failure 10: Empty <REACTIONS/> element
+# Empty <REACTIONS/> element
 # ---------------------------------------------------------------------------
 
 
@@ -1503,7 +1522,7 @@ def test_empty_reactions_element_does_not_crash(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Failure 11: Text elements with XML attributes
+# Text elements with XML attributes
 # ---------------------------------------------------------------------------
 
 
@@ -1559,7 +1578,7 @@ def test_name_with_attribute_does_not_crash(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Failure 12: <PH>7.0</PH> plain string
+# <PH>7.0</PH> plain string
 # ---------------------------------------------------------------------------
 
 
@@ -1799,7 +1818,9 @@ def test_reaction_without_variation_non_smiles_needs_no_validate(tmp_path):
     )
 
     assert len(dataset.reactions) == 1
-    assert dataset.reactions[0].identifiers[0].value == "RInChI=1.00.1S/"
+    identifier = dataset.reactions[0].identifiers[0]
+    assert identifier.value == "RInChI=1.00.1S/"
+    assert identifier.type == reaction_pb2.ReactionIdentifier.RINCHI
     with pytest.raises(validations.ValidationError):
         validations.validate_datasets({"_COMBINED": dataset})
 
@@ -1845,8 +1866,8 @@ def test_include_udm_xml_preserves_reaction_and_parent_context(tmp_path):
     assert conv.parse_args(["--input", str(p), "--include-udm-xml"]).include_udm_xml
 
 
-def test_free_text_preparation_sets_environment_custom(tmp_path):
-    """Unknown PREPARATION text sets environment type=CUSTOM with details."""
+def test_free_text_preparation_is_procedure_details(tmp_path):
+    """Unknown PREPARATION text is procedure notes, not the reaction environment."""
     xml = textwrap.dedent("""\
         <?xml version="1.0" encoding="UTF-8"?>
         <UDM version="6.0.0">
@@ -1869,6 +1890,187 @@ def test_free_text_preparation_sets_environment_custom(tmp_path):
     p.write_text(xml)
     dataset = conv.convert(p)
     env = dataset.reactions[0].setup.environment
-    assert env.type == reaction_pb2.ReactionSetup.ReactionEnvironment.CUSTOM
-    assert "literature procedure" in env.details
-    validations.validate_message(env)
+    assert env.type == reaction_pb2.ReactionSetup.ReactionEnvironment.UNSPECIFIED
+    assert env.details == ""
+    assert "literature procedure" in dataset.reactions[0].notes.procedure_details
+    assert "literature procedure" not in dataset.reactions[0].conditions.details
+
+
+def test_condition_group_preparation_is_procedure_details(tmp_path):
+    """Free-text PREPARATION inside CONDITION_GROUP is notes, not environment."""
+    xml = textwrap.dedent("""\
+        <?xml version="1.0" encoding="UTF-8"?>
+        <UDM version="6.0.0">
+          <LEGAL><TITLE>Test</TITLE></LEGAL>
+          <MOLECULES><MOLECULE ID="M1"><NAME>A</NAME></MOLECULE></MOLECULES>
+          <REACTIONS>
+            <REACTION ID="R1">
+              <PRODUCT_ID>M1</PRODUCT_ID>
+              <VARIATION>
+                <CONDITIONS>
+                  <CONDITION_GROUP>
+                    <PREPARATION>General procedure: stir.</PREPARATION>
+                    <TEMPERATURE unit="degC"><exact>25</exact></TEMPERATURE>
+                  </CONDITION_GROUP>
+                </CONDITIONS>
+              </VARIATION>
+            </REACTION>
+          </REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / "prep_in_group.xml"
+    p.write_text(xml)
+    dataset = conv.convert(p)
+    reaction = dataset.reactions[0]
+    assert reaction.setup.environment.type == (
+        reaction_pb2.ReactionSetup.ReactionEnvironment.UNSPECIFIED
+    )
+    assert "General procedure" in reaction.notes.procedure_details
+
+
+def test_bare_rxnstructure_defaults_to_rxn(tmp_path):
+    """An unattributed RXNSTRUCTURE is format rxn, and its text is not stripped."""
+    xml = """\
+<UDM>
+  <LEGAL><TITLE>Test</TITLE></LEGAL>
+  <MOLECULES/>
+  <REACTIONS><REACTION ID="RXN">
+    <RXNSTRUCTURE><![CDATA[$RXN
+JUNK
+]]></RXNSTRUCTURE>
+  </REACTION></REACTIONS>
+</UDM>
+"""
+    p = tmp_path / "bare_rxn.xml"
+    p.write_text(xml)
+    dataset = conv.convert(p)
+    identifier = dataset.reactions[0].identifiers[0]
+    assert identifier.type == reaction_pb2.ReactionIdentifier.CUSTOM
+    assert identifier.details == "rxn"
+    assert identifier.value.startswith("$RXN\n")
+
+
+def test_sample_mass_and_volume_use_schema_defaults(tmp_path):
+    """Omitted SAMPLE_MASS and VOLUME units follow the XSD defaults g and L."""
+    xml = textwrap.dedent("""\
+        <?xml version="1.0" encoding="UTF-8"?>
+        <UDM version="6.0.0">
+          <LEGAL><TITLE>Test</TITLE></LEGAL>
+          <MOLECULES><MOLECULE ID="M1"><NAME>A</NAME></MOLECULE></MOLECULES>
+          <REACTIONS>
+            <REACTION ID="R1">
+              <PRODUCT_ID>M1</PRODUCT_ID>
+              <VARIATION>
+                <REACTANT>
+                  <MOLECULE MOL_ID="M1"/>
+                  <SAMPLE_MASS>1.5</SAMPLE_MASS>
+                </REACTANT>
+                <SOLVENT>
+                  <MOLECULE MOL_ID="M1"/>
+                  <VOLUME>0.01</VOLUME>
+                </SOLVENT>
+                <REAGENT>
+                  <MOLECULE MOL_ID="M1"/>
+                  <SAMPLE_MASS unit="gr">2</SAMPLE_MASS>
+                </REAGENT>
+                <CATALYST>
+                  <MOLECULE MOL_ID="M1"/>
+                  <VOLUME unit="cm^3">3</VOLUME>
+                </CATALYST>
+              </VARIATION>
+            </REACTION>
+          </REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / "default_units.xml"
+    p.write_text(xml)
+    components = {
+        c.reaction_role: c
+        for c in next(iter(conv.convert(p).reactions[0].inputs.values())).components
+    }
+    reactant = components[reaction_pb2.ReactionRole.REACTANT]
+    assert reactant.amount.mass.units == reaction_pb2.Mass.GRAM
+    assert reactant.amount.mass.value == pytest.approx(1.5)
+    solvent = components[reaction_pb2.ReactionRole.SOLVENT]
+    assert solvent.amount.volume.units == reaction_pb2.Volume.LITER
+    assert solvent.amount.volume.value == pytest.approx(0.01)
+    catalyst = components[reaction_pb2.ReactionRole.CATALYST]
+    assert catalyst.amount.volume.units == reaction_pb2.Volume.MILLILITER
+    assert catalyst.amount.volume.value == pytest.approx(3)
+    reagent = components[reaction_pb2.ReactionRole.REAGENT]
+    assert reagent.amount.WhichOneof("kind") == "unmeasured"
+    assert "gr" in reagent.amount.unmeasured.details
+
+
+def test_pressure_pascal_and_time_day(tmp_path):
+    """Pa and d map through ord_schema.units onto the pressure and time fields."""
+    xml = textwrap.dedent("""\
+        <?xml version="1.0" encoding="UTF-8"?>
+        <UDM version="6.0.0">
+          <LEGAL><TITLE>Test</TITLE></LEGAL>
+          <MOLECULES><MOLECULE ID="M1"><NAME>A</NAME></MOLECULE></MOLECULES>
+          <REACTIONS>
+            <REACTION ID="R1">
+              <PRODUCT_ID>M1</PRODUCT_ID>
+              <VARIATION>
+                <REAGENT><MOLECULE MOL_ID="M1"/></REAGENT>
+                <CONDITIONS>
+                  <CONDITION_GROUP>
+                    <PRESSURE unit="Pa"><exact>101325</exact></PRESSURE>
+                    <TIME unit="d"><exact>2</exact></TIME>
+                  </CONDITION_GROUP>
+                </CONDITIONS>
+              </VARIATION>
+            </REACTION>
+          </REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / "pa_day.xml"
+    p.write_text(xml)
+    reaction = conv.convert(p).reactions[0]
+    pressure = reaction.conditions.pressure.setpoint
+    assert pressure.value == pytest.approx(101325)
+    assert pressure.units == reaction_pb2.Pressure.PASCAL
+    assert reaction.outcomes[0].reaction_time.units == reaction_pb2.Time.DAY
+    assert reaction.outcomes[0].reaction_time.value == pytest.approx(2)
+    assert conv._unit_enum("KPa", reaction_pb2.Pressure) == (
+        reaction_pb2.Pressure.KILOPASCAL
+    )
+    assert conv._unit_enum("mmHg", reaction_pb2.Pressure) == reaction_pb2.Pressure.MM_HG
+    assert conv._unit_enum("gr", reaction_pb2.Mass) is None
+
+
+def test_scientist_email_gap_does_not_copy_depositor_identity(tmp_path):
+    """--email fills record_created only; username and ORCID stay off the scientist."""
+    xml = textwrap.dedent("""\
+        <?xml version="1.0" encoding="UTF-8"?>
+        <UDM version="6.0.0">
+          <LEGAL><TITLE>Test</TITLE></LEGAL>
+          <MOLECULES><MOLECULE ID="M1"><NAME>A</NAME></MOLECULE></MOLECULES>
+          <REACTIONS>
+            <REACTION ID="R1">
+              <VARIATION>
+                <SCIENTIST><NAME>Grace Hopper</NAME></SCIENTIST>
+                <PRODUCT><MOLECULE MOL_ID="M1"/></PRODUCT>
+              </VARIATION>
+            </REACTION>
+          </REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / "scientist_email_gap.xml"
+    p.write_text(xml)
+    dataset = conv.convert(
+        p,
+        username="ada",
+        orcid="0000-0002-1825-0097",
+        email="ada@example.com",
+    )
+    experimenter = dataset.reactions[0].provenance.experimenter
+    created = dataset.reactions[0].provenance.record_created.person
+    assert experimenter.name == "Grace Hopper"
+    assert experimenter.email == ""
+    assert experimenter.username == ""
+    assert created.name == "Grace Hopper"
+    assert created.email == "ada@example.com"
+    assert created.username == ""
+    assert created.orcid == ""

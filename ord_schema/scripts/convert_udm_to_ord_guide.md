@@ -34,10 +34,10 @@ If `--output` is omitted, the output filename is derived from the `<TITLE>` in t
 | `--output FILE` | `<title>.pbtxt` | Output path; suffix determines format (`.pbtxt` = text proto, `.pb` = binary) |
 | `--name TEXT` | UDM `LEGAL/TITLE` | **Override** dataset name (`Dataset.name`) |
 | `--description TEXT` | DOI-derived text | **Override** dataset description (`Dataset.description`) |
-| `--username TEXT` | *(none)* | Depositor username → provenance `Person.username` (no UDM source) |
-| `--person-name TEXT` | UDM `SCIENTIST/NAME` | **Fill gap** for depositor display name. Distinct from `--name` (dataset title) |
-| `--orcid TEXT` | *(none)* | Depositor ORCID iD → provenance `Person.orcid` (no UDM source) |
-| `--email ADDRESS` | UDM `SCIENTIST/EMAIL` | **Fill gap** for depositor email; ORD requires email on `record_created` |
+| `--username TEXT` | *(none)* | Depositor username on `record_created.person`, only when UDM has no `SCIENTIST` |
+| `--person-name TEXT` | *(none)* | Depositor display name on `record_created.person`, only when UDM has no `SCIENTIST`. Distinct from `--name` |
+| `--orcid TEXT` | *(none)* | Depositor ORCID on `record_created.person`, only when UDM has no `SCIENTIST` |
+| `--email ADDRESS` | UDM `SCIENTIST/EMAIL` | **Fill gap** for `record_created.person.email` only. Not copied onto `experimenter` |
 | `--created-date TEXT` | UDM `CREATION_DATE` | **Fill gap** for `record_created.time`; ORD requires a time |
 | `--include-udm-xml` | off | Embed each source `REACTION` and shared document context in `provenance.reaction_metadata`; enable only when source redistribution is allowed |
 | `--no-validate` | off | Skip ORD schema validation; useful for large batch jobs or partially complete data |
@@ -49,10 +49,10 @@ Dataset packaging flags and reaction-provenance flags behave differently when bo
 | Kind | Flags | Both present? | Why |
 | --- | --- | --- | --- |
 | Dataset packaging | `--name`, `--description` | **CLI wins** (overrides UDM `TITLE` / DOI-derived text) | Naming the ORD Dataset is a deposit/packaging choice; same idea as other ORD scripts |
-| Provenance gap-fill | `--email`, `--person-name`, `--created-date` | **UDM wins**; CLI used only when UDM omits the field | Scientist contact and creation time are recorded experiment facts — do not overwrite |
-| Provenance only-on-CLI | `--username`, `--orcid` | CLI applied (no UDM equivalent in this converter) | |
+| Provenance gap-fill | `--email`, `--created-date` | **UDM wins**; CLI used only when UDM omits the field | `--email` fills `record_created.person.email` only. It is not written onto `experimenter` |
+| Depositor, no scientist | `--username`, `--person-name`, `--orcid`, `--email` | CLI is `record_created.person`; `experimenter` stays unset | These flags identify who created the ORD record, not who ran the reaction |
 
-`--name` is **not** a person identity flag. ORD still needs at least one of `--person-name`, `--username`, or `--orcid` (or UDM `SCIENTIST/NAME`) on `record_created.person`.
+`--name` is **not** a person identity flag. ORD still needs at least one of `--person-name`, `--username`, or `--orcid` (or UDM `SCIENTIST/NAME`) on `record_created.person`. A UDM scientist and the CLI depositor are never combined into one `Person`.
 
 ---
 
@@ -126,6 +126,7 @@ The converter writes a standard ORD `Dataset` protobuf. Each reaction inside it 
 - Role compounds (reactant, reagent, catalyst, solvent) share one `combined` input; each keeps its own role and amount
 - Bare reaction-level `REACTANT_ID` references grouped under one `REACTANT_IDS` input
 - Conditions, outcomes, notes, and provenance populated where UDM data is present
+- `experimenter` from UDM `SCIENTIST` only; with no scientist, CLI flags fill `record_created.person` and the experimenter stays unset
 
 To inspect the output:
 
@@ -152,9 +153,9 @@ ERROR - Validation failed (use --no-validate to write anyway):
 
 Common reasons for validation failure:
 
-- `SCIENTIST/EMAIL` missing and `--email` not supplied (ORD requires an email on every provenance record)
+- `SCIENTIST/EMAIL` missing and `--email` not supplied (ORD requires an email on `record_created.person` and every `record_modified` person; `--email` is not copied onto `experimenter`)
 - `CREATION_DATE` missing and `--created-date` not supplied (ORD requires `record_created.time`)
-- No scientist identity and none of `--person-name` / `--username` / `--orcid` supplied
+- No UDM `SCIENTIST` and none of `--person-name` / `--username` / `--orcid` supplied on `record_created.person`
 - Missing required fields (e.g., no amount on a component)
 - Amount units unrecognised (logged as a warning during conversion)
 - Reaction has no inputs or outcomes
@@ -199,7 +200,7 @@ validations.validate_datasets({"my_dataset": ds})  # raises ValidationError if i
 
 ## License notice
 
-The ORD repository uses the **CC-BY-SA** license. Do not submit converted data to `ord-data` unless you hold the authority to relicense the source data under CC-BY-SA. This warning is logged at the start of every conversion run.
+The ORD repository uses the **CC-BY-SA** license. Do not submit converted data to `ord-data` unless you hold the authority to relicense the source data under CC-BY-SA. This warning is logged at the start of every conversion run. It is separate from the project contributor agreement, which covers code you submit to this repository—not permission to redistribute third-party UDM XML under CC-BY-SA.
 
 ---
 
@@ -221,8 +222,8 @@ Converter and RDKit may print warnings during conversion. Most do **not** stop t
 | `Non-finite AMOUNT value ...; skipping.` | Converter | Amount is `inf`, `nan`, or overflowing float | No — check the source value |
 | `Molecule ... not found in MOLECULES lookup; skipping.` | Converter | `MOL_ID` has no matching `<MOLECULE>` | No — fix dangling references |
 | `MOLSTRUCTURE for ... is not a readable MolBlock; recording NAME instead.` | Converter | RDKit cannot read the structure (often after `H+` / valence / counts-line errors above) | Often yes for conversion; **structure is lost**, molecule `@ID` or name kept as `NAME`. Same mol ID may warn many times if reused across reactions |
-| `Unsupported TEMPERATURE unit ...; skipping setpoint.` | Converter | Temperature unit has no ORD mapping | Review — source value is retained only when raw XML embedding is enabled |
-| `Unsupported reaction TIME unit ...; skipping reaction time.` | Converter | Time unit has no ORD mapping | Review — source value is retained only when raw XML embedding is enabled |
+| `Unsupported TEMPERATURE unit ...; skipping setpoint.` | Converter | Unit spelling not resolved by `ord_schema.units` for a `Temperature` message | Review — value may remain in `conditions.details` |
+| `Unsupported reaction TIME unit ...; skipping reaction time.` | Converter | Unit spelling not resolved by `ord_schema.units` for a `Time` message | Review — value may remain in `conditions.details` (same as unsupported temperature units) |
 
 To capture warnings (and errors) in a file, redirect **stderr** as well as stdout, e.g. `&> convert.log` or `2>&1 | tee convert.log`.
 
@@ -256,15 +257,18 @@ Literature / ELN exports (especially Reaxys) often omit fields ORD validation re
 
 | Situation | Converter policy | Rationale |
 | --- | --- | --- |
-| DOI like `10.1016/S0022-328X(00)99569-X` (parentheses in suffix) | Keep the full DOI (`parse_doi` allows `(…)`) | Trimmed forms are regex artifacts and often do not resolve; the published DOI is kept |
-| DOI prefixed with junk (`org/10.1016/…`, URL wrappers) | Normalize via `parse_doi` before writing `provenance.doi` | ORD requires the stored DOI to equal the parsed form |
+| DOI like `10.1016/S0022-328X(00)99569-X` (parentheses in suffix) | Keep the full DOI (`parse_doi` allows balanced `(…)`) | Trimmed forms are regex artifacts and often do not resolve; the published DOI is kept |
+| DOI wrapped in junk, e.g. `(doi:10.1038/s41586-020-2649-2)` | Normalize via `parse_doi`; trim a trailing `)` that has no matching `(` in the match | ORD requires the stored DOI to equal the parsed form |
+| DOI prefixed with URL or path junk (`https://doi.org/…`, `org/10.1016/…`) | Normalize via `parse_doi` before writing `provenance.doi` | Same as above |
+| `<RXNSTRUCTURE>` with no `format` attribute (XSD default `rxn`) | `ReactionIdentifier` `CUSTOM`, details `"rxn"`; RXN text preserved | SPRESI-style exports use unattributed `$RXN` blocks |
+| `<SAMPLE_MASS>` or `<VOLUME>` with no unit | Apply XSD defaults `g` and `L` | Same rule as unitless `AMOUNT` → `mol` |
 | `VARIATION` has reagents but no `<PRODUCT>`; `REACTION` has `<PRODUCT_ID>` | Resolve `PRODUCT_ID` → `MOLECULES` and create an outcome product | ORD requires ≥1 outcome; Reaxys stores products as IDs at reaction level |
 | `VARIATION` has `<REACTANT>` / `<REAGENT>` / `<CATALYST>` / `<SOLVENT>` and no addition-order field | One `combined` input; each block is its own component with its own role and amount | UDM does not record separate additions, so separate `ReactionInput`s would invent them |
 | `VARIATION` has no role compounds; `REACTION` has `<REACTANT_ID>` | Resolve every ID through `MOLECULES` as a component of one shared `REACTANT_IDS` input (unmeasured amount) | Bare IDs contain no evidence for separate addition events |
 | `REACTION` has no `<VARIATION>` | Emit one ORD reaction from reaction-level identifiers and ID fallbacks | Legal UDM shape; recover data rather than skip it. Non-SMILES identifier-only records may need `--no-validate` |
-| Free-text `<PREPARATION>` (not a known env keyword) | Set `setup.environment.type=CUSTOM` and put the text in `.details` | ORD requires `type` whenever environment fields are set |
+| Free-text `<PREPARATION>` (not a known env keyword) | Write the text to `notes.procedure_details`. Leave `setup.environment` unset | The text is the procedure. `setup.environment` is set only for a keyword such as `fume hood` |
 | Input compound has no `<AMOUNT>` | Set `amount.unmeasured` with `type=CUSTOM`, `details="amount not reported in UDM"` | ORD requires an amount on every input; unmeasured is honest vs inventing a number |
-| `<PRESSURE><exact>…</exact></PRESSURE>` with **no unit** | Do **not** set `pressure.setpoint`; append raw value to `conditions.details` | Reaxys mixes scales (≈760 torr vs large Pa-like numbers); guessing units is unreliable |
+| `<PRESSURE><exact>…</exact></PRESSURE>` with **no unit** | Do **not** set `pressure.setpoint`; append raw value to `conditions.details` | The XSD default is torr. Reaxys unitless values are not one scale (≈760, and also ~2 and ~4.5e6), so that default is not applied |
 | `<MOLECULE>` has empty `<NAME/>` and no usable `MOLSTRUCTURE` | Use the molecule `@ID` string as a `NAME` identifier | Empty identifier values fail validation; ID preserves a stable handle |
 | Multiple `<CONDITION_GROUP>` siblings | Set `conditions_are_dynamic = true`; summarize every group as a labeled stage in `conditions.details`; leave static setpoints unset | UDM defines siblings as one dynamic multi-stage profile |
 
