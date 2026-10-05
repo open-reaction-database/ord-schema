@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Converts a UDM v6.0.0 XML file to an ORD Dataset (.pbtxt or .pb).
+r"""Converts a UDM v6.0.0 XML file to an ORD Dataset (.pbtxt or .pb).
 
 Each UDM VARIATION becomes a separate ORD Reaction.
 
@@ -27,10 +27,10 @@ User-Friendly Reaction Format," ChemRxiv, https://doi.org/10.26434/chemrxiv-2023
 
 Example usage::
 
-    python convert_udm_to_ord.py \\
-        --input my_dataset.xml \\
-        --output my_dataset.pbtxt \\
-        --email me@example.com --person-name "Ada Lovelace" \\
+    python convert_udm_to_ord.py \
+        --input my_dataset.xml \
+        --output my_dataset.pbtxt \
+        --email me@example.com --person-name "Ada Lovelace" \
         --created-date 2024-01-15
 """
 
