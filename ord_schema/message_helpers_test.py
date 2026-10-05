@@ -284,6 +284,7 @@ class TestMessageHelpers:
                 "(10.1016/S0022-328X(00)99569-X)",
                 "10.1016/S0022-328X(00)99569-X",
             ),
+            ("10.1234/example)", "10.1234/example)"),
         ],
     )
     def test_parse_doi(self, doi, expected):

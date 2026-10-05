@@ -258,7 +258,7 @@ Literature / ELN exports (especially Reaxys) often omit fields ORD validation re
 | Situation | Converter policy | Rationale |
 | --- | --- | --- |
 | DOI like `10.1016/S0022-328X(00)99569-X` (parentheses in suffix) | Keep the full DOI (`parse_doi` allows balanced `(…)`) | Trimmed forms are regex artifacts and often do not resolve; the published DOI is kept |
-| DOI wrapped in junk, e.g. `(doi:10.1038/s41586-020-2649-2)` | Normalize via `parse_doi`; trim a trailing `)` that has no matching `(` in the match | ORD requires the stored DOI to equal the parsed form |
+| DOI wrapped in junk, e.g. `(doi:10.1038/s41586-020-2649-2)` | Normalize via `parse_doi`; trim a trailing `)` with no matching `(` in the match only when `(` appears before the DOI in the source string | ORD requires the stored DOI to equal the parsed form; bare suffixes ending in `)` are kept |
 | DOI prefixed with URL or path junk (`https://doi.org/…`, `org/10.1016/…`) | Normalize via `parse_doi` before writing `provenance.doi` | Same as above |
 | `<RXNSTRUCTURE>` with no `format` attribute (XSD default `rxn`) | `ReactionIdentifier` `CUSTOM`, details `"rxn"`; RXN text preserved | SPRESI-style exports use unattributed `$RXN` blocks |
 | `<SAMPLE_MASS>` or `<VOLUME>` with no unit | Apply XSD defaults `g` and `L` | Same rule as unitless `AMOUNT` → `mol` |

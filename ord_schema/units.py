@@ -57,13 +57,21 @@ _UNIT_SYNONYMS: dict[type[ord_schema.UnitMessage], dict[ProtoEnumMember, list[st
         reaction_pb2.Moles.MILLIMOLE: [
             "mmol",
             "millimol",
+            "millimole",
             "millimoles",
             "mmols",
             "mmole",
             "mmoles",
         ],
-        reaction_pb2.Moles.MICROMOLE: ["μmol", "µmol", "umol", "umols", "micromoles"],
-        reaction_pb2.Moles.NANOMOLE: ["nmol", "nanomoles"],
+        reaction_pb2.Moles.MICROMOLE: [
+            "μmol",
+            "µmol",
+            "umol",
+            "umols",
+            "micromole",
+            "micromoles",
+        ],
+        reaction_pb2.Moles.NANOMOLE: ["nmol", "nanomole", "nanomoles"],
     },
     reaction_pb2.Volume: {
         reaction_pb2.Volume.MILLILITER: [
