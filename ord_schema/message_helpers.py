@@ -1464,9 +1464,10 @@ def parse_doi(doi: str) -> str:
         raise ValueError(f"could not parse DOI: {doi}")
     # The suffix class accepts ")", so a wrapper such as "(doi:10....)" leaves a
     # closing parenthesis on the match. Drop trailing ")" characters that were
-    # not opened inside the match. A balanced suffix, such as
-    # 10.1016/S0022-328X(00)99569-X, is unchanged.
+    # not opened inside the match only when the source had a "(" before the DOI
+    # (wrapper junk). Bare suffixes such as 10.1234/example) are kept intact.
     parsed = match.group(1)
-    while parsed.endswith(")") and parsed.count(")") > parsed.count("("):
-        parsed = parsed[:-1]
+    if "(" in doi[: match.start(1)]:
+        while parsed.endswith(")") and parsed.count(")") > parsed.count("("):
+            parsed = parsed[:-1]
     return parsed

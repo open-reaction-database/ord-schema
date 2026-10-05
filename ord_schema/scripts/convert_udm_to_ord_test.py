@@ -162,6 +162,55 @@ def test_amount_units_mass_gram(dataset):
     assert comp.amount.mass.units == reaction_pb2.Mass.GRAM
 
 
+@pytest.mark.parametrize(
+    ("unit", "expected"),
+    [
+        ("mmol", reaction_pb2.Moles.MILLIMOLE),
+        ("millimole", reaction_pb2.Moles.MILLIMOLE),
+        ("micromole", reaction_pb2.Moles.MICROMOLE),
+        ("nanomole", reaction_pb2.Moles.NANOMOLE),
+    ],
+)
+def test_amount_units_moles_spellings(tmp_path, unit, expected):
+    """UDM mol unit spellings should map to structured Moles amounts."""
+    xml = textwrap.dedent(f"""\
+        <?xml version="1.0" encoding="UTF-8"?>
+        <UDM version="6.0.0">
+          <LEGAL><TITLE>Test</TITLE></LEGAL>
+          <MOLECULES>
+            <MOLECULE ID="M1"><NAME>A</NAME></MOLECULE>
+            <MOLECULE ID="M2"><NAME>B</NAME></MOLECULE>
+          </MOLECULES>
+          <REACTIONS>
+            <REACTION ID="R1">
+              <VARIATION>
+                <REAGENT>
+                  <MOLECULE MOL_ID="M2"/>
+                  <AMOUNT unit="{unit}">1.0</AMOUNT>
+                </REAGENT>
+                <PRODUCT><MOLECULE MOL_ID="M1"/></PRODUCT>
+              </VARIATION>
+            </REACTION>
+          </REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / f"moles_{unit}.xml"
+    p.write_text(xml)
+    dataset = conv.convert(
+        p,
+        person_name=SAMPLE_DEPOSITOR["person_name"],
+        email=SAMPLE_DEPOSITOR["email"],
+        created_date=SAMPLE_DEPOSITOR["created_date"],
+    )
+    by_role = {
+        c.reaction_role: c
+        for c in dataset.reactions[0].inputs["combined"].components
+    }
+    comp = by_role[reaction_pb2.ReactionRole.REAGENT]
+    assert comp.amount.HasField("moles")
+    assert comp.amount.moles.units == expected
+
+
 def test_amount_units_moles_millimole(dataset):
     """Reagent amount unit 'mmol' should map to MILLIMOLE."""
     rxn = dataset.reactions[0]
@@ -1894,6 +1943,43 @@ def test_free_text_preparation_is_procedure_details(tmp_path):
     assert env.details == ""
     assert "literature procedure" in dataset.reactions[0].notes.procedure_details
     assert "literature procedure" not in dataset.reactions[0].conditions.details
+
+
+def test_multiple_preparation_texts_joined(tmp_path):
+    """PREPARATION on CONDITIONS and CONDITION_GROUP all land in procedure_details."""
+    xml = textwrap.dedent("""\
+        <?xml version="1.0" encoding="UTF-8"?>
+        <UDM version="6.0.0">
+          <LEGAL><TITLE>Test</TITLE></LEGAL>
+          <MOLECULES><MOLECULE ID="M1"><NAME>A</NAME></MOLECULE></MOLECULES>
+          <REACTIONS>
+            <REACTION ID="R1">
+              <PRODUCT_ID>M1</PRODUCT_ID>
+              <VARIATION>
+                <CONDITIONS>
+                  <PREPARATION>Outer procedure step.</PREPARATION>
+                  <CONDITION_GROUP>
+                    <PREPARATION>Inner procedure step.</PREPARATION>
+                    <TEMPERATURE unit="degC"><exact>25</exact></TEMPERATURE>
+                  </CONDITION_GROUP>
+                </CONDITIONS>
+              </VARIATION>
+            </REACTION>
+          </REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / "dual_prep.xml"
+    p.write_text(xml)
+    dataset = conv.convert(
+        p,
+        person_name=SAMPLE_DEPOSITOR["person_name"],
+        email=SAMPLE_DEPOSITOR["email"],
+        created_date=SAMPLE_DEPOSITOR["created_date"],
+    )
+    procedure = dataset.reactions[0].notes.procedure_details
+    assert "Outer procedure step." in procedure
+    assert "Inner procedure step." in procedure
+    assert "Inner procedure step." not in dataset.reactions[0].conditions.details
 
 
 def test_condition_group_preparation_is_procedure_details(tmp_path):

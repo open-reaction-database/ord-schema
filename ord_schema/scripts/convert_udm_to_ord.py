@@ -946,8 +946,8 @@ def _preparation_texts(node: dict) -> list[str]:
 def _map_notes(variation: dict, pb2_reaction: reaction_pb2.Reaction) -> None:
     """Maps UDM procedure text to ORD notes.procedure_details.
 
-    Prefers legacy VARIATION/PROCEDURE. Otherwise uses PREPARATION text from
-    CONDITIONS or CONDITION_GROUP when it is not an environment keyword.
+    Prefers legacy VARIATION/PROCEDURE. Otherwise joins PREPARATION text from
+    CONDITIONS and each CONDITION_GROUP when it is not an environment keyword.
     """
     procedure = variation.get("PROCEDURE")
     if not procedure:
@@ -958,10 +958,10 @@ def _map_notes(variation: dict, pb2_reaction: reaction_pb2.Reaction) -> None:
             for group in _as_list(conditions.get("CONDITION_GROUP")):
                 if isinstance(group, dict):
                     preps.extend(_preparation_texts(group))
-        procedure = next(
-            (text for text in preps if text.lower() not in _ENVIRONMENT_TYPES),
-            None,
-        )
+        procedure_parts = [
+            text for text in preps if text.lower() not in _ENVIRONMENT_TYPES
+        ]
+        procedure = "\n\n".join(procedure_parts) if procedure_parts else None
     if procedure:
         pb2_reaction.notes.procedure_details = _text(procedure) or str(procedure)
 

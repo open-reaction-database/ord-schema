@@ -223,7 +223,7 @@ Policies applied when UDM is missing fields that ORD validation still requires. 
 
 | Incomplete UDM pattern | ORD requirement | Converter policy |
 | --- | --- | --- |
-| Elsevier-style DOI with balanced `(…)` in the suffix; URL or `org/…` prefixes; wrappers like `(doi:10.…)` | `provenance.doi` must equal `parse_doi(doi)` | `parse_doi` keeps balanced parenthetical suffixes and trims an unmatched trailing `)` from the regex match; converter normalizes before storing |
+| Elsevier-style DOI with balanced `(…)` in the suffix; URL or `org/…` prefixes; wrappers like `(doi:10.…)` | `provenance.doi` must equal `parse_doi(doi)` | `parse_doi` keeps balanced parenthetical suffixes; trims an unmatched trailing `)` only when `(` appears before the DOI in the source string; converter normalizes before storing |
 | Products only as `REACTION/PRODUCT_ID` (or `VARIATION/PRODUCT_ID`), no `<PRODUCT>` block | ≥1 `ReactionOutcome` | Resolve IDs through `MOLECULES` into outcome products when no `PRODUCT` blocks exist |
 | `<REACTANT>` / `<REAGENT>` / `<CATALYST>` / `<SOLVENT>` with no addition-order field | One `ReactionInput` | Components of one shared `combined` input; each block keeps its own role and amount |
 | Reactants only as `REACTION/REACTANT_ID` (or `VARIATION/REACTANT_ID`), no role blocks | ≥1 reaction input | Resolve all IDs through `MOLECULES` as components of one shared `REACTANT_IDS` input |
