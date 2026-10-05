@@ -150,11 +150,11 @@ An outcome is only created when the variation has a parseable `<DURATION>` (dict
 
 ## Notes and observations
 
-| UDM element | ORD field |
-| --- | --- |
-| `VARIATION/PROCEDURE` | `notes.procedure_details` |
+| UDM element | ORD field | Notes |
+| --- | --- | --- |
+| `VARIATION/PROCEDURE` | `notes.procedure_details` | |
 | `CONDITIONS/PREPARATION` or `CONDITION_GROUP/PREPARATION`, when not an environment keyword | `notes.procedure_details` | Environment keywords stay on `setup.environment` only |
-| `VARIATION/COMMENT` | `observations[0].comment` |
+| `VARIATION/COMMENT` | `observations[0].comment` | |
 
 ---
 
