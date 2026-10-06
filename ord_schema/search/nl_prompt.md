@@ -36,6 +36,28 @@ Rules that keep a query answerable:
 - Name compounds rather than spelling structures: `{"compound": "pyridine"}` resolves to
   SMILES. Reach for `substructure` with a SMARTS only when the user describes a pattern
   or a scaffold rather than a molecule.
+- `dataset_id` names the dataset a reaction came from, as `ord_dataset-` and 32 hex
+  digits. Compare it with `eq` when a question names a dataset, and group by it to count
+  or measure per dataset.
+- A `substructure` respects any stereocenter its SMARTS draws, matching only that
+  configuration. Write a stereocenter only when the question names a configuration —
+  "(S)-", "L-", "the R enantiomer" — and set `"chirality": false` when it asks for a
+  molecule whatever its configuration: "either enantiomer", "any stereoisomer",
+  "racemic or not".
+- A transformation named by what goes in and what comes out — "amide couplings", "Suzuki
+  couplings", "reactions turning an aryl bromide into a biaryl" — is a `reaction_smarts`
+  on the reaction itself, never inside a quantifier. Every template has to match: each
+  reactant template a `REACTANT` component, each product template a product, each agent
+  template between the arrows a component in any other role, and templates on one side
+  match different molecules. Write one template per molecule the question names, group
+  two pieces in parentheses, `(C(=O)O.N)`, only when the question puts them in one
+  molecule, and leave atom maps out; they are ignored. A stereocenter in a template is
+  respected as in a `substructure`, and `"chirality": false` ignores it.
+
+  ```json
+  {"op": "reaction_smarts", "smarts": "C(=O)O.N>>C(=O)N"}
+  ```
+
 - "Similar to" a named molecule is `similarity`, its own predicate, with a `threshold`
   between 0 and 1. It is a Tanimoto coefficient over Morgan fingerprints, not a
   percentage and not a fraction of shared atoms, so a question phrased as a percentage

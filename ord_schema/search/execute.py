@@ -169,8 +169,9 @@ _PROC_SELF_CGROUP = pathlib.Path("/proc/self/cgroup")
 
 
 # What a structure predicate's answer depends on: the operation, whether the string
-# is read as SMARTS or as SMILES, the string, and the similarity threshold.
-_MatchKey = tuple[str, bool, str, float | None]
+# is read as SMARTS or as SMILES, the string, the similarity threshold, and whether a
+# substructure match honors stereocenters.
+_MatchKey = tuple[str, bool, str, float | None, bool]
 
 
 def _reads_as_smarts(parameter: query.StructureParameter) -> bool:
@@ -462,8 +463,8 @@ def _fingerprint(stamps: Iterable[base.Stamps]) -> str:
 
 def _pair(
     projection_pattern: str, structures_pattern: str, require_current: bool
-) -> tuple[list[tuple[str, str, str]], str]:
-    """Returns (projection, structures, source) triples, verified by their stamps.
+) -> tuple[list[tuple[str, str, str, str | None]], str]:
+    """Returns (projection, structures, source, dataset ID) tuples, verified by stamps.
 
     Args:
         projection_pattern: Glob matching the projection base.
@@ -471,10 +472,11 @@ def _pair(
         require_current: Refuse artifacts not written by the current versions.
 
     Returns:
-        One triple per source dataset, ordered by the source hash, carrying that hash
+        One tuple per source dataset, ordered by the source hash, carrying that hash
         beside the paths -- every artifact derived from the dataset names it, so it is
-        what pairs a pivot with the offset this corpus gave its projection. Also the
-        fingerprint over the stamps this already read to verify them.
+        what pairs a pivot with the offset this corpus gave its projection -- and the
+        dataset ID the projection's stamps record, or None where its source recorded
+        none. Also the fingerprint over the stamps this already read to verify them.
 
     Raises:
         PairingError: If no projection matches, if either side lacks a column this
@@ -497,7 +499,12 @@ def _pair(
             f"counterpart derived from the same source dataset: {orphans}"
         )
     pairs = [
-        (projections[key][0], structure_files[key][0], key)
+        (
+            projections[key][0],
+            structure_files[key][0],
+            key,
+            projections[key][1].source_dataset_id,
+        )
         for key in sorted(projections)
     ]
     fingerprint = _fingerprint(
@@ -635,6 +642,7 @@ def _index_condition(
     path: str,
     fields: dict[str, str],
     allocate: Callable[[], str],
+    bind: Callable[[str], str],
 ) -> str | None:
     """Returns a row condition standing for an element quantifier, or None.
 
@@ -655,6 +663,7 @@ def _index_condition(
         path: The path the quantifier ranges over.
         fields: Element fields the body requires, mapped to their literals.
         allocate: Names the structure parameter the match set binds under.
+        bind: Binds a field's literal, and names the parameter it binds under.
 
     Returns:
         The condition, or None to leave the quantifier compiled over the elements.
@@ -667,10 +676,10 @@ def _index_condition(
     ]
     role = fields.get(_INDEXED_FIELD)
     if role is not None:
-        conditions.append(f"occurrence.{_INDEXED_FIELD} = {sql_string(role)}")
-    # S608: every fragment is a schema-derived path, a compiler-issued parameter
-    # name, or an escaped literal. The inner relation is aliased so that the outer
-    # reaction_id and the inner one cannot be confused for each other.
+        conditions.append(f"occurrence.{_INDEXED_FIELD} = ${bind(role)}")
+    # S608: every fragment is a path this module indexes or a compiler-issued
+    # parameter name. The inner relation is aliased so that the outer reaction_id and
+    # the inner one cannot be confused for each other.
     return (
         "reaction_id IN (SELECT occurrence.reaction_id "  # noqa: S608
         f"FROM occurrences AS occurrence WHERE {' AND '.join(conditions)})"
@@ -746,6 +755,45 @@ def _cache_footers(connection: duckdb.DuckDBPyConnection) -> None:
         connection: The corpus connection, on the database every cursor shares.
     """
     connection.execute("SET GLOBAL parquet_metadata_cache=true")
+
+
+def _confine(connection: duckdb.DuckDBPyConnection, directories: Iterable[str]) -> None:
+    """Leaves the database able to reach the files under ``directories`` and no others.
+
+    The compiler is what keeps a query to one relation, and this is what holds if the
+    compiler is ever wrong: a statement that reached DuckDB with text it should not
+    carry would otherwise run with this process's filesystem and network. Confined, it
+    cannot read a file outside the corpus's own trees -- ``/proc/self/environ`` among
+    them -- fetch a URL, attach a database, or load an extension, and the configuration
+    is locked, so no statement can lift any of that. Spilling to DuckDB's temporary
+    directory works under it.
+
+    Disabling external access alone would refuse the lazy Parquet views too; a list of
+    allowed directories beside it is the one form that leaves them readable. Writes
+    under those directories are allowed, since DuckDB's list has no read-only form, and
+    mounting the trees read-only is what closes that.
+
+    Each directory is listed as the reads spell it, which DuckDB resolves the way it
+    resolves the reads themselves, relative paths and ``..`` included. One whose name
+    holds a glob metacharacter is listed twice. ``_sql_paths`` escapes it for
+    ``read_parquet``, and DuckDB checks that pattern's text against the list as well as
+    every file the pattern expands to, so either form alone refuses the read. The
+    escaped form opens nothing else: as a pattern it matches only the directory it
+    escapes.
+
+    Set on the database rather than the connection, so every search's cursor is held to
+    it, and after ``_cache_footers``, which the lock would otherwise refuse.
+
+    Args:
+        connection: The corpus connection, on the database every cursor shares.
+        directories: The trees the corpus reads: the projections', the structures', and
+            any pivot or occurrence directory it was given.
+    """
+    spelled = set(directories)
+    allowed = sorted(spelled | {glob.escape(directory) for directory in spelled})
+    connection.execute("SET allowed_directories = $allowed", {"allowed": allowed})
+    connection.execute("SET enable_external_access = false")
+    connection.execute("SET lock_configuration = true")
 
 
 def _cgroup_relative_path(controller: str) -> str:
@@ -1025,7 +1073,8 @@ class Corpus:
     """A searchable pairing of projections with their structures base.
 
     Opens one DuckDB connection over both artifact sets and publishes the relation a
-    compiled query runs against. Use as a context manager, or call ``close``.
+    compiled query runs against. The connection reaches the corpus's own directories
+    and nothing else; see ``_confine``. Use as a context manager, or call ``close``.
     """
 
     def __init__(
@@ -1313,6 +1362,21 @@ class Corpus:
         )
         try:
             _cache_footers(self._connection)
+            _confine(
+                self._connection,
+                [
+                    *(
+                        str(pathlib.Path(path).parent)
+                        for pair in pairs
+                        for path in pair[:2]
+                    ),
+                    *(
+                        directory
+                        for directory in (pivots_dir, occurrences_dir)
+                        if directory is not None
+                    ),
+                ],
+            )
             _warn_when_the_cap_leaves_no_headroom(self._connection)
             self._total, self._searchable = self._prepare(pairs)
             if require_pivots:
@@ -1340,12 +1404,14 @@ class Corpus:
         self._occurrences()
         self._library()
 
-    def _prepare(self, pairs: list[tuple[str, str, str]]) -> tuple[int, int]:
+    def _prepare(
+        self, pairs: list[tuple[str, str, str, str | None]]
+    ) -> tuple[int, int]:
         """Publishes the relations, and returns the total and searchable row counts."""
         offsets = []
         total = 0
         stated = 0
-        for projected, structured, source in pairs:
+        for projected, structured, source, dataset_id in pairs:
             with pq.ParquetFile(structured) as artifact:
                 count = artifact.metadata.num_rows
             with pq.ParquetFile(projected) as artifact:
@@ -1364,7 +1430,7 @@ class Corpus:
                     "dataset's molecules; derive the structures artifact from this "
                     "projection again"
                 )
-            offsets.append((projected, structured, total))
+            offsets.append((projected, structured, total, dataset_id))
             # Keyed by the source rather than by the file, so an artifact derived from
             # this projection finds the offset wherever it is filed; see
             # ``_pivot_offsets``.
@@ -1376,6 +1442,9 @@ class Corpus:
                 "structures_filename": [offset[1] for offset in offsets],
                 query.STRUCTURE_OFFSET: pa.array(
                     [offset[2] for offset in offsets], type=pa.int64()
+                ),
+                query.DATASET_ID: pa.array(
+                    [offset[3] for offset in offsets], type=pa.string()
                 ),
             }
         )
@@ -1396,7 +1465,8 @@ class Corpus:
         self._connection.execute(
             f"""
             CREATE VIEW {query.TABLE} AS
-            SELECT p.* EXCLUDE (filename), o.{query.STRUCTURE_OFFSET}
+            SELECT p.* EXCLUDE (filename), o.{query.STRUCTURE_OFFSET},
+                   o.{query.DATASET_ID}
             FROM read_parquet({projection_files}, filename=true) p
             JOIN structure_offsets o ON p.filename = o.projection_filename
             """  # noqa: S608
@@ -2089,8 +2159,13 @@ class Corpus:
         library = self._library()
         # maxResults defaults to 1000, which would silently truncate: a broad pattern
         # matches hundreds of thousands of ORD's distinct molecules.
+        # Stated even where it matches RDKit's default, so a predicate that opts out of
+        # stereochemistry reaches the match.
         matched = library.GetMatches(
-            molecule, numThreads=self._threads, maxResults=len(library) or 1
+            molecule,
+            useChirality=parameter.chirality,
+            numThreads=self._threads,
+            maxResults=len(library) or 1,
         )
         # A library entry is a molecule, not a structure: every ID sharing that molecule
         # matched too, and the answer is stated in IDs.
@@ -2705,7 +2780,13 @@ class Corpus:
         # of the key -- and it is asked of the same function the query molecule comes
         # from, so the two cannot come apart. Resolvers answer in the Kekule form a
         # SMARTS pattern is written in, so a name and a pattern do collide.
-        key = (parameter.op, _reads_as_smarts(parameter), pattern, parameter.threshold)
+        key = (
+            parameter.op,
+            _reads_as_smarts(parameter),
+            pattern,
+            parameter.threshold,
+            parameter.chirality,
+        )
         while True:
             with self._matches_lock:
                 cached = self._matched.get(key)
@@ -2806,10 +2887,13 @@ class Corpus:
         indexing = False
 
         def index(
-            path: str, fields: dict[str, str], allocate: Callable[[], str]
+            path: str,
+            fields: dict[str, str],
+            allocate: Callable[[], str],
+            bind: Callable[[str], str],
         ) -> str | None:
             nonlocal indexing
-            condition = _index_condition(path, fields, allocate)
+            condition = _index_condition(path, fields, allocate, bind)
             indexing = indexing or condition is not None
             return condition
 
@@ -2855,9 +2939,8 @@ class Corpus:
                 logger.info("the projection answers this query")
             cursor = self._connection.cursor()
             try:
-                parameters: dict[str, Any] = {
-                    name: resolve(name) for name in compiled.compounds
-                }
+                parameters: dict[str, Any] = dict(compiled.literals)
+                parameters.update({name: resolve(name) for name in compiled.compounds})
                 # An external service, so how long it takes is not this corpus's to
                 # predict; a resolver that hangs is the likeliest way a search overruns
                 # without a single slow query in it.

@@ -19,6 +19,242 @@ import Long = require("long");
 /** Namespace ord. */
 export namespace ord {
 
+    /** Properties of a Dataset. */
+    interface IDataset {
+
+        /** Dataset name */
+        name?: (string|null);
+
+        /** Dataset description */
+        description?: (string|null);
+
+        /** Dataset reactions */
+        reactions?: (ord.IReaction[]|null);
+
+        /** Dataset reactionIds */
+        reactionIds?: (string[]|null);
+
+        /** Dataset datasetId */
+        datasetId?: (string|null);
+    }
+
+    /** Represents a Dataset. */
+    class Dataset implements IDataset {
+
+        /**
+         * Constructs a new Dataset.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: ord.IDataset);
+
+        /** Dataset name. */
+        public name: string;
+
+        /** Dataset description. */
+        public description: string;
+
+        /** Dataset reactions. */
+        public reactions: ord.IReaction[];
+
+        /** Dataset reactionIds. */
+        public reactionIds: string[];
+
+        /** Dataset datasetId. */
+        public datasetId: string;
+
+        /**
+         * Creates a new Dataset instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns Dataset instance
+         */
+        public static create(properties?: ord.IDataset): ord.Dataset;
+
+        /**
+         * Encodes the specified Dataset message. Does not implicitly {@link ord.Dataset.verify|verify} messages.
+         * @param message Dataset message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: ord.IDataset, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified Dataset message, length delimited. Does not implicitly {@link ord.Dataset.verify|verify} messages.
+         * @param message Dataset message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: ord.IDataset, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a Dataset message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns Dataset
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): ord.Dataset;
+
+        /**
+         * Decodes a Dataset message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns Dataset
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): ord.Dataset;
+
+        /**
+         * Verifies a Dataset message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a Dataset message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns Dataset
+         */
+        public static fromObject(object: { [k: string]: any }): ord.Dataset;
+
+        /**
+         * Creates a plain object from a Dataset message. Also converts values to other types if specified.
+         * @param message Dataset
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: ord.Dataset, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this Dataset to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for Dataset
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a DatasetExample. */
+    interface IDatasetExample {
+
+        /** DatasetExample datasetId */
+        datasetId?: (string|null);
+
+        /** DatasetExample description */
+        description?: (string|null);
+
+        /** DatasetExample url */
+        url?: (string|null);
+
+        /** DatasetExample created */
+        created?: (ord.IRecordEvent|null);
+    }
+
+    /** Represents a DatasetExample. */
+    class DatasetExample implements IDatasetExample {
+
+        /**
+         * Constructs a new DatasetExample.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: ord.IDatasetExample);
+
+        /** DatasetExample datasetId. */
+        public datasetId: string;
+
+        /** DatasetExample description. */
+        public description: string;
+
+        /** DatasetExample url. */
+        public url: string;
+
+        /** DatasetExample created. */
+        public created?: (ord.IRecordEvent|null);
+
+        /**
+         * Creates a new DatasetExample instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns DatasetExample instance
+         */
+        public static create(properties?: ord.IDatasetExample): ord.DatasetExample;
+
+        /**
+         * Encodes the specified DatasetExample message. Does not implicitly {@link ord.DatasetExample.verify|verify} messages.
+         * @param message DatasetExample message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: ord.IDatasetExample, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified DatasetExample message, length delimited. Does not implicitly {@link ord.DatasetExample.verify|verify} messages.
+         * @param message DatasetExample message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: ord.IDatasetExample, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a DatasetExample message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns DatasetExample
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): ord.DatasetExample;
+
+        /**
+         * Decodes a DatasetExample message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns DatasetExample
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): ord.DatasetExample;
+
+        /**
+         * Verifies a DatasetExample message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a DatasetExample message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns DatasetExample
+         */
+        public static fromObject(object: { [k: string]: any }): ord.DatasetExample;
+
+        /**
+         * Creates a plain object from a DatasetExample message. Also converts values to other types if specified.
+         * @param message DatasetExample
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: ord.DatasetExample, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this DatasetExample to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for DatasetExample
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
     /** Properties of a Reaction. */
     interface IReaction {
 

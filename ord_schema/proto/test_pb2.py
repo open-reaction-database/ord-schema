@@ -1,4 +1,4 @@
-# Copyright 2024 Open Reaction Database Project Authors
+# Copyright 2026 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1bord-schema/proto/test.proto\x12\x08ord_test\"\xaf\x01\n\x06Scalar\x12\x13\n\x0bint32_value\x18\x01 \x01(\x05\x12\x13\n\x0bint64_value\x18\x02 \x01(\x03\x12\x18\n\x0b\x66loat_value\x18\x03 \x01(\x02H\x00\x88\x01\x01\x12\x14\n\x0cstring_value\x18\x04 \x01(\t\x12\x13\n\x0b\x62ytes_value\x18\x05 \x01(\x0c\x12\x17\n\nbool_value\x18\x06 \x01(\x08H\x01\x88\x01\x01\x42\x0e\n\x0c_float_valueB\r\n\x0b_bool_value\" \n\x0eRepeatedScalar\x12\x0e\n\x06values\x18\x01 \x03(\x02\"f\n\x04\x45num\x12(\n\x05value\x18\x01 \x01(\x0e\x32\x19.ord_test.Enum.EnumValues\"4\n\nEnumValues\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\t\n\x05\x46IRST\x10\x01\x12\n\n\x06SECOND\x10\x02\"w\n\x0cRepeatedEnum\x12\x31\n\x06values\x18\x01 \x03(\x0e\x32!.ord_test.RepeatedEnum.EnumValues\"4\n\nEnumValues\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\t\n\x05\x46IRST\x10\x01\x12\n\n\x06SECOND\x10\x02\"V\n\x06Nested\x12%\n\x05\x63hild\x18\x01 \x01(\x0b\x32\x16.ord_test.Nested.Child\x1a%\n\x05\x43hild\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x42\x08\n\x06_value\"i\n\x0eRepeatedNested\x12\x30\n\x08\x63hildren\x18\x01 \x03(\x0b\x32\x1e.ord_test.RepeatedNested.Child\x1a%\n\x05\x43hild\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x42\x08\n\x06_value\"_\n\x03Map\x12)\n\x06values\x18\x01 \x03(\x0b\x32\x19.ord_test.Map.ValuesEntry\x1a-\n\x0bValuesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x02:\x02\x38\x01\"\xb3\x01\n\tMapNested\x12\x33\n\x08\x63hildren\x18\x01 \x03(\x0b\x32!.ord_test.MapNested.ChildrenEntry\x1a%\n\x05\x43hild\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x42\x08\n\x06_value\x1aJ\n\rChildrenEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12(\n\x05value\x18\x02 \x01(\x0b\x32\x19.ord_test.MapNested.Child:\x02\x38\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1bord-schema/proto/test.proto\x12\x08ord_test\"\xf7\x01\n\x06Scalar\x12\x1f\n\x0bint32_value\x18\x01 \x01(\x05R\nint32Value\x12\x1f\n\x0bint64_value\x18\x02 \x01(\x03R\nint64Value\x12$\n\x0b\x66loat_value\x18\x03 \x01(\x02H\x00R\nfloatValue\x88\x01\x01\x12!\n\x0cstring_value\x18\x04 \x01(\tR\x0bstringValue\x12\x1f\n\x0b\x62ytes_value\x18\x05 \x01(\x0cR\nbytesValue\x12\"\n\nbool_value\x18\x06 \x01(\x08H\x01R\tboolValue\x88\x01\x01\x42\x0e\n\x0c_float_valueB\r\n\x0b_bool_value\"(\n\x0eRepeatedScalar\x12\x16\n\x06values\x18\x01 \x03(\x02R\x06values\"m\n\x04\x45num\x12/\n\x05value\x18\x01 \x01(\x0e\x32\x19.ord_test.Enum.EnumValuesR\x05value\"4\n\nEnumValues\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\t\n\x05\x46IRST\x10\x01\x12\n\n\x06SECOND\x10\x02\"\x7f\n\x0cRepeatedEnum\x12\x39\n\x06values\x18\x01 \x03(\x0e\x32!.ord_test.RepeatedEnum.EnumValuesR\x06values\"4\n\nEnumValues\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\t\n\x05\x46IRST\x10\x01\x12\n\n\x06SECOND\x10\x02\"d\n\x06Nested\x12,\n\x05\x63hild\x18\x01 \x01(\x0b\x32\x16.ord_test.Nested.ChildR\x05\x63hild\x1a,\n\x05\x43hild\x12\x19\n\x05value\x18\x01 \x01(\x02H\x00R\x05value\x88\x01\x01\x42\x08\n\x06_value\"z\n\x0eRepeatedNested\x12:\n\x08\x63hildren\x18\x01 \x03(\x0b\x32\x1e.ord_test.RepeatedNested.ChildR\x08\x63hildren\x1a,\n\x05\x43hild\x12\x19\n\x05value\x18\x01 \x01(\x02H\x00R\x05value\x88\x01\x01\x42\x08\n\x06_value\"s\n\x03Map\x12\x31\n\x06values\x18\x01 \x03(\x0b\x32\x19.ord_test.Map.ValuesEntryR\x06values\x1a\x39\n\x0bValuesEntry\x12\x10\n\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n\x05value\x18\x02 \x01(\x02R\x05value:\x02\x38\x01\"\xd0\x01\n\tMapNested\x12=\n\x08\x63hildren\x18\x01 \x03(\x0b\x32!.ord_test.MapNested.ChildrenEntryR\x08\x63hildren\x1a,\n\x05\x43hild\x12\x19\n\x05value\x18\x01 \x01(\x02H\x00R\x05value\x88\x01\x01\x42\x08\n\x06_value\x1aV\n\rChildrenEntry\x12\x10\n\x03key\x18\x01 \x01(\tR\x03key\x12/\n\x05value\x18\x02 \x01(\x0b\x32\x19.ord_test.MapNested.ChildR\x05value:\x02\x38\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -40,33 +40,33 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _MAPNESTED_CHILDRENENTRY._options = None
   _MAPNESTED_CHILDRENENTRY._serialized_options = b'8\001'
   _globals['_SCALAR']._serialized_start=42
-  _globals['_SCALAR']._serialized_end=217
-  _globals['_REPEATEDSCALAR']._serialized_start=219
-  _globals['_REPEATEDSCALAR']._serialized_end=251
-  _globals['_ENUM']._serialized_start=253
-  _globals['_ENUM']._serialized_end=355
-  _globals['_ENUM_ENUMVALUES']._serialized_start=303
-  _globals['_ENUM_ENUMVALUES']._serialized_end=355
-  _globals['_REPEATEDENUM']._serialized_start=357
-  _globals['_REPEATEDENUM']._serialized_end=476
-  _globals['_REPEATEDENUM_ENUMVALUES']._serialized_start=303
-  _globals['_REPEATEDENUM_ENUMVALUES']._serialized_end=355
-  _globals['_NESTED']._serialized_start=478
-  _globals['_NESTED']._serialized_end=564
-  _globals['_NESTED_CHILD']._serialized_start=527
-  _globals['_NESTED_CHILD']._serialized_end=564
-  _globals['_REPEATEDNESTED']._serialized_start=566
-  _globals['_REPEATEDNESTED']._serialized_end=671
-  _globals['_REPEATEDNESTED_CHILD']._serialized_start=527
-  _globals['_REPEATEDNESTED_CHILD']._serialized_end=564
-  _globals['_MAP']._serialized_start=673
-  _globals['_MAP']._serialized_end=768
-  _globals['_MAP_VALUESENTRY']._serialized_start=723
-  _globals['_MAP_VALUESENTRY']._serialized_end=768
-  _globals['_MAPNESTED']._serialized_start=771
-  _globals['_MAPNESTED']._serialized_end=950
-  _globals['_MAPNESTED_CHILD']._serialized_start=527
-  _globals['_MAPNESTED_CHILD']._serialized_end=564
-  _globals['_MAPNESTED_CHILDRENENTRY']._serialized_start=876
-  _globals['_MAPNESTED_CHILDRENENTRY']._serialized_end=950
+  _globals['_SCALAR']._serialized_end=289
+  _globals['_REPEATEDSCALAR']._serialized_start=291
+  _globals['_REPEATEDSCALAR']._serialized_end=331
+  _globals['_ENUM']._serialized_start=333
+  _globals['_ENUM']._serialized_end=442
+  _globals['_ENUM_ENUMVALUES']._serialized_start=390
+  _globals['_ENUM_ENUMVALUES']._serialized_end=442
+  _globals['_REPEATEDENUM']._serialized_start=444
+  _globals['_REPEATEDENUM']._serialized_end=571
+  _globals['_REPEATEDENUM_ENUMVALUES']._serialized_start=390
+  _globals['_REPEATEDENUM_ENUMVALUES']._serialized_end=442
+  _globals['_NESTED']._serialized_start=573
+  _globals['_NESTED']._serialized_end=673
+  _globals['_NESTED_CHILD']._serialized_start=629
+  _globals['_NESTED_CHILD']._serialized_end=673
+  _globals['_REPEATEDNESTED']._serialized_start=675
+  _globals['_REPEATEDNESTED']._serialized_end=797
+  _globals['_REPEATEDNESTED_CHILD']._serialized_start=629
+  _globals['_REPEATEDNESTED_CHILD']._serialized_end=673
+  _globals['_MAP']._serialized_start=799
+  _globals['_MAP']._serialized_end=914
+  _globals['_MAP_VALUESENTRY']._serialized_start=857
+  _globals['_MAP_VALUESENTRY']._serialized_end=914
+  _globals['_MAPNESTED']._serialized_start=917
+  _globals['_MAPNESTED']._serialized_end=1125
+  _globals['_MAPNESTED_CHILD']._serialized_start=629
+  _globals['_MAPNESTED_CHILD']._serialized_end=673
+  _globals['_MAPNESTED_CHILDRENENTRY']._serialized_start=1039
+  _globals['_MAPNESTED_CHILDRENENTRY']._serialized_end=1125
 # @@protoc_insertion_point(module_scope)

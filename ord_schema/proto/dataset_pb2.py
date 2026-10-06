@@ -1,4 +1,4 @@
-# Copyright 2024 Open Reaction Database Project Authors
+# Copyright 2026 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ _sym_db = _symbol_database.Default()
 from ord_schema.proto import reaction_pb2 as ord__schema_dot_proto_dot_reaction__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1eord-schema/proto/dataset.proto\x12\x03ord\x1a\x1ford-schema/proto/reaction.proto\"x\n\x07\x44\x61taset\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\x12 \n\treactions\x18\x03 \x03(\x0b\x32\r.ord.Reaction\x12\x14\n\x0creaction_ids\x18\x04 \x03(\t\x12\x12\n\ndataset_id\x18\x05 \x01(\t\"i\n\x0e\x44\x61tasetExample\x12\x12\n\ndataset_id\x18\x01 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\x12\x0b\n\x03url\x18\x03 \x01(\t\x12!\n\x07\x63reated\x18\x04 \x01(\x0b\x32\x10.ord.RecordEventb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1eord-schema/proto/dataset.proto\x12\x03ord\x1a\x1ford-schema/proto/reaction.proto\"\xae\x01\n\x07\x44\x61taset\x12\x12\n\x04name\x18\x01 \x01(\tR\x04name\x12 \n\x0b\x64\x65scription\x18\x02 \x01(\tR\x0b\x64\x65scription\x12+\n\treactions\x18\x03 \x03(\x0b\x32\r.ord.ReactionR\treactions\x12!\n\x0creaction_ids\x18\x04 \x03(\tR\x0breactionIds\x12\x1d\n\ndataset_id\x18\x05 \x01(\tR\tdatasetId\"\x8f\x01\n\x0e\x44\x61tasetExample\x12\x1d\n\ndataset_id\x18\x01 \x01(\tR\tdatasetId\x12 \n\x0b\x64\x65scription\x18\x02 \x01(\tR\x0b\x64\x65scription\x12\x10\n\x03url\x18\x03 \x01(\tR\x03url\x12*\n\x07\x63reated\x18\x04 \x01(\x0b\x32\x10.ord.RecordEventR\x07\x63reatedb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,8 +36,8 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'ord_schema.proto.dataset_pb
 if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
-  _globals['_DATASET']._serialized_start=72
-  _globals['_DATASET']._serialized_end=192
-  _globals['_DATASETEXAMPLE']._serialized_start=194
-  _globals['_DATASETEXAMPLE']._serialized_end=299
+  _globals['_DATASET']._serialized_start=73
+  _globals['_DATASET']._serialized_end=247
+  _globals['_DATASETEXAMPLE']._serialized_start=250
+  _globals['_DATASETEXAMPLE']._serialized_end=393
 # @@protoc_insertion_point(module_scope)

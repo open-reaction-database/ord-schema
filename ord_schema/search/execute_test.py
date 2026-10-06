@@ -187,6 +187,254 @@ def _search(corpus, where) -> set[str]:
     return _reactions(corpus.search(query.Query.model_validate({"where": where})))
 
 
+def test_a_search_narrows_to_the_dataset_a_reaction_came_from(corpus):
+    where = {"op": "eq", "path": "dataset_id", "value": {"literal": "ord_dataset-bb"}}
+    assert _search(corpus, where) == {"ord-bb01"}
+
+
+def test_reactions_group_by_the_dataset_they_came_from(corpus):
+    table = corpus.search(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "group_by": ["dataset_id"],
+                    "measures": [{"fn": "count", "name": "n"}],
+                }
+            }
+        )
+    )
+    counts = dict(
+        zip(
+            table.column("dataset_id").to_pylist(),
+            table.column("n").to_pylist(),
+            strict=True,
+        )
+    )
+    assert counts == {"ord_dataset-aa": 2, "ord_dataset-bb": 1}
+
+
+def test_a_source_without_a_dataset_id_reads_as_null(tmp_path):
+    # A source recording no dataset ID gets no stamp; its reactions answer is_null and
+    # group under NULL rather than vanishing or borrowing another file's ID.
+    for name, dataset_id, reaction_ids in (
+        ("named", "ord_dataset-named", ["ord-nm01"]),
+        ("unnamed", "", ["ord-un01", "ord-un02"]),
+    ):
+        source = tmp_path / "data" / f"{name}.parquet"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        parquet.save_dataset(
+            dataset_pb2.Dataset(
+                dataset_id=dataset_id,
+                name="test",
+                description="test",
+                reactions=[
+                    _reaction(reaction_id, components=[("CCO", _ROLE.REACTANT)])
+                    for reaction_id in reaction_ids
+                ],
+            ),
+            str(source),
+        )
+        projected = tmp_path / "projections" / source.name
+        projected.parent.mkdir(parents=True, exist_ok=True)
+        projection.write_projection(source, projected)
+        structured = tmp_path / "structures" / source.name
+        structured.parent.mkdir(parents=True, exist_ok=True)
+        structures.write_structures(projected, structured)
+    unnamed = tmp_path / "projections" / "unnamed.parquet"
+    assert base.load_stamps(unnamed).source_dataset_id is None
+    with execute.Corpus(
+        str(tmp_path / "projections" / "*.parquet"),
+        str(tmp_path / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        where = {"op": "is_null", "path": "dataset_id"}
+        assert _search(value, where) == {"ord-un01", "ord-un02"}
+        table = value.search(
+            query.Query.model_validate(
+                {
+                    "aggregate": {
+                        "group_by": ["dataset_id"],
+                        "measures": [{"fn": "count", "name": "n"}],
+                    }
+                }
+            )
+        )
+    counts = dict(
+        zip(
+            table.column("dataset_id").to_pylist(),
+            table.column("n").to_pylist(),
+            strict=True,
+        )
+    )
+    assert counts == {"ord_dataset-named": 1, None: 2}
+
+
+_ALANINE = "C[C@@H](N)C(=O)O"
+
+
+@pytest.fixture(scope="module")
+def chiral_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
+    """A corpus holding one alanine enantiomer, its mirror image, and no stereo."""
+    root = tmp_path_factory.mktemp("chiral")
+    reactions = [
+        _reaction("ord-ch01", components=[(_ALANINE, _ROLE.REACTANT)]),
+        _reaction("ord-ch02", components=[("C[C@H](N)C(=O)O", _ROLE.REACTANT)]),
+        _reaction("ord-ch03", components=[("CC(N)C(=O)O", _ROLE.REACTANT)]),
+    ]
+    source = root / "data" / "ord_dataset-ch.parquet"
+    source.parent.mkdir(parents=True)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-ch",
+            name="test",
+            description="test",
+            reactions=reactions,
+        ),
+        str(source),
+    )
+    projected = root / "projections" / source.name
+    projected.parent.mkdir(parents=True)
+    projection.write_projection(source, projected)
+    structured = root / "structures" / source.name
+    structured.parent.mkdir(parents=True)
+    structures.write_structures(projected, structured)
+    with execute.Corpus(
+        str(root / "projections" / "*.parquet"),
+        str(root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        yield value
+
+
+@pytest.fixture(scope="module")
+def reaction_root(tmp_path_factory) -> pathlib.Path:
+    """Reactions that a reaction SMARTS reading every template keeps apart."""
+    root = tmp_path_factory.mktemp("reactions")
+    acid, amine, amide = "CC(=O)O", "NCc1ccccc1", "CC(=O)NCc1ccccc1"
+    reactions = [
+        # An amide coupling: both templates on REACTANT components, the amide a product.
+        _reaction(
+            "ord-rs01",
+            components=[(acid, _ROLE.REACTANT), (amine, _ROLE.REACTANT)],
+            product=amide,
+        ),
+        # The amine recorded as a reagent, so no REACTANT holds the second template.
+        _reaction(
+            "ord-rs02",
+            components=[(acid, _ROLE.REACTANT), (amine, _ROLE.REAGENT)],
+            product=amide,
+        ),
+        # An esterification: the acid template matches, the product template does not.
+        _reaction(
+            "ord-rs03",
+            components=[(acid, _ROLE.REACTANT), ("CO", _ROLE.REACTANT)],
+            product="CC(=O)OC",
+        ),
+        # The acid and an amide product with no amine anywhere: one reactant template of
+        # two, which is enough for the cartridge's @>.
+        _reaction(
+            "ord-rs04",
+            components=[(acid, _ROLE.REACTANT), ("Cc1ccccc1", _ROLE.REACTANT)],
+            product=amide,
+        ),
+        # A Suzuki coupling with its palladium recorded as a catalyst.
+        _reaction(
+            "ord-rs05",
+            components=[
+                ("Brc1ccccc1", _ROLE.REACTANT),
+                ("OB(O)c1ccccc1", _ROLE.REACTANT),
+                ("[Pd]", _ROLE.CATALYST),
+            ],
+            product="c1ccc(-c2ccccc2)cc1",
+        ),
+        # An esterification of N-acetylglycine, whose one reactant holds both the acid
+        # and the nitrogen, with an amine base as a reagent: every template matches,
+        # but not on two different REACTANT components.
+        _reaction(
+            "ord-rs06",
+            components=[
+                ("CC(=O)NCC(=O)O", _ROLE.REACTANT),
+                ("CO", _ROLE.REACTANT),
+                ("CCN(CC)CC", _ROLE.REAGENT),
+            ],
+            product="CC(=O)NCC(=O)OC",
+        ),
+        # The same esterification with N-acetylglycine recorded twice, as two portions
+        # would be: two REACTANT components, one molecule.
+        _reaction(
+            "ord-rs07",
+            components=[
+                ("CC(=O)NCC(=O)O", _ROLE.REACTANT),
+                ("CC(=O)NCC(=O)O", _ROLE.REACTANT),
+                ("CO", _ROLE.REACTANT),
+            ],
+            product="CC(=O)NCC(=O)OC",
+        ),
+    ]
+    source = root / "data" / "ord_dataset-rs.parquet"
+    source.parent.mkdir(parents=True)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-rs",
+            name="test",
+            description="test",
+            reactions=reactions,
+        ),
+        str(source),
+    )
+    projected = root / "projections" / source.name
+    projected.parent.mkdir(parents=True)
+    projection.write_projection(source, projected)
+    structured = root / "structures" / source.name
+    structured.parent.mkdir(parents=True)
+    structures.write_structures(projected, structured)
+    return root
+
+
+@pytest.fixture(scope="module", params=[None, 0], ids=["pivoted", "unpivoted"])
+def reaction_corpus(request, reaction_root) -> Iterator[execute.Corpus]:
+    """The reactions, counted through pivots built in process and through the lists."""
+    with execute.Corpus(
+        str(reaction_root / "projections" / "*.parquet"),
+        str(reaction_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivot_budget_bytes=request.param,
+    ) as value:
+        yield value
+
+
+def test_a_reaction_smarts_needs_every_template_on_its_side(reaction_corpus):
+    where = {"op": "reaction_smarts", "smarts": "C(=O)O.N>>C(=O)N"}
+    assert _search(reaction_corpus, where) == {"ord-rs01"}
+
+
+def test_a_grouped_reaction_smarts_matches_both_pieces_in_one_molecule(
+    reaction_corpus,
+):
+    where = {"op": "reaction_smarts", "smarts": "(C(=O)O.N)>>C(=O)N"}
+    assert _search(reaction_corpus, where) == {"ord-rs06", "ord-rs07"}
+
+
+def test_an_agent_template_finds_a_catalyst(reaction_corpus):
+    where = {"op": "reaction_smarts", "smarts": "cBr.cB(O)O>[Pd]>c-c"}
+    assert _search(reaction_corpus, where) == {"ord-rs05"}
+
+
+def test_a_substructure_matches_the_drawn_stereoisomer_unless_chirality_is_off(
+    chiral_corpus,
+):
+    # Asked in both orders on one corpus, because the match set is cached: a cache key
+    # that left chirality out would answer the second question with the first one's set.
+    pattern = {"op": "substructure", "path": "smiles", "smarts": _ALANINE}
+    assert _search(chiral_corpus, _exists(pattern)) == {"ord-ch01"}
+    assert _search(chiral_corpus, _exists(pattern | {"chirality": False})) == {
+        "ord-ch01",
+        "ord-ch02",
+        "ord-ch03",
+    }
+    assert _search(chiral_corpus, _exists(pattern)) == {"ord-ch01"}
+
+
 def _role_and_structure(smarts, role):
     return _exists(
         {
@@ -443,6 +691,46 @@ def test_a_memory_limit_is_given_to_duckdb(corpus_dir):
         ).fetchone()
     assert setting is not None
     assert execute._setting_bytes(setting[0]) == 512 * 1024**2
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "SELECT * FROM read_text('{outside}')",
+        "COPY (SELECT 1) TO '{outside}.csv'",
+        "ATTACH '{outside}.duckdb' AS elsewhere",
+        "SELECT * FROM read_text('http://169.254.170.2/v2/credentials')",
+        "INSTALL httpfs",
+    ],
+)
+def test_a_search_cursor_reaches_nothing_outside_the_corpus(
+    corpus, tmp_path, statement
+):
+    outside = tmp_path / "secret.txt"
+    outside.write_text("not the corpus's to read\n")
+    cursor = corpus._connection.cursor()
+    try:
+        with pytest.raises(duckdb.PermissionException):
+            cursor.execute(statement.format(outside=outside))
+    finally:
+        cursor.close()
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "SET enable_external_access=true",
+        "SET allowed_directories=['/']",
+        "SET autoload_known_extensions=true",
+    ],
+)
+def test_a_search_cursor_cannot_lift_the_confinement(corpus, statement):
+    cursor = corpus._connection.cursor()
+    try:
+        with pytest.raises(duckdb.InvalidInputException, match="lock"):
+            cursor.execute(statement)
+    finally:
+        cursor.close()
 
 
 @pytest.mark.parametrize(
@@ -1251,9 +1539,9 @@ def _index_spent(body) -> bool:
     """Returns whether the occurrence index takes any clause of this query."""
     spent = False
 
-    def index(path, fields, allocate):
+    def index(path, fields, allocate, bind):
         nonlocal spent
-        condition = execute._index_condition(path, fields, allocate)
+        condition = execute._index_condition(path, fields, allocate, bind)
         spent = spent or condition is not None
         return condition
 
@@ -1261,9 +1549,29 @@ def _index_spent(body) -> bool:
     return spent
 
 
-def _no_index_condition(path, fields, allocate):
+def test_the_occurrence_index_binds_the_role_it_filters_on():
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {"where": _exists({"op": "and", "clauses": [_SUBSTRUCTURE, _SOLVENT]})}
+        ),
+        index=execute._index_condition,
+    )
+    assert "FROM occurrences" in compiled.sql
+    assert "SOLVENT" not in compiled.sql
+    assert list(compiled.literals.values()) == ["SOLVENT"]
+
+
+def test_a_reaction_smarts_spends_the_occurrence_index_on_its_reactants():
+    # A reactant template compiles to an exists over components with a structure and a
+    # role, which is the shape the index answers without reading the projection.
+    assert _index_spent(
+        {"where": {"op": "reaction_smarts", "smarts": "C(=O)O.N>>C(=O)N"}}
+    )
+
+
+def _no_index_condition(path, fields, allocate, bind):
     """Stands in for _index_condition so every quantifier compiles over the elements."""
-    del path, fields, allocate  # Unused.
+    del path, fields, allocate, bind  # Unused.
 
 
 # Every shape where the index takes a clause. The index answers one quantifier, not the
@@ -1815,23 +2123,27 @@ def test_projections_that_do_not_join_to_their_offsets_are_refused(
     # structures side has been counted against its footers all along; the reactions
     # side was covered only by the occurrence index reaching every structure, and a
     # path read from a pivot artifact reaches them whatever the view holds.
-    elsewhere = tmp_path / "elsewhere"
+    root = tmp_path / "corpus"
+    shutil.copytree(corpus_dir, root)
+    # Filed under a tree the corpus reads, since a copy outside every one is refused by
+    # the confinement before a join could drop its rows.
+    elsewhere = root / "projections" / "elsewhere"
     elsewhere.mkdir()
-    for projected in sorted((corpus_dir / "projections").glob("*.parquet")):
+    for projected in sorted((root / "projections").glob("*.parquet")):
         shutil.copy(projected, elsewhere / projected.name)
     original = execute._sql_paths
 
     def redirected(paths):
         listed = [str(path) for path in paths]
-        if all("projections" in path for path in listed):
+        if all(pathlib.Path(path).parent.name == "projections" for path in listed):
             return original(str(elsewhere / pathlib.Path(path).name) for path in listed)
         return original(listed)
 
     monkeypatch.setattr(execute, "_sql_paths", redirected)
     with pytest.raises(execute.PairingError, match="the projections hold"):
         execute.Corpus(
-            str(corpus_dir / "projections" / "*.parquet"),
-            str(corpus_dir / "structures" / "*.parquet"),
+            str(root / "projections" / "*.parquet"),
+            str(root / "structures" / "*.parquet"),
             resolver={}.__getitem__,
         )
 

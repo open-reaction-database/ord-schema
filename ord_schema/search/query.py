@@ -60,6 +60,7 @@ local and only the executor knows the offsets that make them one corpus-wide spa
 import dataclasses
 import datetime
 import difflib
+import itertools
 import re
 import warnings
 from collections.abc import Callable
@@ -68,6 +69,7 @@ from typing import Annotated, Any, Literal
 import pyarrow as pa
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from rdkit import Chem
+from rdkit.Chem import rdChemReactions
 
 # Aliased because ``pivot`` is the parameter name a caller passes an index under, and a
 # module shadowed inside the function that needs it is a bug waiting for an edit.
@@ -80,18 +82,36 @@ TABLE = "reactions"
 
 # The per-row column mapping a dataset-local structure_id into the corpus-wide ID
 # space a bitmap parameter is indexed by. Supplied by the executor's relation and
-# absent from the projection schema resolve() defaults to, so a model-supplied path
-# does not reach it.
+# absent from the SCHEMA resolve() defaults to, so a model-supplied path does not reach
+# it.
 STRUCTURE_OFFSET = "structure_offset"
+
+# The dataset each reaction came from. A projection is one file per dataset and names
+# it only in its footer's ``ord.source_dataset_id`` stamp, so the executor supplies the
+# column per file, as it supplies STRUCTURE_OFFSET; unlike that one, a query may read
+# it. NULL for a projection whose source recorded no dataset ID.
+DATASET_ID = "dataset_id"
+
+# The relation a query reads: the projection's columns and DATASET_ID. What resolve()
+# and compile_query() resolve paths against, and what schema.describe() tells a model.
+SCHEMA = projection.SCHEMA.append(pa.field(DATASET_ID, pa.string()))
+
+# A literal as the caller binds it: one of the grammar's scalars, or the instant a
+# string names where it is compared against a date or timestamp column. ``datetime`` is
+# a ``date``, so both kinds of instant are covered.
+BoundValue = bool | int | float | str | datetime.date
 
 
 # Consulted for an ``exists`` at the row, given the path it quantifies over, the field
-# equalities its body asks for, and a thunk naming the structure parameter the match set
-# will bind under. Returns a row condition standing for the whole quantifier, or None to
-# leave it compiled as a filter over the elements. The thunk is called only by an index
-# that takes the clause, because a parameter named and left unbound is an error rather
-# than a wasted name.
-ElementIndex = Callable[[str, dict[str, str], Callable[[], str]], str | None]
+# equalities its body asks for, a thunk naming the structure parameter the match set
+# will bind under, and a function binding a field's literal and returning the parameter
+# name it binds under. Returns a row condition standing for the whole quantifier, or
+# None to leave it compiled as a filter over the elements. Both are called only by an
+# index that takes the clause, because a parameter named and left unbound is an error
+# rather than a wasted name.
+ElementIndex = Callable[
+    [str, dict[str, str], Callable[[], str], Callable[[str], str]], str | None
+]
 
 
 # Consulted for a quantifier at the row, given the path it ranges over. Returns the
@@ -129,17 +149,17 @@ class _Routing:
 def executable_schema(schema: pa.Schema | None = None) -> pa.Schema:
     """Returns the schema of the relation a compiled query runs against.
 
-    The executor's relation is the projection plus ``STRUCTURE_OFFSET``, so validating
+    The executor's relation is ``SCHEMA`` plus ``STRUCTURE_OFFSET``, so validating
     compiled SQL (:func:`ord_schema.search.sql.validate`) needs this schema whenever the
-    query carries a structure predicate; the projection schema alone cannot bind it.
+    query carries a structure predicate; ``SCHEMA`` alone cannot bind it.
 
     Args:
-        schema: Base schema; the projection schema by default.
+        schema: Base schema; ``SCHEMA`` by default.
 
     Returns:
         The base schema with the offset column appended.
     """
-    base = schema if schema is not None else projection.SCHEMA
+    base = schema if schema is not None else SCHEMA
     return base.append(pa.field(STRUCTURE_OFFSET, pa.int64()))
 
 
@@ -202,7 +222,8 @@ class StructureParameter:
 
     Exactly one of ``pattern`` and ``compound`` is set. ``pattern`` is a SMARTS for a
     substructure predicate and a SMILES for a similarity one, already validated;
-    ``compound`` is a name still to be resolved at execution.
+    ``compound`` is a name still to be resolved at execution. ``chirality`` is a
+    substructure predicate's, and False for every other kind, which has no use for it.
     """
 
     name: str
@@ -210,6 +231,7 @@ class StructureParameter:
     pattern: str | None
     compound: str | None
     threshold: float | None
+    chirality: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -224,12 +246,51 @@ class Compiled:
     ``limit`` is the row bound the SQL carries, which is the query's own where it asked
     for one within ``max_rows`` and ``max_rows`` where it did not. A caller comparing it
     against ``Query.limit`` learns whether the answer was cut short.
+
+    ``literals`` maps a parameter name to the value the caller binds under it, already
+    typed: an instant compared against a date or timestamp column is a ``date`` or a
+    ``datetime`` rather than its spelling. No literal reaches ``sql`` as text.
     """
 
     sql: str
     compounds: tuple[str, ...]
     structures: tuple[StructureParameter, ...] = ()
     limit: int | None = None
+    literals: dict[str, BoundValue] = dataclasses.field(default_factory=dict)
+
+
+@dataclasses.dataclass
+class _Parameters:
+    """What a compilation binds rather than spells, collected as its clauses compile.
+
+    Attributes:
+        compounds: Compound names whose resolved SMILES the caller binds.
+        structures: Structure predicates the caller evaluates and binds as bitmaps.
+        literals: Literal values, by the parameter name each binds under.
+    """
+
+    compounds: list[str] = dataclasses.field(default_factory=list)
+    structures: list[StructureParameter] = dataclasses.field(default_factory=list)
+    literals: dict[str, BoundValue] = dataclasses.field(default_factory=dict)
+
+    def bind(self, value: BoundValue) -> str:
+        """Records a literal, and returns the parameter name it binds under."""
+        name = f"literal_{len(self.literals)}"
+        self.literals[name] = value
+        return name
+
+    def copy(self) -> "_Parameters":
+        """Returns an independent copy, for a compilation that may be dropped."""
+        return _Parameters(
+            list(self.compounds), list(self.structures), dict(self.literals)
+        )
+
+    def adopt(self, other: "_Parameters") -> None:
+        """Takes on what ``other`` collected, in place of what this one held."""
+        self.compounds[:] = other.compounds
+        self.structures[:] = other.structures
+        self.literals.clear()
+        self.literals.update(other.literals)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -280,11 +341,11 @@ def _lookup(
 def resolve(
     path: str,
     *,
-    schema: pa.Schema = projection.SCHEMA,
+    schema: pa.Schema = SCHEMA,
     root: str | None = None,
     allow_internal: bool = False,
 ) -> _Resolved:
-    """Resolves a dotted path against the projection schema.
+    """Resolves a dotted path against the relation a query reads.
 
     Descending through a repeated level turns the expression into a list of the
     elements beneath it, so the caller can tell a scalar it may compare from a level it
@@ -415,12 +476,19 @@ class Substructure(_Node):
 
     ``path`` names a compound's ``smiles``. The query is a SMARTS pattern, or a
     compound name resolved to a molecule at execution; exactly one is given.
+
+    A stereocenter drawn in the query is respected, as RDKit respects it: a pattern
+    drawn as one enantiomer matches that enantiomer, not its mirror image or the same
+    molecule recorded without stereo. ``chirality`` false ignores stereocenters, for a
+    question about the molecule whatever its configuration. A query with no
+    stereocenters matches the same structures either way.
     """
 
     op: Literal["substructure"]
     path: str
     smarts: str | None = None
     compound: str | None = None
+    chirality: bool = True
 
     @model_validator(mode="after")
     def _check(self) -> "Substructure":
@@ -578,6 +646,91 @@ class SameParent(_Node):
         return self
 
 
+def _reaction_templates(smarts: str) -> tuple[list[str], list[str], list[str]]:
+    """Returns a reaction SMARTS's reactant, agent, and product templates as SMARTS.
+
+    Atom maps are cleared, so a mapped template and the same template unmapped are one
+    pattern; a template grouped with parentheses, ``(A.B)``, stays one template, both
+    pieces in one molecule.
+
+    Args:
+        smarts: The reaction SMARTS.
+
+    Returns:
+        The SMARTS of each reactant, agent, and product template, in order.
+
+    Raises:
+        ValueError: If the SMARTS does not parse.
+    """
+    try:
+        reaction = rdChemReactions.ReactionFromSmarts(smarts)
+    except ValueError as error:
+        raise ValueError(f"reaction SMARTS does not parse: {smarts!r}") from error
+    if reaction is None:
+        raise ValueError(f"reaction SMARTS does not parse: {smarts!r}")
+    sides = []
+    for templates in (
+        reaction.GetReactants(),
+        reaction.GetAgents(),
+        reaction.GetProducts(),
+    ):
+        side = []
+        for template in templates:
+            unmapped = Chem.Mol(template)
+            for atom in unmapped.GetAtoms():
+                atom.SetAtomMapNum(0)
+            side.append(Chem.MolToSmarts(unmapped))
+        sides.append(side)
+    return sides[0], sides[1], sides[2]
+
+
+# Most templates one side of a reaction SMARTS may hold. Giving each its own component
+# costs a count per subset of two or more templates, 2^n - n - 1 of them, so the bound
+# is what keeps a long SMARTS from compiling to an unbounded number of scans. Five
+# covers the four components of an Ugi reaction with one to spare.
+_MOST_TEMPLATES_PER_SIDE = 5
+
+
+class ReactionSmarts(_Node):
+    """The reaction matches a reaction SMARTS, each template on a molecule of its own.
+
+    Each reactant template has to match an input component whose role is ``REACTANT``,
+    each product template a product, and each agent template an input component in any
+    other role. Every template has to match, and two templates on one side have to
+    match two different molecules: ``C(=O)O.N`` names an acid and an amine, and a
+    Boc-protected amine holding both groups is not that, even recorded twice. Grouping
+    with parentheses, ``(C(=O)O.N)``, makes one template of both pieces, matched within
+    one molecule. The RDKit cartridge's ``@>`` accepts any one template per side, which
+    for a two-template query returns several times the reactions the query describes.
+    Atom maps are ignored, as ``@>`` ignores them, so this says which molecules took
+    part and not which atoms changed. ``chirality`` applies to every template, as it
+    does to a ``substructure``.
+    """
+
+    op: Literal["reaction_smarts"]
+    smarts: str
+    chirality: bool = True
+
+    @model_validator(mode="after")
+    def _check(self) -> "ReactionSmarts":
+        reactants, agents, products = _reaction_templates(self.smarts)
+        if not (reactants or agents or products):
+            raise ValueError(f"reaction SMARTS has no templates: {self.smarts!r}")
+        for side in (reactants, agents, products):
+            if len(side) > _MOST_TEMPLATES_PER_SIDE:
+                raise ValueError(
+                    f"reaction SMARTS has {len(side)} templates on one side, and at "
+                    f"most {_MOST_TEMPLATES_PER_SIDE} are supported: {self.smarts!r}"
+                )
+        for template in (*reactants, *agents, *products):
+            # Held to what a substructure accepts, so a template that would match
+            # nothing is refused here rather than returning an empty answer.
+            Substructure.model_validate(
+                {"op": "substructure", "path": "smiles", "smarts": template}
+            )
+        return self
+
+
 # The predicates the executor answers by evaluating chemistry outside the query and
 # binding the match set as a bitmap over structure IDs; see ``_structure``.
 StructurePredicate = Substructure | Similarity | SameCompound | SameParent
@@ -592,7 +745,8 @@ Predicate = Annotated[
     | Substructure
     | Similarity
     | SameCompound
-    | SameParent,
+    | SameParent
+    | ReactionSmarts,
     Field(discriminator="op"),
 ]
 
@@ -614,6 +768,9 @@ _REDUCERS = {
     "sum": "list_sum({expression})",
     "count": "coalesce(len(list_filter({expression}, value -> value IS NOT NULL)), 0)",
 }
+
+# `count` over each value once. list_distinct drops the nulls as well as the repeats.
+_DISTINCT_COUNT = "coalesce(len(list_distinct({expression})), 0)"
 
 # The relation a pivoted reduction reads its elements from. A reduction is only ever
 # compiled where the rows are reactions, and each subquery scopes its own alias, so one
@@ -729,41 +886,37 @@ class Query(_Node):
 
 
 def _literal(
-    value: Value, compounds: list[str], leaf: pa.DataType | None = None
+    value: Value, parameters: _Parameters, leaf: pa.DataType | None = None
 ) -> str:
-    """Returns the SQL for a value, recording a compound that needs binding.
+    """Returns the parameter a value binds under, recording what it binds.
 
     Args:
         value: The literal or compound name to compile.
-        compounds: Compound names collected so far, appended to when this is one.
+        parameters: What the compilation binds so far, appended to with this value.
         leaf: The type it is compared against, which types a temporal literal. Without
-            it a string compiles as text, which is what every non-temporal column wants.
+            it a string binds as text, which is what every non-temporal column wants.
 
     Returns:
-        The SQL operand.
+        The SQL operand: a ``$``-parameter, never the value itself.
+
+    Raises:
+        QueryError: If a string compared against a temporal column names no instant.
     """
     if value.compound is not None:
-        if value.compound not in compounds:
-            compounds.append(value.compound)
+        if value.compound not in parameters.compounds:
+            parameters.compounds.append(value.compound)
         return f"${value.compound}"
-    if isinstance(value.literal, str):
-        if leaf is not None and _is_temporal(leaf):
-            # Typed rather than quoted, so the comparison is between instants. A string
-            # beside a TIMESTAMP casts in DuckDB, but the same string beside a DATE
-            # compares as text and answers by spelling.
-            instant = _parsed_instant(value.literal)
-            if instant is None:
-                raise QueryError(
-                    f"{value.literal!r} is not an ISO 8601 date or timestamp"
-                )
-            if pa.types.is_date(leaf):
-                return f"DATE '{instant.date().isoformat()}'"
-            return f"TIMESTAMP '{instant.isoformat(sep=' ')}'"
-        escaped = value.literal.replace("'", "''")
-        return f"'{escaped}'"
-    if isinstance(value.literal, bool):
-        return "TRUE" if value.literal else "FALSE"
-    return repr(value.literal)
+    assert value.literal is not None  # A Value holds a literal where no compound.
+    bound: BoundValue = value.literal
+    if isinstance(bound, str) and leaf is not None and _is_temporal(leaf):
+        # Bound as an instant rather than as its spelling, so the comparison is between
+        # instants. A string beside a TIMESTAMP casts in DuckDB, but the same string
+        # beside a DATE compares as text and answers by spelling.
+        instant = _parsed_instant(bound)
+        if instant is None:
+            raise QueryError(f"{bound!r} is not an ISO 8601 date or timestamp")
+        bound = instant.date() if pa.types.is_date(leaf) else instant
+    return f"${parameters.bind(bound)}"
 
 
 def _check_operand(node: Comparison, resolved: _Resolved) -> None:
@@ -820,13 +973,13 @@ def _check_operand(node: Comparison, resolved: _Resolved) -> None:
         raise QueryError(f"{node.path}: holds {leaf}, compared against a number")
 
 
-def _leaf(node: Any, resolved: _Resolved, compounds: list[str]) -> str:
+def _leaf(node: Any, resolved: _Resolved, parameters: _Parameters) -> str:
     """Compiles a comparison or null check against an already-resolved scalar."""
     if isinstance(node, NullCheck):
         keyword = "NULL" if node.op == "is_null" else "NOT NULL"
         return f"{resolved.expression} IS {keyword}"
     _check_operand(node, resolved)
-    operand = _literal(node.value, compounds, resolved.type)
+    operand = _literal(node.value, parameters, resolved.type)
     if node.op in _TEXT:
         return f"{_TEXT[node.op]}({resolved.expression}, {operand})"
     return f"{resolved.expression} {_COMPARISONS[node.op]} {operand}"
@@ -850,13 +1003,15 @@ def _structure_parameter(
     """
     pattern = node.smarts if isinstance(node, Substructure) else node.smiles
     threshold = node.threshold if isinstance(node, Similarity) else None
+    chirality = isinstance(node, Substructure) and node.chirality
     for existing in structures:
-        if (existing.op, existing.pattern, existing.compound, existing.threshold) == (
-            node.op,
-            pattern,
-            node.compound,
-            threshold,
-        ):
+        if (
+            existing.op,
+            existing.pattern,
+            existing.compound,
+            existing.threshold,
+            existing.chirality,
+        ) == (node.op, pattern, node.compound, threshold, chirality):
             return existing.name
     parameter = StructureParameter(
         name=f"structure_{len(structures)}",
@@ -864,6 +1019,7 @@ def _structure_parameter(
         pattern=pattern,
         compound=node.compound,
         threshold=threshold,
+        chirality=chirality,
     )
     structures.append(parameter)
     return parameter.name
@@ -996,8 +1152,7 @@ def _pivot_target(
 
 def _pivoted(
     node: "Quantifier",
-    compounds: list[str],
-    structures: list[StructureParameter],
+    parameters: _Parameters,
     depth: int,
     routing: _Routing,
 ) -> str | None:
@@ -1020,8 +1175,7 @@ def _pivoted(
 
     Args:
         node: The quantifier to compile.
-        compounds: Compound names collected so far, appended to by the body.
-        structures: Structure parameters collected so far, appended to by the body.
+        parameters: What the compilation binds so far, appended to by the body.
         depth: How many quantifiers enclose this one, which names its variable.
         routing: Where this quantifier may be answered; its ``pivot`` names the
             relation, and its ``table`` qualifies the correlation.
@@ -1037,16 +1191,15 @@ def _pivoted(
         return None
     level, remainder, element_type = reached
     variable = f"x{depth}"
-    # Compiled into throwaway lists: a body that raises partway would otherwise leave
+    # Compiled into a throwaway copy: a body that raises partway would otherwise leave
     # this quantifier's parameters behind for a compilation that no longer wants them.
-    taken_compounds, taken_structures = list(compounds), list(structures)
+    taken = parameters.copy()
     try:
         body = _predicate(
             node.where,
             ".".join([variable, pivot_levels.ELEMENT, *remainder]),
             element_type,
-            taken_compounds,
-            taken_structures,
+            taken,
             depth + 1,
             dataclasses.replace(routing, enclosing=(variable, level)),
         )
@@ -1058,7 +1211,7 @@ def _pivoted(
     table = routing.pivot(level.path)
     if table is None:
         return None
-    compounds[:], structures[:] = taken_compounds, taken_structures
+    parameters.adopt(taken)
     # S608: the relation is named by this module's own walk of the schema, and every
     # fragment of the body is an expression resolved against that walk's element type.
     if routing.enclosing is None:
@@ -1093,8 +1246,7 @@ def _quantifier(
     node: "Quantifier",
     scope: str | None,
     schema: Any,
-    compounds: list[str],
-    structures: list[StructureParameter],
+    parameters: _Parameters,
     depth: int,
     routing: _Routing,
 ) -> str:
@@ -1114,8 +1266,7 @@ def _quantifier(
         node: The quantifier to compile.
         scope: Bound variable the path is relative to, or None at the row.
         schema: Schema or struct type the path resolves within.
-        compounds: Compound names collected so far, appended to by the body.
-        structures: Structure parameters collected so far, appended to by the body.
+        parameters: What the compilation binds so far, appended to by the body.
         depth: How many quantifiers enclose this one, which names its variable.
         routing: Where this quantifier may be answered besides the elements. Its
             ``index`` is consulted for an ``exists`` at the row; its ``pivot`` is
@@ -1139,7 +1290,7 @@ def _quantifier(
     # enclosing element's type is pruned of exactly the repeated fields a nested
     # quantifier ranges over, so resolving first would raise and decline every one.
     if routing.pivot is not None and routing.enclosing is not None:
-        condition = _pivoted(node, compounds, structures, depth, routing)
+        condition = _pivoted(node, parameters, depth, routing)
         if condition is not None:
             return condition
     resolved = resolve(node.path, schema=schema, root=scope)
@@ -1158,15 +1309,19 @@ def _quantifier(
             # The thunk defers naming the structure parameter until the index accepts.
             # A declined clause allocates through its element compilation instead, and
             # _structure_parameter dedupes by content, so early or late it is one name.
+            # A field's literal is bound the same way, by an index that has accepted.
             condition = routing.index(
-                node.path, fields, lambda: _structure_parameter(structure, structures)
+                node.path,
+                fields,
+                lambda: _structure_parameter(structure, parameters.structures),
+                parameters.bind,
             )
             if condition is not None:
                 return condition
     # A nested quantifier was offered the pivot above, before its path was resolved.
     # Inside a list lambda there is nothing to correlate to, so the elements answer it.
     if routing.pivot is not None and scope is None:
-        condition = _pivoted(node, compounds, structures, depth, routing)
+        condition = _pivoted(node, parameters, depth, routing)
         if condition is not None:
             return condition
     variable = f"e{depth}"
@@ -1174,8 +1329,7 @@ def _quantifier(
         node.where,
         variable,
         resolved.type,
-        compounds,
-        structures,
+        parameters,
         depth + 1,
         routing,
     )
@@ -1191,12 +1345,127 @@ def _quantifier(
     )
 
 
+def _template_sides(
+    node: ReactionSmarts,
+) -> list[tuple[str, dict[str, Any] | None, list[dict[str, Any]]]]:
+    """Returns each side of a reaction SMARTS as the elements its templates must match.
+
+    Args:
+        node: The reaction SMARTS predicate.
+
+    Returns:
+        For the reactants, the agents, and the products in turn: the repeated level
+        their molecules are elements of, the role condition an element must also meet
+        (None for products), and one ``substructure`` per template.
+    """
+    reactants, agents, products = _reaction_templates(node.smarts)
+
+    def structures(templates: list[str]) -> list[dict[str, Any]]:
+        return [
+            {
+                "op": "substructure",
+                "path": "smiles",
+                "smarts": template,
+                "chirality": node.chirality,
+            }
+            for template in templates
+        ]
+
+    def role(op: str) -> dict[str, Any]:
+        return {"op": op, "path": "reaction_role", "value": {"literal": "REACTANT"}}
+
+    return [
+        ("inputs.components", role("eq"), structures(reactants)),
+        ("inputs.components", role("ne"), structures(agents)),
+        ("outcomes.products", None, structures(products)),
+    ]
+
+
+def _element_condition(
+    structure: dict[str, Any], role: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Returns what one element must satisfy: the structure, and the role if any."""
+    if role is None:
+        return structure
+    return {"op": "and", "clauses": [structure, role]}
+
+
+def _expand_reaction_smarts(node: ReactionSmarts) -> And:
+    """Returns the quantifiers a reaction SMARTS stands for, one per template.
+
+    Built from the grammar's own nodes, so each template is routed as any other
+    quantifier is: a reactant template's ``exists`` over components with a structure and
+    a role is exactly what the occurrence index answers. ``_distinct_matches`` adds
+    what gives each template a component of its own.
+
+    Args:
+        node: The reaction SMARTS predicate.
+
+    Returns:
+        A conjunction holding one ``exists`` per template.
+    """
+    clauses = [
+        {"op": "exists", "path": path, "where": _element_condition(structure, role)}
+        for path, role, structures in _template_sides(node)
+        for structure in structures
+    ]
+    return And.model_validate({"op": "and", "clauses": clauses})
+
+
+def _distinct_matches(
+    node: ReactionSmarts,
+    schema: Any,
+    parameters: _Parameters,
+    routing: _Routing,
+) -> list[str]:
+    """Returns the conditions giving each template on a side a molecule of its own.
+
+    Templates can be assigned to distinct molecules exactly when every subset of them
+    matches at least as many molecules between them as it holds templates (Hall's
+    theorem). A subset of one is the template's own ``exists``; each larger subset is a
+    count of the molecules matching any of its templates.
+
+    Args:
+        node: The reaction SMARTS predicate.
+        schema: Schema the levels resolve against.
+        parameters: What the compilation binds so far, appended to by the counts.
+        routing: Where the elements may be read besides the projection's lists.
+
+    Returns:
+        One DuckDB condition per subset of two or more templates on one side.
+    """
+    conditions = []
+    for path, role, structures in _template_sides(node):
+        for size in range(2, len(structures) + 1):
+            for subset in itertools.combinations(structures, size):
+                # Counted as distinct smiles, which the projection writes canonical and
+                # wherever it writes a structure ID: a molecule recorded twice, in two
+                # portions or two outcomes, is still one molecule.
+                count = Reduction.model_validate(
+                    {
+                        "reduce": "count",
+                        "path": f"{path}.smiles",
+                        "where": _element_condition(
+                            {"op": "or", "clauses": list(subset)}, role
+                        ),
+                    }
+                )
+                reduced = _reduced(
+                    count,
+                    schema,
+                    parameters=parameters,
+                    routing=routing,
+                    distinct=True,
+                )
+                conditions.append(f"({reduced} >= {size})")
+    return conditions
+
+
 def _predicate(
     node: Any,
     scope: str | None,
     schema: Any,
-    compounds: list[str],
-    structures: list[StructureParameter],
+    parameters: _Parameters,
     depth: int,
     routing: _Routing,
 ) -> str:
@@ -1211,8 +1480,7 @@ def _predicate(
             or a comparison against a leaf.
         scope: Bound variable the paths within are relative to, or None at the row.
         schema: Schema or struct type the paths resolve within.
-        compounds: Compound names collected so far, appended to as they are met.
-        structures: Structure parameters collected so far, appended to as they are met.
+        parameters: What the compilation binds so far, appended to as values are met.
         depth: How many quantifiers enclose this clause, which names their variables.
         routing: Where a quantifier may be answered besides the elements; carried
             down unchanged. See ``_Routing``.
@@ -1222,34 +1490,46 @@ def _predicate(
 
     Raises:
         QueryError: If a path does not resolve, crosses a repeated level without a
-            quantifier, or is compared in a way its type does not allow.
+            quantifier, or is compared in a way its type does not allow, or if a
+            ``reaction_smarts`` sits anywhere but at the row.
     """
+    if isinstance(node, ReactionSmarts):
+        if scope is not None:
+            raise QueryError(
+                "reaction_smarts is a condition on the whole reaction, so it cannot "
+                "sit inside a quantifier or an element filter"
+            )
+        conditions = [
+            _predicate(
+                _expand_reaction_smarts(node), scope, schema, parameters, depth, routing
+            ),
+            *_distinct_matches(node, schema, parameters, routing),
+        ]
+        return "(" + " AND ".join(conditions) + ")"
     if isinstance(node, And | Or):
         keyword = " AND " if isinstance(node, And) else " OR "
         return (
             "("
             + keyword.join(
-                _predicate(clause, scope, schema, compounds, structures, depth, routing)
+                _predicate(clause, scope, schema, parameters, depth, routing)
                 for clause in node.clauses
             )
             + ")"
         )
     if isinstance(node, Not):
-        inner = _predicate(
-            node.clause, scope, schema, compounds, structures, depth, routing
-        )
+        inner = _predicate(node.clause, scope, schema, parameters, depth, routing)
         return f"(NOT {inner})"
     if isinstance(node, Quantifier):
-        return _quantifier(node, scope, schema, compounds, structures, depth, routing)
+        return _quantifier(node, scope, schema, parameters, depth, routing)
     if isinstance(node, StructurePredicate):
-        return _structure(node, scope, schema, structures)
+        return _structure(node, scope, schema, parameters.structures)
     resolved = resolve(node.path, schema=schema, root=scope)
     if resolved.repeated:
         raise QueryError(
             f"{node.path}: crosses a repeated level, so whether it means any or every "
             "element is unstated; wrap it in an exists or forall"
         )
-    return _leaf(node, resolved, compounds)
+    return _leaf(node, resolved, parameters)
 
 
 def _scalar(
@@ -1304,9 +1584,10 @@ def _reduced_element(reduction: Reduction) -> tuple[Any, tuple[str, ...], Any]:
 def _pivoted_reduction(
     reduction: Reduction,
     table: str,
-    compounds: list[str],
-    structures: list["StructureParameter"],
+    parameters: _Parameters,
     routing: "_Routing",
+    *,
+    distinct: bool = False,
 ) -> str | None:
     """Returns the reduction as an aggregate over a pivot, where one covers the path.
 
@@ -1318,9 +1599,9 @@ def _pivoted_reduction(
     Args:
         reduction: What to reduce, and how.
         table: The relation of reactions the subquery correlates to.
-        compounds: Compound names collected so far, appended to as they are met.
-        structures: Structure parameters collected so far, appended to as they are met.
+        parameters: What the compilation binds so far, appended to as values are met.
         routing: Where a filter's own clauses may be answered. See ``_Routing``.
+        distinct: Whether to reduce each value once; see ``_reduced``.
 
     Returns:
         A correlated scalar subquery over the pivot, or None where no pivot covers the
@@ -1345,13 +1626,13 @@ def _pivoted_reduction(
             reduction.where,
             f"{_REDUCTION_ALIAS}.{pivot_levels.ELEMENT}",
             level.element_type,
-            compounds,
-            structures,
+            parameters,
             1,
             routing,
         )
+    argument = f"DISTINCT {column}" if distinct else column
     return (
-        f"(SELECT {_AGGREGATES[reduction.reduce]}({column}) "  # noqa: S608
+        f"(SELECT {_AGGREGATES[reduction.reduce]}({argument}) "  # noqa: S608
         f"FROM {relation} AS {_REDUCTION_ALIAS} WHERE {condition})"
     )
 
@@ -1359,8 +1640,7 @@ def _pivoted_reduction(
 def _filtered_elements(
     reduction: Reduction,
     schema: pa.Schema,
-    compounds: list[str],
-    structures: list["StructureParameter"],
+    parameters: _Parameters,
     routing: "_Routing",
 ) -> str:
     """Returns the projection's list of reduced values, narrowed to matching elements.
@@ -1368,8 +1648,7 @@ def _filtered_elements(
     Args:
         reduction: What to reduce, and how. Its ``where`` is compiled here.
         schema: Schema the level's own path resolves against.
-        compounds: Compound names collected so far, appended to as they are met.
-        structures: Structure parameters collected so far, appended to as they are met.
+        parameters: What the compilation binds so far, appended to as values are met.
         routing: Where a filter's own clauses may be answered. See ``_Routing``.
 
     Returns:
@@ -1381,8 +1660,7 @@ def _filtered_elements(
         reduction.where,
         _REDUCTION_ALIAS,
         element_type,
-        compounds,
-        structures,
+        parameters,
         1,
         routing,
     )
@@ -1396,20 +1674,22 @@ def _reduced(
     reduction: Reduction,
     schema: pa.Schema,
     *,
-    compounds: list[str] | None = None,
-    structures: list["StructureParameter"] | None = None,
+    parameters: _Parameters | None = None,
     routing: "_Routing | None" = None,
+    distinct: bool = False,
 ) -> str:
     """Returns the expression reducing a repeated path to one value per reaction.
 
     Args:
         reduction: What to reduce, and how.
         schema: Schema the path resolves against.
-        compounds: Compound names collected so far, appended to as a ``where`` meets
-            them; a fresh list where the caller compiles no filter.
-        structures: Structure parameters, collected the same way.
+        parameters: What the compilation binds so far, appended to as a ``where``
+            meets values; a fresh collection where the caller compiles no filter.
         routing: Where the elements may be read besides the projection's lists, and
             the relation a pivoted reduction correlates to. See ``_Routing``.
+        distinct: Whether a ``count`` counts each value once rather than each element
+            holding one. The grammar has no spelling for it; ``_distinct_matches``
+            passes it.
 
     Returns:
         A DuckDB expression yielding one scalar per reaction. An arithmetic reducer
@@ -1421,9 +1701,11 @@ def _reduced(
             one would give the same query two spellings), if an arithmetic reducer
             reaches a leaf that does not hold numbers, or if a ``where`` quantifies
             over a level of its own.
+        ValueError: If ``distinct`` is asked of a reducer other than ``count``.
     """
-    collected_compounds = [] if compounds is None else compounds
-    collected_structures = [] if structures is None else structures
+    if distinct and reduction.reduce != "count":
+        raise ValueError(f"distinct applies to count, not {reduction.reduce}")
+    collected = _Parameters() if parameters is None else parameters
     where_to_look = _Routing(TABLE) if routing is None else routing
     resolved = resolve(reduction.path, schema=schema)
     if not resolved.repeated:
@@ -1437,26 +1719,17 @@ def _reduced(
         level, _, _ = _reduced_element(reduction)
         _refuse_quantified(reduction.where, level.path, "a reduction's where")
     pivoted = _pivoted_reduction(
-        reduction,
-        where_to_look.table,
-        collected_compounds,
-        collected_structures,
-        where_to_look,
+        reduction, where_to_look.table, collected, where_to_look, distinct=distinct
     )
     if pivoted is not None:
         return pivoted
     expression = (
         resolved.expression
         if reduction.where is None
-        else _filtered_elements(
-            reduction,
-            schema,
-            collected_compounds,
-            collected_structures,
-            where_to_look,
-        )
+        else _filtered_elements(reduction, schema, collected, where_to_look)
     )
-    return _REDUCERS[reduction.reduce].format(expression=expression)
+    reducer = _DISTINCT_COUNT if distinct else _REDUCERS[reduction.reduce]
+    return reducer.format(expression=expression)
 
 
 def _measure_argument(
@@ -1464,8 +1737,7 @@ def _measure_argument(
     schema: pa.Schema,
     element: str | None = None,
     *,
-    compounds: list[str] | None = None,
-    structures: list["StructureParameter"] | None = None,
+    parameters: _Parameters | None = None,
     routing: "_Routing | None" = None,
 ) -> str:
     """Returns the expression a measure aggregates over.
@@ -1476,9 +1748,8 @@ def _measure_argument(
         element: The bound element paths are relative to, for an aggregate over a
             repeated level; None where the rows are reactions. A ``Reduction`` needs
             none, since a level's elements hold no list to reduce.
-        compounds: Compound names collected so far, appended to as a reduction's
-            ``where`` meets them.
-        structures: Structure parameters, collected the same way.
+        parameters: What the compilation binds so far, appended to as a reduction's
+            ``where`` meets values.
         routing: Where a reduction's elements may be read besides the projection's
             lists. See ``_Routing``.
 
@@ -1499,11 +1770,7 @@ def _measure_argument(
                 "and this aggregate's rows are already elements"
             )
         argument = _reduced(
-            measure.path,
-            schema,
-            compounds=compounds,
-            structures=structures,
-            routing=routing,
+            measure.path, schema, parameters=parameters, routing=routing
         )
     elif element is not None and measure.path == pivot_levels.REACTION_ID:
         # The one path a pivot row carries outside its element, and what makes a count
@@ -1607,7 +1874,7 @@ def _element_relation(
 def compile_query(
     query: Query,
     *,
-    schema: pa.Schema = projection.SCHEMA,
+    schema: pa.Schema = SCHEMA,
     table: str = TABLE,
     index: ElementIndex | None = None,
     pivot: PivotIndex | None = None,
@@ -1617,7 +1884,7 @@ def compile_query(
 
     Args:
         query: The query to compile.
-        schema: Schema to resolve paths against; the projection schema by default.
+        schema: Schema to resolve paths against; ``SCHEMA`` by default.
         table: Relation name to read. Held to an identifier, because it reaches the SQL
             as text: a caller passing ``"reactions, range(1000000000)"`` would otherwise
             get a cross join the ``Query`` never asked for, and the single-relation cost
@@ -1639,13 +1906,14 @@ def compile_query(
             reactions; ``Corpus.search`` says so when one comes back full.
 
     Returns:
-        The SQL, the compound names whose resolved SMILES the caller binds, and the
-        structure predicates the caller evaluates and binds as bitmaps.
+        The SQL, the compound names whose resolved SMILES the caller binds, the
+        structure predicates the caller evaluates and binds as bitmaps, and the literal
+        values the caller binds as they are.
 
     Raises:
         QueryError: If ``table`` is not an identifier, if any path, operator, or
             ordering key cannot be meant against the schema, or if a compound name
-            collides with a generated structure parameter.
+            collides with a generated structure or literal parameter.
         ValueError: If ``max_rows`` is less than one, which is a bound no query can
             satisfy rather than a small one.
     """
@@ -1658,8 +1926,7 @@ def compile_query(
             f"max_rows is {max_rows}, which no query can return; leave it unset to "
             "bound nothing"
         )
-    compounds: list[str] = []
-    structures: list[StructureParameter] = []
+    parameters = _Parameters()
     element = _element_relation(query, table, pivot)
     if query.aggregate:
         alias = None if element is None else element[0]
@@ -1679,8 +1946,7 @@ def compile_query(
                 measure,
                 element_schema,
                 alias,
-                compounds=compounds,
-                structures=structures,
+                parameters=parameters,
                 routing=_Routing(table, index, pivot),
             )
             selected.append(f"{_AGGREGATES[measure.fn]}({argument}) AS {measure.name}")
@@ -1692,7 +1958,7 @@ def compile_query(
     # S608: assembling SQL is this function's purpose. Every fragment in `selected` is
     # either an expression resolved against the schema or a measure name already held to
     # an identifier shape, `table` is this module's constant, and every model-supplied
-    # value reached the string as a bound parameter or a quoted literal.
+    # value reached the string as a bound parameter.
     source = table if element is None else f"{element[1]} AS {element[0]}"
     sql = f"SELECT {', '.join(selected)} FROM {source}"  # noqa: S608
     conditions = []
@@ -1704,8 +1970,7 @@ def compile_query(
                     query.aggregate.where,
                     f"{element[0]}.{pivot_levels.ELEMENT}",
                     element[2],
-                    compounds,
-                    structures,
+                    parameters,
                     1,
                     _Routing(table, index, pivot),
                 )
@@ -1715,8 +1980,7 @@ def compile_query(
             query.where,
             None,
             schema,
-            compounds,
-            structures,
+            parameters,
             # Past the alias this aggregate's own relation took, so a quantifier inside
             # does not bind its variable to the elements being grouped.
             0 if element is None else 1,
@@ -1735,14 +1999,6 @@ def compile_query(
         conditions.append(condition)
     if conditions:
         sql += " WHERE " + " AND ".join(conditions)
-    taken = {parameter.name for parameter in structures}
-    collisions = sorted(taken & set(compounds))
-    if collisions:
-        # Both reach the SQL as $-parameters, so a compound named like a structure
-        # parameter would receive the wrong binding silently.
-        raise QueryError(
-            f"compound names collide with structure parameters: {collisions}"
-        )
     if query.aggregate and groups:
         sql += " GROUP BY " + ", ".join(str(index + 1) for index in range(len(groups)))
     if query.order_by:
@@ -1759,8 +2015,7 @@ def compile_query(
                 key = _reduced(
                     order.key,
                     schema,
-                    compounds=compounds,
-                    structures=structures,
+                    parameters=parameters,
                     routing=_Routing(table, index, pivot),
                 )
             elif orderable is None:
@@ -1778,6 +2033,17 @@ def compile_query(
                 )
             keys.append(f"{key} DESC" if order.descending else key)
         sql += " ORDER BY " + ", ".join(keys)
+    # Checked once everything has compiled, the ordering included, since a reduction
+    # there can name a compound too.
+    generated = {parameter.name for parameter in parameters.structures}
+    generated |= set(parameters.literals)
+    collisions = sorted(generated & set(parameters.compounds))
+    if collisions:
+        # All of them reach the SQL as $-parameters, so a compound named like a
+        # generated parameter would receive the wrong binding silently.
+        raise QueryError(
+            f"compound names collide with generated parameters: {collisions}"
+        )
     if max_rows is None:
         limit = query.limit
     elif query.limit is None:
@@ -1786,4 +2052,10 @@ def compile_query(
         limit = min(query.limit, max_rows)
     if limit is not None:
         sql += f" LIMIT {limit}"
-    return Compiled(sql, tuple(compounds), tuple(structures), limit)
+    return Compiled(
+        sql,
+        tuple(parameters.compounds),
+        tuple(parameters.structures),
+        limit,
+        dict(parameters.literals),
+    )

@@ -34,7 +34,7 @@ jobs:
   test_ord_schema:
     strategy:
       matrix:
-        os: ["ubuntu-latest", "macos-14"]
+        os: ["ubuntu-latest", "macos-latest"]
         python-version: ["3.11", "3.12", "3.13", "3.14"]
     runs-on: ${{ matrix.os }}
     env:
@@ -72,7 +72,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
@@ -111,7 +111,7 @@ jobs:
   test_notebooks:
     strategy:
       matrix:
-        os: ["ubuntu-latest", "macos-14"]
+        os: ["ubuntu-latest", "macos-latest"]
         python-version: ["3.11", "3.12", "3.13", "3.14"]
     runs-on: ${{ matrix.os }}
     env:
@@ -123,7 +123,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
@@ -178,20 +178,6 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
-      - name: Install protoc
-        # Unpack outside the checkout. These binaries are not gitignored, so in the workspace
-        # they pollute the drift check below and `addlicense .` rewrites their headers.
-        run: |
-          mkdir "${RUNNER_TEMP}/protoc"
-          cd "${RUNNER_TEMP}/protoc"
-          wget https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-x86_64.zip
-          echo "0f8070d762eb8a2f5a13a47713a553f989f9d9b556e7e3ebfa2bd6464e2ecaeb  protoc-22.3-linux-x86_64.zip" | sha256sum -c -
-          unzip protoc-22.3-linux-x86_64.zip
-          wget https://github.com/protocolbuffers/protobuf-javascript/releases/download/v3.21.2/protobuf-javascript-3.21.2-linux-x86_64.zip
-          echo "075ed6163fea314c415f67a4af68d1b6dbddc8fa8be35addf74e4c81812a9148  protobuf-javascript-3.21.2-linux-x86_64.zip" | sha256sum -c -
-          unzip protobuf-javascript-3.21.2-linux-x86_64.zip
-          npm i -g ts-protoc-gen@0.15.0 protobufjs@7.4.0 protobufjs-cli@1.1.3
-          PATH="${RUNNER_TEMP}/protoc/bin:$PATH" protoc --version
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '>=1.16'
@@ -199,10 +185,13 @@ jobs:
         # Same pin as the check_licenses job in cleanup.yml: this job writes the headers that
         # one checks, so a floating version could make them disagree.
         run: go install github.com/google/addlicense@v1.2.0
-      - name: Run protoc
+      - name: Generate wrappers
+        # The script installs its own toolchain into node_modules, which addlicense skips:
+        # the files there are third-party and gitignored.
         run: |
-          PATH="${RUNNER_TEMP}/protoc/bin:$PATH" ./compile_proto_wrappers.sh
-          "${HOME}/go/bin/addlicense" -c "Open Reaction Database Project Authors" -l apache .
+          ./compile_proto_wrappers.sh
+          "${HOME}/go/bin/addlicense" -c "Open Reaction Database Project Authors" -l apache \
+            -ignore 'node_modules/**' .
       - name: Check for drift
         run: |
           # Stage everything first: git diff reports only tracked modifications, so a wrapper
@@ -215,6 +204,42 @@ jobs:
             exit 1
           fi
 
+  test_proto_breaking:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # buf reads both baselines out of the local clone, which needs the full fetch: a
+          # shallow checkout has neither main's history nor the release tags.
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Install buf
+        # Pinned by package-lock.json: a floating version can report new findings on a
+        # schema that did not change.
+        run: npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
+      - name: Check for breaking schema changes
+        # Every .pb.gz and .parquet in ord-data is read by field number, so a renumbering
+        # quietly changes what existing records mean instead of failing loudly. A deliberate
+        # break lands with a breaking.ignore_only entry in buf.yaml, keyed by rule and by
+        # path from the repository root, so the exemption is reviewed with the change.
+        #
+        # The baseline is the remote-tracking ref: checking out a pull request leaves HEAD
+        # detached and creates no local main branch, so '#branch=main' resolves to nothing.
+        run: node_modules/.bin/buf breaking --against '.git#ref=origin/main'
+      - name: Check for breaking schema changes since the last release
+        # The check above compares a change with main, so it cannot see a break already on
+        # main -- one whose breaking.ignore_only entry a later change dropped, for instance.
+        # This compares with the newest release tag, which is the schema PyPI, npm, and the
+        # BSR serve: publish.yml's push_proto job picks the tag it pushes the same way. The
+        # tag is printed because a release cut while a pull request is open moves it.
+        if: ${{ !cancelled() }}
+        run: |
+          tag="$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
+          echo "Comparing against ${tag}"
+          node_modules/.bin/buf breaking --against ".git#tag=${tag}"
+
   test_js:
     runs-on: ubuntu-latest
     steps:
@@ -225,7 +250,69 @@ jobs:
       - name: Test NPM package
         run: |
           cd js/ord-schema
-          npm install-test
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
+          npm test
+      - name: Load the installed NPM package
+        run: |
+          # The generated files reach each other through ../../ord-schema/proto/, which resolves
+          # only while the package sits in a directory named ord-schema. Jest runs against the
+          # source tree, so this loads the packed package from node_modules as consumers do.
+          package="$(cd js/ord-schema && npm pack --pack-destination "${RUNNER_TEMP}" | tail -n 1)"
+          mkdir "${RUNNER_TEMP}/consumer"
+          cd "${RUNNER_TEMP}/consumer"
+          npm init -y
+          # The google-protobuf types the declarations import come from the package's own
+          # dependencies; tsc below fails with TS7016 when they are missing.
+          npm install "${RUNNER_TEMP}/${package}" typescript@5.8.3
+          node -e "
+            const ord = require('ord-schema');
+            const dataset = new ord.Dataset();
+            dataset.addReactions(new ord.Reaction());
+            if (ord.Dataset.deserializeBinary(dataset.serializeBinary()).getReactionsList().length !== 1) {
+              process.exit(1);
+            }
+          "
+          # Node's ESM loader sees only the names index.js lists, and the declarations promise
+          # every name require returns, so each one has to import by name.
+          node --input-type=module -e "
+            import { createRequire } from 'node:module';
+            import * as ord from 'ord-schema';
+            const names = Object.keys(createRequire(import.meta.url)('ord-schema'));
+            const missing = names.filter((name) => !(name in ord));
+            if (missing.length > 0) {
+              console.error('not importable by name from ESM:', missing.join(', '));
+              process.exit(1);
+            }
+          "
+          # The declarations also reach each other through ../../ord-schema/proto/. Under
+          # skipLibCheck an import that does not resolve turns the types into any without an
+          # error, so tsc checks the package's own declarations here: deep imports, named
+          # imports from the entry point, and a default import used as a namespace in value
+          # and type positions.
+          cat > consumer.ts <<'EOF'
+          import ord, { Dataset as EntryDataset, Reaction as EntryReaction } from 'ord-schema';
+          import { Dataset } from 'ord-schema/proto/dataset_pb';
+          import { Reaction } from 'ord-schema/proto/reaction_pb';
+          const reactions: Reaction[] = new Dataset().getReactionsList();
+          const entryReactions: EntryReaction[] = new EntryDataset().getReactionsList();
+          const reaction: ord.Reaction = ord.Reaction.deserializeBinary(new Uint8Array());
+          console.log(reactions.length, entryReactions.length, reaction.getIdentifiersList().length);
+          EOF
+          npx tsc --noEmit --strict --target es2022 --module esnext --moduleResolution bundler \
+            consumer.ts
+
+      - name: Test the protobufjs bundle
+        # Runs against the oldest protobufjs package.json allows, the runtime the bundle's map-key
+        # guard has to work with. The bundle imports "protobufjs/minimal", which bundlers resolve
+        # and Node's ESM loader does not, so the test goes through esbuild, as consumers load it.
+        run: |
+          cd js/ord-schema-protobufjs
+          floor="$(node -p "require('./package.json').dependencies.protobufjs.replace(/^\^/, '')")"
+          npm install --no-save --ignore-scripts --no-audit --no-fund --loglevel=error \
+            "protobufjs@${floor}"
+          npx --yes esbuild@0.28.2 test/map_keys.mjs --bundle --platform=node --format=esm \
+            --log-level=warning --outfile="${RUNNER_TEMP}/map_keys.mjs"
+          node "${RUNNER_TEMP}/map_keys.mjs"
 
   test_publish:
     runs-on: ubuntu-latest
@@ -234,7 +321,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
-      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: '3.11'
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -244,12 +331,12 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - name: Bump patch without commit (for publish dry-runs)
         run: |
-          uv pip install --system bump2version
-          # Dry-run first: assert .bumpversion.cfg and every configured file still contain the
+          uv pip install --system bump-my-version==1.5.1
+          # Dry-run first: assert .bumpversion.toml and every configured file still contain the
           # expected current_version / search patterns before we mutate the tree (misconfig or
           # version drift fails here without leaving a half-updated checkout).
-          bump2version patch --dry-run --verbose
-          bump2version patch --no-commit --no-tag --verbose
+          bump-my-version bump patch --dry-run --verbose
+          bump-my-version bump patch --no-commit --no-tag --verbose
       - name: Test python
         run: |
           # Same pre-upload steps as publish.yml; PyPI upload runs only on main with secrets.
@@ -262,12 +349,12 @@ jobs:
       - name: Test javascript
         run: |
           cd js/ord-schema
-          npm install
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
           npm run build
           npm publish --dry-run
       - name: Test javascript (protobufjs)
         run: |
           cd js/ord-schema-protobufjs
-          npm install
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
           npm run build
           npm publish --dry-run

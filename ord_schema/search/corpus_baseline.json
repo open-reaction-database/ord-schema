@@ -37,6 +37,10 @@
       "rows": 660671,
       "digest": "935ad09656ce2848b65b0629b39d1a5521746e186aff7d5c29e765afb5585790"
     },
+    "reaction_smarts": {
+      "rows": 547620,
+      "digest": "51d0605d28507a21ffaf9c0f74bdf1fcf04726be60406a3d3c91fac56de54631"
+    },
     "similarity_screen": {
       "rows": 179055,
       "digest": "ce16da3bbf515fdf0d528d6b68370a04c78ffde19f207b86130a36969b85eb4a"

@@ -12,7 +12,7 @@ relational database.
 Conceptually, an ORM is an abstraction on top of a relational database that allows data to be manipulated using
 object-oriented programming techniques. In our case, every protocol buffer message has an associated *mapper* that wraps
 a table in a relational database. For example, here is the definition of the `Mass` message in the [protocol buffer
-schema](https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/proto/reaction.proto), which is
+schema](https://github.com/open-reaction-database/ord-schema/blob/main/proto/ord-schema/proto/reaction.proto), which is
 used as a subfield in the `Amount` message:
 
 ```protobuf
