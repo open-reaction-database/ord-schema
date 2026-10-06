@@ -59,17 +59,17 @@ class ValidationOptions:
 
 @dataclasses.dataclass
 class ValidationOutput:
-    """Validation output: errors, warnings, and suggestions."""
+    """Validation output: errors, warnings, and info."""
 
     errors: list[str] = dataclasses.field(default_factory=list)
     warnings: list[str] = dataclasses.field(default_factory=list)
-    suggestions: list[str] = dataclasses.field(default_factory=list)
+    info: list[str] = dataclasses.field(default_factory=list)
 
     def extend(self, other: "ValidationOutput") -> None:
         """Appends the findings from another output to this one."""
         self.errors.extend(other.errors)
         self.warnings.extend(other.warnings)
-        self.suggestions.extend(other.suggestions)
+        self.info.extend(other.info)
 
 
 class Severity(IntEnum):
@@ -79,8 +79,10 @@ class Severity(IntEnum):
     enumerating members.
     """
 
-    # Detail that could almost always be recorded but was not; nothing is wrong.
-    SUGGESTION = 0
+    # Nothing is wrong. Named for the standard logging level. Most findings here
+    # suggest detail that could be recorded but was not, and say so in their text
+    # ("Suggestion: ..."), since the name alone does not ask a reader to act.
+    INFO = 0
     WARNING = 1
     ERROR = 2
 
@@ -114,9 +116,9 @@ class ValidationContext:
         """Records a finding worth surfacing that does not fail validation."""
         self.findings.append((message, Severity.WARNING))
 
-    def suggest(self, message: str) -> None:
-        """Records a detail the message could include to be more complete."""
-        self.findings.append((message, Severity.SUGGESTION))
+    def info(self, message: str) -> None:
+        """Records a finding that needs no action, such as a suggested addition."""
+        self.findings.append((message, Severity.INFO))
 
 
 def validate_datasets(
@@ -233,7 +235,7 @@ def validate_message(
             validates under ``context.options`` and ignores ``options``.
 
     Returns:
-        Errors, warnings, and suggestions accumulated over the message and, when
+        Errors, warnings, and info accumulated over the message and, when
         recursing, its submessages.
 
     Raises:
@@ -286,7 +288,7 @@ def validate_message(
         elif severity >= Severity.WARNING:
             output.warnings.append(warning_text)
         else:
-            output.suggestions.append(warning_text)
+            output.info.append(warning_text)
     return output
 
 
@@ -737,8 +739,9 @@ def _validate_reaction(
     ):
         # Only a suggestion: an unpublished dataset, such as an ELN export, has no
         # source to give yet.
-        context.suggest(
-            "Reaction provenance could include a doi, patent, or publication_url"
+        context.info(
+            "Suggestion: add a doi, patent, or publication_url to the reaction "
+            "provenance"
         )
 
 

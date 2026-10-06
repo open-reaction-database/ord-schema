@@ -65,7 +65,7 @@ reaction.provenance.record_created.person.email = "curie@example.edu"
 
 ### Validate
 
-Validation reports errors, warnings, and suggestions separately. Pass `raise_on_error=False` to inspect them instead of raising:
+Validation reports errors, warnings, and info separately. Pass `raise_on_error=False` to inspect them instead of raising:
 
 ```python
 from ord_schema import validations
@@ -73,7 +73,7 @@ from ord_schema import validations
 output = validations.validate_message(reaction, raise_on_error=False)
 print(output.errors)       # [] -- the reaction above is valid
 print(output.warnings)     # advisory only; submissions are not blocked on these
-print(output.suggestions)  # detail worth adding, such as a DOI for the reaction
+print(output.info)         # never a problem; mostly suggestions, such as adding a DOI
 ```
 
 RDKit writes parse diagnostics straight to stderr. `ord_schema.logging.silence_rdkit_logs()` quiets them.

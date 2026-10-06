@@ -876,12 +876,15 @@ def _reaction_with_source(**provenance) -> reaction_pb2.Reaction:
     return message
 
 
-def test_a_reaction_without_a_source_is_only_a_suggestion_by_default():
+def test_a_reaction_without_a_source_is_only_suggested_one():
     output = _run_validation(_reaction_with_source(), recurse=False)
     assert output.errors == []
     assert output.warnings == []
-    assert len(output.suggestions) == 1
-    assert "doi, patent, or publication_url" in output.suggestions[0]
+    assert len(output.info) == 1
+    assert output.info[0] == (
+        "Reaction: Suggestion: add a doi, patent, or publication_url to the "
+        "reaction provenance"
+    )
 
 
 @pytest.mark.parametrize(
@@ -895,18 +898,18 @@ def test_a_reaction_without_a_source_is_only_a_suggestion_by_default():
 def test_any_source_satisfies_the_suggestion(provenance):
     output = _run_validation(_reaction_with_source(**provenance), recurse=False)
     assert output.errors == []
-    assert output.suggestions == []
+    assert output.info == []
 
 
-def test_suggestions_never_raise_and_are_carried_by_extend():
+def test_info_never_raises_and_is_carried_by_extend():
     output = validations.ValidationOutput()
     for _ in range(2):
         output.extend(
             _run_validation(_reaction_with_source(), recurse=False, raise_on_error=True)
         )
     assert output.errors == []
-    assert len(output.suggestions) == 2
-    assert all(text.startswith("Reaction: ") for text in output.suggestions)
+    assert len(output.info) == 2
+    assert all(text.startswith("Reaction: Suggestion: ") for text in output.info)
 
 
 def test_missing_provenance():
