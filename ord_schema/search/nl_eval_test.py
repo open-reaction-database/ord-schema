@@ -127,6 +127,41 @@ class _SequenceClient:
         )
 
 
+class _RefusingClient:
+    """Declines every request the way the model's safety classifiers do.
+
+    Attributes:
+        messages: Itself, so ``client.messages.create`` reaches ``create``.
+    """
+
+    def __init__(self) -> None:
+        """Initializes the stub."""
+        self.messages = self
+
+    def create(self, **kwargs: Any) -> Any:
+        """Returns a refusal.
+
+        Args:
+            **kwargs: The request, which the stub ignores.
+
+        Returns:
+            A response with no content and a refusal stop reason.
+        """
+        del kwargs
+        usage = types.SimpleNamespace(
+            input_tokens=1,
+            output_tokens=1,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=0,
+        )
+        return types.SimpleNamespace(
+            content=[],
+            usage=usage,
+            stop_reason="refusal",
+            stop_details=types.SimpleNamespace(category="bio"),
+        )
+
+
 def _run(case, client, *, repair: bool = False) -> nl_eval.CaseResult:
     """Runs a case whose translation fails before any corpus is reached.
 
@@ -376,6 +411,24 @@ def test_an_expressible_question_that_does_not_compile_fails():
 
 def test_declining_an_expressible_question_fails():
     assert not _run(_CASE, _StubClient("cannot_answer", {"reason": "gave up"})).passed
+
+
+def test_a_safety_refusal_fails_the_case_and_is_recorded(tmp_path):
+    # A reader asking this question would be turned away, so the case fails rather
+    # than going unmeasured the way a rate limit does.
+    sink = nl_log.JsonlSink(tmp_path / "run.jsonl")
+    result = nl_eval.run_case(
+        _CASE,
+        cast(execute.Corpus, _StubCorpus()),
+        client=cast(Any, _RefusingClient()),
+        model="stub",
+        repair=True,
+        sink=sink,
+    )
+    assert not result.passed
+    assert "bio" in result.detail
+    (line,) = (tmp_path / "run.jsonl").read_text(encoding="utf-8").splitlines()
+    assert json.loads(line)["outcome"] == nl_log.Outcome.REFUSED
 
 
 def test_a_run_records_its_cases(tmp_path):

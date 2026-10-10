@@ -27,7 +27,7 @@ import anthropic
 import httpx
 import pyarrow as pa
 import pytest
-from anthropic.types import TextBlock, ToolUseBlock
+from anthropic.types import TextBlock, ThinkingBlock, ToolUseBlock
 
 from ord_schema import parquet
 from ord_schema.artifacts import projection, structures
@@ -87,11 +87,19 @@ class _Refusal:
     reason: str
 
 
+@dataclasses.dataclass(frozen=True)
+class _SafetyRefusal:
+    """A canned decline from the model's safety classifiers."""
+
+    category: str
+
+
 class _StubClient:
     """Returns canned responses in order, and records the requests it was given.
 
     A string entry becomes a text response, a dict becomes a ``build_query`` tool call,
-    and an exception is raised as though the API had raised it.
+    a list is the response's content as given, and an exception is raised as though the
+    API had raised it.
     """
 
     def __init__(self, *responses):
@@ -110,23 +118,38 @@ class _StubClient:
             cache_creation_input_tokens=0,
             cache_read_input_tokens=0,
         )
-        if isinstance(payload, str):
-            block: TextBlock | ToolUseBlock = TextBlock(type="text", text=payload)
-            stop = "end_turn"
+        if isinstance(payload, _SafetyRefusal):
+            return types.SimpleNamespace(
+                content=[],
+                usage=usage,
+                stop_reason="refusal",
+                stop_details=types.SimpleNamespace(category=payload.category),
+            )
+        if isinstance(payload, list):
+            content = payload
+        elif isinstance(payload, str):
+            content = [TextBlock(type="text", text=payload)]
         elif isinstance(payload, _Refusal):
-            block = ToolUseBlock(
-                type="tool_use",
-                id="toolu_stub",
-                name="cannot_answer",
-                input={"reason": payload.reason},
-            )
-            stop = "tool_use"
+            content = [
+                ToolUseBlock(
+                    type="tool_use",
+                    id="toolu_stub",
+                    name="cannot_answer",
+                    input={"reason": payload.reason},
+                )
+            ]
         else:
-            block = ToolUseBlock(
-                type="tool_use", id="toolu_stub", name="build_query", input=payload
-            )
-            stop = "tool_use"
-        return types.SimpleNamespace(content=[block], usage=usage, stop_reason=stop)
+            content = [
+                ToolUseBlock(
+                    type="tool_use", id="toolu_stub", name="build_query", input=payload
+                )
+            ]
+        stop = (
+            "tool_use"
+            if any(isinstance(block, ToolUseBlock) for block in content)
+            else "end_turn"
+        )
+        return types.SimpleNamespace(content=content, usage=usage, stop_reason=stop)
 
 
 def _stub(*responses) -> Any:
@@ -282,10 +305,71 @@ def test_an_unreachable_model_is_named_as_one():
         nl.translate("solvent reactions", client=client)
 
 
-def test_a_response_with_no_tool_call_is_refused():
-    client = _stub("I would rather chat about the weather.")
+def test_a_response_with_no_tool_call_is_handed_back_once():
+    # No tool is forced, so a turn in prose is possible and gets the repair turn.
+    client = _stub("Pyridine is a common solvent.", {"where": _SOLVENT})
+    assert _where(nl.translate("solvent reactions", client=client)).op == "exists"
+    reminder = client.requests[1]["messages"][-1]["content"]
+    assert "build_query" in reminder
+    assert "cannot_answer" in reminder
+
+
+def test_a_second_response_with_no_tool_call_raises():
+    client = _stub("I would rather chat.", "Still chatting.")
     with pytest.raises(nl.MalformedQueryError, match="no query"):
         nl.translate("solvent reactions", client=client)
+    assert len(client.requests) == 2
+
+
+def test_a_response_with_no_tool_call_raises_when_repair_is_off():
+    client = _stub("I would rather chat about the weather.")
+    with pytest.raises(nl.MalformedQueryError, match="no query") as raised:
+        nl.translate("solvent reactions", client=client, repair=False)
+    assert len(client.requests) == 1
+    # Paid for, though it built nothing to record as an attempt.
+    assert raised.value.usage.output == 1
+    assert not raised.value.attempts
+
+
+def test_the_repair_replays_the_whole_turn():
+    # A model that thinks needs its thinking back beside the tool call it led to.
+    thinking = ThinkingBlock(type="thinking", thinking="", signature="sig")
+    rejected = ToolUseBlock(
+        type="tool_use", id="toolu_stub", name="build_query", input={"where": _BAD_PATH}
+    )
+    client = _stub([thinking, rejected], {"where": _SOLVENT})
+    nl.translate("aspirin reactions", client=client)
+    assert client.requests[1]["messages"][1] == {
+        "role": "assistant",
+        "content": [thinking, rejected],
+    }
+
+
+def test_effort_is_sent_only_when_asked_for():
+    # Models without effort levels reject the parameter, so the default omits it.
+    client = _stub({"where": _SOLVENT}, {"where": _SOLVENT})
+    nl.translate("solvent reactions", client=client)
+    nl.translate("solvent reactions", client=client, effort="low")
+    assert "output_config" not in client.requests[0]
+    assert client.requests[1]["output_config"] == {"effort": "low"}
+
+
+def test_the_answer_call_takes_an_effort_too():
+    client = _stub("Two reactions.")
+    nl.answer(
+        "how many?", pa.table({"reaction_id": ["a", "b"]}), client=client, effort="low"
+    )
+    assert client.requests[0]["output_config"] == {"effort": "low"}
+
+
+def test_a_safety_refusal_is_named_as_one():
+    client = _stub(_SafetyRefusal("bio"))
+    with pytest.raises(nl.ModelRefusedError, match="bio") as raised:
+        nl.translate("solvent reactions", client=client)
+    # Nothing a repair could fix, so it is not handed back.
+    assert len(client.requests) == 1
+    assert nl.outcome_of(raised.value) == nl_log.Outcome.REFUSED
+    assert not issubclass(nl.ModelRefusedError, nl.UnanswerableError)
 
 
 def test_the_summary_states_the_row_count():
@@ -380,7 +464,9 @@ def test_a_refusal_is_not_repaired():
     assert len(client.requests) == 1
 
 
-def test_both_tools_are_offered_and_one_is_required():
+def test_both_tools_are_offered_and_neither_is_forced():
+    # Newer models refuse a forced tool_choice; one call at most leaves a repair one
+    # tool_use to answer.
     client = _stub({"where": _SOLVENT})
     nl.translate("solvent reactions", client=client)
     request = client.requests[0]
@@ -388,7 +474,7 @@ def test_both_tools_are_offered_and_one_is_required():
         "build_query",
         "cannot_answer",
     ]
-    assert request["tool_choice"] == {"type": "any"}
+    assert request["tool_choice"] == {"type": "auto", "disable_parallel_tool_use": True}
 
 
 def test_declining_is_told_apart_from_failing():

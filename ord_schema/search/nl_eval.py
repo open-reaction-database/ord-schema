@@ -285,6 +285,7 @@ def run_case(
     client: anthropic.Anthropic,
     model: str,
     repair: bool,
+    effort: str | None = None,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     sink: nl_log.Sink | None = None,
     session_id: str | None = None,
@@ -297,6 +298,7 @@ def run_case(
         client: Anthropic client.
         model: Which model translates.
         repair: Whether a failure gets the repair turn.
+        effort: How much the model thinks, or None for the model's default.
         timeout_seconds: Bounds the search, so a case that translates into something
             slow fails the run rather than stopping it.
         sink: Where each case's record goes; nothing is recorded if omitted. A run is
@@ -342,7 +344,7 @@ def run_case(
     # went wrong.
     try:
         translated = nl.translate(
-            case.question, client=client, model=model, repair=repair
+            case.question, client=client, model=model, effort=effort, repair=repair
         )
     except nl.UnanswerableError as error:
         record(
@@ -360,9 +362,9 @@ def run_case(
                 case, passed=False, detail=f"built a query, then declined: {error}"
             )
         return CaseResult(case, passed=not case.compiles, detail=f"declined: {error}")
-    except nl.MalformedQueryError as error:
+    except (nl.ModelRefusedError, nl.MalformedQueryError) as error:
         record(
-            nl_log.Outcome.MALFORMED,
+            nl.outcome_of(error),
             attempts=error.attempts,
             error=str(error),
             usage=error.usage,
@@ -370,8 +372,12 @@ def run_case(
         )
         # Never a pass, whatever the case expects. A model that built a query for an
         # inexpressible question reached the right verdict by the wrong road, and
-        # counting that as a refusal would hide the day it starts answering instead.
-        return CaseResult(case, passed=False, detail=f"did not compile: {error}")
+        # counting that as a refusal would hide the day it starts answering instead. A
+        # safety refusal fails too, rather than going unmeasured: the question was read
+        # and turned away, which is what a reader asking it would see.
+        refused = isinstance(error, nl.ModelRefusedError)
+        detail = str(error) if refused else f"did not compile: {error}"
+        return CaseResult(case, passed=False, detail=detail)
     try:
         table = corpus.search(translated.query, timeout_seconds=timeout_seconds)
     except Exception as error:  # noqa: BLE001
@@ -436,6 +442,12 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--projections", required=True, help="Glob for projections")
     parser.add_argument("--structures", required=True, help="Glob for structures")
     parser.add_argument("--model", default=nl.DEFAULT_MODEL, help="Model to translate")
+    parser.add_argument(
+        "--effort",
+        choices=nl.EFFORTS,
+        default=None,
+        help="How much the model thinks; the model's own default when omitted",
+    )
     parser.add_argument("--cases", type=pathlib.Path, default=CASES, help="Cases file")
     parser.add_argument(
         "--no-repair",
@@ -446,6 +458,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         "--pivots-dir",
         default=None,
         help="Directory of derived pivot artifacts, read rather than built",
+    )
+    parser.add_argument(
+        "--occurrences-dir",
+        default=None,
+        help="Directory of derived occurrence index artifacts, read rather than built",
     )
     parser.add_argument(
         "--pivot-budget-bytes",
@@ -487,6 +504,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         args.structures,
         require_current=args.require_current,
         pivots_dir=args.pivots_dir,
+        occurrences_dir=args.occurrences_dir,
         pivot_budget_bytes=args.pivot_budget_bytes,
         # Unbounded: a case is scored by comparing the reactions a translation returns
         # against the reference's. Bounded, both sides are arbitrary pages of their
@@ -500,6 +518,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 corpus,
                 client=client,
                 model=args.model,
+                effort=args.effort,
                 repair=not args.no_repair,
                 timeout_seconds=args.timeout_seconds,
                 sink=sink,
@@ -508,7 +527,10 @@ def main(argv: Sequence[str] | None = None) -> None:
             for case in cases
         ]
     logger.info(
-        "%s on %s", "with repair" if not args.no_repair else "first try", args.model
+        "%s on %s at %s effort",
+        "with repair" if not args.no_repair else "first try",
+        args.model,
+        args.effort or "default",
     )
     print(report(results))
 

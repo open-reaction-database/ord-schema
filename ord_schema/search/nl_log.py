@@ -98,6 +98,7 @@ class Outcome(enum.StrEnum):
     ANSWERED = "answered"
     EMPTY = "empty"
     DECLINED = "declined"
+    REFUSED = "refused"
     MALFORMED = "malformed"
     RATE_LIMITED = "rate_limited"
     UNAVAILABLE = "unavailable"
