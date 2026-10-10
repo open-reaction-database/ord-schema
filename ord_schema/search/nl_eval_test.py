@@ -293,6 +293,30 @@ def test_measuring_a_different_number_of_columns_fails():
     assert "measured 2 columns where the reference measures 3" in result.detail
 
 
+def test_a_group_with_no_value_may_be_kept_or_dropped():
+    # "The highest yield each dataset reports" over a dataset reporting none is a null
+    # either way; narrowing to datasets with a yield first is the same answer.
+    expected = pa.table({"dataset_id": ["a", "b"], "best": [90.0, None]})
+    returned = pa.table({"dataset_id": ["a"], "best": [90.0]})
+    assert nl_eval.score_measures(
+        _CASE, returned, expected, ordered=False, groups=1
+    ).passed
+
+
+def test_a_group_with_a_value_cannot_be_dropped():
+    expected = pa.table({"dataset_id": ["a", "b"], "best": [90.0, 40.0]})
+    returned = pa.table({"dataset_id": ["a"], "best": [90.0]})
+    assert not nl_eval.score_measures(
+        _CASE, returned, expected, ordered=False, groups=1
+    ).passed
+
+
+def test_a_sorted_question_without_an_aggregate_keeps_its_null_rows():
+    expected = pa.table({"value": [90.0, None]})
+    returned = pa.table({"value": [90.0]})
+    assert not nl_eval.score_measures(_CASE, returned, expected, ordered=True).passed
+
+
 def test_an_integer_count_and_a_double_one_are_the_same_answer():
     result = nl_eval.score_measures(
         _CASE,

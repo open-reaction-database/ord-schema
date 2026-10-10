@@ -161,7 +161,12 @@ def _frame(table: pa.Table, columns: pd.Index, *, ordered: bool) -> pd.DataFrame
 
 
 def score_measures(
-    case: EvalCase, returned: pa.Table, expected: pa.Table, *, ordered: bool
+    case: EvalCase,
+    returned: pa.Table,
+    expected: pa.Table,
+    *,
+    ordered: bool,
+    groups: int | None = None,
 ) -> CaseResult:
     """Returns whether a translation measured what the reference measures.
 
@@ -172,6 +177,10 @@ def score_measures(
         ordered: Whether the reference sorts, in which case the sequence has to match
             and not only the rows. A question asking for the highest of something is
             answered wrongly by the right rows in the wrong order.
+        groups: How many leading columns are group_by paths, where the reference
+            aggregates; None where it only sorts. A row whose every measure is null is
+            dropped from both sides: a group with no value states nothing, so keeping
+            it and narrowing it away are the same answer.
 
     Returns:
         The result. Values compare within pandas' default relative tolerance, which is
@@ -188,11 +197,18 @@ def score_measures(
             ),
         )
     columns = expected.to_pandas().columns
+    measures = [] if groups is None else list(columns[groups:])
+
+    def comparable(table: pa.Table) -> pd.DataFrame:
+        """Returns the table relabeled, ordered, and without its empty groups."""
+        frame = _frame(table, columns, ordered=ordered)
+        if not measures:
+            return frame
+        return frame[frame[measures].notna().any(axis=1)].reset_index(drop=True)
+
     try:
         assert_frame_equal(
-            _frame(returned, columns, ordered=ordered),
-            _frame(expected, columns, ordered=ordered),
-            check_dtype=False,
+            comparable(returned), comparable(expected), check_dtype=False
         )
     except AssertionError as difference:
         first = str(difference).strip().splitlines()[0]
@@ -262,7 +278,17 @@ def _score_against_reference(
             case, passed=False, detail=f"the reference query failed: {error}"
         )
     if reference.aggregate is not None or reference.order_by:
-        return score_measures(case, table, expected, ordered=bool(reference.order_by))
+        return score_measures(
+            case,
+            table,
+            expected,
+            ordered=bool(reference.order_by),
+            groups=(
+                None
+                if reference.aggregate is None
+                else len(reference.aggregate.group_by)
+            ),
+        )
     if "reaction_id" not in table.schema.names:
         # The reference asks which reactions; a translation that grouped them answered
         # a different question, and there is nothing to compare it against.
