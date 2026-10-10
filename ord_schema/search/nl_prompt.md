@@ -127,8 +127,8 @@ Rules that keep a query answerable:
   half-open pair — `ge` its January 1 and `lt` the next year's. The grammar has no date
   arithmetic and no notion of today, so a question about "the last five years" or
   "recently" cannot be written; decline it rather than hardcoding a year. When a
-  reaction was recorded is `provenance.record_created.time`; when it was carried out is
-  `provenance.experiment_start`.
+  reaction was recorded is `provenance.record_created.time.timestamp`; when it was
+  carried out is `provenance.experiment_start.timestamp`.
 - "The most common X", "how many of each X", and anything else that groups by something
   under a repeated level needs `aggregate.over`, which makes the rows the elements of
   that level rather than reactions. `group_by` and measure paths are then relative to
