@@ -628,7 +628,7 @@ found = corpus.search(
         }
     )
 )
-records = corpus.reactions(found.column("reaction_id").to_pylist())
+records = corpus.reactions(found.column("reaction_id"))
 reactions = [
     reaction_pb2.Reaction.FromString(blob)
     for blob in records.column("reaction").to_pylist()

@@ -581,18 +581,22 @@ def _pair_sources(
         One record per source, in the order of ``pairs``.
 
     Raises:
-        PairingError: If no file matches, a match is not a source dataset, two matches
-            hold the same content, a projection's source is not among the matches, or
-            a match restates a dataset no projection does.
+        PairingError: If no file matches, a match cannot be read as a source dataset,
+            two matches hold the same content, a projection's source is not among the
+            matches, or a match restates a dataset no projection does.
     """
     start = time.perf_counter()
     views: dict[str, parquet.DatasetView] = {}
     for path in sorted(glob.glob(pattern, recursive=True)):
+        # The footer is read on opening and every reaction on hashing, so a file that is
+        # not a source and one whose reactions cannot be read both surface here.
         try:
             view = parquet.DatasetView(path)
-        except ValueError as error:
-            raise PairingError(f"{path} is not a source dataset: {error}") from error
-        digest = view.md5()
+            digest = view.md5()
+        except (OSError, ValueError) as error:
+            raise PairingError(
+                f"{path} is not a readable source dataset: {error}"
+            ) from error
         if digest in views:
             raise PairingError(
                 f"{path} and {views[digest].path} are the same source dataset; which "
@@ -1334,17 +1338,18 @@ class Corpus:
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
-                partner on the other, a pair's stamps disagree about the source
-                dataset, or -- with ``require_current`` -- any artifact is stale. Given
-                ``sources_pattern``, also if it matches nothing or a file that is not a
-                source dataset, two of its files hold the same content, a projection's
-                source is not among them, or one restates a dataset no projection does.
-                With ``warm``, also whatever building the occurrence index and the
-                substructure library refuse: a corpus stating a reaction twice, one
-                whose index does not reach every structure it holds, one whose IDs are
-                not every integer from zero, or pivot artifacts over an indexed level
-                that belong to another corpus, all of which otherwise surface on the
-                first query that wants what refused them rather than at open.
+                partner on the other, a pair's stamps disagree about the source dataset,
+                or -- with ``require_current`` -- any artifact is stale. Given
+                ``sources_pattern``, also if it matches nothing or a file it cannot read
+                as a source dataset, two of its files hold the same content, a
+                projection's source is not among them, or one restates a dataset no
+                projection does. With ``warm``, also whatever building the occurrence
+                index and the substructure library refuse: a corpus stating a reaction
+                twice, one whose index does not reach every structure it holds, one
+                whose IDs are not every integer from zero, or pivot artifacts over an
+                indexed level that belong to another corpus, all of which otherwise
+                surface on the first query that wants what refused them rather than at
+                open.
             duckdb.OutOfMemoryException: With ``warm``, if DuckDB is held below what the
                 occurrence index wants to build; see ``check_index`` for that floor, and
                 for the container cap that kills the process rather than raising.
@@ -1463,9 +1468,8 @@ class Corpus:
         pairs, self._fingerprint = _pair(
             projection_pattern, structures_pattern, require_current
         )
-        # The fingerprint digests the artifacts' stamps and nothing of the sources, and
-        # names them all the same: a source pairs only with the projection whose stamps
-        # name its hash.
+        # The fingerprint digests only the artifacts' stamps, which name the sources
+        # too: a source pairs only with the projection whose stamps record its hash.
         self._sources = (
             _pair_sources(sources_pattern, pairs)
             if sources_pattern is not None
@@ -1658,10 +1662,10 @@ class Corpus:
     def _prepare_sources(self, sources: list[_Source]) -> None:
         """Publishes ``corpus_sources``: every source's records beside its dataset ID.
 
-        A view over the files rather than a table, so a fetch reads only what it asks
-        for and the corpus holds none of the reactions. The ID filter a fetch applies
-        reaches the Parquet scan through the join as a range on ``reaction_id``, the
-        same scan a read of the files alone gets.
+        A view over the files rather than a table, so the corpus holds none of the
+        reactions. The ID filter a fetch applies reaches the Parquet scan through the
+        join as a range on ``reaction_id``, the same scan a read of the files alone
+        gets; see ``reactions`` for what that range costs.
 
         Args:
             sources: The paired sources, from ``_pair_sources``.
@@ -3186,7 +3190,9 @@ class Corpus:
             )
         return self._sources
 
-    def reactions(self, reaction_ids: Iterable[str]) -> pa.Table:
+    def reactions(
+        self, reaction_ids: Iterable[str] | pa.Array | pa.ChunkedArray
+    ) -> pa.Table:
         """Returns the source records of the given reactions.
 
         What a search returns is reaction IDs; this is how a caller reaches the
@@ -3201,7 +3207,7 @@ class Corpus:
 
         Args:
             reaction_ids: The reactions wanted, typically a search's ``reaction_id``
-                column as a list.
+                column, as the pyarrow column or as a list.
 
         Returns:
             Columns ``reaction_id``, ``dataset_id``, and ``reaction``, the serialized
@@ -3216,6 +3222,9 @@ class Corpus:
                 which record answers would be arbitrary.
         """
         self._paired_sources()
+        if isinstance(reaction_ids, (pa.Array, pa.ChunkedArray)):
+            # DuckDB binds Python strings, not the pyarrow scalars iterating one yields.
+            reaction_ids = reaction_ids.to_pylist()
         asked = list(dict.fromkeys(reaction_ids))
         if self._max_rows is not None and len(asked) > self._max_rows:
             raise ValueError(

@@ -1225,6 +1225,14 @@ def test_a_search_s_hits_fetch_their_reactions(sourced_corpus):
         }
 
 
+def test_a_search_s_column_is_fetched_without_converting_it(sourced_corpus):
+    # What a search returns is a pyarrow table, so its column is what a caller holds.
+    column = pa.chunked_array([["ord-aa02", "ord-aa01"]])
+    for asked in (column, column.combine_chunks()):
+        table = sourced_corpus.reactions(asked)
+        assert table.column("reaction_id").to_pylist() == ["ord-aa02", "ord-aa01"]
+
+
 def test_opening_with_sources_logs_what_hashing_them_cost(corpus_dir, caplog):
     # Hashing reads every reaction, which over ORD is most of what opening costs, so a
     # slow start is explained in the log rather than left to look like a hang.
@@ -1301,8 +1309,21 @@ def test_a_sources_pattern_matching_nothing_is_refused(corpus_dir, tmp_path):
         )
 
 
+def test_a_source_whose_reactions_cannot_be_read_is_refused(corpus_dir, tmp_path):
+    # The footer reads, so the file opens; hashing its damaged reactions is what fails.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    source = root / "data" / "ord_dataset-aa.parquet"
+    chunk = pq.ParquetFile(source).metadata.row_group(0).column(1)
+    damaged = bytearray(source.read_bytes())
+    start = chunk.data_page_offset + 8
+    damaged[start : start + 32] = b"\x00" * 32
+    source.write_bytes(bytes(damaged))
+    with pytest.raises(execute.PairingError, match="not a readable source dataset"):
+        _with_sources(root)
+
+
 def test_a_sources_pattern_matching_an_artifact_is_refused(corpus_dir):
-    with pytest.raises(execute.PairingError, match="is not a source dataset"):
+    with pytest.raises(execute.PairingError, match="not a readable source dataset"):
         execute.Corpus(
             str(corpus_dir / "projections" / "*.parquet"),
             str(corpus_dir / "structures" / "*.parquet"),
