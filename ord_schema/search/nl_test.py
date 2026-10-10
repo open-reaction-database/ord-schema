@@ -210,6 +210,21 @@ def test_a_tree_returned_as_a_json_string_is_still_understood():
     assert _where(nl.translate("solvent reactions", client=client)).op == "exists"
 
 
+def test_a_tree_closed_with_a_brace_too_many_is_still_understood():
+    # Haiku 5.5 often closes an encoded predicate with the outer query's brace too.
+    client = _stub({"where": json.dumps(_SOLVENT) + "}"})
+    assert _where(nl.translate("solvent reactions", client=client)).op == "exists"
+    assert len(client.requests) == 1
+
+
+def test_a_string_with_more_than_closers_after_it_stays_a_string():
+    # Only stray closers are dropped; anything else after the value means the string
+    # was not an encoded value at all.
+    assert nl._coerce('{"a": 1} trailing') == '{"a": 1} trailing'
+    assert nl._coerce("aspirin") == "aspirin"
+    assert nl._coerce('{"a": "[Pd]"}]}') == {"a": "[Pd]"}
+
+
 def test_a_tree_returned_as_an_object_is_understood_too():
     client = _stub({"where": _SOLVENT})
     assert _where(nl.translate("solvent reactions", client=client)).op == "exists"

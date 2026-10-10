@@ -307,6 +307,10 @@ def _coerce(value: Any) -> Any:
     back is the normal path rather than a fallback: it is what both measured models do
     most of the time.
 
+    A model encoding the tree that way often closes it with one brace too many, the
+    outer query's, so closers after a complete value are dropped rather than failing
+    the parse: they add nothing to what the value says.
+
     Args:
         value: Whatever the tool call carried.
 
@@ -315,9 +319,12 @@ def _coerce(value: Any) -> Any:
     """
     if isinstance(value, str):
         try:
-            return _coerce(json.loads(value))
-        except (json.JSONDecodeError, TypeError):
+            decoded, end = json.JSONDecoder().raw_decode(value.strip())
+        except json.JSONDecodeError:
             return value
+        if value.strip()[end:].strip(" \t\n\r}]"):
+            return value
+        return _coerce(decoded)
     if isinstance(value, dict):
         return {key: _coerce(item) for key, item in value.items()}
     if isinstance(value, list):
