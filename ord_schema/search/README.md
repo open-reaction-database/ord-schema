@@ -430,12 +430,11 @@ takes that limit as an argument; left unset, DuckDB claims about 80% of the mach
 of the container's cap, which it does read. The step-by-step breakdown is in
 [the logbook entry][cache-entry], finding 16.
 
-**Sources cost disk and startup, not memory.** A corpus given `sources_pattern` reads
-ord-data's 53 source files, about 1.2 GiB on disk, on demand rather than holding them:
-nothing is built, and a fetch costs about 0.02s for one reaction and 0.2s for a batch of
-ten or a thousand. What they cost is hashing each one at open to pair it with its
-projection, 12.5s over ORD, which took opening a corpus with `warm=False` from 4–4.5s to
-17s.
+**Sources cost disk and startup.** A corpus given `sources_pattern` reads ord-data's 53
+source files, about 1.2 GiB on disk, on demand rather than holding them: nothing is
+built, and a fetch costs about 0.02s for one reaction and 0.2s for a batch of ten or a
+thousand. What they cost is hashing each one at open to pair it with its projection,
+12.5s over ORD, which took opening a corpus with `warm=False` from 4–4.5s to 17s.
 
 **A reduction reads the pivot, and what is left is the scan.** Ranking the corpus by a
 reaction's best yield walks three nested lists over every reaction on the projection route
