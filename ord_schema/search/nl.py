@@ -64,7 +64,7 @@ logger = get_logger(__name__)
 # Haiku translates most questions correctly and costs a fraction of what Opus does; the
 # repair turn is what closes much of the gap. Every entry point takes a model, because
 # which one is worth its price is a question for an eval set rather than for this line.
-DEFAULT_MODEL = "claude-haiku-4-5"
+DEFAULT_MODEL = "claude-haiku-5-5"
 # Read in preference to ANTHROPIC_API_KEY, which a shell holds for whatever else the
 # person at it is doing. A key that answers corpus questions is a deployment's, billed
 # to whoever runs the corpus, and naming it apart keeps a general-purpose key from
