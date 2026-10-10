@@ -356,6 +356,7 @@ def run_case(
             nl_log.Ask(
                 question=case.question,
                 model=model,
+                effort=effort,
                 corpus_fingerprint=corpus.fingerprint,
                 prompt_fingerprint=nl.prompt_fingerprint(),
                 outcome=outcome,
@@ -376,6 +377,7 @@ def run_case(
         record(
             nl_log.Outcome.DECLINED,
             attempts=error.attempts,
+            turns=error.turns,
             declined_reason=str(error),
             usage=error.usage,
             translate_ms=error.elapsed_ms,
@@ -392,6 +394,7 @@ def run_case(
         record(
             nl.outcome_of(error),
             attempts=error.attempts,
+            turns=error.turns,
             error=str(error),
             usage=error.usage,
             translate_ms=error.elapsed_ms,
@@ -413,6 +416,7 @@ def run_case(
         record(
             nl.outcome_of(error),
             attempts=translated.attempts,
+            turns=translated.turns,
             error=str(error),
             usage=translated.usage,
             translate_ms=translated.elapsed_ms,
@@ -421,6 +425,7 @@ def run_case(
     record(
         nl_log.Outcome.ANSWERED if table.num_rows else nl_log.Outcome.EMPTY,
         attempts=translated.attempts,
+        turns=translated.turns,
         row_count=table.num_rows,
         usage=translated.usage,
         translate_ms=translated.elapsed_ms,

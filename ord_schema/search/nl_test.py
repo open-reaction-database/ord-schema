@@ -329,6 +329,29 @@ def test_a_response_with_no_tool_call_is_handed_back_once():
     assert "cannot_answer" in reminder
 
 
+def test_a_repair_after_a_reply_in_prose_counts_both_turns():
+    # One attempt, since the first turn wrote no query; the turns are what say a repair
+    # ran, and the log reads "repaired" from them.
+    client = _stub("Pyridine is a common solvent.", {"where": _SOLVENT})
+    translated = nl.translate("solvent reactions", client=client)
+    assert len(translated.attempts) == 1
+    assert translated.turns == 2
+
+
+def test_a_first_try_is_one_turn():
+    assert (
+        nl.translate("solvent reactions", client=_stub({"where": _SOLVENT})).turns == 1
+    )
+
+
+def test_a_failure_carries_the_turns_it_took():
+    client = _stub("I would rather chat.", _Refusal("no"))
+    with pytest.raises(nl.UnanswerableError) as raised:
+        nl.translate("solvent reactions", client=client)
+    assert raised.value.turns == 2
+    assert not raised.value.attempted
+
+
 def test_a_second_response_with_no_tool_call_raises():
     client = _stub("I would rather chat.", "Still chatting.")
     with pytest.raises(nl.MalformedQueryError, match="no query"):
@@ -561,6 +584,20 @@ def test_a_malformed_failure_reports_the_attempts_it_paid_for():
         nl.translate("solvent reactions", client=client)
     assert len(caught.value.attempts) == 2
     assert all(attempt.error for attempt in caught.value.attempts)
+
+
+def test_ask_records_the_effort_and_the_turns(corpus):
+    sink = _CollectingSink()
+    nl.ask(
+        "solvent reactions",
+        corpus,
+        client=_stub("Prose first.", {"where": _SOLVENT}, "One reaction."),
+        effort="low",
+        sink=sink,
+    )
+    (event,) = sink.events
+    assert event["effort"] == "low"
+    assert event["turns"] == 2
 
 
 def test_ask_records_the_question_and_what_it_became(corpus):

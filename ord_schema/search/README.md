@@ -694,7 +694,9 @@ infers `VARCHAR`, and a read spanning both would refuse to union them. `read()` 
 them anyway, which is what covers a client that minted its own.
 
 Read it with `nl_log.read()`, which folds the verdicts onto their asks and derives
-`translation` and `repaired` from the attempts:
+`translation` from the attempts and `repaired` from the turns, since a first turn that
+answered in prose wrote no attempt. Each ask also records the `effort` it was translated
+at, so runs at two levels read as the different measurements they are:
 
 ```python
 nl_log.read("nl-log/parquet/*.parquet", "nl-log/raw/dt=*/*.json",

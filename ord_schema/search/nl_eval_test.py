@@ -455,6 +455,25 @@ def test_a_safety_refusal_fails_the_case_and_is_recorded(tmp_path):
     assert json.loads(line)["outcome"] == nl_log.Outcome.REFUSED
 
 
+def test_a_case_records_the_effort_and_the_turns(tmp_path):
+    # Scores, costs, and times at two effort levels are different measurements, and a
+    # run's records are what tells them apart afterwards.
+    sink = nl_log.JsonlSink(tmp_path / "run.jsonl")
+    nl_eval.run_case(
+        _INEXPRESSIBLE,
+        cast(execute.Corpus, _StubCorpus()),
+        client=cast(Any, _StubClient("cannot_answer", {"reason": "no comparison"})),
+        model="stub",
+        effort="low",
+        repair=False,
+        sink=sink,
+    )
+    (line,) = (tmp_path / "run.jsonl").read_text(encoding="utf-8").splitlines()
+    event = json.loads(line)
+    assert event["effort"] == "low"
+    assert event["turns"] == 1
+
+
 def test_a_run_records_its_cases(tmp_path):
     # The measurement that exists today runs from a laptop, and recording it is the
     # reason the log is a file and a bucket rather than a database behind a tunnel.

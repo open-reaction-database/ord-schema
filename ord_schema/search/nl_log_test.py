@@ -321,6 +321,42 @@ def test_a_month_of_clean_attempts_reads_beside_one_holding_a_rejection(tmp_path
     assert found == [("0f3c", False), ("7b21", True)]
 
 
+def test_a_repair_that_left_one_attempt_reads_as_repaired(tmp_path):
+    # A first turn in prose writes no attempt, so only the turn count says a repair ran;
+    # a record without one, as every record written before turns were counted, still
+    # reads from its attempts.
+    sink = nl_log.JsonlSink(tmp_path / "log.jsonl")
+    sink.write(nl_log.event(_ask(record_id="0001", turns=2)))
+    sink.write(nl_log.event(_ask(record_id="0002", turns=1)))
+    uncounted = nl_log.event(
+        _ask(
+            record_id="0003",
+            attempts=(
+                nl_log.Attempt(translation={"op": "eq"}, error="no such path"),
+                nl_log.Attempt(translation=_QUERY, error=None),
+            ),
+        )
+    )
+    del uncounted["turns"]
+    sink.write(uncounted)
+    found = nl_log.read(
+        str(tmp_path / "log.jsonl"),
+        statement="SELECT record_id, repaired FROM log ORDER BY record_id",
+    ).fetchall()
+    assert found == [("0001", True), ("0002", False), ("0003", True)]
+
+
+def test_the_effort_is_recorded_beside_the_model(tmp_path):
+    sink = nl_log.JsonlSink(tmp_path / "log.jsonl")
+    sink.write(nl_log.event(_ask(record_id="0001", effort="low")))
+    sink.write(nl_log.event(_ask(record_id="0002")))
+    found = nl_log.read(
+        str(tmp_path / "log.jsonl"),
+        statement="SELECT record_id, effort FROM log ORDER BY record_id",
+    ).fetchall()
+    assert found == [("0001", "low"), ("0002", None)]
+
+
 def test_a_log_of_uuids_reads_beside_one_of_opaque_tokens(tmp_path):
     # A client mints its own session_id. All-dashed-UUID infers as UUID and anything
     # else infers as VARCHAR, and a read spanning both refuses to union them.

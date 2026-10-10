@@ -159,6 +159,9 @@ class Ask:
     Attributes:
         question: The question, in English.
         model: Which model translated.
+        effort: The effort level the model was asked to think at, or None where the
+            request left it to the model's default. Scores, costs, and times at two
+            levels are different measurements.
         corpus_fingerprint: The corpus the query ran against, so the record stays
             reproducible without holding the rows.
         prompt_fingerprint: Which translator wrote this, so a record from months ago
@@ -167,6 +170,10 @@ class Ask:
         attempts: Every ``build_query`` call, in order. Empty where the model declined
             without writing a query, which is how "read the question and said no" is
             told apart from "backed off once the compiler refused a guess".
+        turns: How many times the model was asked to translate: one, or two where the
+            first turn was handed back. More than the attempts where a turn wrote no
+            query -- a reply in prose, or a decline -- so it is what says a repair ran;
+            None where it was not counted.
         row_count: How many reactions came back, where the search ran.
         declined_reason: What the model said the grammar lacks.
         error: The failure, where one ended the ask.
@@ -196,8 +203,10 @@ class Ask:
     model: str
     corpus_fingerprint: str
     outcome: Outcome
+    effort: str | None = None
     prompt_fingerprint: str = ""
     attempts: Sequence[Attempt] = ()
+    turns: int | None = None
     row_count: int | None = None
     declined_reason: str | None = None
     error: str | None = None
@@ -223,7 +232,8 @@ def event(ask: Ask) -> dict[str, Any]:
     Returns:
         A dict of JSON primitives, the model-authored payloads among them serialized
         to strings. It holds nothing ``read`` can derive: the translation is the last
-        attempt no error rejected, and a repair fired when there is more than one.
+        attempt no error rejected, and a repair fired when there was more than one
+        turn.
 
         ``attempts`` is one string rather than a list of structs for the same reason a
         translation is: a month in which every attempt compiled writes ``"error": null``
@@ -250,12 +260,14 @@ def event(ask: Ask) -> dict[str, Any]:
             ],
             sort_keys=True,
         ),
+        "turns": ask.turns,
         "outcome": str(ask.outcome),
         "row_count": ask.row_count,
         "declined_reason": ask.declined_reason,
         "error": ask.error,
         "answer_text": ask.answer_text,
         "model": ask.model,
+        "effort": ask.effort,
         "corpus_fingerprint": ask.corpus_fingerprint,
         "prompt_fingerprint": ask.prompt_fingerprint,
         "usage": dataclasses.asdict(ask.usage),
@@ -481,6 +493,8 @@ SELECT
     NULL::VARCHAR AS record_id,
     NULL::VARCHAR AS session_id,
     NULL::VARCHAR AS attempts,
+    NULL::BIGINT AS turns,
+    NULL::VARCHAR AS effort,
     NULL::VARCHAR AS question,
     NULL::VARCHAR AS answer_text,
     NULL::VARCHAR AS value,
@@ -528,7 +542,9 @@ verdicts AS (
 )
 SELECT
     asks.* EXCLUDE (event, value, comment, verdict, reference, note, promoted),
-    coalesce(json_array_length(asks.attempts), 0) > 1 AS repaired,
+    -- A record without a turn count falls back on its attempts, which miss a repair
+    -- after a turn that wrote no query.
+    coalesce(asks.turns, json_array_length(asks.attempts), 0) > 1 AS repaired,
     list_last(
         list_transform(
             list_filter(
@@ -580,10 +596,10 @@ def read(
         connection: DuckDB connection; an in-process one is opened if omitted.
 
     Returns:
-        One row per question, carrying ``translation`` and ``repaired`` derived from
-        the attempts, and whatever verdicts were left on it. An event read twice --
-        through overlapping globs, or a compacted month beside the days it folded --
-        counts once.
+        One row per question, carrying ``translation`` derived from the attempts,
+        ``repaired`` from the turns, and whatever verdicts were left on it. An event
+        read twice -- through overlapping globs, or a compacted month beside the days it
+        folded -- counts once.
 
     Raises:
         ValueError: If no source was given. A caller splatting a computed list has an

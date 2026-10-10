@@ -164,6 +164,8 @@ class NLQueryError(Exception):
 
     Attributes:
         attempts: Every ``build_query`` call made before giving up, in order.
+        turns: How many times the model was asked to translate before giving up, which
+            exceeds the attempts where a turn wrote no query.
         usage: What the whole failed translation cost, including turns that produced no
             attempt.
         elapsed_ms: Wall time spent before the failure.
@@ -173,6 +175,7 @@ class NLQueryError(Exception):
         self,
         *args: object,
         attempts: Sequence[nl_log.Attempt] = (),
+        turns: int = 0,
         usage: nl_log.Usage | None = None,
         elapsed_ms: float = 0.0,
     ) -> None:
@@ -181,11 +184,13 @@ class NLQueryError(Exception):
         Args:
             *args: Passed to ``Exception``.
             attempts: The queries built before giving up.
+            turns: How many times the model was asked.
             usage: What those turns cost.
             elapsed_ms: Wall time spent.
         """
         super().__init__(*args)
         self.attempts = tuple(attempts)
+        self.turns = turns
         self.usage = usage if usage is not None else nl_log.Usage()
         self.elapsed_ms = elapsed_ms
 
@@ -242,12 +247,15 @@ class Translation:
             what prompt work runs on, and what pricing a repair turn needs.
         usage: What the whole translation cost.
         elapsed_ms: Wall time spent translating.
+        turns: How many times the model was asked: two where the first turn was
+            handed back, whether or not it wrote a query to record as an attempt.
     """
 
     query: query.Query
     attempts: tuple[nl_log.Attempt, ...]
     usage: nl_log.Usage
     elapsed_ms: float
+    turns: int = 1
 
 
 @dataclasses.dataclass(frozen=True)
@@ -580,6 +588,7 @@ def translate(
     started = time.monotonic()
     attempts: list[nl_log.Attempt] = []
     spent = nl_log.Usage()
+    turns = 0
 
     def elapsed() -> float:
         return (time.monotonic() - started) * 1000
@@ -592,13 +601,15 @@ def translate(
         leave a refusal looking free.
         """
         error.attempts = tuple(attempts)
+        error.turns = turns
         error.usage = spent + error.usage
         error.elapsed_ms = elapsed()
         return error
 
     def call(messages: list[MessageParam]) -> _Turn:
-        """Returns one turn, its cost added to what this translation spent."""
-        nonlocal spent
+        """Returns one turn, counted, its cost added to what this translation spent."""
+        nonlocal spent, turns
+        turns += 1
         try:
             turn = _call(client, model, messages, effort)
         except NLQueryError as error:
@@ -624,7 +635,7 @@ def translate(
     first = call(messages)
     parsed, rejection = judged(first)
     if parsed is not None:
-        return Translation(parsed, tuple(attempts), spent, elapsed())
+        return Translation(parsed, tuple(attempts), spent, elapsed(), turns)
     if not repair:
         raise failed(MalformedQueryError(rejection))
     logger.info("repairing a translation: %s", rejection)
@@ -640,7 +651,7 @@ def translate(
         # One repair, never a loop: a model that missed twice with the compiler's own
         # suggestion in hand is not going to find it on the third paid attempt.
         raise failed(MalformedQueryError(rejection))
-    return Translation(parsed, tuple(attempts), spent, elapsed())
+    return Translation(parsed, tuple(attempts), spent, elapsed(), turns)
 
 
 def summarize(table: pa.Table, *, rows: int = 5) -> str:
@@ -835,6 +846,7 @@ def ask(
             nl_log.Ask(
                 question=question,
                 model=model,
+                effort=effort,
                 corpus_fingerprint=corpus_fingerprint,
                 prompt_fingerprint=translator,
                 outcome=outcome,
@@ -852,6 +864,7 @@ def ask(
         record(
             outcome_of(error),
             attempts=error.attempts,
+            turns=error.turns,
             declined_reason=(
                 str(error) if isinstance(error, UnanswerableError) else None
             ),
@@ -867,6 +880,7 @@ def ask(
         record(
             outcome_of(error),
             attempts=translated.attempts,
+            turns=translated.turns,
             error=str(error),
             usage=translated.usage,
             translate_ms=translated.elapsed_ms,
@@ -880,6 +894,7 @@ def ask(
         record(
             outcome_of(error),
             attempts=translated.attempts,
+            turns=translated.turns,
             row_count=table.num_rows,
             error=str(error),
             usage=translated.usage + error.usage,
@@ -890,6 +905,7 @@ def ask(
     record(
         nl_log.Outcome.ANSWERED if table.num_rows else nl_log.Outcome.EMPTY,
         attempts=translated.attempts,
+        turns=translated.turns,
         row_count=table.num_rows,
         answer_text=described.text,
         usage=translated.usage + described.usage,
