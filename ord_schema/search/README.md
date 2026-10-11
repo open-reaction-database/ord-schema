@@ -430,6 +430,12 @@ takes that limit as an argument; left unset, DuckDB claims about 80% of the mach
 of the container's cap, which it does read. The step-by-step breakdown is in
 [the logbook entry][cache-entry], finding 16.
 
+**Sources cost disk and startup.** A corpus given `sources_pattern` reads ord-data's 53
+source files, about 1.2 GiB on disk, on demand rather than holding them: nothing is
+built, and a fetch costs about 0.02s for one reaction and 0.2s for a batch of ten or a
+thousand. What they cost is hashing each one at open to pair it with its projection,
+12.5s over ORD, which took opening a corpus with `warm=False` from 4–4.5s to 17s.
+
 **A reduction reads the pivot, and what is left is the scan.** Ranking the corpus by a
 reaction's best yield walks three nested lists over every reaction on the projection route
 and costs 2.5s; the same query against the `outcomes.products.measurements` pivot costs
@@ -598,6 +604,45 @@ structure predicate runs only there — validate it against `query.executable_sc
 rather than the bare projection schema. It also carries `dataset_id`, read from each
 projection's `ord.source_dataset_id` stamp, so a query can narrow to a dataset or group
 by one; it is NULL for a projection whose source recorded no dataset ID.
+
+### Fetch what a search found
+
+```python
+from ord_schema.proto import reaction_pb2
+from ord_schema.search import execute, query
+
+corpus = execute.Corpus(
+    "projections/*/*.parquet",
+    "structures/*/*.parquet",
+    sources_pattern="ord-data/data/*/*.parquet",
+)
+found = corpus.search(
+    query.Query.model_validate(
+        {
+            "where": {
+                "op": "eq",
+                "path": "dataset_id",
+                "value": {"literal": "ord_dataset-00005539a1e04c809a9a78647bea649c"},
+            },
+            "limit": 100,
+        }
+    )
+)
+records = corpus.reactions(found.column("reaction_id"))
+reactions = [
+    reaction_pb2.Reaction.FromString(blob)
+    for blob in records.column("reaction").to_pylist()
+]
+```
+
+A search returns reaction IDs. `reactions` returns each one's `dataset_id` and its
+serialized `Reaction`, read from the source datasets the projections were derived from:
+the bytes as the source stores them, in the order asked, with an ID the corpus does not
+hold left out. Each source is paired at open with the projection whose `ord.source_md5`
+stamp names its hash, and sources and projections that do not pair one to one are
+refused, so the records come from the snapshot the search ran over. `max_rows` bounds a
+fetch too, and a request for more is refused rather than cut. `datasets()` returns each
+source's ID, name, description, and reaction count, from its footer.
 
 ### Ask in English
 
@@ -899,8 +944,9 @@ that ran long.
 
 Compiling from an IR removes the reasons to fear the *query*; it does not remove the reasons
 to contain the *process*. A `Corpus` holds its DuckDB database to the trees it reads — the
-directories holding its projections and its structures, and `pivots_dir` and
-`occurrences_dir` where it was given them — with external access disabled and the
+directories holding its projections and its structures, the directories holding its
+sources where it was given `sources_pattern`, and `pivots_dir` and `occurrences_dir`
+where it was given them — with external access disabled and the
 configuration locked. A statement that reached it carrying text it should not could read no
 other file, fetch no URL, attach no database, and load no extension, and could not lift any
 of that. `/proc/self/environ`, which holds the process's environment, is one such file.
