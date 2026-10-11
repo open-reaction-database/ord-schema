@@ -908,7 +908,10 @@ def _literal(
     if value.compound is not None:
         if value.compound not in parameters.compounds:
             parameters.compounds.append(value.compound)
-        return f"${value.compound}"
+        # Sanitize compound names with spaces so they form valid SQL parameter names.
+        # Names without spaces stay as-is for backward compatibility.
+        safe = value.compound.replace(" ", "_")
+        return f"${safe}"
     assert value.literal is not None  # A Value holds a literal where no compound.
     bound: BoundValue = value.literal
     if isinstance(bound, str) and leaf is not None and _is_temporal(leaf):

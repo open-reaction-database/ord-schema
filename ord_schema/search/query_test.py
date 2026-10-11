@@ -1842,7 +1842,8 @@ def test_same_compound_by_name_is_bound_rather_than_spelled():
         {"op": "same_compound", "path": "smiles", "smiles": "not a molecule"},
         # An empty molecule matches nothing and still costs a pass over the corpus.
         {"op": "same_compound", "path": "smiles", "smiles": ""},
-        {"op": "same_compound", "path": "smiles", "compound": "not an identifier"},
+        # A name containing a character outside the allowed set.
+        {"op": "same_compound", "path": "smiles", "compound": "sodium!hydroxide"},
     ],
 )
 def test_a_malformed_same_compound_is_refused_before_compilation(payload):
