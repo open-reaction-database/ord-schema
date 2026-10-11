@@ -77,6 +77,12 @@ query taking a clause of it and the library to the first substructure predicate.
 search that pays for either pays upwards of a minute over the whole corpus, on top of
 whatever timeout it was given -- unless an ``occurrences_dir`` covers every indexed
 path, where the index is a view over those files and there is nothing to build.
+
+Given the source datasets, a corpus also serves what a search found. A search returns
+reaction IDs, and ``Corpus.reactions`` reads each one's serialized ``Reaction`` out of
+the source file it came from, so the search and the records are one snapshot: every
+source is paired with the projection whose ``ord.source_md5`` stamp names its hash, and
+sources and projections that do not pair one to one are refused at open.
 """
 
 import array
@@ -99,7 +105,7 @@ import pyarrow.parquet as pq
 from rdkit import Chem, DataStructs
 from rdkit.Chem import rdSubstructLibrary
 
-from ord_schema import resolvers
+from ord_schema import parquet, resolvers
 from ord_schema.artifacts import (
     base,
     occurrences,
@@ -146,6 +152,27 @@ DEFAULT_MAX_ROWS = 1000
 # than logged alone, because whoever reads the answer is often not whoever reads the
 # log: a summary saying "1000 reactions" is wrong in a way nothing in the rows shows.
 TRUNCATED = "ord.truncated"
+
+# What Corpus.reactions returns. ``reaction`` is the serialized Reaction as its source
+# stores it, so serving one parses nothing.
+_RECORD_SCHEMA = pa.schema(
+    [
+        pa.field("reaction_id", pa.string()),
+        pa.field(query.DATASET_ID, pa.string()),
+        pa.field("reaction", pa.binary()),
+    ]
+)
+
+# What Corpus.datasets returns: the dataset scalars a source's footer carries, and the
+# row count it states.
+_DATASETS_SCHEMA = pa.schema(
+    [
+        pa.field(query.DATASET_ID, pa.string()),
+        pa.field("name", pa.string()),
+        pa.field("description", pa.string()),
+        pa.field("reactions", pa.int64()),
+    ]
+)
 
 
 # What the process holds beside DuckDB's own accounting while the occurrence index
@@ -200,7 +227,7 @@ _HASH_MATCHES: dict[str, tuple[str, Callable[[Chem.Mol], str | None]]] = {
 
 
 class PairingError(ValueError):
-    """The projections and structures artifacts do not form a consistent corpus."""
+    """The artifacts, or the sources beside them, do not form a consistent corpus."""
 
 
 def _format_bytes(value: float) -> str:
@@ -515,6 +542,99 @@ def _pair(
     return pairs, fingerprint
 
 
+@dataclasses.dataclass(frozen=True)
+class _Source:
+    """A source dataset, paired with the projection that restates it.
+
+    Attributes:
+        path: The source file.
+        dataset_id: The dataset ID the projection's stamps record, which is the value
+            a search's ``dataset_id`` column carries; None where the source recorded
+            none.
+        name: The dataset name, from the source's footer.
+        description: The dataset description, from the source's footer.
+        reactions: Rows the source's footer states.
+    """
+
+    path: str
+    dataset_id: str | None
+    name: str
+    description: str
+    reactions: int
+
+
+def _pair_sources(
+    pattern: str, pairs: list[tuple[str, str, str, str | None]]
+) -> list[_Source]:
+    """Returns the sources matching ``pattern``, each paired with its projection.
+
+    Paired by content hash, the one every artifact derived from a source records as
+    ``ord.source_md5``, for the reason ``_index`` keys on it: a file is the dataset it
+    holds, whatever it is called or wherever it sits. Hashing reads every reaction, so
+    this is most of what opening a corpus with sources costs.
+
+    Args:
+        pattern: Glob matching the source dataset files.
+        pairs: The corpus's pairs, from ``_pair``.
+
+    Returns:
+        One record per source, in the order of ``pairs``.
+
+    Raises:
+        PairingError: If no file matches, a match cannot be read as a source dataset,
+            two matches hold the same content, a projection's source is not among the
+            matches, or a match restates a dataset no projection does.
+    """
+    start = time.perf_counter()
+    views: dict[str, parquet.DatasetView] = {}
+    for path in sorted(glob.glob(pattern, recursive=True)):
+        # The footer is read on opening and every reaction on hashing, so a file that is
+        # not a source and one whose reactions cannot be read both surface here.
+        try:
+            view = parquet.DatasetView(path)
+            digest = view.md5()
+        except (OSError, ValueError) as error:
+            raise PairingError(
+                f"{path} is not a readable source dataset: {error}"
+            ) from error
+        if digest in views:
+            raise PairingError(
+                f"{path} and {views[digest].path} are the same source dataset; which "
+                "one answers a fetch would be arbitrary"
+            )
+        views[digest] = view
+    if not views:
+        raise PairingError(f"no sources matched: {pattern}")
+    logger.info(
+        "hashed %d sources in %.1fs to pair them with their projections",
+        len(views),
+        time.perf_counter() - start,
+    )
+    projected = {source: path for path, _, source, _ in pairs}
+    missing = sorted(projected[key] for key in projected.keys() - views.keys())
+    if missing:
+        raise PairingError(
+            f"no file matching {pattern} holds the source these projections restate, "
+            f"so the reactions a search finds in them could not be fetched: {missing}"
+        )
+    orphans = sorted(views[key].path for key in views.keys() - projected.keys())
+    if orphans:
+        raise PairingError(
+            "no projection restates these sources, so a fetch could return a reaction "
+            f"no search can find: {orphans}"
+        )
+    return [
+        _Source(
+            path=views[source].path,
+            dataset_id=dataset_id,
+            name=views[source].name,
+            description=views[source].description,
+            reactions=len(views[source].reactions),
+        )
+        for _, _, source, dataset_id in pairs
+    ]
+
+
 # A structure that did not parse still gets a library entry, so every structure ID
 # resolves to one and the mapping needs no special case. An empty molecule fingerprints
 # to no bits, and a query with no atoms is refused, so it can never match.
@@ -786,8 +906,8 @@ def _confine(connection: duckdb.DuckDBPyConnection, directories: Iterable[str]) 
 
     Args:
         connection: The corpus connection, on the database every cursor shares.
-        directories: The trees the corpus reads: the projections', the structures', and
-            any pivot or occurrence directory it was given.
+        directories: The trees the corpus reads: the projections', the structures', the
+            sources' where it was given them, and any pivot or occurrence directory.
     """
     spelled = set(directories)
     allowed = sorted(spelled | {glob.escape(directory) for directory in spelled})
@@ -1073,8 +1193,10 @@ class Corpus:
     """A searchable pairing of projections with their structures base.
 
     Opens one DuckDB connection over both artifact sets and publishes the relation a
-    compiled query runs against. The connection reaches the corpus's own directories
-    and nothing else; see ``_confine``. Use as a context manager, or call ``close``.
+    compiled query runs against. Given the source datasets, it also serves the reactions
+    a search finds; see ``reactions``. The connection reaches the corpus's own
+    directories and nothing else; see ``_confine``. Use as a context manager, or call
+    ``close``.
     """
 
     def __init__(
@@ -1094,6 +1216,7 @@ class Corpus:
         memory_limit: str | None = None,
         warm: bool = True,
         max_rows: int | None = DEFAULT_MAX_ROWS,
+        sources_pattern: str | None = None,
     ) -> None:
         """Pairs the artifacts, checks their stamps, and prepares the relations.
 
@@ -1202,18 +1325,31 @@ class Corpus:
                 exactly as stated, which is what a caller computing over the whole match
                 set wants. A result this bound may have cut short carries
                 ``TRUNCATED`` in its schema metadata, since nothing in the rows tells a
-                short answer from a complete one.
+                short answer from a complete one. It also bounds ``reactions``, which
+                refuses a request naming more distinct IDs rather than cutting it: an ID
+                the corpus does not hold has no row either, so a cut fetch would read
+                as reactions that are not there.
+            sources_pattern: Glob matching the source dataset files the projections
+                were derived from, in ``ord_schema.parquet``'s format. Given one,
+                ``reactions`` serves the records a search finds and ``datasets``
+                describes each dataset, both read from the files the projections
+                restate. Each source is hashed at open to pair it with its projection,
+                which over ORD costs 12.5s, and is read on demand rather than held.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
-                partner on the other, a pair's stamps disagree about the source
-                dataset, or -- with ``require_current`` -- any artifact is stale. With
-                ``warm``, also whatever building the occurrence index and the
-                substructure library refuse: a corpus stating a reaction twice, one
-                whose index does not reach every structure it holds, one whose IDs are
-                not every integer from zero, or pivot artifacts over an indexed level
-                that belong to another corpus, all of which otherwise surface on the
-                first query that wants what refused them rather than at open.
+                partner on the other, a pair's stamps disagree about the source dataset,
+                or -- with ``require_current`` -- any artifact is stale. Given
+                ``sources_pattern``, also if it matches nothing or a file it cannot read
+                as a source dataset, two of its files hold the same content, a
+                projection's source is not among them, or one restates a dataset no
+                projection does. With ``warm``, also whatever building the occurrence
+                index and the substructure library refuse: a corpus stating a reaction
+                twice, one whose index does not reach every structure it holds, one
+                whose IDs are not every integer from zero, or pivot artifacts over an
+                indexed level that belong to another corpus, all of which otherwise
+                surface on the first query that wants what refused them rather than at
+                open.
             duckdb.OutOfMemoryException: With ``warm``, if DuckDB is held below what the
                 occurrence index wants to build; see ``check_index`` for that floor, and
                 for the container cap that kills the process rather than raising.
@@ -1332,6 +1468,13 @@ class Corpus:
         pairs, self._fingerprint = _pair(
             projection_pattern, structures_pattern, require_current
         )
+        # The fingerprint digests only the artifacts' stamps, which name the sources
+        # too: a source pairs only with the projection whose stamps record its hash.
+        self._sources = (
+            _pair_sources(sources_pattern, pairs)
+            if sources_pattern is not None
+            else None
+        )
         self._pivots_dir = pivots_dir
         self._occurrences_dir = occurrences_dir
         self._derive_pivots = derive_pivots
@@ -1371,6 +1514,10 @@ class Corpus:
                         for path in pair[:2]
                     ),
                     *(
+                        str(pathlib.Path(source.path).parent)
+                        for source in self._sources or ()
+                    ),
+                    *(
                         directory
                         for directory in (pivots_dir, occurrences_dir)
                         if directory is not None
@@ -1379,6 +1526,8 @@ class Corpus:
             )
             _warn_when_the_cap_leaves_no_headroom(self._connection)
             self._total, self._searchable = self._prepare(pairs)
+            if self._sources is not None:
+                self._prepare_sources(self._sources)
             if require_pivots:
                 self._require_every_pivot()
             if require_occurrences:
@@ -1509,6 +1658,62 @@ class Corpus:
                 "joined to their offsets; a path did not survive read_parquet"
             )
         return total, searchable
+
+    def _prepare_sources(self, sources: list[_Source]) -> None:
+        """Publishes ``corpus_sources``: every source's records beside its dataset ID.
+
+        A view over the files rather than a table, so the corpus holds none of the
+        reactions. The ID filter a fetch applies reaches the Parquet scan through the
+        join as a range on ``reaction_id``, the same scan a read of the files alone
+        gets; see ``reactions`` for what that range costs.
+
+        Args:
+            sources: The paired sources, from ``_pair_sources``.
+
+        Raises:
+            PairingError: If the view holds fewer reactions than the sources' footers
+                state.
+        """
+        registered = pa.table(
+            {
+                "source_filename": pa.array(
+                    [source.path for source in sources], type=pa.string()
+                ),
+                query.DATASET_ID: pa.array(
+                    [source.dataset_id for source in sources], type=pa.string()
+                ),
+            }
+        )
+        # Copied into the catalog for the reason structure_offsets is; see _prepare.
+        self._connection.register("registered_sources", registered)
+        self._connection.execute(
+            "CREATE TABLE source_catalog AS SELECT * FROM registered_sources"
+        )
+        self._connection.unregister("registered_sources")
+        source_files = _sql_paths(source.path for source in sources)
+        # S608: the fragments are this module's constants and this process's own glob
+        # results, quoted with their single quotes escaped.
+        self._connection.execute(
+            f"""
+            CREATE VIEW corpus_sources AS
+            SELECT s.reaction_id, c.{query.DATASET_ID}, s.reaction
+            FROM read_parquet({source_files}, filename=true) s
+            JOIN source_catalog c ON s.filename = c.source_filename
+            """  # noqa: S608
+        )
+        # The join loses a file whose path DuckDB resolves differently than Python did,
+        # as _prepare's do, and a reaction lost there is one a search finds and a fetch
+        # does not return.
+        stated = sum(source.reactions for source in sources)
+        joined = self._connection.execute(
+            "SELECT count(*) FROM corpus_sources"
+        ).fetchone()
+        assert joined is not None  # An aggregate over any relation returns one row.
+        if joined[0] != stated:
+            raise PairingError(
+                f"the sources hold {stated} reactions but only {joined[0]} joined to "
+                "their dataset IDs; a path did not survive read_parquet"
+            )
 
     @property
     def fingerprint(self) -> str:
@@ -2970,3 +3175,117 @@ class Corpus:
                 return answered
             finally:
                 cursor.close()
+
+    def _paired_sources(self) -> list[_Source]:
+        """Returns the sources this corpus was opened with.
+
+        Raises:
+            ValueError: If it was opened without ``sources_pattern``.
+        """
+        if self._sources is None:
+            raise ValueError(
+                "this corpus was opened without sources_pattern, so it holds no "
+                "reactions to fetch or datasets to describe; open it with a glob "
+                "matching the source dataset files"
+            )
+        return self._sources
+
+    def reactions(
+        self, reaction_ids: Iterable[str] | pa.Array | pa.ChunkedArray
+    ) -> pa.Table:
+        """Returns the source records of the given reactions.
+
+        What a search returns is reaction IDs; this is how a caller reaches the
+        reactions themselves, read from the files the searched projections restate.
+        Over ORD one ID costs about 0.02s, since only its record is decoded. A batch
+        reaches the Parquet scan as the range its IDs span, which for IDs spread across
+        the corpus decodes nearly every record, and costs about 0.2s whether it names
+        ten IDs or a thousand.
+
+        Runs on its own cursor, as ``search`` does, so concurrent fetches and searches
+        sharing this corpus do not read each other's rows.
+
+        Args:
+            reaction_ids: The reactions wanted, typically a search's ``reaction_id``
+                column, as the pyarrow column or as a list.
+
+        Returns:
+            Columns ``reaction_id``, ``dataset_id``, and ``reaction``, the serialized
+            ``Reaction`` exactly as its source stores it. One row per distinct ID the
+            corpus holds, in the order first asked; an ID it does not hold has no row,
+            and an empty request returns an empty table with these columns.
+
+        Raises:
+            ValueError: If the corpus was opened without ``sources_pattern``, or the
+                request names more distinct IDs than ``max_rows``.
+            PairingError: If the sources state one of the reactions more than once, so
+                which record answers would be arbitrary.
+        """
+        self._paired_sources()
+        if isinstance(reaction_ids, (pa.Array, pa.ChunkedArray)):
+            # DuckDB binds Python strings, not the pyarrow scalars iterating one yields.
+            reaction_ids = reaction_ids.to_pylist()
+        asked = list(dict.fromkeys(reaction_ids))
+        if self._max_rows is not None and len(asked) > self._max_rows:
+            raise ValueError(
+                f"asked for {len(asked)} reactions, more than the {self._max_rows} "
+                "this corpus returns at once; ask in batches of at most max_rows, or "
+                "open the corpus with a larger one"
+            )
+        if not asked:
+            return _RECORD_SCHEMA.empty_table()
+        cursor = self._connection.cursor()
+        try:
+            found = cursor.execute(
+                f"SELECT reaction_id, {query.DATASET_ID}, reaction "  # noqa: S608
+                "FROM corpus_sources WHERE reaction_id IN (SELECT unnest($asked))",
+                {"asked": asked},
+            ).to_arrow_table()
+        finally:
+            cursor.close()
+        found = found.cast(_RECORD_SCHEMA)
+        returned = found.column("reaction_id").to_pylist()
+        if len(set(returned)) != len(returned):
+            repeated, copies = collections.Counter(returned).most_common(1)[0]
+            raise PairingError(
+                f"reaction {repeated} is stated {copies} times across the sources, so "
+                "which record answers for it would be arbitrary"
+            )
+        position = {reaction_id: index for index, reaction_id in enumerate(asked)}
+        return found.take(
+            sorted(range(len(returned)), key=lambda row: position[returned[row]])
+        )
+
+    def datasets(self) -> pa.Table:
+        """Returns what each source dataset says about itself.
+
+        Read from the footers at open, so this reads no file.
+
+        Returns:
+            One row per source: ``dataset_id``, ``name``, ``description``, and
+            ``reactions``, the row count its footer states. Ordered by
+            ``dataset_id``, with any source that recorded none last.
+
+        Raises:
+            ValueError: If the corpus was opened without ``sources_pattern``.
+        """
+        ordered = sorted(
+            self._paired_sources(),
+            key=lambda source: (
+                source.dataset_id is None,
+                source.dataset_id or "",
+                source.path,
+            ),
+        )
+        return pa.Table.from_pylist(
+            [
+                {
+                    query.DATASET_ID: source.dataset_id,
+                    "name": source.name,
+                    "description": source.description,
+                    "reactions": source.reactions,
+                }
+                for source in ordered
+            ],
+            schema=_DATASETS_SCHEMA,
+        )

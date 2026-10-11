@@ -90,8 +90,8 @@ def corpus_dir(tmp_path_factory) -> pathlib.Path:
         parquet.save_dataset(
             dataset_pb2.Dataset(
                 dataset_id=f"ord_dataset-{shard}",
-                name="test",
-                description="test",
+                name=f"dataset {shard}",
+                description=f"the {shard} reactions",
                 reactions=reactions,
             ),
             str(source),
@@ -168,6 +168,24 @@ def corpus(corpus_dir) -> Iterator[execute.Corpus]:
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={"pyridine": "c1ccncc1", "ethanol": "CCO"}.__getitem__,
     ) as value:
+        yield value
+
+
+def _with_sources(root, **kwargs) -> execute.Corpus:
+    """Opens the corpus under ``root`` with the sources it was derived from."""
+    return execute.Corpus(
+        str(root / "projections" / "*.parquet"),
+        str(root / "structures" / "*.parquet"),
+        sources_pattern=str(root / "data" / "*.parquet"),
+        resolver={"pyridine": "c1ccncc1"}.__getitem__,
+        **kwargs,
+    )
+
+
+@pytest.fixture(scope="module")
+def sourced_corpus(corpus_dir) -> Iterator[execute.Corpus]:
+    """The corpus over ``corpus_dir``, opened with its sources."""
+    with _with_sources(corpus_dir) as value:
         yield value
 
 
@@ -703,9 +721,12 @@ def test_a_memory_limit_is_given_to_duckdb(corpus_dir):
         "INSTALL httpfs",
     ],
 )
+@pytest.mark.parametrize("opened", ["corpus", "sourced_corpus"])
 def test_a_search_cursor_reaches_nothing_outside_the_corpus(
-    corpus, tmp_path, statement
+    request, opened, tmp_path, statement
 ):
+    # Opened with sources, a corpus allows their directories as well, and no others.
+    corpus = request.getfixturevalue(opened)
     outside = tmp_path / "secret.txt"
     outside.write_text("not the corpus's to read\n")
     cursor = corpus._connection.cursor()
@@ -888,8 +909,8 @@ def test_a_name_resolving_to_nonsense_is_left_alone(corpus_dir):
 
 
 def _copy_corpus(corpus_dir, tmp_path) -> pathlib.Path:
-    """Copies the built corpus so a test can damage one artifact in isolation."""
-    for name in ("projections", "structures"):
+    """Copies the built corpus and its sources so a test can damage one in isolation."""
+    for name in ("data", "projections", "structures"):
         (tmp_path / name).mkdir()
         for source in (corpus_dir / name).glob("*.parquet"):
             (tmp_path / name / source.name).write_bytes(source.read_bytes())
@@ -1066,6 +1087,319 @@ def test_a_stale_artifact_is_refused(corpus_dir, tmp_path):
         resolver={}.__getitem__,
     ) as value:
         assert value.search(query.Query.model_validate({})).num_rows == 3
+
+
+def _derive(root, shard, reactions) -> None:
+    """Writes a source under ``root`` and derives its projection and structures."""
+    source = root / "data" / f"ord_dataset-{shard}.parquet"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id=f"ord_dataset-{shard}",
+            name="test",
+            description="test",
+            reactions=reactions,
+        ),
+        str(source),
+    )
+    projected = root / "projections" / source.name
+    projected.parent.mkdir(parents=True, exist_ok=True)
+    projection.write_projection(source, projected)
+    structured = root / "structures" / source.name
+    structured.parent.mkdir(parents=True, exist_ok=True)
+    structures.write_structures(projected, structured)
+
+
+def _stored(corpus_dir) -> dict[str, bytes]:
+    """Returns every record the sources store, keyed by reaction ID."""
+    stored = {}
+    for source in sorted((corpus_dir / "data").glob("*.parquet")):
+        table = pq.read_table(source)
+        stored.update(
+            zip(
+                table.column("reaction_id").to_pylist(),
+                table.column("reaction").to_pylist(),
+                strict=True,
+            )
+        )
+    return stored
+
+
+def test_reactions_come_back_in_the_order_asked(sourced_corpus, corpus_dir):
+    asked = ["ord-bb01", "ord-aa02", "ord-aa01"]
+    table = sourced_corpus.reactions(asked)
+    assert table.schema.names == ["reaction_id", "dataset_id", "reaction"]
+    assert table.schema.types == [pa.string(), pa.string(), pa.binary()]
+    assert table.column("reaction_id").to_pylist() == asked
+    assert table.column("dataset_id").to_pylist() == [
+        "ord_dataset-bb",
+        "ord_dataset-aa",
+        "ord_dataset-aa",
+    ]
+    blobs = table.column("reaction").to_pylist()
+    # The record is the source's own bytes rather than a message parsed and written
+    # again, and it parses to the reaction it was asked for.
+    stored = _stored(corpus_dir)
+    assert blobs == [stored[reaction_id] for reaction_id in asked]
+    assert [reaction_pb2.Reaction.FromString(blob).reaction_id for blob in blobs] == (
+        asked
+    )
+
+
+def test_a_reaction_the_corpus_does_not_hold_has_no_row(sourced_corpus):
+    table = sourced_corpus.reactions(["ord-zz99", "ord-aa02"])
+    assert table.column("reaction_id").to_pylist() == ["ord-aa02"]
+
+
+def test_a_reaction_asked_twice_comes_back_once(sourced_corpus):
+    table = sourced_corpus.reactions(["ord-aa01", "ord-bb01", "ord-aa01"])
+    assert table.column("reaction_id").to_pylist() == ["ord-aa01", "ord-bb01"]
+
+
+def test_an_empty_request_returns_the_columns_and_no_rows(sourced_corpus):
+    table = sourced_corpus.reactions([])
+    assert table.num_rows == 0
+    assert table.schema == sourced_corpus.reactions(["ord-aa01"]).schema
+
+
+def test_a_request_for_more_reactions_than_max_rows_is_refused(corpus_dir):
+    # Refused rather than cut: an ID the corpus does not hold has no row either, so a
+    # fetch cut short would read as reactions that are not there.
+    with _with_sources(corpus_dir, max_rows=2, warm=False) as value:
+        with pytest.raises(ValueError, match="3 reactions, more than the 2"):
+            value.reactions(["ord-aa01", "ord-aa02", "ord-bb01"])
+        # The bound counts distinct IDs, so a repeat is not charged twice.
+        table = value.reactions(["ord-aa01", "ord-aa01", "ord-bb01"])
+        assert table.column("reaction_id").to_pylist() == ["ord-aa01", "ord-bb01"]
+    with _with_sources(corpus_dir, max_rows=None, warm=False) as value:
+        assert value.reactions(["ord-aa01", "ord-aa02", "ord-bb01"]).num_rows == 3
+
+
+@pytest.mark.parametrize("method", ["reactions", "datasets"])
+def test_a_corpus_opened_without_sources_has_none_to_serve(corpus, method):
+    arguments = (["ord-aa01"],) if method == "reactions" else ()
+    with pytest.raises(ValueError, match="without sources_pattern"):
+        getattr(corpus, method)(*arguments)
+
+
+def test_datasets_describe_each_source(sourced_corpus):
+    assert sourced_corpus.datasets().to_pylist() == [
+        {
+            "dataset_id": "ord_dataset-aa",
+            "name": "dataset aa",
+            "description": "the aa reactions",
+            "reactions": 2,
+        },
+        {
+            "dataset_id": "ord_dataset-bb",
+            "name": "dataset bb",
+            "description": "the bb reactions",
+            "reactions": 1,
+        },
+    ]
+
+
+def test_a_search_s_hits_fetch_their_reactions(sourced_corpus):
+    found = sourced_corpus.search(
+        query.Query.model_validate(
+            {
+                "where": _exists(
+                    {"op": "substructure", "path": "smiles", "compound": "pyridine"}
+                ),
+                "order_by": [{"key": "reaction_id", "descending": True}],
+            }
+        )
+    )
+    hits = found.column("reaction_id").to_pylist()
+    assert hits == ["ord-aa02", "ord-aa01"]
+    table = sourced_corpus.reactions(hits)
+    assert table.column("reaction_id").to_pylist() == hits
+    blobs = table.column("reaction").to_pylist()
+    for blob, reaction_id in zip(blobs, hits, strict=True):
+        reaction = reaction_pb2.Reaction.FromString(blob)
+        assert reaction.reaction_id == reaction_id
+        assert "c1ccncc1" in {
+            identifier.value
+            for component in reaction.inputs["in"].components
+            for identifier in component.identifiers
+        }
+
+
+def test_a_search_s_column_is_fetched_without_converting_it(sourced_corpus):
+    # What a search returns is a pyarrow table, so its column is what a caller holds.
+    column = pa.chunked_array([["ord-aa02", "ord-aa01"]])
+    for asked in (column, column.combine_chunks()):
+        table = sourced_corpus.reactions(asked)
+        assert table.column("reaction_id").to_pylist() == ["ord-aa02", "ord-aa01"]
+
+
+def test_opening_with_sources_logs_what_hashing_them_cost(corpus_dir, caplog):
+    # Hashing reads every reaction, which over ORD is most of what opening costs, so a
+    # slow start is explained in the log rather than left to look like a hang.
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
+        _with_sources(corpus_dir, warm=False),
+    ):
+        pass
+    assert any(re.match(r"hashed 2 sources in \d", m) for m in _messages(caplog))
+
+
+def test_a_source_edited_after_derivation_is_refused(corpus_dir, tmp_path):
+    # The projections restate the source as it was hashed when they were derived. An
+    # edited source would serve records the search never saw.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-bb",
+            name="dataset bb",
+            description="the bb reactions, edited",
+            reactions=_REACTIONS["bb"],
+        ),
+        str(root / "data" / "ord_dataset-bb.parquet"),
+    )
+    with pytest.raises(
+        execute.PairingError, match=r"holds the source these projections restate"
+    ) as raised:
+        _with_sources(root)
+    assert str(root / "projections" / "ord_dataset-bb.parquet") in str(raised.value)
+
+
+def test_a_missing_source_is_refused(corpus_dir, tmp_path):
+    root = _copy_corpus(corpus_dir, tmp_path)
+    (root / "data" / "ord_dataset-aa.parquet").unlink()
+    with pytest.raises(
+        execute.PairingError, match=r"holds the source these projections restate"
+    ) as raised:
+        _with_sources(root)
+    assert str(root / "projections" / "ord_dataset-aa.parquet") in str(raised.value)
+
+
+def test_a_source_no_projection_restates_is_refused(corpus_dir, tmp_path):
+    # A fetch would return its reactions though no search can find them.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-cc",
+            name="test",
+            description="test",
+            reactions=[_reaction("ord-cc01", components=[("CCN", _ROLE.REACTANT)])],
+        ),
+        str(root / "data" / "ord_dataset-cc.parquet"),
+    )
+    with pytest.raises(execute.PairingError, match="no projection restates") as raised:
+        _with_sources(root)
+    assert str(root / "data" / "ord_dataset-cc.parquet") in str(raised.value)
+
+
+def test_two_identical_sources_are_refused(corpus_dir, tmp_path):
+    # Which of them answers a fetch would be arbitrary, so neither may.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    source = root / "data" / "ord_dataset-aa.parquet"
+    shutil.copy(source, root / "data" / "copy.parquet")
+    with pytest.raises(execute.PairingError, match="same source dataset"):
+        _with_sources(root)
+
+
+def test_a_sources_pattern_matching_nothing_is_refused(corpus_dir, tmp_path):
+    with pytest.raises(execute.PairingError, match="no sources matched"):
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            sources_pattern=str(tmp_path / "absent" / "*.parquet"),
+        )
+
+
+def test_a_source_whose_reactions_cannot_be_read_is_refused(corpus_dir, tmp_path):
+    # The footer reads, so the file opens; hashing its damaged reactions is what fails.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    source = root / "data" / "ord_dataset-aa.parquet"
+    chunk = pq.ParquetFile(source).metadata.row_group(0).column(1)
+    damaged = bytearray(source.read_bytes())
+    start = chunk.data_page_offset + 8
+    damaged[start : start + 32] = b"\x00" * 32
+    source.write_bytes(bytes(damaged))
+    with pytest.raises(execute.PairingError, match="not a readable source dataset"):
+        _with_sources(root)
+
+
+def test_a_sources_pattern_matching_an_artifact_is_refused(corpus_dir):
+    with pytest.raises(execute.PairingError, match="not a readable source dataset"):
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            sources_pattern=str(corpus_dir / "projections" / "*.parquet"),
+        )
+
+
+def test_sources_that_do_not_join_to_their_dataset_ids_are_refused(
+    corpus_dir, tmp_path, monkeypatch
+):
+    # The same loss _prepare counts its views against: a source DuckDB resolves
+    # differently than Python did drops out of the join, and a reaction a search finds
+    # is then one a fetch does not return. Staged as that test stages it, by pointing
+    # the view at copies filed elsewhere within a tree the corpus reads.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    elsewhere = root / "data" / "elsewhere"
+    elsewhere.mkdir()
+    for source in sorted((root / "data").glob("*.parquet")):
+        shutil.copy(source, elsewhere / source.name)
+    original = execute._sql_paths
+
+    def redirected(paths):
+        listed = [str(path) for path in paths]
+        if all(pathlib.Path(path).parent.name == "data" for path in listed):
+            return original(str(elsewhere / pathlib.Path(path).name) for path in listed)
+        return original(listed)
+
+    monkeypatch.setattr(execute, "_sql_paths", redirected)
+    with pytest.raises(execute.PairingError, match="the sources hold 3 reactions"):
+        _with_sources(root)
+
+
+def test_a_reaction_two_sources_state_is_refused(tmp_path):
+    # Each source pairs with its own projection, so the corpus opens; but a fetch of
+    # the reaction they share has two records to choose between.
+    for shard, smiles in (("aa", "c1ccncc1"), ("bb", "CCO")):
+        _derive(
+            tmp_path,
+            shard,
+            [_reaction("ord-x01", components=[(smiles, _ROLE.SOLVENT)])],
+        )
+    with (
+        _with_sources(tmp_path, warm=False) as value,
+        pytest.raises(execute.PairingError, match="ord-x01 is stated 2 times"),
+    ):
+        value.reactions(["ord-x01"])
+
+
+def test_a_source_without_a_dataset_id_is_fetched_and_described(tmp_path):
+    # The dataset ID comes from the projection's stamps, the value a search's
+    # dataset_id column carries, so a source recording none reads as NULL in both.
+    _derive(
+        tmp_path,
+        "named",
+        [_reaction("ord-nm01", components=[("CCO", _ROLE.REACTANT)])],
+    )
+    source = tmp_path / "data" / "unnamed.parquet"
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            name="unnamed",
+            description="test",
+            reactions=[_reaction("ord-un01", components=[("CCO", _ROLE.REACTANT)])],
+        ),
+        str(source),
+    )
+    projection.write_projection(source, tmp_path / "projections" / source.name)
+    structures.write_structures(
+        tmp_path / "projections" / source.name,
+        tmp_path / "structures" / source.name,
+    )
+    with _with_sources(tmp_path, warm=False) as value:
+        table = value.reactions(["ord-un01", "ord-nm01"])
+        datasets = value.datasets()
+    assert table.column("dataset_id").to_pylist() == [None, "ord_dataset-named"]
+    assert datasets.column("dataset_id").to_pylist() == ["ord_dataset-named", None]
+    assert datasets.column("name").to_pylist() == ["test", "unnamed"]
 
 
 def test_similarity_bounds_the_match_set_at_the_threshold(corpus):
