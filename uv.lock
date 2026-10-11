@@ -2000,6 +2000,7 @@ docs = [
     { name = "sphinx-tabs" },
 ]
 examples = [
+    { name = "huggingface-hub" },
     { name = "matplotlib" },
     { name = "scikit-learn" },
     { name = "tensorflow", marker = "python_full_version < '3.14'" },
@@ -2060,6 +2061,7 @@ requires-dist = [
     { name = "nbval", marker = "extra == 'tests'", specifier = ">=0.11" },
     { name = "numpy", specifier = ">=1.26.4" },
     { name = "openpyxl", specifier = ">=3.0.5" },
+    { name = "ord-schema", extras = ["huggingface"], marker = "extra == 'examples'" },
     { name = "ord-schema", extras = ["search"], marker = "extra == 'nl'" },
     { name = "ord-schema", extras = ["search", "nl", "huggingface", "orm"], marker = "extra == 'tests'" },
     { name = "pandas", specifier = ">=1.0.4" },
