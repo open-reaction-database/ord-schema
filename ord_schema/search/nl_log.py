@@ -483,34 +483,51 @@ def label(
 # field: a reader who thumbs down without a comment would keep the comment left beside
 # an earlier thumb up, and the row would be a verdict nobody gave.
 #
+# Every scalar column an event writes, and the type it is read as. A source infers a
+# type per file, and the inference is what makes two files refuse to union: a column
+# null throughout one file -- a day with no declines, a log where no effort was ever
+# set -- infers as JSON, and a file whose record_ids are all dashed UUIDs infers UUID,
+# while another source reads the same column as text or a number. Each source casts
+# every column to the type here, so any two read together. This module mints hex
+# identifiers, so its own files never diverge on those; the cast covers a client that
+# minted its own session_id as a dashed UUID.
+_COLUMNS = {
+    "event": "VARCHAR",
+    "event_id": "VARCHAR",
+    "record_id": "VARCHAR",
+    "session_id": "VARCHAR",
+    "source": "VARCHAR",
+    "question": "VARCHAR",
+    "attempts": "VARCHAR",
+    "turns": "BIGINT",
+    "outcome": "VARCHAR",
+    "row_count": "BIGINT",
+    "declined_reason": "VARCHAR",
+    "error": "VARCHAR",
+    "answer_text": "VARCHAR",
+    "model": "VARCHAR",
+    "effort": "VARCHAR",
+    "corpus_fingerprint": "VARCHAR",
+    "prompt_fingerprint": "VARCHAR",
+    "translate_ms": "DOUBLE",
+    "search_ms": "DOUBLE",
+    "answer_ms": "DOUBLE",
+    "value": "VARCHAR",
+    "comment": "VARCHAR",
+    "verdict": "VARCHAR",
+    "reference": "VARCHAR",
+    "note": "VARCHAR",
+    "promoted": "BOOLEAN",
+}
+
 # The empty row carrying no rows is what lets this bind against a log nobody has left
 # feedback on yet: the columns a thumb and a label contribute do not exist until one has
 # been written, and a reader that only works once someone has replied is no reader.
-_SKELETON = """
-SELECT
-    NULL::VARCHAR AS event,
-    NULL::VARCHAR AS event_id,
-    NULL::VARCHAR AS record_id,
-    NULL::VARCHAR AS session_id,
-    NULL::VARCHAR AS attempts,
-    NULL::BIGINT AS turns,
-    NULL::VARCHAR AS effort,
-    NULL::VARCHAR AS question,
-    NULL::VARCHAR AS answer_text,
-    NULL::VARCHAR AS value,
-    NULL::VARCHAR AS comment,
-    NULL::VARCHAR AS verdict,
-    NULL::VARCHAR AS reference,
-    NULL::VARCHAR AS note,
-    NULL::BOOLEAN AS promoted
-WHERE FALSE
-"""
-
-# The identifiers a source can infer a type for. A file whose record_ids are all dashed
-# UUIDs reads as UUID and one holding anything else reads as VARCHAR, and the union of
-# the two refuses. This module mints hex so its own files never diverge; the cast is
-# what covers a client that minted its own session_id as a dashed UUID.
-_TEXT_COLUMNS = ("event_id", "record_id", "session_id")
+_SKELETON = (
+    "SELECT "
+    + ", ".join(f"NULL::{kind} AS {name}" for name, kind in _COLUMNS.items())
+    + " WHERE FALSE"
+)
 
 _LOG = """
 WITH events AS (
@@ -572,7 +589,7 @@ def _source(pattern: str) -> str:
     identifier casts bind against a file of nothing but thumbs.
     """
     reader = "read_parquet" if pattern.endswith(".parquet") else "read_json_auto"
-    casts = ", ".join(f"{name}::VARCHAR AS {name}" for name in _TEXT_COLUMNS)
+    casts = ", ".join(f"{name}::{kind} AS {name}" for name, kind in _COLUMNS.items())
     # S608: the reader is one of two constants, the path is quoted as a literal, and
     # the select list is built from this module's own constants.
     return (

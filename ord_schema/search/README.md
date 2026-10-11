@@ -691,7 +691,10 @@ on what it can coerce. As strings they reconcile by construction.
 Identifiers are minted as hex rather than as dashed UUIDs for the same reason: a source
 whose `session_id`s are all dashed UUIDs infers `UUID` and one holding opaque tokens
 infers `VARCHAR`, and a read spanning both would refuse to union them. `read()` casts
-them anyway, which is what covers a client that minted its own.
+them anyway, which is what covers a client that minted its own. It casts every other
+column to its declared type too, since an optional field null throughout one file -- a
+day with no declines -- infers as JSON and would otherwise refuse to union with the same
+field read as text from another.
 
 Read it with `nl_log.read()`, which folds the verdicts onto their asks and derives
 `translation` from the attempts and `repaired` from the turns, since a first turn that

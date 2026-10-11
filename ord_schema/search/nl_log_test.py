@@ -357,6 +357,47 @@ def test_the_effort_is_recorded_beside_the_model(tmp_path):
     assert found == [("0001", "low"), ("0002", None)]
 
 
+def test_a_compacted_month_reads_beside_a_day_whose_optional_fields_are_all_null(
+    tmp_path,
+):
+    # A day with no declines, no effort, and no search writes those fields null in every
+    # record, which a JSON source infers as JSON, while the compacted month holds them
+    # as text and numbers. The two union only because every column is read at its type.
+    month = nl_log.JsonlSink(tmp_path / "raw" / "month.jsonl")
+    month.write(
+        nl_log.event(
+            _ask(
+                record_id="0001",
+                outcome=nl_log.Outcome.DECLINED,
+                declined_reason="no column comparison",
+                effort="low",
+                source="eval",
+                row_count=3,
+                search_ms=1.5,
+            )
+        )
+    )
+    nl_log.compact(str(tmp_path / "raw" / "*.jsonl"), tmp_path / "month.parquet")
+    day = nl_log.JsonlSink(tmp_path / "day.jsonl")
+    day.write(
+        nl_log.event(
+            _ask(record_id="0002", source=None, row_count=None, search_ms=None)
+        )
+    )
+    found = nl_log.read(
+        str(tmp_path / "month.parquet"),
+        str(tmp_path / "day.jsonl"),
+        statement=(
+            "SELECT record_id, declined_reason, effort, source, row_count, search_ms "
+            "FROM log ORDER BY record_id"
+        ),
+    ).fetchall()
+    assert found == [
+        ("0001", "no column comparison", "low", "eval", 3, 1.5),
+        ("0002", None, None, None, None, None),
+    ]
+
+
 def test_a_log_of_uuids_reads_beside_one_of_opaque_tokens(tmp_path):
     # A client mints its own session_id. All-dashed-UUID infers as UUID and anything
     # else infers as VARCHAR, and a read spanning both refuses to union them.
