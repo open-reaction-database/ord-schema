@@ -127,6 +127,41 @@ class _SequenceClient:
         )
 
 
+class _RefusingClient:
+    """Declines every request the way the model's safety classifiers do.
+
+    Attributes:
+        messages: Itself, so ``client.messages.create`` reaches ``create``.
+    """
+
+    def __init__(self) -> None:
+        """Initializes the stub."""
+        self.messages = self
+
+    def create(self, **kwargs: Any) -> Any:
+        """Returns a refusal.
+
+        Args:
+            **kwargs: The request, which the stub ignores.
+
+        Returns:
+            A response with no content and a refusal stop reason.
+        """
+        del kwargs
+        usage = types.SimpleNamespace(
+            input_tokens=1,
+            output_tokens=1,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=0,
+        )
+        return types.SimpleNamespace(
+            content=[],
+            usage=usage,
+            stop_reason="refusal",
+            stop_details=types.SimpleNamespace(category="bio"),
+        )
+
+
 def _run(case, client, *, repair: bool = False) -> nl_eval.CaseResult:
     """Runs a case whose translation fails before any corpus is reached.
 
@@ -258,6 +293,30 @@ def test_measuring_a_different_number_of_columns_fails():
     assert "measured 2 columns where the reference measures 3" in result.detail
 
 
+def test_a_group_with_no_value_may_be_kept_or_dropped():
+    # "The highest yield each dataset reports" over a dataset reporting none is a null
+    # either way; narrowing to datasets with a yield first is the same answer.
+    expected = pa.table({"dataset_id": ["a", "b"], "best": [90.0, None]})
+    returned = pa.table({"dataset_id": ["a"], "best": [90.0]})
+    assert nl_eval.score_measures(
+        _CASE, returned, expected, ordered=False, groups=1
+    ).passed
+
+
+def test_a_group_with_a_value_cannot_be_dropped():
+    expected = pa.table({"dataset_id": ["a", "b"], "best": [90.0, 40.0]})
+    returned = pa.table({"dataset_id": ["a"], "best": [90.0]})
+    assert not nl_eval.score_measures(
+        _CASE, returned, expected, ordered=False, groups=1
+    ).passed
+
+
+def test_a_sorted_question_without_an_aggregate_keeps_its_null_rows():
+    expected = pa.table({"value": [90.0, None]})
+    returned = pa.table({"value": [90.0]})
+    assert not nl_eval.score_measures(_CASE, returned, expected, ordered=True).passed
+
+
 def test_an_integer_count_and_a_double_one_are_the_same_answer():
     result = nl_eval.score_measures(
         _CASE,
@@ -376,6 +435,43 @@ def test_an_expressible_question_that_does_not_compile_fails():
 
 def test_declining_an_expressible_question_fails():
     assert not _run(_CASE, _StubClient("cannot_answer", {"reason": "gave up"})).passed
+
+
+def test_a_safety_refusal_fails_the_case_and_is_recorded(tmp_path):
+    # A reader asking this question would be turned away, so the case fails rather
+    # than going unmeasured the way a rate limit does.
+    sink = nl_log.JsonlSink(tmp_path / "run.jsonl")
+    result = nl_eval.run_case(
+        _CASE,
+        cast(execute.Corpus, _StubCorpus()),
+        client=cast(Any, _RefusingClient()),
+        model="stub",
+        repair=True,
+        sink=sink,
+    )
+    assert not result.passed
+    assert "bio" in result.detail
+    (line,) = (tmp_path / "run.jsonl").read_text(encoding="utf-8").splitlines()
+    assert json.loads(line)["outcome"] == nl_log.Outcome.REFUSED
+
+
+def test_a_case_records_the_effort_and_the_turns(tmp_path):
+    # Scores, costs, and times at two effort levels are different measurements, and a
+    # run's records are what tells them apart afterwards.
+    sink = nl_log.JsonlSink(tmp_path / "run.jsonl")
+    nl_eval.run_case(
+        _INEXPRESSIBLE,
+        cast(execute.Corpus, _StubCorpus()),
+        client=cast(Any, _StubClient("cannot_answer", {"reason": "no comparison"})),
+        model="stub",
+        effort="low",
+        repair=False,
+        sink=sink,
+    )
+    (line,) = (tmp_path / "run.jsonl").read_text(encoding="utf-8").splitlines()
+    event = json.loads(line)
+    assert event["effort"] == "low"
+    assert event["turns"] == 1
 
 
 def test_a_run_records_its_cases(tmp_path):

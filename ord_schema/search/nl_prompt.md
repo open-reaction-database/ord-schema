@@ -43,7 +43,9 @@ Rules that keep a query answerable:
   configuration. Write a stereocenter only when the question names a configuration —
   "(S)-", "L-", "the R enantiomer" — and set `"chirality": false` when it asks for a
   molecule whatever its configuration: "either enantiomer", "any stereoisomer",
-  "racemic or not".
+  "racemic or not". Given a pattern and told to ignore its stereochemistry, keep the
+  pattern exactly as written and set `"chirality": false`; deleting the marks rewrites
+  `[C@@H]` as `C`, which drops its hydrogen too and matches carbons the pattern excludes.
 - A transformation named by what goes in and what comes out — "amide couplings", "Suzuki
   couplings", "reactions turning an aryl bromide into a biaryl" — is a `reaction_smarts`
   on the reaction itself, never inside a quantifier. Every template has to match: each
@@ -51,7 +53,9 @@ Rules that keep a query answerable:
   template between the arrows a component in any other role, and templates on one side
   match different molecules. Write one template per molecule the question names, group
   two pieces in parentheses, `(C(=O)O.N)`, only when the question puts them in one
-  molecule, and leave atom maps out; they are ignored. A stereocenter in a template is
+  molecule, and leave atom maps out; they are ignored. Each template keeps the atoms
+  that make the group what the question calls it: a boronic acid or ester is `B(O)O`,
+  since a bare `B` also matches a trifluoroborate. A stereocenter in a template is
   respected as in a `substructure`, and `"chirality": false` ignores it.
 
   ```json
@@ -97,6 +101,10 @@ Rules that keep a query answerable:
   A metal named as a catalyst is a `substructure` on the element — `[Pd]`, `[Ni]` —
   rather than a compound identity, since the catalyst is a complex and not the bare
   metal.
+- A functional group with a charge-separated drawing is recorded both ways in the
+  corpus, and a pattern for one misses the other. A nitro group is
+  `[$([N+](=O)[O-]),$(N(=O)=O)]`; write any group like it the same way, one recursive
+  SMARTS covering both drawings.
 - To rank or aggregate by a value under a repeated level, reduce it. A plain path there
   is refused. `where` inside the reduction says which elements count, and its paths are
   relative to the element, as they are inside a quantifier. Reach for it whenever the
@@ -118,7 +126,9 @@ Rules that keep a query answerable:
   `{"literal": "2025-01-01"}`. A bare date means that day's midnight, so a year is a
   half-open pair — `ge` its January 1 and `lt` the next year's. The grammar has no date
   arithmetic and no notion of today, so a question about "the last five years" or
-  "recently" cannot be written; decline it rather than hardcoding a year.
+  "recently" cannot be written; decline it rather than hardcoding a year. When a
+  reaction was recorded is `provenance.record_created.time.timestamp`; when it was
+  carried out is `provenance.experiment_start.timestamp`.
 - "The most common X", "how many of each X", and anything else that groups by something
   under a repeated level needs `aggregate.over`, which makes the rows the elements of
   that level rather than reactions. `group_by` and measure paths are then relative to
@@ -136,7 +146,12 @@ Rules that keep a query answerable:
    "order_by": [{"key": "reactions", "descending": true}], "limit": 3}
   ```
 
-- Prefer the smallest query that answers the question, and set `limit` when the user asks
-  for a particular number of results.
+- Prefer the smallest query that answers the question. A question naming reactions —
+  "reactions run above 350 K", "which reactions use pyridine" — asks for the reactions
+  themselves, so it has no `aggregate`; aggregate only when it asks how many, an
+  average, or another measure. Measure what the question asks for and nothing beside
+  it: "the average setpoint" is one `avg`, not an average with a count next to it, and
+  "how many" is one count. Set `limit` only when the user asks for a particular number
+  of results: "which reactions" wants all of them, and the caller bounds the answer.
 
 The corpus schema, as an indented type tree in DuckDB's types:

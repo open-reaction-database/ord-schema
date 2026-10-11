@@ -672,6 +672,14 @@ with no way to decline invents a query rather than refusing, which is the failur
 looks most like an answer. Declining raises `UnanswerableError`, carrying the model's
 reason, and is never repaired: nothing was wrong with its reasoning.
 
+Neither tool is forced, because newer models refuse a forced `tool_choice`. The prompt asks
+for one call, and a turn that answers in prose instead is handed back through the same
+single repair, with a reminder of the two tools. The repair replays the whole turn, so a
+model that thinks gets its thinking back beside the call it led to. A request the model's
+safety classifiers decline raises `ModelRefusedError`, which is not repaired either.
+`translate`, `answer`, and `ask` take an `effort`, sent only when given, since models
+without effort levels reject it.
+
 The ~15k-token prefix — these rules plus `describe()` plus the grammar — is cached, which
 is most of what a query costs. `answer.query` is the query that ran, so a caller can show
 what was searched and offer to run it again.
@@ -728,10 +736,15 @@ on what it can coerce. As strings they reconcile by construction.
 Identifiers are minted as hex rather than as dashed UUIDs for the same reason: a source
 whose `session_id`s are all dashed UUIDs infers `UUID` and one holding opaque tokens
 infers `VARCHAR`, and a read spanning both would refuse to union them. `read()` casts
-them anyway, which is what covers a client that minted its own.
+them anyway, which is what covers a client that minted its own. It casts every other
+column to its declared type too, since an optional field null throughout one file -- a
+day with no declines -- infers as JSON and would otherwise refuse to union with the same
+field read as text from another.
 
 Read it with `nl_log.read()`, which folds the verdicts onto their asks and derives
-`translation` and `repaired` from the attempts:
+`translation` from the attempts and `repaired` from the turns, since a first turn that
+answered in prose wrote no attempt. Each ask also records the `effort` it was translated
+at, so runs at two levels read as the different measurements they are:
 
 ```python
 nl_log.read("nl-log/parquet/*.parquet", "nl-log/raw/dt=*/*.json",
@@ -762,7 +775,7 @@ writable from a laptop.
 python -m ord_schema.search.nl_eval \
     --projections 'projections/**/*.parquet' \
     --structures 'structures/**/*.parquet' \
-    --model claude-haiku-4-5
+    --model claude-haiku-5-5
 ```
 
 A case states the question and **one query that answers it**. Both run against whatever
@@ -778,11 +791,18 @@ a translation that misscopes two conditions into two quantifiers returns reactio
 reference does not, and one that drops a condition entirely returns the corpus. A case
 carries no reaction IDs, so nothing in it goes stale when the corpus is rebuilt.
 
-Cases carry a `why`, printed with any failure, and one is marked `compiles: false`: a
+Cases carry a `why`, printed with any failure, and some are marked `compiles: false`: a
 question the grammar cannot express, which the layer has to refuse rather than answer
 approximately, and which therefore has no reference. Refusing *outright* is what passes it —
 a model that writes a query, is told it does not compile, and only then declines has answered
 the caller correctly while failing what the case measures.
+
+Where the reference aggregates, a group whose every measure is null is dropped from both
+sides before comparing: "the highest yield each dataset reports" is null for a dataset that
+reports none, and a translation that first narrows to datasets with a yield gives the same
+answer without that row. Translations vary from run to run, so a score worth acting on comes
+from several runs rather than one; `--effort` sets how much a model that has effort levels
+thinks.
 
 ### Tell the model what it may query
 
