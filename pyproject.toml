@@ -84,6 +84,9 @@ docs = [
     "sphinx-tabs>=3.4.0",
 ]
 examples = [
+    # The Granda notebook downloads its dataset from the ord-data mirror with
+    # ord_schema.huggingface.fetch_dataset.
+    "huggingface-hub>=0.20",
     "matplotlib>=3.3.4",
     "scikit-learn>=0.24.1",
     # TensorFlow ships no CPython 3.14 wheels as of 2.21.0, and one notebook needs it.
