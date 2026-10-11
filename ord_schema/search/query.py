@@ -205,6 +205,9 @@ _AGGREGATES = {
 # strings that reach the SQL as text rather than as parameters, so both are held to an
 # identifier shape a quoting mistake cannot escape.
 _NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Compound names are more flexible: allow spaces, hyphens, commas, parens, numbers at start.
+# These get resolved to SMILES at runtime, so validation can be permissive.
+_COMPOUND_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9\s\-\,\(\)\+\.]*$")
 
 
 class QueryError(ValueError):
@@ -416,7 +419,7 @@ class Value(_Node):
     def _exactly_one(self) -> "Value":
         if (self.literal is None) == (self.compound is None):
             raise ValueError("a value is either a literal or a compound, not both")
-        if self.compound is not None and not _NAME.match(self.compound):
+        if self.compound is not None and not _COMPOUND_NAME.match(self.compound):
             raise ValueError(f"compound name is not an identifier: {self.compound!r}")
         return self
 
@@ -494,7 +497,7 @@ class Substructure(_Node):
     def _check(self) -> "Substructure":
         if (self.smarts is None) == (self.compound is None):
             raise ValueError("a substructure query is a smarts or a compound, not both")
-        if self.compound is not None and not _NAME.match(self.compound):
+        if self.compound is not None and not _COMPOUND_NAME.match(self.compound):
             raise ValueError(f"compound name is not an identifier: {self.compound!r}")
         if self.smarts is not None:
             pattern = Chem.MolFromSmarts(self.smarts)
@@ -550,7 +553,7 @@ class Similarity(_Node):
     def _check(self) -> "Similarity":
         if (self.smiles is None) == (self.compound is None):
             raise ValueError("a similarity query is a smiles or a compound, not both")
-        if self.compound is not None and not _NAME.match(self.compound):
+        if self.compound is not None and not _COMPOUND_NAME.match(self.compound):
             raise ValueError(f"compound name is not an identifier: {self.compound!r}")
         if self.smiles is not None:
             molecule = Chem.MolFromSmiles(self.smiles)
@@ -577,7 +580,7 @@ def _check_molecule_query(node: "SameCompound | SameParent") -> None:
     """
     if (node.smiles is None) == (node.compound is None):
         raise ValueError("a compound query is a smiles or a compound, not both")
-    if node.compound is not None and not _NAME.match(node.compound):
+    if node.compound is not None and not _COMPOUND_NAME.match(node.compound):
         raise ValueError(f"compound name is not an identifier: {node.compound!r}")
     if node.smiles is not None:
         molecule = Chem.MolFromSmiles(node.smiles)
