@@ -402,8 +402,8 @@ def run_case(
         # Never a pass, whatever the case expects. A model that built a query for an
         # inexpressible question reached the right verdict by the wrong road, and
         # counting that as a refusal would hide the day it starts answering instead. A
-        # safety refusal fails too, rather than going unmeasured: the question was read
-        # and turned away, which is what a reader asking it would see.
+        # safety refusal fails too, rather than going unmeasured: the question was
+        # turned away, which is what a reader asking it would see.
         refused = isinstance(error, nl.ModelRefusedError)
         detail = str(error) if refused else f"did not compile: {error}"
         return CaseResult(case, passed=False, detail=detail)

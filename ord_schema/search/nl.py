@@ -207,8 +207,8 @@ class ModelRefusedError(NLQueryError):
     """The model's safety classifiers declined the request.
 
     Distinct from ``UnanswerableError``, where the model read the question and found the
-    grammar lacking: here nothing was read, and the category says which classifier
-    stopped it.
+    grammar lacking: here a classifier declined the request before any answer, and the
+    category says which one.
     """
 
 
