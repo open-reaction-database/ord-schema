@@ -2043,7 +2043,11 @@ def compile_query(
     # there can name a compound too.
     generated = {parameter.name for parameter in parameters.structures}
     generated |= set(parameters.literals)
-    collisions = sorted(generated & set(parameters.compounds))
+    # Sanitize compound names so the collision check matches SQL parameter names.
+    # Compound names with spaces become underscores in SQL (via _literal), so the
+    # collision check must compare against sanitized names.
+    sanitized_compounds = {c.replace(" ", "_") for c in parameters.compounds}
+    collisions = sorted(generated & sanitized_compounds)
     if collisions:
         # All of them reach the SQL as $-parameters, so a compound named like a
         # generated parameter would receive the wrong binding silently.
