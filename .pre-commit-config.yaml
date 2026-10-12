@@ -25,16 +25,10 @@ repos:
       # docs: ruff and ty are Python, markdownlint is Markdown, clang-format is proto,
       # nbstripout is notebooks. These three are what covers the rest.
       #
-      # The exclusions are exactly what compile_proto_wrappers.sh writes: protoc's
-      # --python_out and --pyi_out, its --js_out and --ts_out under js/ord-schema/proto,
-      # the js/ord-schema/index.js that re-exports them, and the pbjs/pbts pair under
-      # js/ord-schema-protobufjs. The test_proto_wrappers job regenerates all of it and
-      # fails on any drift, so a hook that edited one would fail that job on every run
+      # The exclusions are exactly what compile_proto_wrappers.sh writes: the _pb2.py and
+      # _pb2.pyi files under ord_schema/proto. The test_proto_wrappers job regenerates them
+      # and fails on any drift, so a hook that edited one would fail that job on every run
       # until someone noticed which of the two authorities over those bytes to believe.
-      #
-      # Nothing else under js/ is generated. js/ord-schema/index.d.ts, package.json,
-      # webpack.config.js, and the _pb.test.js suites are hand-written, so all of them
-      # are covered.
       #
       # SVGs are excluded as assets rather than source. Two of the three logos are
       # minified onto one line, so changing a byte rewrites an 8 KB line: the patch is
@@ -44,19 +38,13 @@ repos:
       - id: end-of-file-fixer
         exclude: |
           (?x)^(
-            js/ord-schema-protobufjs/index\.(js|d\.ts)
-            |js/ord-schema/index\.js
-            |js/ord-schema/proto/[a-z_]+_pb\.(js|d\.ts)
-            |ord_schema/proto/.*_pb2\.pyi?
+            ord_schema/proto/.*_pb2\.pyi?
             |.*\.svg
           )$
       - id: trailing-whitespace
         exclude: |
           (?x)^(
-            js/ord-schema-protobufjs/index\.(js|d\.ts)
-            |js/ord-schema/index\.js
-            |js/ord-schema/proto/[a-z_]+_pb\.(js|d\.ts)
-            |ord_schema/proto/.*_pb2\.pyi?
+            ord_schema/proto/.*_pb2\.pyi?
             |.*\.svg
           )$
 
