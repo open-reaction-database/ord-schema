@@ -25,7 +25,7 @@ coverage*
 /dist
 # Folder tracking files
 .DS_Store
-# The buf toolchain package.json pins.
+# buf, which npm ci installs from package-lock.json.
 node_modules/
 
 # Claude/working planning docs (local only)

@@ -11,10 +11,10 @@ lives in the [`ord-schema` Python package](https://pypi.org/project/ord-schema/)
 unit parsing, SMILES derivation, and the other helpers, so a generated SDK reads and
 writes ORD data without checking it.
 
-The project also publishes Python bindings of its own, `ord-schema` on PyPI. The npm
-packages `ord-schema` and `ord-schema-protobufjs` end at 0.9.1; JavaScript and
-TypeScript code uses an SDK generated here, such as
-`@buf/open-reaction-database_ord-schema.bufbuild_es`.
+The project also publishes Python bindings of its own, `ord-schema` on PyPI. JavaScript
+and TypeScript code uses an SDK generated here, such as
+`@buf/open-reaction-database_ord-schema.bufbuild_es`; the npm packages `ord-schema` and
+`ord-schema-protobufjs` are deprecated and end at 0.9.1.
 
 `ord-schema/proto/test.proto` defines the `ord_test` messages the ord-schema test suite
 uses; it is not part of the schema.
