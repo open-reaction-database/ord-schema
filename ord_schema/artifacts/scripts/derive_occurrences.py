@@ -38,8 +38,8 @@ that list. Deriving from the pivot rather than from the projection is what keeps
 from disagreeing about which elements exist: the occurrences are that artifact projected
 down to three columns.
 
-Artifacts whose footer already records the current source content, library version, and
-artifact version are skipped, so re-running is cheap; --force rewrites them anyway.
+Artifacts whose footer already records the current source content, artifact lineage, and
+RDKit version are skipped, so re-running is cheap; --force rewrites them anyway.
 
 These are errors: an --output_dir that would write over any input, a path this schema
 does not carry a structure at, a pivot that is stale or holds another level, a run that

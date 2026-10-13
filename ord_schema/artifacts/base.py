@@ -46,7 +46,11 @@ already uses for source datasets:
   derived from another artifact passes this through rather than hashing its parent, so
   every artifact names the dataset it reflects however many derivations away it sits,
   and one comparison answers "is this current for that dataset?"
-* ``ord.ord_schema_version`` -- what derived it.
+* ``ord.ord_schema_version`` -- the library release that derived it. Recorded, not
+  compared: a release need not change any artifact, and a development build between
+  releases reports the last release's number, so the version would both stale files no
+  change touched and pass files a change did. ``ord.artifact_lineage`` is what says a
+  definition moved.
 * ``ord.rdkit_version`` -- the RDKit that derived it. Every artifact leans on RDKit --
   canonical SMILES in the projection, fingerprints in the structures artifact -- and
   RDKit releases have changed both canonicalization and pattern fingerprints, either of
@@ -56,9 +60,9 @@ already uses for source datasets:
 * ``ord.source_dataset_id`` -- the source's ID, written only when the source records
   one, and so the only key not required to read stamps back.
 
-``is_current`` requires the artifact name, the source content, the library version, the
-artifact lineage, and the RDKit version to all match, since any of the five changing can
-change a value or mean the file answers a different question.
+``is_current`` requires the artifact name, the source content, the artifact lineage, and
+the RDKit version to all match, since any of the four changing can change a value or
+mean the file answers a different question.
 """
 
 import dataclasses
@@ -84,11 +88,14 @@ logger = get_logger(__name__)
 _ESCAPED_WILDCARD = re.compile(r"\[([*?\[])\]")
 
 # Bumped when an artifact's definition changes -- a column's meaning, how it is
-# populated, or a shared helper that feeds it. Per artifact, because a re-derive is not
-# one price: measured over the source that is 96% of ORD, a projection is 34.6 minutes
-# and its structures 29.6, while the occurrences at every indexed path are 1.9 seconds.
-# Sharing one version across them would charge the 81-minute rebuild for a change to the
-# 1.9-second artifact.
+# populated, or a shared helper that feeds it. The only stamp that sees a change to this
+# library: a change left unbumped leaves every existing artifact reading as current, so
+# rebuilding its outputs takes --force. base_test pins what each artifact holds, so such
+# a change fails there until someone decides whether it needs the bump. Per artifact,
+# because a re-derive is not one price: measured over the source that is 96% of ORD, a
+# projection is 34.6 minutes and its structures 29.6, while the occurrences at every
+# indexed path are 1.9 seconds. Sharing one version across them would charge the
+# 81-minute rebuild for a change to the 1.9-second artifact.
 ARTIFACT_VERSIONS = {
     "projection": "1",
     "structures": "1",
@@ -371,9 +378,9 @@ def is_current(
 ) -> bool:
     """Returns whether ``path`` holds ``artifact`` derived from ``source_md5`` by us.
 
-    All of the source content, the library version, the artifact lineage, and the
-    RDKit version must match; any of them changing can change a value. A missing,
-    unreadable, or wrong-artifact file is not current.
+    All of the source content, the artifact lineage, and the RDKit version must match;
+    any of them changing can change a value. A missing, unreadable, or wrong-artifact
+    file is not current.
 
     Args:
         path: Path to check. Need not exist.
@@ -409,14 +416,13 @@ def stamps_are_current(value: Stamps, artifact: str) -> bool:
         artifact: Artifact name the file is expected to hold.
 
     Returns:
-        Whether the artifact name, the library version, the artifact lineage, and the
-        RDKit version all match. A file with no RDKit stamp is not current -- and a
-        lineage mismatch covers a redefinition of this artifact or of anything it was
-        derived from.
+        Whether the artifact name, the artifact lineage, and the RDKit version all
+        match. A file with no RDKit stamp is not current -- and a lineage mismatch
+        covers a redefinition of this artifact or of anything it was derived from. The
+        library version is not compared; see the module docstring.
     """
     return (
         value.artifact == artifact
-        and value.ord_schema_version == metadata.version("ord-schema")
         and value.artifact_lineage == lineage(artifact)
         and value.rdkit_version == rdBase.rdkitVersion
     )
