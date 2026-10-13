@@ -51,13 +51,14 @@ real trap:
   says which field is the month. It is settled per dataset and before any row is
   written -- the convention belongs to the depositor, not to a value -- from
   ``_DAY_FIRST``, from the dataset's own unambiguous values, and from month first
-  otherwise. The two datasets ``_UNDECIDED`` names are the exception: nothing settles
-  them, so their timestamps are null, because a guess written here is indistinguishable
-  afterwards from a date the source recorded.
+  otherwise. A source that records no dataset ID is the exception: no list can name it,
+  so only its own values speak for it, and where none does its ambiguous timestamps are
+  null, because a guess written here is indistinguishable afterwards from a date the
+  source recorded.
 
   The string the depositor wrote stays beside the timestamp, and is internal. Keeping it
-  is what lets those nulls be read back once their submitters answer; hiding it is what
-  keeps a date question off a column the corpus spells ten ways.
+  is what lets such a null be read back once the order is known; hiding it is what keeps
+  a date question off a column the corpus spells ten ways.
 
 * **Structural identifiers collapse to one ``smiles``.** ``SMILES``, ``CXSMILES``,
   ``INCHI``, and ``MOLBLOCK`` all answer "what is this molecule," so the projection
@@ -211,37 +212,20 @@ _SLASH_DATE = re.compile(r"^(\d{1,2})/(\d{1,2})/")
 # that is what a dataset's own values witness wherever one holds a number above twelve,
 # and what the corpus's other evidence settles for the rest -- an upper bound from the
 # reaction's own record_modified events, a co-submitted sibling in the same shape, the
-# en-US 12-hour rendering no day-first locale produces, and the supplemental data on two
-# submission pull requests. The reasoning per dataset is the ord-logbook entry "Date and
-# time formats across the corpus" (2026-09-03).
+# en-US 12-hour rendering no day-first locale produces, the supplemental data on two
+# submission pull requests, and the submitter's answer on two more (ord-data#212 and
+# ord-data#218). The reasoning per dataset is the ord-logbook entry "Date and time
+# formats across the corpus" (2026-09-03).
 _DAY_FIRST = frozenset(
     {
         "ord_dataset-172039a759a440219a68af62d203b79b",
         "ord_dataset-2be11f57f3304e678ea8469baf6dd1bc",
         "ord_dataset-3b8a2ef300e145468579027f206a3ac8",
+        "ord_dataset-5c9a10329a8a48968d18879a48bb8ab2",
+        "ord_dataset-5e8318f0dda04b398c14f4c3adfeb32c",
         "ord_dataset-c5b00523487a4211a194160edf45e9ab",
     }
 )
-
-# Datasets no evidence settles, whose submitters have been asked. Their ambiguous dates
-# project as null, which is the point: writing a guess would freeze it into the artifact
-# and destroy the record that it was ever a guess. Between them they hold every
-# ambiguous slash date the corpus records outside ``_DAY_FIRST`` -- 9,656 values, 0.40%
-# of the 2,430,268 dates it records.
-_UNDECIDED = frozenset(
-    {
-        "ord_dataset-5c9a10329a8a48968d18879a48bb8ab2",
-        "ord_dataset-5e8318f0dda04b398c14f4c3adfeb32c",
-    }
-)
-
-# A dataset in both lists reads as undecided, silently: nothing else says that the
-# evidence naming it day first and the evidence settling nothing are the same claim.
-if _DAY_FIRST & _UNDECIDED:
-    raise ValueError(
-        "a dataset cannot be both day-first and undecided: "
-        f"{sorted(_DAY_FIRST & _UNDECIDED)}"
-    )
 
 # An ID rides beside the collapsed smiles and cannot exist without it: the schema
 # would gain a structure_id with no sibling smiles, and message_row would KeyError.
@@ -374,12 +358,11 @@ def slash_orientation(
 ) -> bool | None:
     """Returns whether a dataset writes slash dates day first, preferring what is known.
 
-    ``_UNDECIDED`` answers first, because a dataset nothing settles has to stay unparsed
-    rather than take the default. ``_DAY_FIRST`` answers next, holding evidence a value
-    cannot carry -- a sibling submission alongside the datasets that witness themselves.
-    The scan then answers for a dataset nobody has looked at yet, which is what keeps a
-    day-first dataset added later from silently reading month first. Month first is what
-    is left, and what every settled dataset outside ``_DAY_FIRST`` reads.
+    ``_DAY_FIRST`` answers first, holding evidence a value cannot carry -- a sibling
+    submission or the submitter's answer, alongside the datasets that witness
+    themselves. The scan then answers for a dataset nobody has looked at yet, which is
+    what keeps a day-first dataset added later from silently reading month first. Month
+    first is what is left, and what every settled dataset outside ``_DAY_FIRST`` reads.
 
     Args:
         dataset_id: The source's ``ord_dataset-`` ID, or None where it records none.
@@ -391,17 +374,15 @@ def slash_orientation(
             the 34.6 minutes the projection itself takes.
 
     Returns:
-        True for day first, False for month first, and None for a dataset ``_UNDECIDED``
-        names or a source recording no ID at all -- which leaves ambiguous dates
-        unparsed rather than guessed.
+        True for day first, False for month first, and None for a source recording no
+        ID whose own values settle nothing -- which leaves ambiguous dates unparsed
+        rather than guessed.
 
     Raises:
         ValueError: If a witness in the data contradicts ``_DAY_FIRST``. One of the two
             is then wrong about the dataset, and projecting either reading would record
             a date this library has evidence against.
     """
-    if dataset_id in _UNDECIDED:
-        return None
     if dataset_id is None:
         # The default is a claim about a dataset someone could name in _DAY_FIRST after
         # reading its submission. A source recording no ID can never be named, so the
@@ -912,10 +893,10 @@ def write_projection(
     # Which way this dataset writes slash dates, settled before any row is projected.
     # The convention belongs to the depositor rather than to a value, so it cannot be
     # read off the rows as they stream past and a row group's worth of them is not the
-    # dataset. Every dataset but an undecided one costs a pass that parses the protos
-    # without projecting them, though it stops at the first value that settles the
-    # question: measured at ~7 seconds over the source that is 96% of ORD, against the
-    # 34.6 minutes the projection itself takes.
+    # dataset. Every dataset costs a pass that parses the protos without projecting
+    # them, though it stops at the first value that settles the question: measured at
+    # ~7 seconds over the source that is 96% of ORD, against the 34.6 minutes the
+    # projection itself takes.
     day_first = slash_orientation(source_dataset_id, _recorded_dates(view))
     with (
         atomic_io.atomic_path(output) as temp_path,
