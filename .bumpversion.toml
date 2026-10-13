@@ -13,7 +13,7 @@
 # limitations under the License.
 
 [tool.bumpversion]
-current_version = "0.9.1"
+current_version = "0.9.2"
 commit = true
 tag = true
 message = "Bump version: {current_version} → {new_version} [skip actions]"
