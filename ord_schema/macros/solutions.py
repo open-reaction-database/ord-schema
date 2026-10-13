@@ -13,7 +13,7 @@
 # limitations under the License.
 """Macros for programmatic message creation."""
 
-from ord_schema import units
+from ord_schema import message_helpers, units
 from ord_schema.proto import reaction_pb2
 
 UNITS_RESOLVER = units.UnitResolver()
@@ -32,7 +32,8 @@ def simple_solution(
     """Creates a solution with at most one solvent and one solute.
 
     Args:
-        solvent_smiles: SMILES of the solvent.
+        solvent_smiles: SMILES of the solvent. Either SMILES is recorded as CXSMILES
+            if it has an extension block.
         solute_smiles: SMILES of the solute. If not specified, a pure solvent
             is generated.
         volume: Volume of solution (total volume including the solute).
@@ -72,7 +73,10 @@ def simple_solution(
 
     output_compounds = []
     solvent_pb = reaction_pb2.Compound()
-    solvent_pb.identifiers.add(value=solvent_smiles, type="SMILES")
+    solvent_pb.identifiers.add(
+        value=solvent_smiles,
+        type=message_helpers.smiles_identifier_type(solvent_smiles),
+    )
     if volume is not None:
         solvent_pb.amount.volume.MergeFrom(volume)
         if solute_smiles is not None:
@@ -81,7 +85,10 @@ def simple_solution(
 
     if solute_smiles:
         solute_pb = reaction_pb2.Compound()
-        solute_pb.identifiers.add(value=solute_smiles, type="SMILES")
+        solute_pb.identifiers.add(
+            value=solute_smiles,
+            type=message_helpers.smiles_identifier_type(solute_smiles),
+        )
         if solute_amount is not None:
             solute_pb.amount.MergeFrom(solute_amount)
         output_compounds.append(solute_pb)

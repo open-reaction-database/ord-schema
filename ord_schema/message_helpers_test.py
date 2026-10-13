@@ -346,6 +346,11 @@ class TestBuildCompound:
         )
         assert compound == expected
 
+    def test_cxsmiles_is_recorded_as_cxsmiles(self):
+        compound = message_helpers.build_compound(smiles="C[C@H](N)O |&1:1|")
+        assert compound.identifiers[0].type == reaction_pb2.CompoundIdentifier.CXSMILES
+        assert compound.identifiers[0].value == "C[C@H](N)O |&1:1|"
+
     def test_unmeasured_amount(self):
         compound = message_helpers.build_compound(smiles="CCO", amount="catalytic")
         expected = reaction_pb2.Compound(
@@ -784,6 +789,19 @@ class TestMessagesToDataFrame:
 )
 def test_split_cxsmiles_extension(value, expected):
     assert message_helpers.split_cxsmiles_extension(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("smiles", "expected"),
+    [
+        ("C[C@H](N)O |&1:1|", "CXSMILES"),
+        ("C[C@H](N)O", "SMILES"),
+        # Whitespace without a block is not an extension.
+        ("c1ccccc1\xa0", "SMILES"),
+    ],
+)
+def test_smiles_identifier_type(smiles, expected):
+    assert message_helpers.smiles_identifier_type(smiles) == expected
 
 
 def test_cxsmiles_is_a_structural_identifier():
