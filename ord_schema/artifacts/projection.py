@@ -843,6 +843,28 @@ def _recorded_dates(view: parquet.DatasetView) -> Iterator[str | None]:
             yield modified.time.value
 
 
+def dataset_slash_orientation(
+    dataset_id: str | None, view: parquet.DatasetView
+) -> bool | None:
+    """Returns whether a source dataset writes slash dates day first, as it projects.
+
+    Every row of a dataset is projected under this one answer, so whatever re-projects a
+    row on its own, such as a fidelity check, reads it here: the row cannot carry it.
+
+    Args:
+        dataset_id: The source's ``ord_dataset-`` ID, or None where it records none.
+        view: The source dataset.
+
+    Returns:
+        True for day first, False for month first, and None where nothing settles it;
+        see ``slash_orientation``.
+
+    Raises:
+        ValueError: If a witness in the data contradicts ``_DAY_FIRST``.
+    """
+    return slash_orientation(dataset_id, _recorded_dates(view))
+
+
 def write_projection(
     source: str | os.PathLike[str],
     output: str | os.PathLike[str],
@@ -897,7 +919,7 @@ def write_projection(
     # them, though it stops at the first value that settles the question: measured at
     # ~7 seconds over the source that is 96% of ORD, against the 34.6 minutes the
     # projection itself takes.
-    day_first = slash_orientation(source_dataset_id, _recorded_dates(view))
+    day_first = dataset_slash_orientation(source_dataset_id, view)
     with (
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,

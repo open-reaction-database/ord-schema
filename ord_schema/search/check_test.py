@@ -94,6 +94,65 @@ def test_a_faithful_corpus_passes_every_fidelity_check(corpus_root):
     assert _failures(findings) == []
 
 
+def _dated_corpus(
+    root: pathlib.Path, dataset_id: str, recorded: str
+) -> tuple[pathlib.Path, pathlib.Path]:
+    """Projects a one-reaction dataset whose record was created at ``recorded``.
+
+    Returns:
+        The projection and the source.
+    """
+    reaction = _reaction("ord-dated01", "CCO", _ROLE.REACTANT)
+    reaction.provenance.record_created.time.value = recorded
+    source = root / "data" / f"{dataset_id}.parquet"
+    source.parent.mkdir()
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id=dataset_id, name="test", description="test", reactions=[reaction]
+        ),
+        str(source),
+    )
+    projected = root / "projections" / source.name
+    projected.parent.mkdir()
+    projection.write_projection(source, projected)
+    return projected, source
+
+
+def test_an_ambiguous_slash_date_re_projects_to_what_is_stored(tmp_path):
+    # Both fields of 2/4 are at most 12, so the date parses only under the orientation
+    # the projection settles for the whole dataset, which one row cannot carry.
+    projected, source = _dated_corpus(
+        tmp_path, "ord_dataset-cc", "2/4/2021, 11:24:34 AM"
+    )
+    stored = pq.read_table(projected).to_pylist()[0]
+    assert stored["provenance"]["record_created"]["time"]["timestamp"] is not None
+    findings = check.check_sources(
+        str(projected), str(source), datasets=1, rows=1, seed=0
+    )
+    assert _failures(findings) == []
+
+
+def test_a_dataset_its_own_dates_contradict_is_reported(tmp_path, monkeypatch):
+    # 2/25 can only be month first, so listing the dataset as day first contradicts it.
+    # The projection would refuse the dataset now; the check reports that as a finding
+    # rather than stopping before its other checks.
+    projected, source = _dated_corpus(
+        tmp_path, "ord_dataset-dd", "2/25/2021, 9:00:00 AM"
+    )
+    monkeypatch.setattr(projection, "_DAY_FIRST", frozenset({"ord_dataset-dd"}))
+    findings = check.check_sources(
+        str(projected), str(source), datasets=1, rows=1, seed=0
+    )
+    (round_trip,) = [
+        finding
+        for finding in findings
+        if finding.check == "sampled reactions re-project to what is stored"
+    ]
+    assert not round_trip.passed
+    assert "ord_dataset-dd does not project: " in round_trip.detail
+    assert "its own values witness month-first" in round_trip.detail
+
+
 def test_a_projection_missing_a_reaction_is_caught(corpus_root, tmp_path):
     # The failure a row count alone would miss: the right number of reactions, one of
     # them the wrong one.
