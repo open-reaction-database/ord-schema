@@ -221,6 +221,8 @@ def test_reactions_group_by_the_dataset_they_came_from(corpus):
             }
         )
     )
+    # Named by the path, which for a top-level column is the column's own name.
+    assert table.column_names == ["dataset_id", "n"]
     counts = dict(
         zip(
             table.column("dataset_id").to_pylist(),
@@ -247,6 +249,8 @@ def test_an_aggregate_over_a_level_orders_by_its_group_key(corpus, descending):
             }
         )
     )
+    # Named by the path as written, relative to the element, not by the expression.
+    assert table.column_names == ["smiles", "n"]
     smiles = table.column("smiles").to_pylist()
     assert len(smiles) == 3
     assert smiles == sorted(smiles, reverse=descending)
@@ -286,6 +290,104 @@ def test_an_aggregate_over_a_level_breaks_count_ties_by_its_group_key(corpus):
     rows = [(row["n"], row["smiles"]) for row in table.to_pylist()]
     assert rows == sorted(rows, key=lambda row: (-row[0], row[1]))
     assert rows[0][0] == 2
+
+
+_TEMPERATURE_CONTROL = "conditions.temperature.control.type"
+_STIRRING = "conditions.stirring.type"
+
+
+@pytest.fixture(scope="module")
+def conditions_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
+    """A corpus whose temperature control and stirring, both ``type``, differ.
+
+    The two paths share a last segment and hold values from different enums, so a
+    column holding the other path's values shows as a name the enum does not have.
+    """
+    controls = reaction_pb2.TemperatureConditions.TemperatureControl
+    stirring = reaction_pb2.StirringConditions
+    reactions = []
+    for reaction_id, control, method in (
+        ("ord-dd01", controls.AMBIENT, stirring.STIR_BAR),
+        ("ord-dd02", controls.OIL_BATH, stirring.NONE),
+        ("ord-dd03", controls.OIL_BATH, stirring.NONE),
+    ):
+        reaction = _reaction(reaction_id, components=[("CCO", _ROLE.REACTANT)])
+        reaction.conditions.temperature.control.type = control
+        reaction.conditions.stirring.type = method
+        reactions.append(reaction)
+    root = tmp_path_factory.mktemp("conditions")
+    source = root / "data" / "ord_dataset-dd.parquet"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-dd",
+            name="test",
+            description="test",
+            reactions=reactions,
+        ),
+        str(source),
+    )
+    projected = root / "projections" / source.name
+    projected.parent.mkdir(parents=True, exist_ok=True)
+    projection.write_projection(source, projected)
+    structured = root / "structures" / source.name
+    structured.parent.mkdir(parents=True, exist_ok=True)
+    structures.write_structures(projected, structured)
+    with execute.Corpus(
+        str(root / "projections" / "*.parquet"),
+        str(root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        yield value
+
+
+def test_group_by_paths_sharing_a_last_segment_name_their_own_columns(
+    conditions_corpus,
+):
+    # DuckDB names an unaliased column after its last segment, which would return two
+    # columns both called type and leave a reader by name one of them.
+    table = conditions_corpus.search(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "group_by": [_TEMPERATURE_CONTROL, _STIRRING],
+                    "measures": [{"fn": "count", "name": "n"}],
+                }
+            }
+        )
+    )
+    assert table.column_names == [_TEMPERATURE_CONTROL, _STIRRING, "n"]
+    rows = {
+        (row[_TEMPERATURE_CONTROL], row[_STIRRING], row["n"])
+        for row in table.to_pylist()
+    }
+    assert rows == {("AMBIENT", "STIR_BAR", 1), ("OIL_BATH", "NONE", 2)}
+
+
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        # Each ordering puts the other path's values in the opposite order, so sorting
+        # by the wrong one shows.
+        (_STIRRING, ["STIR_BAR", "NONE"]),
+        (_TEMPERATURE_CONTROL, ["NONE", "STIR_BAR"]),
+    ],
+)
+def test_an_aggregate_orders_by_group_by_paths_sharing_a_last_segment(
+    conditions_corpus, key, expected
+):
+    table = conditions_corpus.search(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "group_by": [_TEMPERATURE_CONTROL, _STIRRING],
+                    "measures": [{"fn": "count", "name": "n"}],
+                },
+                "order_by": [{"key": key, "descending": True}],
+            }
+        )
+    )
+    assert table.column(_STIRRING).to_pylist() == expected
 
 
 def test_a_source_without_a_dataset_id_reads_as_null(tmp_path):
