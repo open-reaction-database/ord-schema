@@ -848,12 +848,14 @@ def dataset_slash_orientation(
 ) -> bool | None:
     """Returns whether a dataset writes slash dates day first, as its projection reads.
 
-    Every row of a dataset is projected under this one answer, so whatever re-projects a
-    row on its own, such as a fidelity check, reads it here: the row cannot carry it.
+    Every row of a dataset is projected under this one answer, which no single row
+    carries, so code that re-projects one row, such as a fidelity check, reads it here.
 
     Args:
-        dataset_id: The source's ``ord_dataset-`` ID, or None where it records none.
-        view: The source dataset.
+        dataset_id: The source's ``ord_dataset-`` ID, as the projection is stamped with
+            it, or None where the source records none.
+        view: The source dataset, whose recorded dates are scanned until one settles
+            the order.
 
     Returns:
         True for day first, False for month first, and None where nothing settles it;

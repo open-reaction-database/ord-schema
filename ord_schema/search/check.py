@@ -594,8 +594,8 @@ def _check_round_trip(
         try:
             day_first = projection.dataset_slash_orientation(dataset_id, view)
         except ValueError as error:
-            # The dataset's own dates contradict the list of day-first datasets, so
-            # projecting it now would fail: a finding, like a row that does not project.
+            # The dataset's own dates contradict _DAY_FIRST, so it cannot be projected:
+            # a finding, like a row that does not project.
             differing.append(f"{dataset_id} does not project: {error}")
             continue
         for position in positions:

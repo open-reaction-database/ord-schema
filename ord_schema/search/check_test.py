@@ -152,7 +152,7 @@ def test_an_ambiguous_slash_date_re_projects_to_what_is_stored(
 
 def test_a_dataset_contradicting_the_day_first_list_is_reported(tmp_path, monkeypatch):
     # 2/25 can only be month first, so listing the dataset as day first contradicts it.
-    # The projection would refuse the dataset now; the check reports that as a finding
+    # Projecting it under that list fails; the check reports the failure as a finding
     # rather than stopping before its other checks.
     projected, source = _dated_corpus(
         tmp_path, "ord_dataset-dd", "2/25/2021, 9:00:00 AM"
