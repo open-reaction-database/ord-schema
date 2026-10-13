@@ -41,7 +41,7 @@ round-tripping.
 ## Stamps
 
 Every artifact carries five footer keys in the `ord.` namespace, and
-[`base.is_current`](base.py) requires all of them to match before a file counts as
+[`base.is_current`](base.py) requires four of them to match before a file counts as
 current:
 
 | key | why it can invalidate |
@@ -49,8 +49,16 @@ current:
 | `ord.artifact` | tells one artifact from another without inspecting the schema |
 | `ord.artifact_lineage` | this artifact's version and every ancestor's, so a redefinition anywhere up the chain makes the file stale |
 | `ord.source_md5` | the content of the source dataset this restates |
-| `ord.ord_schema_version` | what derived it |
 | `ord.rdkit_version` | RDKit releases have changed both canonicalization and pattern fingerprints, either of which silently breaks a file whose consumers run the newer one |
+
+The fifth, `ord.ord_schema_version`, records the release that derived the file and is
+not compared. A release need not change any artifact, and a development build between
+releases reports the last release's number, so comparing it would stale files no change
+touched and pass files a change did. A change to how an artifact is derived bumps its
+entry in `ARTIFACT_VERSIONS`; one left unbumped is invisible to the check, and `--force`
+is how a run rebuilds past it. `base_test.py` pins what each artifact holds when derived
+from two fixtures, so a change to an artifact fails there until someone decides whether
+it needs the bump.
 
 A sixth, `ord.source_dataset_id`, is written only when the source records one, and is the
 only key not required to read stamps back.
