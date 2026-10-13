@@ -132,7 +132,10 @@ is a compile error rather than a wrong answer:
   pattern drawn as one enantiomer matches that enantiomer, not its mirror image or the
   same molecule recorded without stereo. `chirality: false` ignores them, for a question
   about the molecule whatever its configuration. The flag is part of the cached match
-  set's key, so the two questions never share an answer.
+  set's key, so the two questions never share an answer. CXSMILES stereo groups count
+  as well: a structure recorded as a racemate (`&`) or as an unknown single enantiomer
+  (`o`) matches a pattern drawn as either enantiomer, and a pattern drawn as a racemate
+  matches only racemates.
 - A `reaction_smarts` is a condition on the reaction, refused inside a quantifier, and
   every template in it has to match: each reactant template a component whose role is
   `REACTANT`, each product template a product, each agent template a component in any

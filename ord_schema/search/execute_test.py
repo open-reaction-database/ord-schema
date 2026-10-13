@@ -447,16 +447,26 @@ def test_a_source_without_a_dataset_id_reads_as_null(tmp_path):
 
 
 _ALANINE = "C[C@@H](N)C(=O)O"
+_ALANINE_MIRROR = "C[C@H](N)C(=O)O"
+_RACEMIC_ALANINE = f"{_ALANINE_MIRROR} |&1:1|"
+_UNKNOWN_ALANINE = f"{_ALANINE_MIRROR} |o1:1|"
 
 
 @pytest.fixture(scope="module")
 def chiral_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
-    """A corpus holding one alanine enantiomer, its mirror image, and no stereo."""
+    """A corpus holding alanine as each enantiomer, without stereo, and in two groups.
+
+    The racemate (``&1``) and the unknown single enantiomer (``o1``) are both drawn as
+    the mirror image of ``_ALANINE``, so a pattern drawn as ``_ALANINE`` reaches them
+    only through their stereo groups.
+    """
     root = tmp_path_factory.mktemp("chiral")
     reactions = [
         _reaction("ord-ch01", components=[(_ALANINE, _ROLE.REACTANT)]),
-        _reaction("ord-ch02", components=[("C[C@H](N)C(=O)O", _ROLE.REACTANT)]),
+        _reaction("ord-ch02", components=[(_ALANINE_MIRROR, _ROLE.REACTANT)]),
         _reaction("ord-ch03", components=[("CC(N)C(=O)O", _ROLE.REACTANT)]),
+        _reaction("ord-ch04", components=[(_RACEMIC_ALANINE, _ROLE.REACTANT)]),
+        _reaction("ord-ch05", components=[(_UNKNOWN_ALANINE, _ROLE.REACTANT)]),
     ]
     source = root / "data" / "ord_dataset-ch.parquet"
     source.parent.mkdir(parents=True)
@@ -603,13 +613,42 @@ def test_a_substructure_matches_the_drawn_stereoisomer_unless_chirality_is_off(
     # Asked in both orders on one corpus, because the match set is cached: a cache key
     # that left chirality out would answer the second question with the first one's set.
     pattern = {"op": "substructure", "path": "smiles", "smarts": _ALANINE}
-    assert _search(chiral_corpus, _exists(pattern)) == {"ord-ch01"}
+    drawn = {"ord-ch01", "ord-ch04", "ord-ch05"}
+    assert _search(chiral_corpus, _exists(pattern)) == drawn
     assert _search(chiral_corpus, _exists(pattern | {"chirality": False})) == {
         "ord-ch01",
         "ord-ch02",
         "ord-ch03",
+        "ord-ch04",
+        "ord-ch05",
     }
-    assert _search(chiral_corpus, _exists(pattern)) == {"ord-ch01"}
+    assert _search(chiral_corpus, _exists(pattern)) == drawn
+
+
+@pytest.mark.parametrize(
+    ("smarts", "expected"),
+    [
+        (_ALANINE, {"ord-ch01", "ord-ch04", "ord-ch05"}),
+        (_ALANINE_MIRROR, {"ord-ch02", "ord-ch04", "ord-ch05"}),
+    ],
+)
+def test_a_stereo_group_matches_either_enantiomer_it_allows(
+    chiral_corpus, smarts, expected
+):
+    # The racemate holds both enantiomers and the unknown one may be either, so each is
+    # found by a pattern drawn as either, whichever way round its center was written.
+    pattern = {"op": "substructure", "path": "smiles", "smarts": smarts}
+    assert _search(chiral_corpus, _exists(pattern)) == expected
+
+
+def test_a_pattern_drawn_as_a_racemate_matches_only_the_racemate(chiral_corpus):
+    # A single enantiomer, known or not, is not a racemic mixture.
+    pattern = {
+        "op": "substructure",
+        "path": "smiles",
+        "smarts": f"{_ALANINE} |&1:1|",
+    }
+    assert _search(chiral_corpus, _exists(pattern)) == {"ord-ch04"}
 
 
 def _role_and_structure(smarts, role):
