@@ -779,15 +779,16 @@ def test_a_projected_date_the_shapes_do_not_cover_is_null():
 
 
 def test_a_recorded_verdict_beats_what_the_values_alone_witness():
-    # The table holds evidence a value cannot carry, so it decides where it names the
-    # dataset -- and all 13 of the datasets no value settles are in it.
-    ambiguous = ["07/06/2024, 23:25:41"]
+    # _DAY_FIRST holds evidence a value cannot carry, so it decides where it names the
+    # dataset -- here a co-submitted sibling, for a dataset whose own values settle
+    # nothing.
+    ambiguous = ["09/10/2024, 17:25:29"]
     assert projection.day_first_dates(ambiguous) is None
     assert (
         projection.slash_orientation(
-            "ord_dataset-d92976309c3a48a3a64a4cf5e7048086", ambiguous
+            "ord_dataset-2be11f57f3304e678ea8469baf6dd1bc", ambiguous
         )
-        is False
+        is True
     )
 
 
@@ -835,7 +836,7 @@ def test_a_witness_contradicting_the_recorded_verdict_is_an_error():
     ],
 )
 def test_a_submitter_settled_dataset_reads_day_first(dataset_id, value, expected):
-    # No value in either dataset settles it; the submitter dated both on their
+    # No value in either dataset settles the order; the submitter dated both on their
     # submission pull requests, ord-data#212 and ord-data#218.
     day_first = projection.slash_orientation(dataset_id, [value])
     assert day_first is True
