@@ -205,18 +205,21 @@ def test_a_recorded_nan_re_projects_to_what_is_stored(tmp_path):
     assert _failures(findings) == []
 
 
+# Each NaN a separate object, as a re-projected and a stored one are. math.nan is one
+# object, and container equality tests identity before ==, so a shared NaN compares
+# equal inside a dict or tuple and the case passes without the code under test.
 @pytest.mark.parametrize(
     ("expected", "stored", "same"),
     [
-        ({"a": math.nan}, {"a": math.nan}, True),
-        ([("in", {"a": math.nan})], [("in", {"a": math.nan})], True),
-        ({"a": math.nan}, {"a": 1.0}, False),
-        ({"a": 1.0}, {"a": math.nan}, False),
-        ({"a": math.nan}, {"a": None}, False),
-        ({"a": math.nan}, {"a": math.nan, "b": 1}, False),
+        ({"a": float("nan")}, {"a": float("nan")}, True),
+        ([("in", {"a": float("nan")})], [("in", {"a": float("nan")})], True),
+        ({"a": float("nan")}, {"a": 1.0}, False),
+        ({"a": 1.0}, {"a": float("nan")}, False),
+        ({"a": float("nan")}, {"a": None}, False),
+        ({"a": float("nan")}, {"a": float("nan"), "b": 1}, False),
         ([("in", 1)], [("out", 1)], False),
         ([1, 2], (1, 2), False),
-        ([math.nan], [math.nan, math.nan], False),
+        ([float("nan")], [float("nan"), float("nan")], False),
     ],
 )
 def test_nan_matches_only_nan(expected, stored, same):
