@@ -148,18 +148,19 @@ pivots/pivot-1_projection-1/rdkit-2026.03.5/inputs.components/aa/ord_dataset-<id
 
 Builds for different library or RDKit versions therefore sit side by side, and
 [`huggingface.fetch_artifacts`](../huggingface.py) downloads only the one this library
-would accept, deleting local files the build has since dropped. The RDKit version has to
-match exactly: canonical SMILES, pattern
+would accept, deleting local files the build has since dropped and refreshing any pivot
+level already held. The RDKit version has to match exactly: canonical SMILES, pattern
 fingerprints, and registration hashes all drift between releases, patch releases
 included, and a query computes its side of each comparison with the RDKit it runs. The
 lineage is spelled without `=` because DuckDB reads a `key=value` directory as a Hive
 partition and adds it to every file as a column.
 
 [`upload_artifacts`](../scripts/upload_artifacts.py) publishes a local tree in one
-commit, each file under the build its own footer names. It refuses a tree in which an
-artifact spans more than one build, in which any artifact, pivot level, or indexed path
-restates a source dataset twice or different ones than the projections, or which lacks
-a pivot level or indexed path this library derives:
+commit, each file under the build its own footer names. It accepts only a tree a
+`Corpus(require_pivots=True, require_occurrences=True)` opens: one RDKit version, each
+artifact derived from its parent's build, every pivot level and indexed path present
+and filed where its footer says, and each restating the projections' source datasets
+once. Its docstring lists the refusals.
 
 ```bash
 python -m ord_schema.scripts.upload_artifacts \
