@@ -124,9 +124,9 @@ is a compile error rather than a wrong answer:
 - A structure predicate's `compound` is resolved through
   [`ord_schema.resolvers`](../resolvers.py) when the query runs, so the model names compounds
   and never spells structures. A comparison's value is a literal, never a compound: a resolved
-  name compared with `eq` against a `smiles` would compare spellings, and the resolver and the
-  projection spell a molecule with a dative bond or a stereo group differently. A
-  `{"compound": ...}` value is refused with a message pointing to `same_compound`.
+  name compared with `eq` against a `smiles` would compare spellings, which miss the same
+  compound drawn as another tautomer or protonation state and need not agree across RDKit
+  releases. A `{"compound": ...}` value is refused with a message pointing to `same_compound`.
 - A `{"literal": ...}` value is **bound as a parameter**, typed: a string compared against a
   date or timestamp column binds as the instant it names. No literal reaches the SQL as text.
   What the model writes that does is the `limit`, validated as a positive integer, measure

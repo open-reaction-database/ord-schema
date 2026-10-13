@@ -3831,28 +3831,33 @@ def test_a_library_that_lost_a_molecule_is_refused(corpus_dir, monkeypatch):
         value._library()
 
 
-def test_a_pattern_and_a_name_that_read_alike_are_not_one_answer(corpus_dir):
+def test_a_pattern_and_a_name_that_read_alike_are_not_one_answer(tmp_path):
     # A stated substructure pattern is SMARTS; a resolved compound is SMILES. The same
-    # text is two query molecules across those parsers -- C1=CC=CC=C1 is benzene as
-    # SMILES and six aliphatic carbons as SMARTS -- and resolvers answer in exactly that
-    # Kekule form, so a key holding only the text would answer one with the other.
-    kekule = "C1=CC=CC=C1"
+    # text is two query molecules across those parsers: [NH4+] read as SMARTS holds its
+    # nitrogen to four hydrogens, and read as SMILES leaves the count unconstrained, so
+    # it matches tetramethylammonium too. A resolved name is keyed in its canonical
+    # spelling, which for ammonium is that same text, so a key holding only the text
+    # would answer one with the other.
+    _derive(
+        tmp_path,
+        "nh",
+        [
+            _reaction("ord-nh01", components=[("[NH4+]", _ROLE.REACTANT)]),
+            _reaction("ord-nh02", components=[("C[N+](C)(C)C", _ROLE.REACTANT)]),
+        ],
+    )
     by_name = query.Query.model_validate(
-        {"where": _exists({"op": "substructure", "path": "smiles", "compound": "b"})}
+        {"where": _exists({"op": "substructure", "path": "smiles", "compound": "a"})}
     )
 
     def answers(first, second):
-        with execute.Corpus(
-            str(corpus_dir / "projections" / "*.parquet"),
-            str(corpus_dir / "structures" / "*.parquet"),
-            resolver={"b": kekule}.__getitem__,
-        ) as value:
+        with _open(tmp_path, resolver={"a": "[NH4+]"}.__getitem__) as value:
             return _reactions(value.search(first)), _reactions(value.search(second))
 
-    # The corpus stores benzene aromatic, so the name matches it and the pattern, read
-    # as six aliphatic carbons, matches nothing. Whichever runs first, both hold.
-    assert answers(_substructure(kekule), by_name) == (set(), {"ord-aa01"})
-    assert answers(by_name, _substructure(kekule)) == ({"ord-aa01"}, set())
+    # Whichever runs first, both hold.
+    both = {"ord-nh01", "ord-nh02"}
+    assert answers(_substructure("[NH4+]"), by_name) == ({"ord-nh01"}, both)
+    assert answers(by_name, _substructure("[NH4+]")) == (both, {"ord-nh01"})
 
 
 def test_a_structure_parameter_naming_nothing_is_an_error(corpus):

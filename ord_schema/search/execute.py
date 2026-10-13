@@ -2991,8 +2991,9 @@ class Corpus:
             )
         # Which parser reads the string is part of what the string means, so it is part
         # of the key -- and it is asked of the same function the query molecule comes
-        # from, so the two cannot come apart. Resolvers answer in the Kekule form a
-        # SMARTS pattern is written in, so a name and a pattern do collide.
+        # from, so the two cannot come apart. A name is keyed in its canonical spelling,
+        # which a pattern can share: [NH4+] is ammonium's, and as SMARTS it excludes the
+        # quaternary ammoniums the SMILES reading matches.
         key = (
             parameter.op,
             _reads_as_smarts(parameter),

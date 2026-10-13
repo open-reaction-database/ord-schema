@@ -45,9 +45,9 @@ Compounds are named, never spelled, and compared by identity rather than by spel
 structure predicate takes ``"compound": "thf"`` in place of a SMILES, and the executor
 resolves the name through :mod:`ord_schema.resolvers`, so the model never writes a
 structure. A comparison takes literals only: a resolved SMILES equal to a stored one as
-a string means the two were spelled alike, which a molecule with a dative bond or a
-stereo group is not, and which any molecule may stop being under another RDKit release.
-``same_compound`` compares registration hashes instead.
+a string means one canonicalizer spelled the two alike, which misses the same compound
+drawn as another tautomer or protonation state, and which another RDKit release need
+not reproduce. ``same_compound`` compares registration hashes instead.
 
 Structure predicates -- ``substructure``, ``similarity``, ``same_compound``, and
 ``same_parent`` -- compile to a bitmap test rather than to chemistry. The chemistry runs
