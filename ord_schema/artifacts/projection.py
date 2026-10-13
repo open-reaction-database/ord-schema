@@ -406,9 +406,9 @@ def parse_timestamp(value: str, *, day_first: bool | None = None) -> datetime | 
     Args:
         value: The string a depositor wrote.
         day_first: Whether this dataset writes slash dates day first, from
-            ``day_first_dates``. None leaves an ambiguous slash date unparsed rather
-            than guessing, which is the difference between a null a reader can see and
-            a date that is silently the wrong month.
+            ``dataset_slash_orientation``. None leaves an ambiguous slash date unparsed
+            rather than guessing, which is the difference between a null a reader can
+            see and a date that is silently the wrong month.
 
     Returns:
         The parsed instant, or None where no format matched or the value is ambiguous
@@ -671,7 +671,7 @@ def message_row(
             projected outside a dataset -- leaves every ``structure_id`` null, since an
             ID is meaningful only against the artifact that shares the mapping.
         day_first: Whether this dataset writes slash dates day first, from
-            ``day_first_dates``. None leaves an ambiguous one unparsed; see
+            ``dataset_slash_orientation``. None leaves an ambiguous one unparsed; see
             ``parse_timestamp``.
 
     Returns:
@@ -791,7 +791,7 @@ def reaction_row(
             dataset's rows and extended in first-seen order. None leaves every
             ``structure_id`` null.
         day_first: Whether this dataset writes slash dates day first, from
-            ``day_first_dates``. None leaves an ambiguous one unparsed; see
+            ``dataset_slash_orientation``. None leaves an ambiguous one unparsed; see
             ``parse_timestamp``.
 
     Returns:
@@ -841,6 +841,30 @@ def _recorded_dates(view: parquet.DatasetView) -> Iterator[str | None]:
         yield provenance.record_created.time.value
         for modified in provenance.record_modified:
             yield modified.time.value
+
+
+def dataset_slash_orientation(
+    dataset_id: str | None, view: parquet.DatasetView
+) -> bool | None:
+    """Returns whether a dataset writes slash dates day first, as its projection reads.
+
+    Every row of a dataset is projected under this one answer, which no single row
+    carries, so code that re-projects one row, such as a fidelity check, reads it here.
+
+    Args:
+        dataset_id: The source's ``ord_dataset-`` ID, as the projection is stamped with
+            it, or None where the source records none.
+        view: The source dataset, whose recorded dates are scanned until one settles
+            the order.
+
+    Returns:
+        True for day first, False for month first, and None where nothing settles it;
+        see ``slash_orientation``.
+
+    Raises:
+        ValueError: If a witness in the data contradicts ``_DAY_FIRST``.
+    """
+    return slash_orientation(dataset_id, _recorded_dates(view))
 
 
 def write_projection(
@@ -897,7 +921,7 @@ def write_projection(
     # them, though it stops at the first value that settles the question: measured at
     # ~7 seconds over the source that is 96% of ORD, against the 34.6 minutes the
     # projection itself takes.
-    day_first = slash_orientation(source_dataset_id, _recorded_dates(view))
+    day_first = dataset_slash_orientation(source_dataset_id, view)
     with (
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,

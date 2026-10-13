@@ -22,6 +22,7 @@ them: they exist to catch what a built corpus gets wrong.
 import json
 import pathlib
 import typing
+from datetime import datetime
 
 import pyarrow.parquet as pq
 import pytest
@@ -92,6 +93,82 @@ def test_a_faithful_corpus_passes_every_fidelity_check(corpus_root):
     projections, _, sources = _globs(corpus_root)
     findings = check.check_sources(projections, sources, datasets=2, rows=5, seed=0)
     assert _failures(findings) == []
+
+
+def _dated_corpus(
+    root: pathlib.Path, dataset_id: str, recorded: str
+) -> tuple[pathlib.Path, pathlib.Path]:
+    """Projects a one-reaction dataset whose record was created at ``recorded``.
+
+    Args:
+        root: The directory to write the source and its projection under.
+        dataset_id: The dataset's ID, which decides whether ``_DAY_FIRST`` names it.
+        recorded: The record's creation date, as the depositor wrote it.
+
+    Returns:
+        The paths of the projection and of the source.
+    """
+    reaction = _reaction("ord-dated01", "CCO", _ROLE.REACTANT)
+    reaction.provenance.record_created.time.value = recorded
+    source = root / "data" / f"{dataset_id}.parquet"
+    source.parent.mkdir()
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id=dataset_id, name="test", description="test", reactions=[reaction]
+        ),
+        str(source),
+    )
+    projected = root / "projections" / source.name
+    projected.parent.mkdir()
+    projection.write_projection(source, projected)
+    return projected, source
+
+
+@pytest.mark.parametrize(
+    ("day_first", "expected"),
+    [
+        (frozenset(), datetime(2021, 2, 4, 11, 24, 34)),
+        (frozenset({"ord_dataset-cc"}), datetime(2021, 4, 2, 11, 24, 34)),
+    ],
+    ids=["month_first", "day_first"],
+)
+def test_an_ambiguous_slash_date_re_projects_to_what_is_stored(
+    tmp_path, monkeypatch, day_first, expected
+):
+    # Both fields of 2/4 are at most 12, so the date parses only under the orientation
+    # the projection settles for the whole dataset, which one row cannot carry. Each
+    # orientation reads a different month, so a check holding either one fixed fails.
+    monkeypatch.setattr(projection, "_DAY_FIRST", day_first)
+    projected, source = _dated_corpus(
+        tmp_path, "ord_dataset-cc", "2/4/2021, 11:24:34 AM"
+    )
+    stored = pq.read_table(projected).to_pylist()[0]
+    assert stored["provenance"]["record_created"]["time"]["timestamp"] == expected
+    findings = check.check_sources(
+        str(projected), str(source), datasets=1, rows=1, seed=0
+    )
+    assert _failures(findings) == []
+
+
+def test_a_dataset_contradicting_the_day_first_list_is_reported(tmp_path, monkeypatch):
+    # 2/25 can only be month first, so listing the dataset as day first contradicts it.
+    # Projecting it under that list fails; the check reports the failure as a finding
+    # rather than stopping before its other checks.
+    projected, source = _dated_corpus(
+        tmp_path, "ord_dataset-dd", "2/25/2021, 9:00:00 AM"
+    )
+    monkeypatch.setattr(projection, "_DAY_FIRST", frozenset({"ord_dataset-dd"}))
+    findings = check.check_sources(
+        str(projected), str(source), datasets=1, rows=1, seed=0
+    )
+    (round_trip,) = [
+        finding
+        for finding in findings
+        if finding.check == "sampled reactions re-project to what is stored"
+    ]
+    assert not round_trip.passed
+    assert "ord_dataset-dd does not project: " in round_trip.detail
+    assert "its own values witness month-first" in round_trip.detail
 
 
 def test_a_projection_missing_a_reaction_is_caught(corpus_root, tmp_path):

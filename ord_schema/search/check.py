@@ -589,6 +589,15 @@ def _check_round_trip(
         view = parquet.DatasetView(sources[dataset_id])
         stored = pq.read_table(projections[dataset_id]).to_pylist()
         positions = chooser.sample(range(len(stored)), min(rows, len(stored)))
+        # Which way the dataset writes slash dates is settled across all of it, so one
+        # row re-projects under the answer the projection read for the whole dataset.
+        try:
+            day_first = projection.dataset_slash_orientation(dataset_id, view)
+        except ValueError as error:
+            # The dataset's own dates contradict _DAY_FIRST, so it cannot be projected:
+            # a finding, like a row that does not project.
+            differing.append(f"{dataset_id} does not project: {error}")
+            continue
         for position in positions:
             row = stored[position]
             reaction = view.reactions[position]
@@ -596,7 +605,9 @@ def _check_round_trip(
             try:
                 # structure_id is assigned in first-seen order across a whole dataset,
                 # so one row cannot reproduce it; the projection's own tests cover it.
-                expected = projection.reaction_row(reaction, row["reaction_id"])
+                expected = projection.reaction_row(
+                    reaction, row["reaction_id"], day_first=day_first
+                )
             except ValueError as error:
                 # Projecting refuses a row whose ID disagrees with the reaction it
                 # stores. That is the check finding something, not the check breaking.
