@@ -206,6 +206,9 @@ _AGGREGATES = {
 # against the schema, so both are held to an identifier shape a quoting mistake cannot
 # escape.
 _NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Compound names are more flexible: allow spaces, hyphens, commas, parens, numbers at start.
+# These get resolved to SMILES at runtime, so validation can be permissive.
+_COMPOUND_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9\s\-\,\(\)\+\.]*$")
 
 
 def _quoted(identifier: str) -> str:
@@ -422,7 +425,7 @@ class Value(_Node):
     def _exactly_one(self) -> "Value":
         if (self.literal is None) == (self.compound is None):
             raise ValueError("a value is either a literal or a compound, not both")
-        if self.compound is not None and not _NAME.match(self.compound):
+        if self.compound is not None and not _COMPOUND_NAME.match(self.compound):
             raise ValueError(f"compound name is not an identifier: {self.compound!r}")
         return self
 
@@ -504,7 +507,7 @@ class Substructure(_Node):
     def _check(self) -> "Substructure":
         if (self.smarts is None) == (self.compound is None):
             raise ValueError("a substructure query is a smarts or a compound, not both")
-        if self.compound is not None and not _NAME.match(self.compound):
+        if self.compound is not None and not _COMPOUND_NAME.match(self.compound):
             raise ValueError(f"compound name is not an identifier: {self.compound!r}")
         if self.smarts is not None:
             pattern = Chem.MolFromSmarts(self.smarts)
@@ -560,7 +563,7 @@ class Similarity(_Node):
     def _check(self) -> "Similarity":
         if (self.smiles is None) == (self.compound is None):
             raise ValueError("a similarity query is a smiles or a compound, not both")
-        if self.compound is not None and not _NAME.match(self.compound):
+        if self.compound is not None and not _COMPOUND_NAME.match(self.compound):
             raise ValueError(f"compound name is not an identifier: {self.compound!r}")
         if self.smiles is not None:
             molecule = Chem.MolFromSmiles(self.smiles)
@@ -587,7 +590,7 @@ def _check_molecule_query(node: "SameCompound | SameParent") -> None:
     """
     if (node.smiles is None) == (node.compound is None):
         raise ValueError("a compound query is a smiles or a compound, not both")
-    if node.compound is not None and not _NAME.match(node.compound):
+    if node.compound is not None and not _COMPOUND_NAME.match(node.compound):
         raise ValueError(f"compound name is not an identifier: {node.compound!r}")
     if node.smiles is not None:
         molecule = Chem.MolFromSmiles(node.smiles)
@@ -946,7 +949,10 @@ def _literal(
     if value.compound is not None:
         if value.compound not in parameters.compounds:
             parameters.compounds.append(value.compound)
-        return f"${value.compound}"
+        # Sanitize compound names with spaces so they form valid SQL parameter names.
+        # Names without spaces stay as-is for backward compatibility.
+        safe = value.compound.replace(" ", "_")
+        return f"${safe}"
     assert value.literal is not None  # A Value holds a literal where no compound.
     bound: BoundValue = value.literal
     if isinstance(bound, str) and leaf is not None and _is_temporal(leaf):
@@ -2134,7 +2140,11 @@ def compile_query(
     # there can name a compound too.
     generated = {parameter.name for parameter in parameters.structures}
     generated |= set(parameters.literals)
-    collisions = sorted(generated & set(parameters.compounds))
+    # Sanitize compound names so the collision check matches SQL parameter names.
+    # Compound names with spaces become underscores in SQL (via _literal), so the
+    # collision check must compare against sanitized names.
+    sanitized_compounds = {c.replace(" ", "_") for c in parameters.compounds}
+    collisions = sorted(generated & sanitized_compounds)
     if collisions:
         # All of them reach the SQL as $-parameters, so a compound named like a
         # generated parameter would receive the wrong binding silently.

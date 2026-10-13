@@ -298,6 +298,8 @@ def test_every_literal_is_bound_as_a_value_of_its_own_type(
 
 
 def test_a_compound_named_like_a_literal_parameter_is_refused():
+    # A compound named "literal 0" (with space) sanitizes to "literal_0" in SQL,
+    # which collides with the auto-generated literal parameter name "literal_0".
     literal = {"op": "eq", "path": "reaction_id", "value": {"literal": "ord-1"}}
     with pytest.raises(query.QueryError, match="collide"):
         _compile(
@@ -312,7 +314,7 @@ def test_a_compound_named_like_a_literal_parameter_is_refused():
                             "where": {
                                 "op": "eq",
                                 "path": "smiles",
-                                "value": {"compound": "literal_0"},
+                                "value": {"compound": "literal 0"},
                             },
                         },
                     ],
@@ -324,6 +326,8 @@ def test_a_compound_named_like_a_literal_parameter_is_refused():
 def test_a_compound_in_an_ordering_is_checked_for_collisions_too():
     # An ordering compiles after the where, so a check made between the two would see
     # the where's structure parameter and miss the ordering's compound.
+    # A compound named "structure 0" (with space) sanitizes to "structure_0" in SQL,
+    # which collides with the auto-generated structure parameter name.
     with pytest.raises(query.QueryError, match="collide"):
         _compile(
             {
@@ -340,7 +344,7 @@ def test_a_compound_in_an_ordering_is_checked_for_collisions_too():
                             "where": {
                                 "op": "eq",
                                 "path": "smiles",
-                                "value": {"compound": "structure_0"},
+                                "value": {"compound": "structure 0"},
                             },
                         }
                     }
@@ -1476,6 +1480,8 @@ def test_a_similarity_threshold_is_required_and_bounded():
 
 
 def test_a_compound_named_like_a_structure_parameter_is_refused():
+    # A compound named "structure 0" (with space) sanitizes to "structure_0" in SQL,
+    # which collides with the auto-generated structure parameter name "structure_0".
     with pytest.raises(query.QueryError, match="collide"):
         query.compile_query(
             query.Query.model_validate(
@@ -1490,7 +1496,7 @@ def test_a_compound_named_like_a_structure_parameter_is_refused():
                                 {
                                     "op": "eq",
                                     "path": "smiles",
-                                    "value": {"compound": "structure_0"},
+                                    "value": {"compound": "structure 0"},
                                 },
                             ],
                         },
@@ -2009,7 +2015,8 @@ def test_same_compound_by_name_is_bound_rather_than_spelled():
         {"op": "same_compound", "path": "smiles", "smiles": "not a molecule"},
         # An empty molecule matches nothing and still costs a pass over the corpus.
         {"op": "same_compound", "path": "smiles", "smiles": ""},
-        {"op": "same_compound", "path": "smiles", "compound": "not an identifier"},
+        # A name containing a character outside the allowed set.
+        {"op": "same_compound", "path": "smiles", "compound": "sodium!hydroxide"},
     ],
 )
 def test_a_malformed_same_compound_is_refused_before_compilation(payload):
@@ -2086,7 +2093,8 @@ def test_the_two_compound_operators_bind_separate_parameters():
         },
         {"op": "same_parent", "path": "smiles", "smiles": "not a molecule"},
         {"op": "same_parent", "path": "smiles", "smiles": ""},
-        {"op": "same_parent", "path": "smiles", "compound": "not an identifier"},
+        # A name containing a character outside the allowed set.
+        {"op": "same_parent", "path": "smiles", "compound": "sodium!hydroxide"},
     ],
 )
 def test_a_malformed_same_parent_is_refused_before_compilation(payload):
