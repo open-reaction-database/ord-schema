@@ -3071,12 +3071,13 @@ class Corpus:
                 are and why. None runs unbounded.
 
         Returns:
-            The selected columns: ``reaction_id`` for a plain query, the group and
-            measure columns for an aggregated one. At most this corpus's ``max_rows``,
-            where it has one: an answer that reached the bound is logged as possibly cut
-            and carries ``TRUNCATED`` in its schema metadata. ``Compiled.limit`` is what
-            actually reached the SQL, for a caller that wants the number rather than the
-            flag.
+            The selected columns: ``reaction_id`` for a plain query, and for an
+            aggregated one a column per ``group_by`` path, named by the whole path,
+            then one per measure, named by its ``name``. At most this corpus's
+            ``max_rows``, where it has one: an answer that reached the bound is logged
+            as possibly cut and carries ``TRUNCATED`` in its schema metadata.
+            ``Compiled.limit`` is what actually reached the SQL, for a caller that
+            wants the number rather than the flag.
 
         Raises:
             query.QueryError: If the query does not compile.
