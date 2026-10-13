@@ -31,7 +31,7 @@ import pytest
 from rdkit import Chem
 from rdkit.Chem import rdSubstructLibrary
 
-from ord_schema import parquet
+from ord_schema import message_helpers, parquet
 from ord_schema.artifacts import (
     base,
     occurrences,
@@ -453,7 +453,7 @@ _UNKNOWN_ALANINE = f"{_ALANINE_MIRROR} |o1:1|"
 
 
 @pytest.fixture(scope="module")
-def chiral_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
+def chiral_root(tmp_path_factory) -> pathlib.Path:
     """A corpus holding alanine as each enantiomer, without stereo, and in two groups.
 
     The racemate (``&1``) and the unknown single enantiomer (``o1``) are both drawn as
@@ -485,11 +485,13 @@ def chiral_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
     structured = root / "structures" / source.name
     structured.parent.mkdir(parents=True)
     structures.write_structures(projected, structured)
-    with execute.Corpus(
-        str(root / "projections" / "*.parquet"),
-        str(root / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-    ) as value:
+    return root
+
+
+@pytest.fixture(scope="module")
+def chiral_corpus(chiral_root) -> Iterator[execute.Corpus]:
+    """The corpus over ``chiral_root``."""
+    with _open(chiral_root, resolver={}.__getitem__) as value:
         yield value
 
 
@@ -1059,51 +1061,49 @@ def test_no_cap_to_read_is_not_warned_about(corpus_dir, tmp_path, monkeypatch, c
     ]
 
 
-def test_a_resolved_name_is_compared_in_the_corpus_s_own_spelling(corpus_dir):
-    # PubChem answers with a Kekule form and the projection stores what RDKit
-    # canonicalizes, so comparing the two as strings matches nothing -- and says so by
-    # returning no rows, which is the worst way for a query to be wrong.
-    with _open(corpus_dir, resolver={"pyridine": "C1=CC=NC=C1"}.__getitem__) as corpus:
-        table = corpus.search(
-            query.Query.model_validate(
-                {
-                    "where": {
-                        "op": "exists",
-                        "path": "inputs.components",
-                        "where": {
-                            "op": "eq",
-                            "path": "smiles",
-                            "value": {"compound": "pyridine"},
-                        },
-                    }
-                }
-            )
-        )
-    assert table.num_rows > 0
+# A Pd G3 precatalyst from the corpus, whose two dative bonds the projection writes in a
+# |C:...| block.
+_PRECATALYST = (
+    "CC(C)c1cc(C(C)C)c(-c2ccccc2[P](C2CCCCC2)(C2CCCCC2)[Pd]2([NH2]c3ccccc3-c3cccc[c]32)"
+    "[O]S(C)(=O)=O)c(C(C)C)c1 |C:16.31,30.32|"
+)
 
 
-def test_a_name_resolving_to_nonsense_is_left_alone(corpus_dir):
+def test_a_resolved_name_is_spelled_as_the_projection_spells_it():
+    # Plain SMILES writes a dative bond inline, as ->, so a resolver built on RDKit
+    # answers in a spelling the projection never writes, and two names for one molecule
+    # would key two match sets.
+    projected = message_helpers.canonical_smiles(Chem.MolFromSmiles(_PRECATALYST))
+    inline = Chem.MolToSmiles(Chem.MolFromSmiles(_PRECATALYST))
+    assert "->" in inline
+    assert "|C:" in projected
+    assert execute._canonical(inline) == projected
+    assert execute._canonical(projected) == projected
+
+
+def test_a_resolved_racemate_keeps_its_stereo_group(chiral_root):
+    # Plain SMILES drops the |&1:1| block, which would leave the racemate's query
+    # molecule as the enantiomer it was drawn as -- and keyed alongside that
+    # enantiomer, so whichever was asked first would answer both.
+    resolver = {"racemate": _RACEMIC_ALANINE, "enantiomer": _ALANINE_MIRROR}
+    asked = [("enantiomer", {"ord-ch02"}), ("racemate", {"ord-ch04"})]
+    with _open(chiral_root, resolver=resolver.__getitem__) as corpus:
+        for name, expected in asked:
+            where = {"op": "same_compound", "path": "smiles", "compound": name}
+            assert _search(corpus, _exists(where)) == expected
+
+
+def test_a_name_resolving_to_nonsense_is_an_error(corpus_dir):
     # Canonicalizing cannot fix an unparseable answer, and swallowing it here would
     # hide a resolver fault behind an empty result.
-    with _open(
-        corpus_dir, resolver={"nonsense": "not a molecule"}.__getitem__
-    ) as corpus:
-        table = corpus.search(
-            query.Query.model_validate(
-                {
-                    "where": {
-                        "op": "exists",
-                        "path": "inputs.components",
-                        "where": {
-                            "op": "eq",
-                            "path": "smiles",
-                            "value": {"compound": "nonsense"},
-                        },
-                    }
-                }
-            )
-        )
-    assert table.num_rows == 0
+    assert execute._canonical("not a molecule") == "not a molecule"
+    where = {"op": "same_compound", "path": "smiles", "compound": "nonsense"}
+    resolver = {"nonsense": "not a molecule"}
+    with (
+        _open(corpus_dir, resolver=resolver.__getitem__) as corpus,
+        pytest.raises(ValueError, match="unreadable SMILES 'not a molecule'"),
+    ):
+        _search(corpus, _exists(where))
 
 
 def _copy_corpus(corpus_dir, tmp_path) -> pathlib.Path:
@@ -2289,23 +2289,6 @@ _NOT_ROUTABLE = {
                         "op": "ne",
                         "path": "reaction_role",
                         "value": {"literal": "SOLVENT"},
-                    },
-                ],
-            }
-        )
-    },
-    # A role naming a compound binds a parameter, and the index SQL binds none: it
-    # carries the structure parameter and nothing else.
-    "a role given as a compound": {
-        "where": _exists(
-            {
-                "op": "and",
-                "clauses": [
-                    _SUBSTRUCTURE,
-                    {
-                        "op": "eq",
-                        "path": "reaction_role",
-                        "value": {"compound": "pyridine"},
                     },
                 ],
             }

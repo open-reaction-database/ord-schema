@@ -41,26 +41,32 @@ Co-membership survives, which a reaction-keyed flat table cannot express:
 ``exists(components, A) and exists(components, B)`` is a reaction containing each.
 They are different nodes rather than a subtlety of join keys.
 
-Compounds are named, never spelled. A ``{"compound": "thf"}`` value compiles to a bound
-parameter, so the model never writes a structure and the caller resolves the name
-through :mod:`ord_schema.resolvers` before binding.
+Compounds are named, never spelled, and compared by identity rather than by spelling. A
+structure predicate takes ``"compound": "thf"`` in place of a SMILES, and the executor
+resolves the name through :mod:`ord_schema.resolvers`, so the model never writes a
+structure. A comparison takes literals only: a resolved SMILES equal to a stored one as
+a string means the two were spelled alike, which a molecule with a dative bond or a
+stereo group is not, and which any molecule may stop being under another RDKit release.
+``same_compound`` compares registration hashes instead.
 
-Structure predicates -- ``substructure`` and ``similarity`` -- compile to a bitmap test
-rather than to chemistry. The chemistry runs *outside* the query, against the
-:mod:`ord_schema.artifacts.structures` artifact (:mod:`ord_schema.search.execute` is the
-driver), and the match set re-enters as a bitmap parameter indexed by the corpus-wide ID
--- the projection's ``structure_id`` plus its file's offset: DuckDB permits no subquery
-inside a lambda expression, so the element a quantifier binds cannot semi-join a match
-table, but it can test one integer against a bitmap. The compiled SQL therefore
-references ``structure_offset``, a column only the executor's relation carries -- a raw
-projection cannot answer a structure query, which is the point: the IDs are dataset-
-local and only the executor knows the offsets that make them one corpus-wide space.
+Structure predicates -- ``substructure``, ``similarity``, ``same_compound``, and
+``same_parent`` -- compile to a bitmap test rather than to chemistry. The chemistry runs
+*outside* the query, against the :mod:`ord_schema.artifacts.structures` artifact
+(:mod:`ord_schema.search.execute` is the driver), and the match set re-enters as a
+bitmap parameter indexed by the corpus-wide ID -- the projection's ``structure_id`` plus
+its file's offset: DuckDB permits no subquery inside a lambda expression, so the element
+a quantifier binds cannot semi-join a match table, but it can test one integer against
+a bitmap. The compiled SQL therefore references ``structure_offset``, a column only the
+executor's relation carries -- a raw projection cannot answer a structure query, which
+is the point: the IDs are dataset-local and only the executor knows the offsets that
+make them one corpus-wide space.
 """
 
 import dataclasses
 import datetime
 import difflib
 import itertools
+import json
 import re
 import warnings
 from collections.abc import Callable
@@ -201,10 +207,9 @@ _AGGREGATES = {
     "max": "max",
 }
 
-# Measure names and the bound-parameter names for compounds are the only model-supplied
-# strings that reach the SQL as text, rather than as parameters, without first resolving
-# against the schema, so both are held to an identifier shape a quoting mistake cannot
-# escape.
+# Measure names are the only model-supplied strings that reach the SQL as text, rather
+# than as parameters, without first resolving against the schema, so they are held to an
+# identifier shape a quoting mistake cannot escape.
 _NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -244,10 +249,10 @@ class StructureParameter:
 class Compiled:
     """A compiled query, and the parameters its execution still needs.
 
-    ``compounds`` are names whose resolved SMILES the caller binds. ``structures`` are
-    predicates the caller evaluates against the structures artifact, each bound as a
-    bitmap over corpus-wide structure IDs; a query carrying any also references the
-    ``STRUCTURE_OFFSET`` column, so it runs only against the executor's relation.
+    ``structures`` are predicates the caller evaluates against the structures
+    artifact, each bound as a bitmap over corpus-wide structure IDs; a query carrying
+    any also references the ``STRUCTURE_OFFSET`` column, so it runs only against the
+    executor's relation.
 
     ``limit`` is the row bound the SQL carries, which is the query's own where it asked
     for one within ``max_rows`` and ``max_rows`` where it did not. A caller comparing it
@@ -259,7 +264,6 @@ class Compiled:
     """
 
     sql: str
-    compounds: tuple[str, ...]
     structures: tuple[StructureParameter, ...] = ()
     limit: int | None = None
     literals: dict[str, BoundValue] = dataclasses.field(default_factory=dict)
@@ -270,12 +274,10 @@ class _Parameters:
     """What a compilation binds rather than spells, collected as its clauses compile.
 
     Attributes:
-        compounds: Compound names whose resolved SMILES the caller binds.
         structures: Structure predicates the caller evaluates and binds as bitmaps.
         literals: Literal values, by the parameter name each binds under.
     """
 
-    compounds: list[str] = dataclasses.field(default_factory=list)
     structures: list[StructureParameter] = dataclasses.field(default_factory=list)
     literals: dict[str, BoundValue] = dataclasses.field(default_factory=dict)
 
@@ -287,13 +289,10 @@ class _Parameters:
 
     def copy(self) -> "_Parameters":
         """Returns an independent copy, for a compilation that may be dropped."""
-        return _Parameters(
-            list(self.compounds), list(self.structures), dict(self.literals)
-        )
+        return _Parameters(list(self.structures), dict(self.literals))
 
     def adopt(self, other: "_Parameters") -> None:
         """Takes on what ``other`` collected, in place of what this one held."""
-        self.compounds[:] = other.compounds
         self.structures[:] = other.structures
         self.literals.clear()
         self.literals.update(other.literals)
@@ -413,18 +412,9 @@ class _Node(BaseModel):
 
 
 class Value(_Node):
-    """A comparison operand: a literal, or a compound to resolve and bind."""
+    """A comparison operand: a literal, bound as a parameter of its own type."""
 
-    literal: bool | int | float | str | None = None
-    compound: str | None = None
-
-    @model_validator(mode="after")
-    def _exactly_one(self) -> "Value":
-        if (self.literal is None) == (self.compound is None):
-            raise ValueError("a value is either a literal or a compound, not both")
-        if self.compound is not None and not _NAME.match(self.compound):
-            raise ValueError(f"compound name is not an identifier: {self.compound!r}")
-        return self
+    literal: bool | int | float | str
 
 
 class And(_Node):
@@ -461,13 +451,38 @@ class Quantifier(_Node):
 
 
 class Comparison(_Node):
-    """A leaf compared against a literal or a resolved compound."""
+    """A leaf compared against a literal.
+
+    A compound is never a comparison's value. What a resolved name could be compared
+    against is a ``smiles``, and equal spellings are not what makes two compounds the
+    same; ``same_compound`` is that question.
+    """
 
     op: Literal[
         "eq", "ne", "lt", "le", "gt", "ge", "contains", "starts_with", "ends_with"
     ]
     path: str
     value: Value
+
+    @model_validator(mode="before")
+    @classmethod
+    def _refuse_compound(cls, data: Any) -> Any:
+        # Refused here by name rather than left to Value's extra="forbid", whose
+        # generic error invites the wrong repair: the name rewritten as a literal,
+        # which compares spellings and matches nothing.
+        value = data.get("value") if isinstance(data, dict) else None
+        if isinstance(value, dict) and "compound" in value:
+            path = data.get("path")
+            if not (isinstance(path, str) and path.split(".")[-1] == "smiles"):
+                path = "smiles"
+            example = json.dumps(
+                {"op": "same_compound", "path": path, "compound": value["compound"]}
+            )
+            raise ValueError(
+                "a comparison's value is a literal, never a compound; ask for a "
+                f"compound with same_compound on a compound's smiles: {example}"
+            )
+        return data
 
 
 class NullCheck(_Node):
@@ -932,7 +947,7 @@ def _literal(
     """Returns the parameter a value binds under, recording what it binds.
 
     Args:
-        value: The literal or compound name to compile.
+        value: The literal to compile.
         parameters: What the compilation binds so far, appended to with this value.
         leaf: The type it is compared against, which types a temporal literal. Without
             it a string binds as text, which is what every non-temporal column wants.
@@ -943,11 +958,6 @@ def _literal(
     Raises:
         QueryError: If a string compared against a temporal column names no instant.
     """
-    if value.compound is not None:
-        if value.compound not in parameters.compounds:
-            parameters.compounds.append(value.compound)
-        return f"${value.compound}"
-    assert value.literal is not None  # A Value holds a literal where no compound.
     bound: BoundValue = value.literal
     if isinstance(bound, str) and leaf is not None and _is_temporal(leaf):
         # Bound as an instant rather than as its spelling, so the comparison is between
@@ -979,11 +989,7 @@ def _check_operand(node: Comparison, resolved: _Resolved) -> None:
         raise QueryError(
             f"{node.path}: {node.op} needs a numeric or temporal column, not {leaf}"
         )
-    if node.value.compound is not None and not pa.types.is_string(leaf):
-        raise QueryError(f"{node.path}: a compound compares against text, not {leaf}")
     literal = node.value.literal
-    if literal is None:
-        return
     if isinstance(literal, str) and _is_temporal(leaf):
         # Parsed here rather than left to _literal, so the path is in the message.
         instant = _parsed_instant(literal)
@@ -1996,14 +2002,12 @@ def compile_query(
             reactions; ``Corpus.search`` says so when one comes back full.
 
     Returns:
-        The SQL, the compound names whose resolved SMILES the caller binds, the
-        structure predicates the caller evaluates and binds as bitmaps, and the literal
-        values the caller binds as they are.
+        The SQL, the structure predicates the caller evaluates and binds as bitmaps,
+        and the literal values the caller binds as they are.
 
     Raises:
-        QueryError: If ``table`` is not an identifier, if any path, operator, or
-            ordering key cannot be meant against the schema, or if a compound name
-            collides with a generated structure or literal parameter.
+        QueryError: If ``table`` is not an identifier, or if any path, operator, or
+            ordering key cannot be meant against the schema.
         ValueError: If ``max_rows`` is less than one, which is a bound no query can
             satisfy rather than a small one.
     """
@@ -2130,17 +2134,6 @@ def compile_query(
                 )
             keys.append(f"{key} DESC" if order.descending else key)
         sql += " ORDER BY " + ", ".join(keys)
-    # Checked once everything has compiled, the ordering included, since a reduction
-    # there can name a compound too.
-    generated = {parameter.name for parameter in parameters.structures}
-    generated |= set(parameters.literals)
-    collisions = sorted(generated & set(parameters.compounds))
-    if collisions:
-        # All of them reach the SQL as $-parameters, so a compound named like a
-        # generated parameter would receive the wrong binding silently.
-        raise QueryError(
-            f"compound names collide with generated parameters: {collisions}"
-        )
     if max_rows is None:
         limit = query.limit
     elif query.limit is None:
@@ -2151,7 +2144,6 @@ def compile_query(
         sql += f" LIMIT {limit}"
     return Compiled(
         sql,
-        tuple(parameters.compounds),
         tuple(parameters.structures),
         limit,
         dict(parameters.literals),

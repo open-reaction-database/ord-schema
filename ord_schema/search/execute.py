@@ -257,10 +257,11 @@ def _canonical(smiles: str) -> str:
     """Returns the SMILES as the corpus spells it.
 
     A resolver answers in whatever form its service uses -- PubChem returns pyridine
-    as ``C1=CC=NC=C1`` -- while the projection stores what RDKit canonicalizes,
-    ``c1ccncc1``. Comparing the two as strings matches nothing and says so by
-    returning no rows, which is the worst way for a query to be wrong. Structure
-    predicates are unaffected: they go through RDKit rather than string equality.
+    as ``C1=CC=NC=C1`` -- and a structure predicate's match set is cached under the
+    resolved string, so two names for one molecule share an entry only once both are
+    spelled one way. That spelling is the projection's, which keeps the stereo groups
+    plain SMILES drops: without them a racemate's query molecule is one enantiomer, and
+    shares that enantiomer's cache entry.
 
     Args:
         smiles: What the resolver returned.
@@ -270,8 +271,10 @@ def _canonical(smiles: str) -> str:
         name that resolves to something unparseable is the resolver's problem to report
         and not this function's to hide.
     """
-    molecule = Chem.MolFromSmiles(smiles)
-    return Chem.MolToSmiles(molecule) if molecule is not None else smiles
+    try:
+        return resolvers.canonicalize_smiles(smiles)
+    except ValueError:
+        return smiles
 
 
 def sql_string(value: str) -> str:
@@ -1053,11 +1056,12 @@ class _Deadline:
     """When a search has to be finished, and what it may still spend.
 
     A search is several phases -- compiling, which may build a pivot; the occurrence
-    index; name resolution; screening and verifying a structure predicate; and the query
-    itself -- and only the last is a DuckDB statement a timer can interrupt. The rest is
-    RDKit with the GIL released, an external resolver, or a build another search waits
-    on. So this bounds when the caller gets an answer or an error rather than when work
-    stops: each phase is checked as it finishes, and the query gets whatever is left.
+    index; each structure predicate, its compound resolved and its matches screened and
+    verified; and the query itself -- and only the last is a DuckDB statement a timer
+    can interrupt. The rest is RDKit with the GIL released, an external resolver, or a
+    build another search waits on. So this bounds when the caller gets an answer or an
+    error rather than when work stops: each phase is checked as it finishes, and the
+    query gets whatever is left.
 
     A shared build is deliberately not interrupted. The occurrence index, the
     substructure library, and a materialized pivot are built once for the corpus under a
@@ -3107,8 +3111,8 @@ class Corpus:
             indexing = indexing or condition is not None
             return condition
 
-        # Cached across the whole search: a compound named in both a value and a
-        # structure predicate is one external lookup, not two.
+        # Cached across the whole search: a compound named in two structure predicates
+        # is one external lookup, not two.
         resolved: dict[str, str] = {}
 
         def resolve(name: str) -> str:
@@ -3150,17 +3154,15 @@ class Corpus:
             cursor = self._connection.cursor()
             try:
                 parameters: dict[str, Any] = dict(compiled.literals)
-                parameters.update({name: resolve(name) for name in compiled.compounds})
-                # An external service, so how long it takes is not this corpus's to
-                # predict; a resolver that hangs is the likeliest way a search overruns
-                # without a single slow query in it.
-                deadline.check("resolving compound names")
                 for parameter in compiled.structures:
                     parameters[parameter.name] = self._matches(
                         cursor, parameter, resolve
                     )
                     # Per predicate rather than after all of them, so a query with two
                     # does not pay for the second once the first has spent the budget.
+                    # A compound's resolution is checked here too: a resolver is an
+                    # external service, and one that hangs is the likeliest way a
+                    # search overruns without a single slow query in it.
                     # Named by what the caller wrote rather than by parameter.name,
                     # which is the compiler's own placeholder and identifies nothing
                     # outside the SQL it was allocated for.

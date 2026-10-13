@@ -103,7 +103,7 @@
   },
   {
     "question": "reactions that ran longer than their workup took",
-    "why": "comparing two columns, which the grammar cannot express: a value is a literal or a compound, never another column",
+    "why": "comparing two columns, which the grammar cannot express: a value is a literal, never another column",
     "compiles": false
   },
   {
