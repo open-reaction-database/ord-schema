@@ -409,11 +409,41 @@ def test_an_aggregate_groups_and_measures():
         }
     )
     assert compiled.sql == (
-        "SELECT conditions.stirring.type, "
+        'SELECT conditions.stirring.type AS "conditions.stirring.type", '
         "avg(conditions.temperature.setpoint_kelvin) AS mean_k, count(*) AS n "
         "FROM reactions GROUP BY 1 ORDER BY mean_k DESC LIMIT 5"
     )
     assert _run(compiled) == []
+
+
+def test_a_group_by_column_is_named_by_its_whole_path():
+    # DuckDB names an unaliased column after its last segment, so these two would both
+    # come back as type, and a reader by name would get one of them.
+    compiled = _compile(
+        {
+            "aggregate": {
+                "group_by": [
+                    "conditions.temperature.control.type",
+                    "conditions.stirring.type",
+                ],
+                "measures": [{"fn": "count", "name": "n"}],
+            },
+            "order_by": [{"key": "conditions.stirring.type", "descending": True}],
+        }
+    )
+    assert compiled.sql == (
+        "SELECT conditions.temperature.control.type AS "
+        '"conditions.temperature.control.type", '
+        'conditions.stirring.type AS "conditions.stirring.type", count(*) AS n '
+        "FROM reactions GROUP BY 1, 2 ORDER BY conditions.stirring.type DESC"
+    )
+    sql.validate(compiled.sql, parameters=compiled.literals)
+    assert _run(compiled) == []
+
+
+def test_a_quoted_identifier_doubles_a_double_quote_inside_it():
+    # So an alias stays one identifier whatever name the caller's schema gives a field.
+    assert query._quoted('a"b') == '"a""b"'
 
 
 def test_count_distinct_counts_distinctly():
@@ -427,6 +457,82 @@ def test_count_distinct_counts_distinctly():
         }
     )
     assert "count(DISTINCT provenance.doi)" in compiled.sql
+
+
+@pytest.mark.parametrize(
+    ("aggregate", "repeated"),
+    [
+        # A group_by path given twice.
+        (
+            {
+                "group_by": ["dataset_id", "dataset_id"],
+                "measures": [{"fn": "count", "name": "n"}],
+            },
+            "group_by path 'dataset_id' repeats the group_by path 'dataset_id'",
+        ),
+        # Two measures with one name.
+        (
+            {
+                "group_by": ["dataset_id"],
+                "measures": [
+                    {"fn": "count", "name": "n"},
+                    {"fn": "count_distinct", "path": "provenance.doi", "name": "n"},
+                ],
+            },
+            "measure 'n' repeats the measure 'n'",
+        ),
+        # A measure named as a group_by path.
+        (
+            {
+                "group_by": ["dataset_id"],
+                "measures": [{"fn": "count", "name": "dataset_id"}],
+            },
+            "measure 'dataset_id' repeats the group_by path 'dataset_id'",
+        ),
+        # DuckDB compares identifiers without regard to case, so an ordering naming one
+        # of these can sort by the other.
+        (
+            {
+                "measures": [
+                    {"fn": "count", "name": "n"},
+                    {"fn": "count_distinct", "path": "provenance.doi", "name": "N"},
+                ],
+            },
+            "measure 'N' repeats the measure 'n' (names compare without regard to "
+            "case)",
+        ),
+        (
+            {
+                "group_by": ["dataset_id"],
+                "measures": [{"fn": "count", "name": "Dataset_ID"}],
+            },
+            "measure 'Dataset_ID' repeats the group_by path 'dataset_id'",
+        ),
+    ],
+)
+def test_each_output_column_of_an_aggregate_needs_its_own_name(aggregate, repeated):
+    # Each is one column of the result, so a reader by name, or an ordering naming a
+    # measure, would reach one of the two and lose the other. Raised as a ValueError,
+    # which is what a caller of Corpus.search and the translation loop both catch.
+    with pytest.raises(ValueError, match="output column needs its own name") as raised:
+        query.Query.model_validate({"aggregate": aggregate})
+    assert repeated in str(raised.value)
+
+
+def test_a_measure_may_share_a_group_by_path_s_last_segment():
+    # The group_by column is named by the whole path, so a measure called type names a
+    # column of its own.
+    compiled = _compile(
+        {
+            "aggregate": {
+                "group_by": ["conditions.stirring.type"],
+                "measures": [{"fn": "count", "name": "type"}],
+            },
+            "order_by": [{"key": "type", "descending": True}],
+        }
+    )
+    assert compiled.sql.endswith("ORDER BY type DESC")
+    assert _run(compiled) == []
 
 
 # Refusals
@@ -2031,6 +2137,13 @@ def test_an_aggregate_over_a_level_reads_the_pivot_rather_than_the_reactions():
     assert "x0.element.smiles" in sql
     assert "count(DISTINCT x0.reaction_id) AS n" in sql
     assert "FROM reactions" not in sql
+
+
+def test_a_group_column_over_a_level_is_named_by_the_path_as_written():
+    # The expression reads from the element's alias, and the column is named by the
+    # path the query wrote, which is relative to the element.
+    sql = _over(_SOLVENT_COUNTS)
+    assert sql.startswith('SELECT x0.element.smiles AS "smiles", ')
 
 
 def test_the_aggregate_s_where_filters_the_elements_not_the_reactions():

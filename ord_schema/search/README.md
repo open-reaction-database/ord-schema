@@ -87,6 +87,9 @@ is a compile error rather than a wrong answer:
 - Operators must suit the leaf type — `contains` is text-only, ordering is numeric-only.
 - `group_by` paths must be scalar, so the number of groups is bounded by the values a column
   holds rather than by an explosion over a repeated level.
+- No two output columns of an aggregate share a name: a `group_by` path given twice, two
+  measures with one `name`, and a measure named as a `group_by` path are refused. Names
+  compare without regard to case, as DuckDB compares identifiers.
 - `aggregate.over` names a repeated level and makes the rows its elements rather than
   reactions, which is the only way to group by something a reaction has many of — "the most
   common solvent" is not a column of a reaction. Paths inside are relative to the element,
@@ -123,7 +126,8 @@ is a compile error rather than a wrong answer:
 - A `{"literal": ...}` value is **bound as a parameter** too, typed: a string compared
   against a date or timestamp column binds as the instant it names. No literal reaches the
   SQL as text. What the model writes that does is the `limit`, validated as a positive
-  integer, and measure and compound names, both held to an identifier shape.
+  integer, measure and compound names, both held to an identifier shape, and each
+  `group_by` path, quoted as its column's name once it has resolved against the schema.
 - A `substructure` respects the stereocenters its pattern draws, as RDKit does: a
   pattern drawn as one enantiomer matches that enantiomer, not its mirror image or the
   same molecule recorded without stereo. `chirality: false` ignores them, for a question
@@ -921,6 +925,8 @@ element rather than a row:
 }
 ```
 
+The result's columns are the `group_by` paths, each named by the whole path as written
+(`conditions.stirring.type`, not `type`), followed by the measures, each named by its `name`.
 An aggregated query orders by a measure name or a `group_by` path, and by nothing else.
 
 ## What it deliberately cannot express

@@ -202,9 +202,15 @@ _AGGREGATES = {
 }
 
 # Measure names and the bound-parameter names for compounds are the only model-supplied
-# strings that reach the SQL as text rather than as parameters, so both are held to an
-# identifier shape a quoting mistake cannot escape.
+# strings that reach the SQL as text, rather than as parameters, without first resolving
+# against the schema, so both are held to an identifier shape a quoting mistake cannot
+# escape.
 _NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _quoted(identifier: str) -> str:
+    """Returns ``identifier`` quoted for DuckDB, any double quote in it doubled."""
+    return '"' + identifier.replace('"', '""') + '"'
 
 
 class QueryError(ValueError):
@@ -835,6 +841,10 @@ class Aggregate(_Node):
     ``group_by`` paths must be scalar, so the number of groups is bounded by the values
     a column holds rather than by an explosion over a repeated level.
 
+    Each ``group_by`` path is one column of the result, named by the whole path as
+    written, and each measure is one named by its ``name``. No two may share a name,
+    whatever their case.
+
     ``over`` changes what a row is. Without it the rows are reactions, and "how many
     reactions are automated" is a count of them. With it the rows are the elements of
     one repeated level, which is what "the most common solvent" asks for: solvents are
@@ -866,6 +876,33 @@ class Aggregate(_Node):
                 "aggregate.where selects the elements being grouped, so it needs an "
                 "over; a condition on reactions is the query's own where"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _output_names_are_distinct(self) -> "Aggregate":
+        # A consumer reads the result by column name, and an ordering names a column
+        # too. Compared without regard to case, as DuckDB compares identifiers: an ORDER
+        # BY naming one of two columns that differ only in case can sort by the other.
+        seen: dict[str, tuple[str, str]] = {}
+        outputs = [("group_by path", path) for path in self.group_by]
+        outputs += [("measure", measure.name) for measure in self.measures]
+        for kind, name in outputs:
+            key = name.casefold()
+            if key in seen:
+                earlier_kind, earlier = seen[key]
+                case = (
+                    "" if name == earlier else " (names compare without regard to case)"
+                )
+                fix = (
+                    "list each group_by path once"
+                    if kind == "group_by path"
+                    else "give this measure another name"
+                )
+                raise ValueError(
+                    f"{kind} {name!r} repeats the {earlier_kind} {earlier!r}{case}; "
+                    f"each output column needs its own name, so {fix}"
+                )
+            seen[key] = (kind, name)
         return self
 
 
@@ -1987,7 +2024,14 @@ def compile_query(
             ).expression
             for path in query.aggregate.group_by
         ]
-        selected = list(groups)
+        # Aliased as the whole path, because DuckDB names an unaliased column after its
+        # last segment: conditions.stirring.type and conditions.temperature.control.type
+        # would both come back as type. Over a level's elements the alias is the path as
+        # written, relative to the element, rather than the expression reading it.
+        selected = [
+            f"{expression} AS {_quoted(path)}"
+            for path, expression in zip(query.aggregate.group_by, groups, strict=True)
+        ]
         for measure in query.aggregate.measures:
             aggregate = _measure(
                 measure,
@@ -2006,9 +2050,10 @@ def compile_query(
         selected = ["reaction_id"]
         orderable = None
     # S608: assembling SQL is this function's purpose. Every fragment in `selected` is
-    # either an expression resolved against the schema or a measure name already held to
-    # an identifier shape, `table` is this module's constant, and every model-supplied
-    # value reached the string as a bound parameter.
+    # an expression resolved against the schema, aliased by a group_by path that
+    # resolved there too, quoted, or by a measure name already held to an identifier
+    # shape; `table` is this module's constant, and every model-supplied value reached
+    # the string as a bound parameter.
     source = table if element is None else f"{element[1]} AS {element[0]}"
     sql = f"SELECT {', '.join(selected)} FROM {source}"  # noqa: S608
     conditions = []
