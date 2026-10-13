@@ -784,6 +784,67 @@ def test_an_arithmetic_measure_over_text_is_refused():
         )
 
 
+def _measured_type(measure) -> pa.DataType:
+    """Returns the Arrow type a measure's column comes back as, planned on no rows."""
+    compiled = _compile({"aggregate": {"measures": [{**measure, "name": "measured"}]}})
+    connection = duckdb.connect()
+    connection.register(query.TABLE, query.SCHEMA.empty_table())
+    try:
+        table = connection.execute(compiled.sql, compiled.literals).to_arrow_table()
+    finally:
+        connection.close()
+    return table.schema.field("measured").type
+
+
+_ADDITION_ORDER = "inputs.addition_order"
+
+
+@pytest.mark.parametrize(
+    "measure",
+    [
+        {"fn": "sum", "path": "conditions.stirring.rate.rpm"},
+        {"fn": "sum", "path": {"reduce": "count", "path": "inputs.components"}},
+        {"fn": "sum", "path": {"reduce": "sum", "path": _ADDITION_ORDER}},
+        {"fn": "sum", "path": {"reduce": "max", "path": _ADDITION_ORDER}},
+        # A summed reduction is an integer under whichever measure reads it, not only
+        # under a sum, which would cast it again.
+        {"fn": "min", "path": {"reduce": "sum", "path": _ADDITION_ORDER}},
+        {"fn": "max", "path": {"reduce": "sum", "path": _ADDITION_ORDER}},
+    ],
+)
+def test_a_sum_of_integers_comes_back_as_an_integer(measure):
+    # DuckDB sums integers as HUGEINT, which Arrow carries as decimal128(38, 0) and
+    # Python reads as a Decimal: a sum of counts would arrive as a different kind of
+    # number from the counts, and as a string once json.dumps(default=str) saw it.
+    assert _measured_type(measure) == pa.int64()
+
+
+@pytest.mark.parametrize(
+    "measure",
+    [
+        {"fn": "sum", "path": "conditions.temperature.setpoint_kelvin"},
+        {
+            "fn": "sum",
+            "path": {
+                "reduce": "sum",
+                "path": "outcomes.products.measurements.percentage.value",
+            },
+        },
+        {"fn": "sum", "path": {"reduce": "avg", "path": _ADDITION_ORDER}},
+    ],
+)
+def test_a_sum_of_floating_point_values_stays_a_double(measure):
+    assert _measured_type(measure) == pa.float64()
+
+
+def test_ordering_by_a_summed_reduction_orders_by_an_integer():
+    compiled = _compile(
+        {"order_by": [{"key": {"reduce": "sum", "path": _ADDITION_ORDER}}]}
+    )
+    assert "ORDER BY CAST(list_sum(" in compiled.sql
+    assert _run(compiled) == []
+
+
 def test_an_aggregated_query_cannot_order_by_a_reduction():
     # After grouping there is no reaction left to reduce over; the reduction belongs
     # inside a measure, where it is one input to the aggregate.

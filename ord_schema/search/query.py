@@ -1557,6 +1557,27 @@ def _check_numeric(path: str, leaf: pa.DataType, what: str) -> None:
         raise QueryError(f"{path}: {what} needs a numeric column, not {leaf}")
 
 
+def _sum(expression: str, *, integers: bool) -> str:
+    """Returns a sum, cast to BIGINT where the values it adds are integers.
+
+    DuckDB sums integers as HUGEINT, which Arrow carries as ``decimal128(38, 0)`` and
+    Python reads as a ``Decimal``, so a sum of counts would otherwise come back as a
+    different kind of number from the counts it adds. A sum of floating-point values is
+    a DOUBLE already.
+
+    Args:
+        expression: The sum, over rows or over a list.
+        integers: Whether the values it adds are integers.
+
+    Returns:
+        The expression, cast where it adds integers.
+    """
+    # BIGINT overflows only past 2**63, which no sum here approaches: it adds counts,
+    # bounded by the elements a corpus holds, or 32-bit leaves and sums of them, which
+    # would take 2**32 leaves at their maximum to reach it. Past it the cast raises.
+    return f"CAST({expression} AS BIGINT)" if integers else expression
+
+
 def _reduced_element(reduction: Reduction) -> tuple[Any, tuple[str, ...], Any]:
     """Returns the level a reduction's elements come from, and the descent past it.
 
@@ -1694,7 +1715,7 @@ def _reduced(
     Returns:
         A DuckDB expression yielding one scalar per reaction. An arithmetic reducer
         yields NULL for a reaction holding no elements under that path; ``count``
-        yields zero there.
+        yields zero there. A ``sum`` of integers is a BIGINT; see ``_sum``.
 
     Raises:
         QueryError: If the path is already scalar, which needs no reduction (accepting
@@ -1718,21 +1739,40 @@ def _reduced(
     if reduction.where is not None:
         level, _, _ = _reduced_element(reduction)
         _refuse_quantified(reduction.where, level.path, "a reduction's where")
-    pivoted = _pivoted_reduction(
+    reduced = _pivoted_reduction(
         reduction, where_to_look.table, collected, where_to_look, distinct=distinct
     )
-    if pivoted is not None:
-        return pivoted
-    expression = (
-        resolved.expression
-        if reduction.where is None
-        else _filtered_elements(reduction, schema, collected, where_to_look)
-    )
-    reducer = _DISTINCT_COUNT if distinct else _REDUCERS[reduction.reduce]
-    return reducer.format(expression=expression)
+    if reduced is None:
+        expression = (
+            resolved.expression
+            if reduction.where is None
+            else _filtered_elements(reduction, schema, collected, where_to_look)
+        )
+        reducer = _DISTINCT_COUNT if distinct else _REDUCERS[reduction.reduce]
+        reduced = reducer.format(expression=expression)
+    if reduction.reduce == "sum":
+        return _sum(reduced, integers=pa.types.is_integer(resolved.type))
+    return reduced
 
 
-def _measure_argument(
+def _reduces_to_integer(reduction: Reduction, schema: pa.Schema) -> bool:
+    """Returns whether a reduction yields an integer for each reaction.
+
+    Args:
+        reduction: The reduction, whose path ``_reduced`` has already resolved.
+        schema: Schema its path resolves against.
+
+    Returns:
+        True for a ``count``, whatever it counts, and for a ``min``, ``max``, or ``sum``
+        of integers. An ``avg`` is a DOUBLE whatever it averages.
+    """
+    if reduction.reduce == "count":
+        return True
+    leaf = resolve(reduction.path, schema=schema).type
+    return reduction.reduce != "avg" and pa.types.is_integer(leaf)
+
+
+def _measure(
     measure: Measure,
     schema: pa.Schema,
     element: str | None = None,
@@ -1740,7 +1780,7 @@ def _measure_argument(
     parameters: _Parameters | None = None,
     routing: "_Routing | None" = None,
 ) -> str:
-    """Returns the expression a measure aggregates over.
+    """Returns the aggregate a measure selects.
 
     Args:
         measure: The measure being compiled.
@@ -1754,15 +1794,16 @@ def _measure_argument(
             lists. See ``_Routing``.
 
     Returns:
-        ``*`` for a bare count, a reduced expression where the path crosses a repeated
-        level, and the resolved column otherwise, prefixed with ``DISTINCT`` for
-        ``count_distinct``.
+        The measure's aggregate: over ``*`` for a bare count, over a reduced expression
+        where the path crosses a repeated level, and over the resolved column
+        otherwise, prefixed with ``DISTINCT`` for ``count_distinct``. A ``sum`` of
+        integers is a BIGINT; see ``_sum``.
 
     Raises:
         QueryError: If the path cannot be meant as this measure's argument.
     """
     if measure.path is None:
-        return "*"
+        return f"{_AGGREGATES[measure.fn]}(*)"
     if isinstance(measure.path, Reduction):
         if element is not None:
             raise QueryError(
@@ -1772,10 +1813,12 @@ def _measure_argument(
         argument = _reduced(
             measure.path, schema, parameters=parameters, routing=routing
         )
+        integers = _reduces_to_integer(measure.path, schema)
     elif element is not None and measure.path == pivot_levels.REACTION_ID:
         # The one path a pivot row carries outside its element, and what makes a count
         # of elements answerable as a count of reactions.
         argument = f"{element}.{pivot_levels.REACTION_ID}"
+        integers = False
     else:
         resolved = _scalar(
             measure.path,
@@ -1786,7 +1829,11 @@ def _measure_argument(
         if measure.fn in _ARITHMETIC:
             _check_numeric(measure.path, resolved.type, measure.fn)
         argument = resolved.expression
-    return f"DISTINCT {argument}" if measure.fn == "count_distinct" else argument
+        integers = pa.types.is_integer(resolved.type)
+    if measure.fn == "count_distinct":
+        argument = f"DISTINCT {argument}"
+    aggregate = f"{_AGGREGATES[measure.fn]}({argument})"
+    return _sum(aggregate, integers=integers) if measure.fn == "sum" else aggregate
 
 
 def _refuse_quantified(
@@ -1942,14 +1989,14 @@ def compile_query(
         ]
         selected = list(groups)
         for measure in query.aggregate.measures:
-            argument = _measure_argument(
+            aggregate = _measure(
                 measure,
                 element_schema,
                 alias,
                 parameters=parameters,
                 routing=_Routing(table, index, pivot),
             )
-            selected.append(f"{_AGGREGATES[measure.fn]}({argument}) AS {measure.name}")
+            selected.append(f"{aggregate} AS {measure.name}")
         names = {measure.name for measure in query.aggregate.measures}
         # Each group_by path's expression as the SELECT spells it, which over a level's
         # elements reads from the element rather than from a reaction column.
