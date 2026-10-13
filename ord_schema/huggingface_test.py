@@ -160,36 +160,60 @@ class TestArtifactPrefix:
         )
 
 
+class _FakeRepo:
+    """Stands in for the Hub: a head commit, its files, and what was asked of it."""
+
+    def __init__(self, monkeypatch, published, head="0123abcd"):
+        self.published = list(published)
+        self.head = head
+        self.listed = []
+        self.downloads = []
+        self.commits = []
+        monkeypatch.setattr(huggingface, "repo_info", self._repo_info)
+        monkeypatch.setattr(huggingface, "list_repo_files", self._list_repo_files)
+        monkeypatch.setattr(huggingface, "snapshot_download", self._snapshot_download)
+        monkeypatch.setattr(huggingface, "create_commit", self._create_commit)
+
+    def _repo_info(self, repo_id, *, repo_type, revision):
+        assert repo_id == huggingface.ORD_ARTIFACTS_HF_REPO
+        assert repo_type == "dataset"
+        return types.SimpleNamespace(sha=self.head)
+
+    def _list_repo_files(self, repo_id, *, repo_type, revision):
+        self.listed.append(revision)
+        return list(self.published)
+
+    def _snapshot_download(self, **kwargs):
+        self.downloads.append(kwargs)
+        return str(kwargs["local_dir"])
+
+    def _create_commit(self, repo_id, operations, **kwargs):
+        self.commits.append((repo_id, operations, kwargs))
+        return types.SimpleNamespace(commit_url="https://example/commit/1")
+
+
 class TestFetchArtifacts:
-    def test_fetches_this_librarys_build(self, tmp_path, monkeypatch):
-        captured = {}
-
-        def fake_snapshot(**kwargs):
-            captured.update(kwargs)
-            return str(tmp_path)
-
-        monkeypatch.setattr(
-            huggingface, "list_repo_files", lambda *_, **__: _published()
-        )
-        monkeypatch.setattr(huggingface, "snapshot_download", fake_snapshot)
-        fetched = huggingface.fetch_artifacts(tmp_path, revision="abc123")
-        assert captured["repo_id"] == huggingface.ORD_ARTIFACTS_HF_REPO
-        assert captured["revision"] == "abc123"
-        assert captured["local_dir"] == tmp_path
-        assert sorted(captured["allow_patterns"]) == sorted(
+    def test_fetches_this_librarys_build_at_one_commit(self, tmp_path, monkeypatch):
+        repo = _FakeRepo(monkeypatch, _published())
+        fetched = huggingface.fetch_artifacts(tmp_path, revision="main")
+        [download] = repo.downloads
+        assert download["repo_id"] == huggingface.ORD_ARTIFACTS_HF_REPO
+        assert download["local_dir"] == tmp_path
+        assert sorted(download["allow_patterns"]) == sorted(
             f"{huggingface.current_prefix(artifact)}/**"
             for artifact in huggingface.ARTIFACT_DIRECTORIES
         )
+        # The branch is resolved once, so the build checked is the build downloaded.
+        assert repo.listed == [repo.head]
+        assert download["revision"] == repo.head
+        assert fetched.revision == repo.head
         assert fetched.pivots == tmp_path / huggingface.current_prefix("pivot")
         assert fetched.occurrences == tmp_path / huggingface.current_prefix(
             "occurrences"
         )
 
     def test_patterns_find_what_was_fetched(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            huggingface, "list_repo_files", lambda *_, **__: _published()
-        )
-        monkeypatch.setattr(huggingface, "snapshot_download", lambda **_: str(tmp_path))
+        _FakeRepo(monkeypatch, _published())
         fetched = huggingface.fetch_artifacts(tmp_path / "a[1]")
         shard = fetched.projections / "aa" / "ord_dataset-aa.parquet"
         shard.parent.mkdir(parents=True)
@@ -197,23 +221,42 @@ class TestFetchArtifacts:
         # Escaped, so a bracket in the directory is not a character class.
         assert glob.glob(fetched.projection_pattern, recursive=True) == [str(shard)]
 
+    def test_deletes_what_the_build_no_longer_holds(self, tmp_path, monkeypatch):
+        _FakeRepo(monkeypatch, _published())
+        projections = tmp_path / huggingface.current_prefix("projection")
+        kept = projections / "aa" / "ord_dataset-aa.parquet"
+        removed = projections / "cc" / "ord_dataset-cc.parquet"
+        other_build = tmp_path / "projections/projection-0/rdkit-1/cc/x.parquet"
+        for path in (kept, removed, other_build):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+        huggingface.fetch_artifacts(tmp_path)
+        assert kept.exists()
+        assert not removed.exists()
+        # Only what was fetched is pruned; another build's files are not its to judge.
+        assert other_build.exists()
+
     def test_fetches_named_pivot_levels(self, tmp_path, monkeypatch):
-        captured = {}
-        monkeypatch.setattr(
-            huggingface, "list_repo_files", lambda *_, **__: _published()
-        )
-        monkeypatch.setattr(
-            huggingface, "snapshot_download", lambda **kwargs: captured.update(kwargs)
-        )
-        huggingface.fetch_artifacts(tmp_path, pivot_levels=["inputs.components"])
+        repo = _FakeRepo(monkeypatch, _published())
         pivots = huggingface.current_prefix("pivot")
-        assert f"{pivots}/inputs.components/**" in captured["allow_patterns"]
-        assert f"{pivots}/**" not in captured["allow_patterns"]
+        unfetched = tmp_path / pivots / "inputs" / "cc" / "ord_dataset-cc.parquet"
+        unfetched.parent.mkdir(parents=True)
+        unfetched.touch()
+        huggingface.fetch_artifacts(tmp_path, pivot_levels=["inputs.components"])
+        [download] = repo.downloads
+        assert f"{pivots}/inputs.components/**" in download["allow_patterns"]
+        assert f"{pivots}/**" not in download["allow_patterns"]
+        # A level not fetched is not pruned either.
+        assert unfetched.exists()
+
+    def test_refuses_a_revision_without_a_commit(self, tmp_path, monkeypatch):
+        repo = _FakeRepo(monkeypatch, _published(), head=None)
+        with pytest.raises(LookupError, match="reports no commit for main"):
+            huggingface.fetch_artifacts(tmp_path)
+        assert repo.listed == []
 
     def test_refuses_missing_pivot_level(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            huggingface, "list_repo_files", lambda *_, **__: _published()
-        )
+        _FakeRepo(monkeypatch, _published())
         with pytest.raises(LookupError, match=r"no pivots for \['workups'\]"):
             huggingface.fetch_artifacts(tmp_path, pivot_levels=["workups"])
 
@@ -224,33 +267,20 @@ class TestFetchArtifacts:
         published = [
             path for path in _published() if not path.startswith("projections/")
         ]
-        published.append(f"{other}/aa/ord_dataset-aa.parquet")
-        monkeypatch.setattr(huggingface, "list_repo_files", lambda *_, **__: published)
+        published.append(f"{other}/ord_dataset-aa.parquet")
+        repo = _FakeRepo(monkeypatch, published)
         with pytest.raises(LookupError, match=re.escape(f"it holds ['{other}']")):
             huggingface.fetch_artifacts(tmp_path)
+        assert repo.downloads == []
 
 
 class TestUploadArtifacts:
-    def _commit(self, monkeypatch, published=()):
-        """Fakes the repository; returns the commits made."""
-        commits = []
-
-        def fake_commit(repo_id, operations, **kwargs):
-            commits.append((repo_id, operations, kwargs))
-            return types.SimpleNamespace(commit_url="https://example/commit/1")
-
-        monkeypatch.setattr(
-            huggingface, "list_repo_files", lambda *_, **__: list(published)
-        )
-        monkeypatch.setattr(huggingface, "create_commit", fake_commit)
-        return commits
-
     def test_commits_each_file_under_its_build(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
         projections = huggingface.current_prefix("projection")
         stale = f"{projections}/cc/ord_dataset-cc.parquet"
         elsewhere = "projections/projection-0/rdkit-1999.09.1/cc/ord_dataset-cc.parquet"
-        commits = self._commit(monkeypatch, published=[stale, elsewhere, "README.md"])
+        repo = _FakeRepo(monkeypatch, [stale, elsewhere, "README.md"])
         upload = huggingface.upload_artifacts(tmp_path, commit_message="derive")
         assert upload.commit_url == "https://example/commit/1"
         assert upload.prefixes == {
@@ -264,10 +294,13 @@ class TestUploadArtifacts:
         assert f"{pivots}/inputs/bb/ord_dataset-bb.parquet" in upload.uploaded
         # Only what this build no longer holds goes; another build is left alone.
         assert upload.deleted == [stale]
-        [(repo_id, operations, kwargs)] = commits
+        [(repo_id, operations, kwargs)] = repo.commits
         assert repo_id == huggingface.ORD_ARTIFACTS_HF_REPO
         assert kwargs["commit_message"] == "derive"
         assert kwargs["repo_type"] == "dataset"
+        # Planned against the head it lists, so a commit landing in between fails it.
+        assert repo.listed == [repo.head]
+        assert kwargs["parent_commit"] == repo.head
         deletes = [
             op.path_in_repo
             for op in operations
@@ -277,13 +310,46 @@ class TestUploadArtifacts:
 
     def test_dry_run_commits_nothing(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
-        commits = self._commit(monkeypatch)
+        repo = _FakeRepo(monkeypatch, [])
         upload = huggingface.upload_artifacts(
             tmp_path, commit_message="derive", dry_run=True
         )
-        assert commits == []
+        assert repo.commits == []
         assert upload.commit_url is None
         assert len(upload.uploaded) == 10
+
+    def test_accepts_the_required_levels_and_paths(self, tmp_path, monkeypatch):
+        _write_tree(tmp_path)
+        _FakeRepo(monkeypatch, [])
+        upload = huggingface.upload_artifacts(
+            tmp_path,
+            commit_message="derive",
+            pivot_levels=["inputs", "inputs.components"],
+            occurrence_paths=["inputs.components"],
+            dry_run=True,
+        )
+        assert len(upload.uploaded) == 10
+
+    def test_refuses_a_missing_pivot_level(self, tmp_path, monkeypatch):
+        _write_tree(tmp_path)
+        repo = _FakeRepo(monkeypatch, [])
+        with pytest.raises(ValueError, match=r"pivots lacks \['workups'\]"):
+            huggingface.upload_artifacts(
+                tmp_path,
+                commit_message="derive",
+                pivot_levels=["inputs", "inputs.components", "workups"],
+            )
+        assert repo.commits == []
+
+    def test_refuses_an_unrequired_indexed_path(self, tmp_path, monkeypatch):
+        _write_tree(tmp_path)
+        _FakeRepo(monkeypatch, [])
+        with pytest.raises(
+            ValueError, match=r"occurrences lacks \[\] and adds \['inputs.components'\]"
+        ):
+            huggingface.upload_artifacts(
+                tmp_path, commit_message="derive", occurrence_paths=[]
+            )
 
     def test_refuses_a_tree_spanning_builds(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
@@ -293,16 +359,28 @@ class TestUploadArtifacts:
             "bb",
             rdkit_version="1999.09.1",
         )
-        commits = self._commit(monkeypatch)
+        repo = _FakeRepo(monkeypatch, [])
         with pytest.raises(ValueError, match="spans more than one build"):
             huggingface.upload_artifacts(tmp_path, commit_message="derive")
-        assert commits == []
+        assert repo.commits == []
 
     def test_refuses_a_level_missing_a_source(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
         (tmp_path / "pivots" / "inputs" / "bb" / "ord_dataset-bb.parquet").unlink()
-        self._commit(monkeypatch)
+        _FakeRepo(monkeypatch, [])
         with pytest.raises(ValueError, match="pivots/inputs lacks 1 and adds 0"):
+            huggingface.upload_artifacts(tmp_path, commit_message="derive")
+
+    def test_refuses_a_dataset_restated_twice(self, tmp_path, monkeypatch):
+        _write_tree(tmp_path)
+        # The same source under a second shard: the set of datasets is unchanged.
+        _write_artifact(
+            tmp_path / "structures" / "cc" / "ord_dataset-cc.parquet",
+            "structures",
+            "bb",
+        )
+        _FakeRepo(monkeypatch, [])
+        with pytest.raises(ValueError, match="restates a source dataset another file"):
             huggingface.upload_artifacts(tmp_path, commit_message="derive")
 
     def test_refuses_the_wrong_artifact(self, tmp_path, monkeypatch):
@@ -312,7 +390,7 @@ class TestUploadArtifacts:
             "projection",
             "bb",
         )
-        self._commit(monkeypatch)
+        _FakeRepo(monkeypatch, [])
         with pytest.raises(ValueError, match="holds projection, not structures"):
             huggingface.upload_artifacts(tmp_path, commit_message="derive")
 
@@ -324,13 +402,13 @@ class TestUploadArtifacts:
             "bb",
             stamp_rdkit=False,
         )
-        self._commit(monkeypatch)
+        _FakeRepo(monkeypatch, [])
         with pytest.raises(ValueError, match="carries no RDKit stamp"):
             huggingface.upload_artifacts(tmp_path, commit_message="derive")
 
     def test_refuses_a_missing_artifact(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
         shutil.rmtree(tmp_path / "occurrences")
-        self._commit(monkeypatch)
+        _FakeRepo(monkeypatch, [])
         with pytest.raises(ValueError, match="no occurrences artifacts under"):
             huggingface.upload_artifacts(tmp_path, commit_message="derive")

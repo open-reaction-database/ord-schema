@@ -25,14 +25,17 @@ The tree holds one directory per artifact, as the derive scripts write them::
         -> pivots/pivot-1_projection-1/rdkit-<version>/inputs.components/aa/...
 
 Each file goes under the build its own footer names, everything lands in one commit,
-and files a build no longer holds are deleted from it. A tree that spans more than one
-build, or whose artifacts do not all restate the same source datasets, is refused.
+and files a build no longer holds are deleted from it. A tree is refused if it spans
+more than one build, if its artifacts do not all restate the same source datasets, or if
+it lacks a pivot level or indexed path this library derives, since a published build is
+what a ``Corpus(require_pivots=True, require_occurrences=True)`` opens.
 Authenticates the way ``huggingface_hub`` does: ``hf auth login`` or ``$HF_TOKEN``.
 """
 
 import argparse
 
 from ord_schema import huggingface
+from ord_schema.artifacts import occurrences, pivot
 from ord_schema.logging import get_logger
 
 logger = get_logger(__name__)
@@ -63,6 +66,8 @@ def main(argv: list[str] | None = None) -> None:
         args.root,
         commit_message=args.message,
         revision=args.revision,
+        pivot_levels=sorted(pivot.LEVELS),
+        occurrence_paths=sorted(occurrences.PATHS),
         dry_run=args.dry_run,
     )
     for artifact, prefix in upload.prefixes.items():

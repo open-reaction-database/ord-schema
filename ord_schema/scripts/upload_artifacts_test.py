@@ -17,10 +17,11 @@
 import pytest
 
 from ord_schema import huggingface
+from ord_schema.artifacts import occurrences, pivot
 from ord_schema.scripts import upload_artifacts
 
 
-def test_main_passes_the_tree_through(monkeypatch):
+def test_main_requires_every_level_and_path(monkeypatch):
     calls = []
 
     def fake_upload(root, **kwargs):
@@ -44,7 +45,13 @@ def test_main_passes_the_tree_through(monkeypatch):
     assert calls == [
         (
             "artifacts",
-            {"commit_message": "derive", "revision": "next", "dry_run": True},
+            {
+                "commit_message": "derive",
+                "revision": "next",
+                "pivot_levels": sorted(pivot.LEVELS),
+                "occurrence_paths": sorted(occurrences.PATHS),
+                "dry_run": True,
+            },
         )
     ]
 

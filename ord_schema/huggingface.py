@@ -35,6 +35,7 @@ from huggingface_hub import (
     create_commit,
     hf_hub_download,
     list_repo_files,
+    repo_info,
     snapshot_download,
 )
 from huggingface_hub.errors import EntryNotFoundError
@@ -157,12 +158,14 @@ class FetchedArtifacts:
     """Where ``fetch_artifacts`` put each artifact, in the shape ``Corpus`` reads.
 
     Attributes:
+        revision: The commit the artifacts were fetched from.
         projections: Directory holding the projections.
         structures: Directory holding the structures artifacts.
         pivots: Directory holding one subdirectory per pivoted level.
         occurrences: Directory holding one subdirectory per indexed path.
     """
 
+    revision: str
     projections: pathlib.Path
     structures: pathlib.Path
     pivots: pathlib.Path
@@ -184,6 +187,14 @@ def _parquet_pattern(directory: pathlib.Path) -> str:
     return f"{glob.escape(str(directory))}/**/*.parquet"
 
 
+def _parquet_files(directory: pathlib.Path) -> list[pathlib.Path]:
+    """Returns the Parquet files under ``directory`` the way a ``Corpus`` finds them."""
+    return sorted(
+        pathlib.Path(found)
+        for found in glob.glob(_parquet_pattern(directory), recursive=True)
+    )
+
+
 def fetch_artifacts(
     local_dir: str | os.PathLike[str],
     *,
@@ -195,18 +206,23 @@ def fetch_artifacts(
     A ``Corpus`` refuses artifacts whose lineage or RDKit stamp differs from its own, so
     only the build matching both is fetched. Files are written under ``local_dir``
     rather than linked into the Hugging Face cache, because a ``Corpus`` confined to its
-    own directories refuses a link leading out of them. Repeat calls download only what
-    changed.
+    own directories refuses a link leading out of them.
+
+    Repeat calls download only what changed, and delete the Parquet files under what
+    they fetched that the build no longer holds -- a dataset removed upstream would
+    otherwise stay in every local tree that once fetched it.
 
     Args:
         local_dir: Directory to download beneath; the repository's layout is kept.
-        revision: Branch, tag, or commit SHA to download (default: ``"main"``).
-        pivot_levels: The pivoted levels to fetch. None fetches every level published,
-            which is what ``Corpus(require_pivots=True)`` needs; a level left out is
-            built in process when a query first ranges over it.
+        revision: Branch, tag, or commit SHA to download (default: ``"main"``). A
+            branch is resolved to its commit first, so the build is checked and
+            downloaded from the same one.
+        pivot_levels: The pivoted levels to fetch. None fetches every level, which is
+            what ``Corpus(require_pivots=True)`` needs; a level left out is built in
+            process when a query first ranges over it.
 
     Returns:
-        Where each artifact landed.
+        The commit fetched, and where each artifact landed.
 
     Raises:
         LookupError: If the revision holds no build of an artifact for this library and
@@ -214,17 +230,20 @@ def fetch_artifacts(
             levels it does hold.
     """
     root = pathlib.Path(local_dir)
-    prefixes = {artifact: current_prefix(artifact) for artifact in ARTIFACT_DIRECTORIES}
+    commit = _resolve(revision)
     published = list_repo_files(
-        ORD_ARTIFACTS_HF_REPO, repo_type="dataset", revision=revision
+        ORD_ARTIFACTS_HF_REPO, repo_type="dataset", revision=commit
     )
-    builds = _published_builds(published)
+    prefixes = {artifact: current_prefix(artifact) for artifact in ARTIFACT_DIRECTORIES}
     for artifact, prefix in prefixes.items():
-        if prefix not in builds:
+        if not _beneath(published, prefix):
+            depth = prefix.count("/") + 1
             available = sorted(
-                build
-                for build in builds
-                if build.startswith(f"{ARTIFACT_DIRECTORIES[artifact]}/")
+                {
+                    "/".join(path.split("/")[:depth])
+                    for path in _beneath(published, ARTIFACT_DIRECTORIES[artifact])
+                    if path.count("/") >= depth
+                }
             )
             raise LookupError(
                 f"{ORD_ARTIFACTS_HF_REPO}@{revision} holds no {artifact} artifacts for "
@@ -232,28 +251,35 @@ def fetch_artifacts(
                 f"holds {available or 'none'}"
             )
     pivots = prefixes["pivot"]
-    patterns = [
-        f"{prefixes[artifact]}/**" for artifact in prefixes if artifact != "pivot"
-    ]
+    scopes = [prefixes[artifact] for artifact in prefixes if artifact != "pivot"]
     if pivot_levels is None:
-        patterns.append(f"{pivots}/**")
+        scopes.append(pivots)
     else:
-        levels = _subdirectories(published, pivots)
+        levels = {
+            path[len(pivots) + 1 :].split("/")[0]
+            for path in _beneath(published, pivots)
+        }
         missing = sorted(set(pivot_levels) - levels)
         if missing:
             raise LookupError(
                 f"{ORD_ARTIFACTS_HF_REPO}@{revision} has no pivots for {missing} under "
                 f"{pivots}; it has {sorted(levels)}"
             )
-        patterns.extend(f"{pivots}/{level}/**" for level in sorted(pivot_levels))
+        scopes.extend(f"{pivots}/{level}" for level in sorted(pivot_levels))
     snapshot_download(
         repo_id=ORD_ARTIFACTS_HF_REPO,
         repo_type="dataset",
-        revision=revision,
+        revision=commit,
         local_dir=root,
-        allow_patterns=patterns,
+        allow_patterns=[f"{scope}/**" for scope in scopes],
     )
+    wanted = set(published)
+    for scope in scopes:
+        for path in _parquet_files(root / scope):
+            if path.relative_to(root).as_posix() not in wanted:
+                path.unlink()
     return FetchedArtifacts(
+        revision=commit,
         projections=root / prefixes["projection"],
         structures=root / prefixes["structures"],
         pivots=root / pivots,
@@ -261,26 +287,29 @@ def fetch_artifacts(
     )
 
 
-def _published_builds(paths: Iterable[str]) -> set[str]:
-    """Returns the ``<artifact>/<lineage>/rdkit-<version>`` prefixes among ``paths``."""
-    directories = set(ARTIFACT_DIRECTORIES.values())
-    builds = set()
-    for path in paths:
-        parts = path.split("/")
-        if len(parts) > 3 and parts[0] in directories:
-            builds.add("/".join(parts[:3]))
-    return builds
+def _resolve(revision: str) -> str:
+    """Returns the commit ``revision`` names in ord-artifacts.
+
+    Args:
+        revision: Branch, tag, or commit SHA.
+
+    Returns:
+        The commit SHA.
+
+    Raises:
+        LookupError: If the Hub reports no commit for it.
+    """
+    commit = repo_info(
+        ORD_ARTIFACTS_HF_REPO, repo_type="dataset", revision=revision
+    ).sha
+    if commit is None:
+        raise LookupError(f"{ORD_ARTIFACTS_HF_REPO} reports no commit for {revision}")
+    return commit
 
 
-def _subdirectories(paths: Iterable[str], prefix: str) -> set[str]:
-    """Returns the names of the directories immediately beneath ``prefix``."""
-    found = set()
-    for path in paths:
-        if path.startswith(f"{prefix}/"):
-            rest = path[len(prefix) + 1 :].split("/")
-            if len(rest) > 1:
-                found.add(rest[0])
-    return found
+def _beneath(paths: Iterable[str], prefix: str) -> list[str]:
+    """Returns the repository paths inside the directory ``prefix``."""
+    return [path for path in paths if path.startswith(f"{prefix}/")]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -307,6 +336,8 @@ def upload_artifacts(
     *,
     commit_message: str,
     revision: str = "main",
+    pivot_levels: Collection[str] | None = None,
+    occurrence_paths: Collection[str] | None = None,
     dry_run: bool = False,
 ) -> ArtifactUpload:
     """Publishes a local artifact tree to ord-artifacts in one commit.
@@ -317,15 +348,22 @@ def upload_artifacts(
 
     Each artifact has to be one build -- one lineage and one RDKit version across its
     files -- and every artifact, pivot level, and indexed path has to restate the same
-    source datasets as the projections. Anything else would publish a build that a
-    ``Corpus`` refuses or answers from partially. Within each prefix uploaded, a file
-    the local tree no longer holds is deleted; other builds are left alone.
+    source datasets as the projections, each once. Anything else would publish a build
+    that a ``Corpus`` refuses or answers from partially. Within each prefix uploaded, a
+    file the local tree no longer holds is deleted; other builds are left alone.
+
+    The commit names the head it was planned against as its parent, so one that lands
+    in between fails this one rather than having its files deleted.
 
     Args:
         root: The local tree.
         commit_message: Summary for the commit, e.g. naming the ord-data revision the
             artifacts were derived from.
         revision: Branch to commit to.
+        pivot_levels: The levels the pivots must cover, exactly; None accepts whichever
+            the tree holds.
+        occurrence_paths: The indexed paths the occurrences must cover, exactly; None
+            accepts whichever the tree holds.
         dry_run: Check the tree and work out the commit without making it.
 
     Returns:
@@ -333,15 +371,23 @@ def upload_artifacts(
 
     Raises:
         ValueError: If an artifact directory is missing or empty, holds a file that is
-            not that artifact or carries no RDKit stamp, spans more than one build, or
-            restates different source datasets than the projections.
+            not that artifact or carries no RDKit stamp, spans more than one build,
+            restates a source dataset twice or different ones than the projections, or
+            covers other pivot levels or indexed paths than those required.
     """
     root = pathlib.Path(root)
+    required = {"pivot": pivot_levels, "occurrences": occurrence_paths}
     prefixes: dict[str, str] = {}
     files: dict[str, dict[str, pathlib.Path]] = {}
     sources: dict[str, set[str]] = {}
     for artifact, directory in ARTIFACT_DIRECTORIES.items():
         prefix, found, covered = _check_build(root / directory, artifact)
+        groups = required.get(artifact)
+        if groups is not None and set(covered) != set(groups):
+            raise ValueError(
+                f"{directory} lacks {sorted(set(groups) - set(covered))} and adds "
+                f"{sorted(set(covered) - set(groups))}"
+            )
         prefixes[artifact] = prefix
         files[artifact] = found
         sources.update(
@@ -362,8 +408,9 @@ def upload_artifacts(
             "every artifact must restate the same source datasets as the "
             f"{len(expected)} projections: {details}"
         )
-    published = set(
-        list_repo_files(ORD_ARTIFACTS_HF_REPO, repo_type="dataset", revision=revision)
+    head = _resolve(revision)
+    published = list_repo_files(
+        ORD_ARTIFACTS_HF_REPO, repo_type="dataset", revision=head
     )
     operations: list[CommitOperationAdd | CommitOperationDelete] = []
     uploaded: list[str] = []
@@ -377,8 +424,8 @@ def upload_artifacts(
                 CommitOperationAdd(path_in_repo=path_in_repo, path_or_fileobj=str(path))
             )
             uploaded.append(path_in_repo)
-        for path_in_repo in sorted(published):
-            if path_in_repo.startswith(f"{prefix}/") and path_in_repo not in wanted:
+        for path_in_repo in sorted(_beneath(published, prefix)):
+            if path_in_repo not in wanted:
                 operations.append(CommitOperationDelete(path_in_repo=path_in_repo))
                 deleted.append(path_in_repo)
     commit_url = None
@@ -389,6 +436,7 @@ def upload_artifacts(
             commit_message=commit_message,
             repo_type="dataset",
             revision=revision,
+            parent_commit=head,
         )
         commit_url = info.commit_url
     return ArtifactUpload(
@@ -413,12 +461,10 @@ def _check_build(
 
     Raises:
         ValueError: If the tree is missing or empty, holds a file that is not
-            ``artifact`` or carries no RDKit stamp, or spans more than one build.
+            ``artifact`` or carries no RDKit stamp, spans more than one build, or
+            restates a source dataset twice within a group.
     """
-    paths = sorted(
-        pathlib.Path(found)
-        for found in glob.glob(_parquet_pattern(directory), recursive=True)
-    )
+    paths = _parquet_files(directory)
     if not paths:
         raise ValueError(f"no {artifact} artifacts under {directory}")
     grouped = artifact in ("pivot", "occurrences")
@@ -436,7 +482,14 @@ def _check_build(
         ] += 1
         relative = path.relative_to(directory)
         files[relative.as_posix()] = path
-        covered[relative.parts[0] if grouped else ""].add(stamps.source_md5)
+        group = relative.parts[0] if grouped else ""
+        # A set cannot see a dataset restated twice, which a Corpus refuses.
+        if stamps.source_md5 in covered[group]:
+            raise ValueError(
+                f"{path} restates a source dataset another file under "
+                f"{directory / group} already does"
+            )
+        covered[group].add(stamps.source_md5)
     if len(builds) > 1:
         raise ValueError(
             f"{directory} spans more than one build, so part of it is stale: "

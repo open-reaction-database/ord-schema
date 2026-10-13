@@ -138,8 +138,8 @@ path left out is one whose structures no query can find.
 Derived trees are published to the Hugging Face dataset
 [ord-artifacts](https://huggingface.co/datasets/open-reaction-database/ord-artifacts),
 apart from the ord-data mirror so that rebuilding them leaves that history alone. Each
-artifact sits under a prefix naming the two stamps a reader compares besides the source,
-its lineage and its RDKit version:
+artifact sits under a prefix naming its lineage and its RDKit version, the two stamps a
+reader compares besides the source:
 
 ```text
 projections/projection-1/rdkit-2026.03.5/aa/ord_dataset-<id>.parquet
@@ -148,7 +148,8 @@ pivots/pivot-1_projection-1/rdkit-2026.03.5/inputs.components/aa/ord_dataset-<id
 
 Builds for different library or RDKit versions therefore sit side by side, and
 [`huggingface.fetch_artifacts`](../huggingface.py) downloads only the one this library
-would accept. The RDKit version has to match exactly: canonical SMILES, pattern
+would accept, deleting local files the build has since dropped. The RDKit version has to
+match exactly: canonical SMILES, pattern
 fingerprints, and registration hashes all drift between releases, patch releases
 included, and a query computes its side of each comparison with the RDKit it runs. The
 lineage is spelled without `=` because DuckDB reads a `key=value` directory as a Hive
@@ -156,8 +157,9 @@ partition and adds it to every file as a column.
 
 [`upload_artifacts`](../scripts/upload_artifacts.py) publishes a local tree in one
 commit, each file under the build its own footer names. It refuses a tree in which an
-artifact spans more than one build, or in which any artifact, pivot level, or indexed
-path restates different source datasets than the projections:
+artifact spans more than one build, in which any artifact, pivot level, or indexed path
+restates a source dataset twice or different ones than the projections, or which lacks
+a pivot level or indexed path this library derives:
 
 ```bash
 python -m ord_schema.scripts.upload_artifacts \
