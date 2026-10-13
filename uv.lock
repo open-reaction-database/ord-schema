@@ -2052,7 +2052,7 @@ requires-dist = [
     { name = "coverage", marker = "extra == 'tests'", specifier = ">=5.2.1" },
     { name = "duckdb", marker = "extra == 'search'", specifier = ">=1.5.1" },
     { name = "huggingface-hub", marker = "extra == 'examples'", specifier = ">=0.20" },
-    { name = "huggingface-hub", marker = "extra == 'huggingface'", specifier = ">=0.20" },
+    { name = "huggingface-hub", marker = "extra == 'huggingface'", specifier = ">=0.23" },
     { name = "inflection", marker = "extra == 'orm'", specifier = ">=0.5.1" },
     { name = "inflection", marker = "extra == 'search'", specifier = ">=0.5.1" },
     { name = "ipython", marker = "extra == 'docs'", specifier = ">=8.4.0" },

@@ -133,6 +133,41 @@ four it reads, which is why the command above asks it rather than spelling them.
 `derive_occurrences` covers every path a structure can sit at, which is not a choice: a
 path left out is one whose structures no query can find.
 
+## Published builds
+
+Derived trees are published to the Hugging Face dataset
+[ord-artifacts](https://huggingface.co/datasets/open-reaction-database/ord-artifacts),
+apart from the ord-data mirror so that rebuilding them leaves that history alone. Each
+artifact sits under a prefix naming the two stamps a reader compares besides the source,
+its lineage and its RDKit version:
+
+```text
+projections/projection-1/rdkit-2026.03.5/aa/ord_dataset-<id>.parquet
+pivots/pivot-1_projection-1/rdkit-2026.03.5/inputs.components/aa/ord_dataset-<id>.parquet
+```
+
+Builds for different library or RDKit versions therefore sit side by side, and
+[`huggingface.fetch_artifacts`](../huggingface.py) downloads only the one this library
+would accept. The RDKit version has to match exactly: canonical SMILES, pattern
+fingerprints, and registration hashes all drift between releases, patch releases
+included, and a query computes its side of each comparison with the RDKit it runs. The
+lineage is spelled without `=` because DuckDB reads a `key=value` directory as a Hive
+partition and adds it to every file as a column.
+
+[`upload_artifacts`](../scripts/upload_artifacts.py) publishes a local tree in one
+commit, each file under the build its own footer names. It refuses a tree in which an
+artifact spans more than one build, or in which any artifact, pivot level, or indexed
+path restates different source datasets than the projections:
+
+```bash
+python -m ord_schema.scripts.upload_artifacts \
+    --root=artifacts --message="Derive from ord-data <commit>" --dry_run
+```
+
+Once a build is published, a change to how an artifact is derived needs its
+`ARTIFACT_VERSIONS` bump: without one, the rebuild overwrites the published build under
+the same prefix, and a reader holding the old files cannot tell them apart from the new.
+
 ## What pairs with what
 
 `structure_id` is assigned by `write_projection` in first-seen order and is **local to
