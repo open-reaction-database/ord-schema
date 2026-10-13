@@ -684,19 +684,19 @@ def test_a_grandparent_bump_makes_a_grandchild_stale(tmp_path, monkeypatch):
 _GOLDEN_OUTPUT = {
     "projection": (
         "1",
-        "f9298b62c315bd45b3d123eb796d9dfb2a2173abbd47374dfa7e32024f235dc2",
+        "520a65d1c31b0f706ecbfa03692237c6045f23d9b49707cad478ea8e44e40291",
     ),
     "structures": (
         "1",
-        "a7e4754618d51540ddaf810589678f6ca019d3d9815d927de0d012c0f093bdf8",
+        "3c397cfc3ba2b8e0debd9b725ada6d119551e42aa7c20bf9791983e679ce7158",
     ),
     "pivot": (
         "1",
-        "b706d95564c5a941bac87dfa9cddacea11810c4a9f64408637fdc9c28f255996",
+        "750b720d4c31d8c2796d455cc75ab21e91a5527015c2cbcc7684d4944809c276",
     ),
     "occurrences": (
         "1",
-        "1e24eed75cb3c351ee9c3fbed7b6415075120d22fd536b8140706c6e07bb21b5",
+        "d6312e28a622267a8832197ddae709e78ef1a5199135e0530a624a8200e3ea15",
     ),
 }
 # The RDKit those hashes were derived under. An RDKit upgrade can change canonical
@@ -707,13 +707,27 @@ _GOLDEN_RDKIT = "2026.03.5"
 # One reaction setting nearly every field, and 80 real ones with slash-format dates.
 _GOLDEN_FIXTURES = ("full.pbtxt", "ord-nielsen-example.pbtxt")
 
+# Footer keys recording who derived a file rather than what it holds: the release,
+# which nothing compares; the RDKit and the lineage, pinned on their own above; and
+# the hash of how the fixture happened to serialize. The rest -- the artifact name,
+# the pivot or occurrence path a reader checks a file against -- are part of what the
+# artifact says.
+_PROVENANCE_KEYS = frozenset(
+    {
+        b"ord.ord_schema_version",
+        b"ord.rdkit_version",
+        b"ord.artifact_lineage",
+        b"ord.source_md5",
+    }
+)
+
 
 def _content_hash(paths: list[pathlib.Path]) -> str:
-    """Returns a hash of the columns and rows the artifacts at ``paths`` hold.
+    """Returns a hash of the footer, columns, and rows the artifacts at ``paths`` hold.
 
-    Footer metadata is left out, since it records who derived the file rather than what
-    it holds; Parquet encoding is left out by hashing decoded rows; and row order is
-    left out by sorting them, since DuckDB writes a pivot's rows in no fixed order.
+    Provenance stamps are left out (see ``_PROVENANCE_KEYS``); Parquet encoding is left
+    out by hashing decoded rows; and row order is left out by sorting them, since DuckDB
+    writes a pivot's rows in no fixed order.
 
     Args:
         paths: Artifact files, in a fixed order.
@@ -724,6 +738,12 @@ def _content_hash(paths: list[pathlib.Path]) -> str:
     digest = hashlib.sha256()
     for path in paths:
         table = pq.read_table(path)
+        footer = sorted(
+            (key, value)
+            for key, value in (table.schema.metadata or {}).items()
+            if key not in _PROVENANCE_KEYS
+        )
+        digest.update(repr(footer).encode())
         digest.update(str(table.schema.remove_metadata()).encode())
         for row in sorted(
             json.dumps(row, sort_keys=True, default=repr) for row in table.to_pylist()
