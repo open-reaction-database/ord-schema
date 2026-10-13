@@ -1478,6 +1478,19 @@ def test_a_compound_name_no_resolver_can_take_is_refused(op, name, match):
         query.Query.model_validate(_named(op, name))
 
 
+@pytest.mark.parametrize(
+    "model",
+    [query.Substructure, query.Similarity, query.SameCompound, query.SameParent],
+)
+def test_the_published_schema_states_a_compound_name_s_bounds(model):
+    # A client reading the schema -- the NL tool definition is one -- learns the
+    # bounds there rather than from a refusal.
+    (name, _) = model.model_json_schema()["properties"]["compound"]["anyOf"]
+    assert name["minLength"] == 1
+    assert name["maxLength"] == 500
+    assert "whitespace" in name["description"]
+
+
 def test_the_repair_a_compound_comparison_suggests_is_itself_valid():
     # Most chemical names are not identifiers, so the same_compound the refusal hands
     # back has to accept one.

@@ -251,7 +251,14 @@ def _compound_name(name: str) -> str:
 
 _CompoundName = Annotated[
     str,
-    Field(min_length=1, max_length=_COMPOUND_NAME_LENGTH),
+    Field(
+        min_length=1,
+        max_length=_COMPOUND_NAME_LENGTH,
+        description=(
+            "A compound's name, resolved to a structure when the query runs. Any "
+            "printable text with no whitespace around it."
+        ),
+    ),
     AfterValidator(_compound_name),
 ]
 
