@@ -252,6 +252,24 @@ def test_an_aggregate_over_a_level_orders_by_its_group_key(corpus, descending):
     assert smiles == sorted(smiles, reverse=descending)
 
 
+def test_an_aggregate_over_reactions_orders_by_its_group_key(corpus):
+    table = corpus.search(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "group_by": ["dataset_id"],
+                    "measures": [{"fn": "count", "name": "n"}],
+                },
+                "order_by": [{"key": "dataset_id", "descending": True}],
+            }
+        )
+    )
+    assert table.column("dataset_id").to_pylist() == [
+        "ord_dataset-bb",
+        "ord_dataset-aa",
+    ]
+
+
 def test_an_aggregate_over_a_level_breaks_count_ties_by_its_group_key(corpus):
     table = corpus.search(
         query.Query.model_validate(
