@@ -20,6 +20,7 @@ them: they exist to catch what a built corpus gets wrong.
 """
 
 import json
+import math
 import pathlib
 import typing
 from datetime import datetime
@@ -169,6 +170,57 @@ def test_a_dataset_contradicting_the_day_first_list_is_reported(tmp_path, monkey
     assert not round_trip.passed
     assert "ord_dataset-dd does not project: " in round_trip.detail
     assert "its own values witness month-first" in round_trip.detail
+
+
+def test_a_recorded_nan_re_projects_to_what_is_stored(tmp_path):
+    # NaN equals nothing, itself included, so a stored NaN is the faithful answer and
+    # still compares unequal to the re-projection under plain equality. One sits in a
+    # plain struct and one under the inputs map, which reads back as (key, value) pairs.
+    reaction = _reaction("ord-nan01", "CCO", _ROLE.REACTANT)
+    reaction.outcomes.add().conversion.value = math.nan
+    amount = reaction.inputs["in"].components[0].amount
+    amount.moles.value = math.nan
+    amount.moles.units = reaction_pb2.Moles.MILLIMOLE
+    source = tmp_path / "data" / "ord_dataset-ee.parquet"
+    source.parent.mkdir()
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-ee",
+            name="test",
+            description="test",
+            reactions=[reaction],
+        ),
+        str(source),
+    )
+    projected = tmp_path / "projections" / source.name
+    projected.parent.mkdir()
+    projection.write_projection(source, projected)
+    stored = pq.read_table(projected).to_pylist()[0]
+    assert math.isnan(stored["outcomes"][0]["conversion"]["value"])
+    ((_, held),) = stored["inputs"]
+    assert math.isnan(held["components"][0]["amount"]["moles_moles"])
+    findings = check.check_sources(
+        str(projected), str(source), datasets=1, rows=1, seed=0
+    )
+    assert _failures(findings) == []
+
+
+@pytest.mark.parametrize(
+    ("expected", "stored", "same"),
+    [
+        ({"a": math.nan}, {"a": math.nan}, True),
+        ([("in", {"a": math.nan})], [("in", {"a": math.nan})], True),
+        ({"a": math.nan}, {"a": 1.0}, False),
+        ({"a": 1.0}, {"a": math.nan}, False),
+        ({"a": math.nan}, {"a": None}, False),
+        ({"a": math.nan}, {"a": math.nan, "b": 1}, False),
+        ([("in", 1)], [("out", 1)], False),
+        ([1, 2], (1, 2), False),
+        ([math.nan], [math.nan, math.nan], False),
+    ],
+)
+def test_nan_matches_only_nan(expected, stored, same):
+    assert check._same(expected, stored) is same
 
 
 def test_a_projection_missing_a_reaction_is_caught(corpus_root, tmp_path):
@@ -429,3 +481,32 @@ def test_the_pivots_directory_reaches_the_corpus(monkeypatch, argv, expected):
     with pytest.raises(_RecordedError):
         check.main(["--projections=x", "--structures=y", *argv])
     assert seen["pivots_dir"] == expected
+
+
+@pytest.mark.parametrize(
+    ("argv", "directory", "required"),
+    [
+        ([], None, False),
+        (["--occurrences=/artifacts/occurrences"], "/artifacts/occurrences", True),
+    ],
+)
+def test_the_occurrences_directory_reaches_the_corpus(
+    monkeypatch, argv, directory, required
+):
+    # Without the directory the occurrence index is built from the pivots or the
+    # projections, so the artifacts a deployment reads go unread. Given it, every
+    # indexed path has to be covered: one left out would be built the same way.
+    seen = {}
+
+    class _RecordedError(Exception):
+        pass
+
+    def _corpus(*args, **kwargs):
+        seen.update(kwargs)
+        raise _RecordedError("opened")
+
+    monkeypatch.setattr(check.execute, "Corpus", _corpus)
+    with pytest.raises(_RecordedError, match="opened"):
+        check.main(["--projections=x", "--structures=y", *argv])
+    assert seen["occurrences_dir"] == directory
+    assert seen["require_occurrences"] is required
