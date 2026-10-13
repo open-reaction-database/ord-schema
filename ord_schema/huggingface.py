@@ -332,11 +332,14 @@ def _prune(root: pathlib.Path, scopes: Iterable[str], published: set[str]) -> No
         published: Every repository path the fetched commit holds.
 
     Raises:
-        ValueError: If a file to delete sits in a directory resolving outside its scope.
+        ValueError: If a file to delete sits in a directory reached through a link
+            anywhere beneath ``root``.
     """
     foreign = []
     for scope in scopes:
-        directory = (root / scope).resolve()
+        # Resolved only as far as root, which the caller chose: a link below it, the
+        # scope's own directories included, leads to storage this tree does not own.
+        directory = root.resolve() / scope
         for path in parquet_files(root / scope):
             if path.relative_to(root).as_posix() in published:
                 continue

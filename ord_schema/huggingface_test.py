@@ -206,6 +206,34 @@ class TestFetchArtifacts:
             huggingface.fetch_artifacts(tmp_path / "tree")
         assert shared.exists()
 
+    @pytest.mark.parametrize(
+        "linked",
+        [huggingface.current_prefix("projection"), "projections"],
+        ids=["scope", "ancestor"],
+    )
+    def test_leaves_a_linked_scope_alone(self, tmp_path, monkeypatch, linked):
+        _FakeHub(monkeypatch, _published())
+        tree = tmp_path / "tree"
+        shared = tmp_path / "shared"
+        stale = tree / huggingface.current_prefix("projection") / "cc" / "x.parquet"
+        # Lay the shared storage out as the tree would be beneath the link.
+        _touch(shared / stale.relative_to(tree / linked))
+        (tree / linked).parent.mkdir(parents=True, exist_ok=True)
+        (tree / linked).symlink_to(shared)
+        with pytest.raises(ValueError, match="linked from outside the tree"):
+            huggingface.fetch_artifacts(tree)
+        assert stale.exists()
+
+    def test_prunes_beneath_a_linked_root(self, tmp_path, monkeypatch):
+        _FakeHub(monkeypatch, _published())
+        real = tmp_path / "real"
+        removed = real / huggingface.current_prefix("projection") / "cc" / "x.parquet"
+        _touch(removed)
+        (tmp_path / "tree").symlink_to(real)
+        # The root is the caller's choice, so a link there is not a foreign directory.
+        huggingface.fetch_artifacts(tmp_path / "tree")
+        assert not removed.exists()
+
     def test_removes_a_linked_file_as_a_link(self, tmp_path, monkeypatch):
         _FakeHub(monkeypatch, _published())
         target = tmp_path / "elsewhere.parquet"
