@@ -2139,6 +2139,21 @@ def test_an_aggregate_over_a_level_reads_the_pivot_rather_than_the_reactions():
     assert "FROM reactions" not in sql
 
 
+@pytest.mark.parametrize("fn", ["min", "max", "avg", "sum"])
+def test_arithmetic_over_reaction_id_across_a_level_is_refused(fn):
+    # reaction_id is the one path a level's rows carry outside the element; it is text,
+    # so arithmetic over it is refused where it is compiled rather than where it runs.
+    body = {
+        "aggregate": {
+            "over": "inputs.components",
+            "group_by": ["smiles"],
+            "measures": [{"fn": fn, "path": "reaction_id", "name": "n"}],
+        }
+    }
+    with pytest.raises(query.QueryError, match=rf"reaction_id: {fn} needs a numeric"):
+        _over(body)
+
+
 def test_a_group_column_over_a_level_is_named_by_the_path_as_written():
     # The expression reads from the element's alias, and the column is named by the
     # path the query wrote, which is relative to the element.

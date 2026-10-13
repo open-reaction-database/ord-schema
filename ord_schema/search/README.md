@@ -927,6 +927,8 @@ element rather than a row:
 
 The result's columns are the `group_by` paths, each named by the whole path as written
 (`conditions.stirring.type`, not `type`), followed by the measures, each named by its `name`.
+A `count` or `count_distinct` is an integer and an `avg` a float; a `sum` is an integer over
+integers and a float over floats, and `min` and `max` keep the type of what they compare.
 An aggregated query orders by a measure name or a `group_by` path, and by nothing else.
 
 ## What it deliberately cannot express

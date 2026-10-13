@@ -1854,6 +1854,8 @@ def _measure(
     elif element is not None and measure.path == pivot_levels.REACTION_ID:
         # The one path a pivot row carries outside its element, and what makes a count
         # of elements answerable as a count of reactions.
+        if measure.fn in _ARITHMETIC:
+            _check_numeric(measure.path, pa.string(), measure.fn)
         argument = f"{element}.{pivot_levels.REACTION_ID}"
         integers = False
     else:
