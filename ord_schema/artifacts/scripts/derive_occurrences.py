@@ -183,9 +183,7 @@ def main(args: argparse.Namespace) -> None:
         level = occurrences.PATHS[path][0].path
         # --pivots_dir is a directory someone named, not a pattern they wrote, so a
         # bracket or a star in it is part of the name: escaped, it matches that tree
-        # rather than a sibling fitting the character class. The root goes separately
-        # because glob_root reads the escape as the wildcard it is spelled with, and
-        # would stop the mirror short of it.
+        # rather than a sibling fitting the character class.
         root = pathlib.Path(args.pivots_dir) / level
         pattern = f"{glob.escape(str(root))}/**/*.parquet"
         directory = pathlib.Path(args.output_dir) / path
