@@ -160,6 +160,15 @@ def test_is_current_requires_every_stamp_to_match(tmp_path, monkeypatch):
         # No wildcard: the last component is the file, so the root holds it.
         ("data/aa/one.parquet", "data/aa"),
         ("one.parquet", ""),
+        # glob.escape writes a wildcard character as a bracket holding only it, which
+        # matches that character alone, so the root reads it as the character.
+        (glob.escape("data[1]") + "/*/*.parquet", "data[1]"),
+        (glob.escape("a*b?c") + "/x/*.parquet", "a*b?c/x"),
+        (glob.escape("data[1]/aa/one.parquet"), "data[1]/aa"),
+        # A bracket matching more than one character is still a wildcard, including one
+        # that holds an escape-shaped run.
+        ("data/[ab]/*.parquet", "data"),
+        ("data/[a[*]/x.parquet", "data"),
     ],
 )
 def test_glob_root(pattern, expected):
@@ -179,18 +188,19 @@ def test_output_path_for_an_exact_filename_writes_into_the_directory():
     ) == pathlib.Path("structures/one.parquet")
 
 
-def test_an_explicit_root_mirrors_from_where_the_caller_says():
-    # A caller building a pattern around a directory name has to escape it, and the
-    # escape is spelled with the wildcard it is escaping: glob_root stops at "data[[]1]"
-    # and mirrors the source layout a second time beneath output_dir. The caller knows
-    # the directory it meant, so it says so rather than spelling it as a pattern.
+def test_output_path_mirrors_from_an_escaped_directory_name():
     pattern = glob.escape("data[1]/aa") + "/*.parquet"
-    source = "data[1]/aa/ord_dataset-x.parquet"
-    assert base.output_path(source, pattern, "structures") == pathlib.Path(
-        "structures/data[1]/aa/ord_dataset-x.parquet"
-    )
     assert base.output_path(
-        source, pattern, "structures", root="data[1]/aa"
+        "data[1]/aa/ord_dataset-x.parquet", pattern, "structures"
+    ) == pathlib.Path("structures/ord_dataset-x.parquet")
+
+
+def test_an_explicit_root_mirrors_from_where_the_caller_says():
+    assert base.output_path(
+        "data/aa/ord_dataset-x.parquet",
+        "data/*/*.parquet",
+        "structures",
+        root="data/aa",
     ) == pathlib.Path("structures/ord_dataset-x.parquet")
 
 
@@ -242,6 +252,33 @@ def test_derive_tree_writes_one_artifact_per_source(tmp_path):
     )
     assert (written, skipped, ignored) == (2, 0, 0)
     assert {path.parent.name for path in written_paths} == {"aa", "bb"}
+
+
+def test_derive_tree_mirrors_from_a_directory_whose_name_holds_a_wildcard(tmp_path):
+    data = tmp_path / "data[1]"
+    for name in ("aa", "bb"):
+        (data / name).mkdir(parents=True)
+        _fake_source(data / name / "source.parquet")
+    written_paths = []
+
+    def _write_one(source, output, *, source_md5, source_dataset_id):
+        del source, source_md5, source_dataset_id  # Unused.
+        written_paths.append(pathlib.Path(output))
+        pathlib.Path(output).write_bytes(b"")
+        return 1
+
+    output_dir = tmp_path / "out"
+    written, _, _ = base.derive_tree(
+        glob.escape(str(data)) + "/*/*.parquet",
+        str(output_dir),
+        artifact="structures",
+        write=_write_one,
+    )
+    assert written == 2
+    assert {path.parent for path in written_paths} == {
+        output_dir / "aa",
+        output_dir / "bb",
+    }
 
 
 def test_derive_tree_derives_a_source_reached_twice_only_once(tmp_path):

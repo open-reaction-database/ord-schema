@@ -65,6 +65,7 @@ import dataclasses
 import glob
 import os
 import pathlib
+import re
 from collections.abc import Callable, Collection, Mapping
 from importlib import metadata
 from typing import Protocol
@@ -77,6 +78,10 @@ from ord_schema import parquet
 from ord_schema.logging import get_logger
 
 logger = get_logger(__name__)
+
+# A bracket holding a single wildcard character, the way glob.escape writes one, matches
+# that character alone.
+_ESCAPED_WILDCARD = re.compile(r"\[([*?\[])\]")
 
 # Bumped when an artifact's definition changes -- a column's meaning, how it is
 # populated, or a shared helper that feeds it. Per artifact, because a re-derive is not
@@ -470,19 +475,24 @@ def glob_root(pattern: str) -> pathlib.PurePath:
     naming a single file has no wildcard to stop at, so its own last component is the
     file rather than a directory and the root is the directory holding it.
 
+    A bracket holding only ``*``, ``?``, or ``[`` matches that character alone, which
+    is how ``glob.escape`` writes a directory name that contains one, so such a bracket
+    is read as the character: ``glob.escape("data[1]") + "/*/x.parquet"`` has the root
+    ``data[1]``.
+
     Args:
         pattern: Glob pattern, with ``*``, ``?``, or ``[`` marking the first wildcard.
 
     Returns:
-        The wildcard-free leading directories, or ``.`` when the pattern names no
-        directory or begins with a wildcard.
+        The wildcard-free leading directories, unescaped, or ``.`` when the pattern
+        names no directory or begins with a wildcard.
     """
     parts = pathlib.PurePath(pattern).parts
     fixed = []
     for part in parts:
-        if any(char in part for char in "*?["):
+        if any(char in _ESCAPED_WILDCARD.sub("", part) for char in "*?["):
             break
-        fixed.append(part)
+        fixed.append(_ESCAPED_WILDCARD.sub(r"\1", part))
     else:
         fixed = fixed[:-1]
     return pathlib.PurePath(*fixed)
@@ -502,10 +512,8 @@ def output_path(
         pattern: The glob it matched, whose wildcard-free prefix the output mirrors from
             when ``root`` is not given.
         output_dir: Directory to write beneath.
-        root: The directory to mirror from, for a caller that has one. A caller building
-            a pattern around a directory name has to escape it, and an escaped ``[`` is
-            a character class as far as ``glob_root`` can tell -- so the prefix it finds
-            stops short and the mirror carries the source layout twice.
+        root: The directory to mirror from, for a caller that has one; otherwise
+            ``glob_root(pattern)``.
 
     Returns:
         Where ``source``'s artifact goes.
