@@ -165,8 +165,10 @@ def test_is_current_requires_every_stamp_to_match(tmp_path, monkeypatch):
         (glob.escape("data[1]") + "/*/*.parquet", "data[1]"),
         (glob.escape("a*b?c") + "/x/*.parquet", "a*b?c/x"),
         (glob.escape("data[1]/aa/one.parquet"), "data[1]/aa"),
-        # A bracket matching more than one character is still a wildcard.
+        # A bracket matching more than one character is still a wildcard, including one
+        # that holds an escape-shaped run.
         ("data/[ab]/*.parquet", "data"),
+        ("data/[a[*]/x.parquet", "data"),
     ],
 )
 def test_glob_root(pattern, expected):
