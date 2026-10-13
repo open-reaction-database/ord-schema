@@ -5360,7 +5360,7 @@ def drawn_two_ways(tmp_path_factory) -> Iterator[execute.Corpus]:
     with execute.Corpus(
         str(projected),
         str(structured),
-        resolver={"acetic_acid": "CC(=O)O"}.__getitem__,
+        resolver={"acetic acid": "CC(=O)O"}.__getitem__,
     ) as value:
         yield value
 
@@ -5432,7 +5432,7 @@ def test_same_parent_still_does_not_match_a_different_compound(drawn_two_ways):
 def test_a_compound_name_resolves_to_a_same_compound_query(drawn_two_ways):
     assert _search(
         drawn_two_ways,
-        _exists({"op": "same_compound", "path": "smiles", "compound": "acetic_acid"}),
+        _exists({"op": "same_compound", "path": "smiles", "compound": "acetic acid"}),
     ) == {"ord-dd01"}
 
 

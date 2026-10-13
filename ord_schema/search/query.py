@@ -73,7 +73,7 @@ from collections.abc import Callable
 from typing import Annotated, Any, Literal
 
 import pyarrow as pa
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
@@ -211,6 +211,49 @@ _AGGREGATES = {
 # than as parameters, without first resolving against the schema, so they are held to an
 # identifier shape a quoting mistake cannot escape.
 _NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+# Room for any one compound's name in the corpus: 99.99% of the distinct names ORD
+# records fit in 301 characters, and the one name longer than this is several run
+# together.
+_COMPOUND_NAME_LENGTH = 500
+
+
+def _compound_name(name: str) -> str:
+    """Returns a structure predicate's compound name, refusing one unfit for a resolver.
+
+    The name never reaches the SQL -- the executor hands it to the resolver and keys the
+    match set by the SMILES that comes back -- so it need not be an identifier:
+    "2-pyridone" and "acetic acid" are names.
+
+    Args:
+        name: The name as the query wrote it.
+
+    Returns:
+        The name, unchanged.
+
+    Raises:
+        ValueError: If the name is blank, has whitespace around it, or holds a
+            character that does not print: a control or format character, or any
+            separator but the ASCII space. The resolver would send any of these as part
+            of the name and write it into its log line.
+    """
+    stripped = name.strip()
+    if not stripped:
+        raise ValueError("compound name is blank")
+    if stripped != name:
+        raise ValueError(f"compound name has surrounding whitespace: {name!r}")
+    if not name.isprintable():
+        raise ValueError(
+            f"compound name holds a character that does not print: {name!r}"
+        )
+    return name
+
+
+_CompoundName = Annotated[
+    str,
+    Field(min_length=1, max_length=_COMPOUND_NAME_LENGTH),
+    AfterValidator(_compound_name),
+]
 
 
 def _quoted(identifier: str) -> str:
@@ -512,15 +555,13 @@ class Substructure(_Node):
     op: Literal["substructure"]
     path: str
     smarts: str | None = None
-    compound: str | None = None
+    compound: _CompoundName | None = None
     chirality: bool = True
 
     @model_validator(mode="after")
     def _check(self) -> "Substructure":
         if (self.smarts is None) == (self.compound is None):
             raise ValueError("a substructure query is a smarts or a compound, not both")
-        if self.compound is not None and not _NAME.match(self.compound):
-            raise ValueError(f"compound name is not an identifier: {self.compound!r}")
         if self.smarts is not None:
             pattern = Chem.MolFromSmarts(self.smarts)
             if pattern is None:
@@ -568,15 +609,13 @@ class Similarity(_Node):
     op: Literal["similarity"]
     path: str
     smiles: str | None = None
-    compound: str | None = None
+    compound: _CompoundName | None = None
     threshold: float = Field(gt=0, le=1)
 
     @model_validator(mode="after")
     def _check(self) -> "Similarity":
         if (self.smiles is None) == (self.compound is None):
             raise ValueError("a similarity query is a smiles or a compound, not both")
-        if self.compound is not None and not _NAME.match(self.compound):
-            raise ValueError(f"compound name is not an identifier: {self.compound!r}")
         if self.smiles is not None:
             molecule = Chem.MolFromSmiles(self.smiles)
             if molecule is None:
@@ -595,15 +634,13 @@ def _check_molecule_query(node: "SameCompound | SameParent") -> None:
         node: The predicate to check.
 
     Raises:
-        ValueError: If it names both a SMILES and a compound or neither, if the
-            compound name is not an identifier, or if the SMILES does not parse or
-            holds no atoms. An empty molecule hashes to something no real structure
-            carries: a guaranteed-empty answer that still costs a pass over the corpus.
+        ValueError: If it names both a SMILES and a compound or neither, or if the
+            SMILES does not parse or holds no atoms. An empty molecule hashes to
+            something no real structure carries: a guaranteed-empty answer that still
+            costs a pass over the corpus.
     """
     if (node.smiles is None) == (node.compound is None):
         raise ValueError("a compound query is a smiles or a compound, not both")
-    if node.compound is not None and not _NAME.match(node.compound):
-        raise ValueError(f"compound name is not an identifier: {node.compound!r}")
     if node.smiles is not None:
         molecule = Chem.MolFromSmiles(node.smiles)
         if molecule is None:
@@ -629,7 +666,7 @@ class SameCompound(_Node):
     op: Literal["same_compound"]
     path: str
     smiles: str | None = None
-    compound: str | None = None
+    compound: _CompoundName | None = None
 
     @model_validator(mode="after")
     def _check(self) -> "SameCompound":
@@ -663,7 +700,7 @@ class SameParent(_Node):
     op: Literal["same_parent"]
     path: str
     smiles: str | None = None
-    compound: str | None = None
+    compound: _CompoundName | None = None
 
     @model_validator(mode="after")
     def _check(self) -> "SameParent":
