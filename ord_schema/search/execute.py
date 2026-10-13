@@ -2362,13 +2362,17 @@ class Corpus:
         """
         molecule = self._query_molecule(parameter, resolve)
         library = self._library()
+        # Stereo groups count wherever stereocenters do. A racemate recorded as
+        # "C[C@H](N)C(=O)O |&1:1|" holds both enantiomers, and matching its center as
+        # drawn would make the answer depend on which way round the record wrote it.
+        parameters = Chem.SubstructMatchParameters()
+        parameters.useChirality = parameter.chirality
+        parameters.useEnhancedStereo = parameter.chirality
         # maxResults defaults to 1000, which would silently truncate: a broad pattern
         # matches hundreds of thousands of ORD's distinct molecules.
-        # Stated even where it matches RDKit's default, so a predicate that opts out of
-        # stereochemistry reaches the match.
         matched = library.GetMatches(
             molecule,
-            useChirality=parameter.chirality,
+            parameters,
             numThreads=self._threads,
             maxResults=len(library) or 1,
         )

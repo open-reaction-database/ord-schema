@@ -488,6 +488,10 @@ class Substructure(_Node):
     molecule recorded without stereo. ``chirality`` false ignores stereocenters, for a
     question about the molecule whatever its configuration. A query with no
     stereocenters matches the same structures either way.
+
+    CXSMILES stereo groups count too. A structure recorded as a racemate (``&``) or as
+    an unknown single enantiomer (``o``) matches a pattern drawn as either enantiomer,
+    and a pattern drawn as a racemate matches only racemates.
     """
 
     op: Literal["substructure"]
