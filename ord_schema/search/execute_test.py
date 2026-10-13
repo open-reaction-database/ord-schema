@@ -4481,6 +4481,129 @@ def test_counting_a_level_a_reaction_lacks_is_zero(wide_root, tmp_path, pivoted)
     assert counted["ord-wd03"] == 0
 
 
+def _integral_reaction(reaction_id, *, rpm, kelvin, inputs):
+    """A reaction stirred at ``rpm`` and held at ``kelvin``, adding ``inputs`` in turn.
+
+    ``inputs`` maps each input's name to its addition order and the SMILES of its
+    components.
+    """
+    reaction = reaction_pb2.Reaction(reaction_id=reaction_id)
+    reaction.conditions.stirring.rate.rpm = rpm
+    setpoint = reaction.conditions.temperature.setpoint
+    setpoint.value = kelvin
+    setpoint.units = reaction_pb2.Temperature.KELVIN
+    for name, (order, smiles) in inputs.items():
+        reaction.inputs[name].addition_order = order
+        for each in smiles:
+            _component(reaction.inputs[name], each, _ROLE.REACTANT)
+    return reaction
+
+
+@pytest.fixture(scope="module")
+def integral_root(tmp_path_factory) -> pathlib.Path:
+    """Reactions recording integer leaves, which DuckDB sums as HUGEINT."""
+    reactions = [
+        _integral_reaction(
+            "ord-in01",
+            rpm=300,
+            kelvin=350.5,
+            inputs={"a": (1, ["CCO", "CO"]), "b": (2, ["c1ccccc1"])},
+        ),
+        _integral_reaction(
+            "ord-in02", rpm=200, kelvin=300.25, inputs={"a": (5, ["CCO"])}
+        ),
+    ]
+    root = tmp_path_factory.mktemp("integral")
+    source = root / "data" / "ord_dataset-in.parquet"
+    source.parent.mkdir(parents=True)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-in",
+            name="test",
+            description="test",
+            reactions=reactions,
+        ),
+        str(source),
+    )
+    projected = root / "projections" / source.name
+    projected.parent.mkdir(parents=True)
+    projection.write_projection(source, projected)
+    structured = root / "structures" / source.name
+    structured.parent.mkdir(parents=True)
+    structures.write_structures(projected, structured)
+    return root
+
+
+@pytest.fixture(scope="module", params=[None, 0], ids=["pivoted", "unpivoted"])
+def integral_corpus(request, integral_root) -> Iterator[execute.Corpus]:
+    """The integral reactions, reduced through pivots built in process and the lists."""
+    with execute.Corpus(
+        str(integral_root / "projections" / "*.parquet"),
+        str(integral_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivot_budget_bytes=request.param,
+    ) as value:
+        yield value
+
+
+def _measured(corpus, measure, group_by=()) -> pa.Table:
+    """Returns the table a single measure named ``measured`` comes back in."""
+    return corpus.search(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "group_by": list(group_by),
+                    "measures": [{**measure, "name": "measured"}],
+                }
+            }
+        )
+    )
+
+
+def test_a_sum_over_an_integer_leaf_is_an_int(integral_corpus):
+    # DuckDB sums an INTEGER as HUGEINT, which Arrow carries as decimal128(38, 0) and
+    # Python reads as a Decimal, and json.dumps(default=str) then writes as "500".
+    table = _measured(
+        integral_corpus, {"fn": "sum", "path": "conditions.stirring.rate.rpm"}
+    )
+    assert table.schema.field("measured").type == pa.int64()
+    (total,) = table.column("measured").to_pylist()
+    assert total == 500
+    assert isinstance(total, int)
+
+
+def test_a_sum_over_a_count_is_an_int(integral_corpus):
+    # A sum of counts beside a count of the same rows, both answering "how many".
+    count = {"reduce": "count", "path": "inputs.components"}
+    table = _measured(integral_corpus, {"fn": "sum", "path": count})
+    assert table.schema.field("measured").type == pa.int64()
+    (total,) = table.column("measured").to_pylist()
+    assert total == 4
+    assert isinstance(total, int)
+
+
+def test_a_summed_reduction_is_an_int_where_it_surfaces(integral_corpus):
+    # Read through a min rather than a sum, which would cast the reduction again and
+    # hide whether the reduction itself comes back an integer.
+    summed = {"reduce": "sum", "path": "inputs.addition_order"}
+    table = _measured(integral_corpus, {"fn": "min", "path": summed}, ["reaction_id"])
+    assert table.schema.field("measured").type == pa.int64()
+    per_reaction = {row["reaction_id"]: row["measured"] for row in table.to_pylist()}
+    assert per_reaction == {"ord-in01": 3, "ord-in02": 5}
+    assert all(isinstance(value, int) for value in per_reaction.values())
+
+
+def test_a_sum_over_a_floating_point_leaf_stays_a_float(integral_corpus):
+    table = _measured(
+        integral_corpus,
+        {"fn": "sum", "path": "conditions.temperature.setpoint_kelvin"},
+    )
+    assert table.schema.field("measured").type == pa.float64()
+    (total,) = table.column("measured").to_pylist()
+    assert total == 650.75
+    assert isinstance(total, float)
+
+
 # The levels the occurrence index's paths range within: three are indexed paths of
 # their own, and the authentic standard is one compound per measurement, so its rows
 # come from the measurements' pivot.
