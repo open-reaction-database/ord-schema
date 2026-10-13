@@ -22,6 +22,7 @@ them: they exist to catch what a built corpus gets wrong.
 import json
 import pathlib
 import typing
+from datetime import datetime
 
 import pyarrow.parquet as pq
 import pytest
@@ -123,14 +124,26 @@ def _dated_corpus(
     return projected, source
 
 
-def test_an_ambiguous_slash_date_re_projects_to_what_is_stored(tmp_path):
+@pytest.mark.parametrize(
+    ("day_first", "expected"),
+    [
+        (frozenset(), datetime(2021, 2, 4, 11, 24, 34)),
+        (frozenset({"ord_dataset-cc"}), datetime(2021, 4, 2, 11, 24, 34)),
+    ],
+    ids=["month_first", "day_first"],
+)
+def test_an_ambiguous_slash_date_re_projects_to_what_is_stored(
+    tmp_path, monkeypatch, day_first, expected
+):
     # Both fields of 2/4 are at most 12, so the date parses only under the orientation
-    # the projection settles for the whole dataset, which one row cannot carry.
+    # the projection settles for the whole dataset, which one row cannot carry. Each
+    # orientation reads a different month, so a check holding either one fixed fails.
+    monkeypatch.setattr(projection, "_DAY_FIRST", day_first)
     projected, source = _dated_corpus(
         tmp_path, "ord_dataset-cc", "2/4/2021, 11:24:34 AM"
     )
     stored = pq.read_table(projected).to_pylist()[0]
-    assert stored["provenance"]["record_created"]["time"]["timestamp"] is not None
+    assert stored["provenance"]["record_created"]["time"]["timestamp"] == expected
     findings = check.check_sources(
         str(projected), str(source), datasets=1, rows=1, seed=0
     )

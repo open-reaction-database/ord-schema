@@ -406,9 +406,9 @@ def parse_timestamp(value: str, *, day_first: bool | None = None) -> datetime | 
     Args:
         value: The string a depositor wrote.
         day_first: Whether this dataset writes slash dates day first, from
-            ``day_first_dates``. None leaves an ambiguous slash date unparsed rather
-            than guessing, which is the difference between a null a reader can see and
-            a date that is silently the wrong month.
+            ``dataset_slash_orientation``. None leaves an ambiguous slash date unparsed
+            rather than guessing, which is the difference between a null a reader can
+            see and a date that is silently the wrong month.
 
     Returns:
         The parsed instant, or None where no format matched or the value is ambiguous
@@ -671,7 +671,7 @@ def message_row(
             projected outside a dataset -- leaves every ``structure_id`` null, since an
             ID is meaningful only against the artifact that shares the mapping.
         day_first: Whether this dataset writes slash dates day first, from
-            ``day_first_dates``. None leaves an ambiguous one unparsed; see
+            ``dataset_slash_orientation``. None leaves an ambiguous one unparsed; see
             ``parse_timestamp``.
 
     Returns:
@@ -791,7 +791,7 @@ def reaction_row(
             dataset's rows and extended in first-seen order. None leaves every
             ``structure_id`` null.
         day_first: Whether this dataset writes slash dates day first, from
-            ``day_first_dates``. None leaves an ambiguous one unparsed; see
+            ``dataset_slash_orientation``. None leaves an ambiguous one unparsed; see
             ``parse_timestamp``.
 
     Returns:
