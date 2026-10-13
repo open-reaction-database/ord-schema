@@ -1208,6 +1208,12 @@ def test_a_reaction_the_corpus_does_not_hold_has_no_row(sourced_corpus):
     assert table.column("reaction_id").to_pylist() == ["ord-aa02"]
 
 
+def test_a_request_the_corpus_holds_none_of_returns_no_rows(sourced_corpus):
+    table = sourced_corpus.reactions(["ord-zz98", "ord-zz99"])
+    assert table.num_rows == 0
+    assert table.schema == sourced_corpus.reactions(["ord-aa01"]).schema
+
+
 def test_a_reaction_asked_twice_comes_back_once(sourced_corpus):
     table = sourced_corpus.reactions(["ord-aa01", "ord-bb01", "ord-aa01"])
     assert table.column("reaction_id").to_pylist() == ["ord-aa01", "ord-bb01"]

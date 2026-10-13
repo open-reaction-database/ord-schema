@@ -3252,9 +3252,13 @@ class Corpus:
                 "which record answers for it would be arbitrary"
             )
         position = {reaction_id: index for index, reaction_id in enumerate(asked)}
-        return found.take(
-            sorted(range(len(returned)), key=lambda row: position[returned[row]])
+        # Typed, because a plain empty list (nothing asked for is held) reaches pyarrow
+        # as a null array, which take has no kernel for.
+        order = pa.array(
+            sorted(range(len(returned)), key=lambda row: position[returned[row]]),
+            type=pa.int64(),
         )
+        return found.take(order)
 
     def datasets(self) -> pa.Table:
         """Returns what each source dataset says about itself.
