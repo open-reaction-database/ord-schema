@@ -846,7 +846,7 @@ def _recorded_dates(view: parquet.DatasetView) -> Iterator[str | None]:
 def dataset_slash_orientation(
     dataset_id: str | None, view: parquet.DatasetView
 ) -> bool | None:
-    """Returns whether a source dataset writes slash dates day first, as it projects.
+    """Returns whether a dataset writes slash dates day first, as its projection reads.
 
     Every row of a dataset is projected under this one answer, so whatever re-projects a
     row on its own, such as a fidelity check, reads it here: the row cannot carry it.

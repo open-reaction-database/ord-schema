@@ -99,8 +99,13 @@ def _dated_corpus(
 ) -> tuple[pathlib.Path, pathlib.Path]:
     """Projects a one-reaction dataset whose record was created at ``recorded``.
 
+    Args:
+        root: The directory to write the source and its projection under.
+        dataset_id: The dataset's ID, which decides whether ``_DAY_FIRST`` names it.
+        recorded: The record's creation date, as the depositor wrote it.
+
     Returns:
-        The projection and the source.
+        The paths of the projection and of the source.
     """
     reaction = _reaction("ord-dated01", "CCO", _ROLE.REACTANT)
     reaction.provenance.record_created.time.value = recorded
@@ -132,7 +137,7 @@ def test_an_ambiguous_slash_date_re_projects_to_what_is_stored(tmp_path):
     assert _failures(findings) == []
 
 
-def test_a_dataset_its_own_dates_contradict_is_reported(tmp_path, monkeypatch):
+def test_a_dataset_contradicting_the_day_first_list_is_reported(tmp_path, monkeypatch):
     # 2/25 can only be month first, so listing the dataset as day first contradicts it.
     # The projection would refuse the dataset now; the check reports that as a finding
     # rather than stopping before its other checks.
