@@ -1951,6 +1951,9 @@ def compile_query(
             )
             selected.append(f"{_AGGREGATES[measure.fn]}({argument}) AS {measure.name}")
         names = {measure.name for measure in query.aggregate.measures}
+        # Each group_by path's expression as the SELECT spells it, which over a level's
+        # elements reads from the element rather than from a reaction column.
+        grouped = dict(zip(query.aggregate.group_by, groups, strict=True))
         orderable = names | set(query.aggregate.group_by)
     else:
         selected = ["reaction_id"]
@@ -2021,11 +2024,7 @@ def compile_query(
             elif orderable is None:
                 key = _scalar(order.key, schema, "order_by").expression
             elif order.key in orderable:
-                key = (
-                    order.key
-                    if order.key in names
-                    else _scalar(order.key, schema, "").expression
-                )
+                key = order.key if order.key in names else grouped[order.key]
             else:
                 raise QueryError(
                     f"{order.key}: an aggregated query orders by a measure name or a "

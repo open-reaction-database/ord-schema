@@ -231,6 +231,45 @@ def test_reactions_group_by_the_dataset_they_came_from(corpus):
     assert counts == {"ord_dataset-aa": 2, "ord_dataset-bb": 1}
 
 
+@pytest.mark.parametrize("descending", [False, True])
+def test_an_aggregate_over_a_level_orders_by_its_group_key(corpus, descending):
+    # The group key is read from the level's elements, so the ordering has to name the
+    # grouped expression rather than a reaction column of the same path.
+    table = corpus.search(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "over": "inputs.components",
+                    "group_by": ["smiles"],
+                    "measures": [{"fn": "count", "name": "n"}],
+                },
+                "order_by": [{"key": "smiles", "descending": descending}],
+            }
+        )
+    )
+    smiles = table.column("smiles").to_pylist()
+    assert len(smiles) == 3
+    assert smiles == sorted(smiles, reverse=descending)
+
+
+def test_an_aggregate_over_a_level_breaks_count_ties_by_its_group_key(corpus):
+    table = corpus.search(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "over": "inputs.components",
+                    "group_by": ["smiles"],
+                    "measures": [{"fn": "count", "name": "n"}],
+                },
+                "order_by": [{"key": "n", "descending": True}, {"key": "smiles"}],
+            }
+        )
+    )
+    rows = [(row["n"], row["smiles"]) for row in table.to_pylist()]
+    assert rows == sorted(rows, key=lambda row: (-row[0], row[1]))
+    assert rows[0][0] == 2
+
+
 def test_a_source_without_a_dataset_id_reads_as_null(tmp_path):
     # A source recording no dataset ID gets no stamp; its reactions answer is_null and
     # group under NULL rather than vanishing or borrowing another file's ID.
