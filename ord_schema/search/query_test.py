@@ -98,7 +98,6 @@ def test_a_comparison_compiles_to_a_scalar_test():
         "WHERE conditions.temperature.setpoint_kelvin > $literal_0"
     )
     assert compiled.literals == {"literal_0": 300.0}
-    assert compiled.compounds == ()
 
 
 def test_exists_compiles_to_a_list_lambda_never_to_unnest():
@@ -211,19 +210,28 @@ def test_co_membership_and_mere_co_occurrence_compile_differently():
     assert either.sql.count("list_filter") == 2
 
 
-def test_compounds_are_bound_not_spelled():
-    compiled = _compile(
-        {
-            "where": {
-                "op": "exists",
-                "path": "inputs.components",
-                "where": {"op": "eq", "path": "smiles", "value": {"compound": "thf"}},
-            }
-        }
+@pytest.mark.parametrize(
+    ("op", "path", "suggested"),
+    [
+        ("eq", "smiles", "smiles"),
+        ("ne", "inputs.components.smiles", "inputs.components.smiles"),
+        ("contains", "name", "smiles"),
+    ],
+)
+def test_a_compound_is_never_a_comparison_s_value(op, path, suggested):
+    # Equal spellings are not what makes two compounds the same, so the refusal names
+    # the predicate that asks the question -- a model repairing its query from the
+    # message alone would otherwise rewrite the name as a literal and match nothing.
+    with pytest.raises(ValidationError) as raised:
+        query.Query.model_validate(
+            {"where": {"op": op, "path": path, "value": {"compound": "thf"}}}
+        )
+    message = str(raised.value)
+    assert "never a compound" in message
+    assert (
+        f'{{"op": "same_compound", "path": "{suggested}", "compound": "thf"}}'
+        in message
     )
-    assert "$thf" in compiled.sql
-    assert compiled.compounds == ("thf",)
-    assert _run(compiled, {"thf": "C1CCOC1"}) == []
 
 
 def test_the_dataset_a_reaction_came_from_is_queryable():
@@ -295,58 +303,6 @@ def test_every_literal_is_bound_as_a_value_of_its_own_type(
     assert str(literal) not in compiled.sql
     assert "300" not in compiled.sql
     assert "TRUE" not in compiled.sql
-
-
-def test_a_compound_named_like_a_literal_parameter_is_refused():
-    literal = {"op": "eq", "path": "reaction_id", "value": {"literal": "ord-1"}}
-    with pytest.raises(query.QueryError, match="collide"):
-        _compile(
-            {
-                "where": {
-                    "op": "and",
-                    "clauses": [
-                        literal,
-                        {
-                            "op": "exists",
-                            "path": "inputs.components",
-                            "where": {
-                                "op": "eq",
-                                "path": "smiles",
-                                "value": {"compound": "literal_0"},
-                            },
-                        },
-                    ],
-                }
-            }
-        )
-
-
-def test_a_compound_in_an_ordering_is_checked_for_collisions_too():
-    # An ordering compiles after the where, so a check made between the two would see
-    # the where's structure parameter and miss the ordering's compound.
-    with pytest.raises(query.QueryError, match="collide"):
-        _compile(
-            {
-                "where": {
-                    "op": "exists",
-                    "path": "inputs.components",
-                    "where": _substructure(),
-                },
-                "order_by": [
-                    {
-                        "key": {
-                            "reduce": "count",
-                            "path": "inputs.components",
-                            "where": {
-                                "op": "eq",
-                                "path": "smiles",
-                                "value": {"compound": "structure_0"},
-                            },
-                        }
-                    }
-                ],
-            }
-        )
 
 
 def test_a_pivot_that_declines_leaves_no_literal_behind():
@@ -586,17 +542,6 @@ def test_a_measure_may_share_a_group_by_path_s_last_segment():
             {"where": {"op": "gt", "path": "reaction_id", "value": {"literal": 1}}},
             "needs a numeric or temporal column",
         ),
-        # A compound resolves to a SMILES, so it can only compare against text.
-        (
-            {
-                "where": {
-                    "op": "eq",
-                    "path": "conditions.temperature.setpoint_kelvin",
-                    "value": {"compound": "thf"},
-                }
-            },
-            "compares against text",
-        ),
         (
             {
                 "aggregate": {
@@ -625,15 +570,9 @@ def test_refused(payload, match):
     [
         # A measure name reaches the SQL as text, so it is held to an identifier shape.
         {"aggregate": {"measures": [{"fn": "count", "name": "n; DROP TABLE x"}]}},
-        {
-            "where": {
-                "op": "eq",
-                "path": "reaction_id",
-                "value": {"compound": "x'; DROP TABLE y; --"},
-            }
-        },
-        # Neither a literal nor a compound, or both at once.
+        # No literal, or a compound beside one.
         {"where": {"op": "eq", "path": "reaction_id", "value": {}}},
+        {"where": {"op": "eq", "path": "reaction_id", "value": {"literal": None}}},
         {
             "where": {
                 "op": "eq",
@@ -1475,31 +1414,6 @@ def test_a_similarity_threshold_is_required_and_bounded():
         )
 
 
-def test_a_compound_named_like_a_structure_parameter_is_refused():
-    with pytest.raises(query.QueryError, match="collide"):
-        query.compile_query(
-            query.Query.model_validate(
-                {
-                    "where": {
-                        "op": "exists",
-                        "path": "inputs.components",
-                        "where": {
-                            "op": "and",
-                            "clauses": [
-                                _substructure(),
-                                {
-                                    "op": "eq",
-                                    "path": "smiles",
-                                    "value": {"compound": "structure_0"},
-                                },
-                            ],
-                        },
-                    }
-                }
-            )
-        )
-
-
 def _pivot_sql(body, pivot=None):
     return query.compile_query(query.Query.model_validate(body), pivot=pivot).sql
 
@@ -1880,8 +1794,8 @@ def test_an_unfiltered_reduction_reduces_every_element():
 
 
 def test_a_reduction_filter_may_name_a_compound():
-    # The filter's own clauses collect parameters like any other predicate; a name
-    # reaching the SQL unbound is an error rather than a wasted parameter.
+    # The filter's own clauses collect parameters like any other predicate; a
+    # predicate reaching the SQL unbound is an error rather than a wasted parameter.
     compiled = query.compile_query(
         query.Query.model_validate(
             {
@@ -1891,9 +1805,9 @@ def test_a_reduction_filter_may_name_a_compound():
                             "reduce": "count",
                             "path": "inputs.components.amount.moles_moles",
                             "where": {
-                                "op": "eq",
+                                "op": "same_compound",
                                 "path": "smiles",
-                                "value": {"compound": "thf"},
+                                "compound": "thf",
                             },
                         }
                     }
@@ -1901,8 +1815,10 @@ def test_a_reduction_filter_may_name_a_compound():
             }
         )
     )
-    assert compiled.compounds == ("thf",)
-    assert "$thf" in compiled.sql
+    assert [(p.op, p.compound) for p in compiled.structures] == [
+        ("same_compound", "thf")
+    ]
+    assert "$structure_0" in compiled.sql
 
 
 @pytest.mark.parametrize("pivoted", [False, True])
