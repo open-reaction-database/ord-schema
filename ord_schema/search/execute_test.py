@@ -1168,7 +1168,8 @@ def test_a_projection_without_statistics_is_refused(corpus_dir, tmp_path):
     pq.write_table(pq.read_table(target), target, write_statistics=False)
     with pytest.raises(
         execute.PairingError,
-        match=re.escape(f"{target} records no statistics for its structure IDs"),
+        match=re.escape(f"{target} records no statistics for its structure IDs")
+        + r".*ord_schema\.artifacts\.scripts\.derive_projection --force",
     ):
         execute.Corpus(
             str(root / "projections" / "*.parquet"),
@@ -6024,7 +6025,8 @@ def test_an_occurrence_artifact_without_statistics_is_refused(
     with (
         pytest.raises(
             execute.PairingError,
-            match=re.escape(f"{target} records no statistics for its structure IDs"),
+            match=re.escape(f"{target} records no statistics for its structure IDs")
+            + r".*ord_schema\.artifacts\.scripts\.derive_occurrences --force",
         ),
         _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read,
     ):

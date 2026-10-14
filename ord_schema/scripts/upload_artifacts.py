@@ -35,7 +35,8 @@ and files a build no longer holds are deleted from it. The tree has to be one bu
 * an artifact, pivot level, or indexed path restates a source dataset twice, or other
   datasets than the projections;
 * a ``Corpus`` opened warm on it refuses it, which is what sees a structures artifact
-  too short for its projection's IDs or unloadable by the substructure library,
+  too short for its projection's IDs or unloadable by the substructure library, a
+  pivot or occurrences file carrying a structure ID its dataset does not hold,
   occurrences that miss a structure, and a file this library and RDKit would not
   write. Run the upload under the library that derived the tree. Over ORD this took
   43 seconds and 5.7 GiB at peak; a tree without occurrences for every path builds
