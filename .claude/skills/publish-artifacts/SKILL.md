@@ -83,7 +83,7 @@ already have caught.
 
 | Mistake | What happens |
 | --- | --- |
-| Deriving a new dataset into an empty directory and uploading that | A one-dataset build: refused under the published prefix, published as the whole corpus under a new one. Step 3 catches both. |
+| Deriving a new dataset into an empty directory and uploading that | A one-dataset build: refused under the published prefix; under a new prefix it publishes, and readers on that version fetch one dataset. Step 3 catches both. |
 | Deriving under the conda `ord` env | Every file reads stale; the corpus re-derives under the older RDKit and a new prefix. |
 | Passing `--allow_deletes` to get past a refusal | Deletes published datasets from the build readers fetch. |
 | Reading the dry run's upload count as the size of the change | It is every file in the tree; a new dataset still reads as all of them. |

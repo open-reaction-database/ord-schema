@@ -106,7 +106,10 @@ def _projections(root: pathlib.Path) -> dict[str, list[str]]:
 
 
 def check(root: pathlib.Path, ord_data: pathlib.Path, revision: str) -> list[str]:
-    """Returns every way the tree and the checkout fail to cover the same datasets."""
+    """Returns each mismatch among the tree, the checkout, and the mirror.
+
+    Prints how many datasets or projections each holds.
+    """
     checkout = _checkout(ord_data)
     mirror = _mirror(revision)
     held = _projections(root)
@@ -114,6 +117,8 @@ def check(root: pathlib.Path, ord_data: pathlib.Path, revision: str) -> list[str
         f"on the mirror but not in the checkout: {dataset_id}"
         for dataset_id in sorted(set(mirror) - set(checkout))
     ]
+    if not checkout:
+        problems.append(f"no Parquet datasets under {ord_data / 'data'}")
     for dataset_id, (md5, sha256) in sorted(checkout.items()):
         if dataset_id not in mirror:
             problems.append(f"in the checkout but not on the mirror: {dataset_id}")
