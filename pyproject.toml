@@ -102,8 +102,9 @@ examples = [
 huggingface = [
     # 0.23 is the first release whose local_dir downloads are real files rather than
     # links into the cache, and a Corpus confined to its own directories refuses a link
-    # that leads out of them.
-    "huggingface-hub>=0.23",
+    # that leads out of them. 0.24 is the first whose create_commit drops unchanged
+    # files, which upload_artifacts relies on to publish one new dataset as itself.
+    "huggingface-hub>=0.24",
 ]
 # Optional: the ord_schema.orm subpackage maps the schema into a relational
 # (SQLAlchemy + PostgreSQL) database. Not needed to parse/validate datasets.
