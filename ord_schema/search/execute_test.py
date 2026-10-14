@@ -5980,34 +5980,76 @@ def _shift_structure_ids(target: pathlib.Path, by: int) -> None:
     pq.write_table(table.set_column(index, table.schema.field(index), shifted), target)
 
 
-@pytest.mark.parametrize("by", [1, 100])
-def test_an_occurrence_past_its_dataset_s_structures_is_refused(
-    corpus, corpus_dir, occurrence_dirs, by
-):
-    # Toluene is each dataset's last structure and every reaction's product, so this
-    # moves exactly the first dataset's toluene. Past the corpus, the ID it lost and
-    # the one it gained cancel in a count of distinct IDs, which then accepts an index
-    # where that toluene answers no query. One along, it lands on the next dataset's
-    # first structure: inside the corpus, so only a bound per dataset blames the file.
-    first = corpus._connection.execute(
+def _first_dataset(corpus) -> tuple[str, int]:
+    """Returns the basename of the dataset whose IDs start at zero, and its size.
+
+    Args:
+        corpus: Any corpus over ``corpus_dir``.
+
+    Returns:
+        The basename its artifacts share, and how many structures it holds.
+    """
+    structured = corpus._connection.execute(
         "SELECT structures_filename FROM structure_offsets WHERE structure_offset = 0"
     ).fetchone()[0]
-    count = pq.read_metadata(first).num_rows
-    _, occurrence_dir = occurrence_dirs
-    target = next(
+    return pathlib.Path(structured).name, pq.read_metadata(structured).num_rows
+
+
+def _occurrence_artifact(occurrence_dir, path: str, name: str) -> pathlib.Path:
+    """Returns the occurrence artifact at ``path`` with basename ``name``."""
+    return next(
         found
-        for found in occurrences.artifact_paths(occurrence_dir, "outcomes.products")
-        if found.name == pathlib.Path(first).name
+        for found in occurrences.artifact_paths(occurrence_dir, path)
+        if found.name == name
     )
-    _shift_structure_ids(target, by)
+
+
+def test_an_occurrence_past_the_corpus_is_refused(corpus, corpus_dir, occurrence_dirs):
+    # Toluene is each dataset's last structure and every reaction's product, so this
+    # moves exactly one dataset's toluene. The ID it lost and the one it gained cancel
+    # in a count of distinct IDs, which accepts the index, and every structure query at
+    # the path then fails on a bit past the end of the corpus.
+    name, count = _first_dataset(corpus)
+    _, occurrence_dir = occurrence_dirs
+    target = _occurrence_artifact(occurrence_dir, "outcomes.products", name)
+    _shift_structure_ids(target, 100)
     with (
         pytest.raises(
             execute.PairingError,
             match=re.escape(
-                f"{target} carries structure_id {count - 1 + by} but its dataset holds "
+                f"{target} carries structure_id {count + 99} but its dataset holds "
                 f"only {count} structures"
             )
             + r".*ord_schema\.artifacts\.scripts\.derive_occurrences --force",
+        ),
+        _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read,
+    ):
+        read.check_index()
+
+
+def test_an_occurrence_moved_into_the_next_dataset_is_refused(
+    corpus, corpus_dir, occurrence_dirs
+):
+    # Moved one along, the first dataset's toluene lands on the next dataset's first
+    # structure, inside the corpus. Stated once more at another path, the toluene stays
+    # reached, so the count matches and the reaction answers as holding the other
+    # dataset's molecule: a wrong answer rather than an error, which only a bound per
+    # dataset sees.
+    name, count = _first_dataset(corpus)
+    _, occurrence_dir = occurrence_dirs
+    products = _occurrence_artifact(occurrence_dir, "outcomes.products", name)
+    inputs = _occurrence_artifact(occurrence_dir, "inputs.components", name)
+    held = pq.read_table(inputs)
+    restated = pq.read_table(products).slice(0, 1).cast(held.schema)
+    pq.write_table(pa.concat_tables([held, restated]), inputs)
+    _shift_structure_ids(products, 1)
+    with (
+        pytest.raises(
+            execute.PairingError,
+            match=re.escape(
+                f"{products} carries structure_id {count} but its dataset holds only "
+                f"{count} structures"
+            ),
         ),
         _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read,
     ):
