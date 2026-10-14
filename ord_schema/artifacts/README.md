@@ -149,9 +149,9 @@ pivots/pivot-1_projection-1/rdkit-2026.03.5/inputs.components/aa/ord_dataset-<id
 Builds for different library or RDKit versions therefore sit side by side, and
 [`huggingface.fetch_artifacts`](../huggingface.py) downloads only the one this library
 would accept, deleting local files the build has since dropped and refreshing any pivot
-level already held. The RDKit version has to match exactly: canonical SMILES, pattern
-fingerprints, and registration hashes all drift between releases, patch releases
-included, and a query computes its side of each comparison with the RDKit it runs. The
+level already held. The RDKit version has to match exactly: pattern fingerprints and
+registration hashes both drift between releases, patch releases included, and a
+structure query computes its side of each comparison with the RDKit it runs. The
 lineage is spelled without `=` because DuckDB reads a `key=value` directory as a Hive
 partition and adds it to every file as a column.
 
