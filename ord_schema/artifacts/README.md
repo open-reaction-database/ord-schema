@@ -133,6 +133,44 @@ four it reads, which is why the command above asks it rather than spelling them.
 `derive_occurrences` covers every path a structure can sit at, which is not a choice: a
 path left out is one whose structures no query can find.
 
+## Published builds
+
+Derived trees are published to the Hugging Face dataset
+[ord-artifacts](https://huggingface.co/datasets/open-reaction-database/ord-artifacts),
+apart from the ord-data mirror so that rebuilding them leaves that history alone. Each
+artifact sits under a prefix naming its lineage and its RDKit version, the two stamps a
+reader compares besides the source:
+
+```text
+projections/projection-1/rdkit-2026.03.5/aa/ord_dataset-<id>.parquet
+pivots/pivot-1_projection-1/rdkit-2026.03.5/inputs.components/aa/ord_dataset-<id>.parquet
+```
+
+Builds for different library or RDKit versions therefore sit side by side, and
+[`huggingface.fetch_artifacts`](../huggingface.py) downloads only the one this library
+would accept, deleting local files the build has since dropped and refreshing any pivot
+level already held. The RDKit version has to match exactly: pattern fingerprints and
+registration hashes both drift between releases, patch releases included, and a
+structure query computes its side of each comparison with the RDKit it runs. The
+lineage is spelled without `=` because DuckDB reads a `key=value` directory as a Hive
+partition and adds it to every file as a column.
+
+[`upload_artifacts`](../scripts/upload_artifacts.py) publishes a local tree in one
+commit, each file under the build its own footer names. It accepts only a tree a
+`Corpus(require_pivots=True, require_occurrences=True)` opens: one RDKit version, each
+artifact derived from its parent's build, every pivot level and indexed path present
+and filed where its footer says, and each restating the projections' source datasets
+once. Its docstring lists the refusals; it needs the `search` and `huggingface` extras.
+
+```bash
+python -m ord_schema.scripts.upload_artifacts \
+    --root=artifacts --message="Derive from ord-data <commit>" --dry_run
+```
+
+Once a build is published, a change to how an artifact is derived needs its
+`ARTIFACT_VERSIONS` bump: without one, the rebuild overwrites the published build under
+the same prefix, and a reader holding the old files cannot tell them apart from the new.
+
 ## What pairs with what
 
 `structure_id` is assigned by `write_projection` in first-seen order and is **local to

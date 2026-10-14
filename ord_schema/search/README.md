@@ -606,6 +606,23 @@ table = corpus.search(
 )
 ```
 
+To search the published artifacts rather than ones derived locally, fetch the build this
+library and RDKit read as current, about 3.3 GiB over ORD (needs the `huggingface`
+extra):
+
+```python
+from ord_schema import huggingface
+from ord_schema.search import execute
+
+artifacts = huggingface.fetch_artifacts("ord-artifacts")
+corpus = execute.Corpus(
+    artifacts.projection_pattern,
+    artifacts.structures_pattern,
+    pivots_dir=str(artifacts.pivots),
+    occurrences_dir=str(artifacts.occurrences),
+)
+```
+
 `Corpus` refuses artifacts that do not pair: every projection must have a structures
 artifact derived from the same source dataset, and long enough to hold every
 `structure_id` the projection carries, because the IDs joining them are meaningful only
