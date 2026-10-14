@@ -15,6 +15,8 @@
 """Tests for ord_schema.search.query."""
 
 import datetime
+import json
+import re
 import warnings
 
 import duckdb
@@ -1414,6 +1416,115 @@ def test_a_similarity_threshold_is_required_and_bounded():
         )
 
 
+# Every predicate that takes a compound name, complete but for the name.
+_NAMED = {
+    "substructure": {"op": "substructure", "path": "smiles"},
+    "similarity": {"op": "similarity", "path": "smiles", "threshold": 0.7},
+    "same_compound": {"op": "same_compound", "path": "smiles"},
+    "same_parent": {"op": "same_parent", "path": "smiles"},
+}
+
+
+def _named(op, name):
+    return {
+        "where": {
+            "op": "exists",
+            "path": "inputs.components",
+            "where": _NAMED[op] | {"compound": name},
+        }
+    }
+
+
+@pytest.mark.parametrize("op", sorted(_NAMED))
+@pytest.mark.parametrize(
+    "name",
+    [
+        "2-pyridone",
+        "N,N-dimethylformamide",
+        "tert-butanol",
+        "acetic acid",
+        "(S)-2-methylbutan-1-ol",
+        "α-pinene",
+        pytest.param("x" * 500, id="500 characters"),
+    ],
+)
+def test_a_compound_name_is_any_name_a_resolver_takes(op, name):
+    # The name goes to the resolver and nowhere else -- the SQL tests the bitmap its
+    # match set becomes -- so it need not be shaped like an identifier.
+    compiled = _compile(_named(op, name))
+    assert [(p.op, p.compound) for p in compiled.structures] == [(op, name)]
+    assert name not in compiled.sql
+
+
+@pytest.mark.parametrize("op", sorted(_NAMED))
+@pytest.mark.parametrize(
+    ("name", "match"),
+    [
+        ("", "at least 1 character"),
+        ("   ", "blank"),
+        (" pyridine", "surrounding whitespace"),
+        ("pyridine\n", "surrounding whitespace"),
+        # A line break inside a name splits the resolver's log line in two, and a
+        # zero-width space or a no-break space reads as a name it is not.
+        ("pyri\ndine", "does not print"),
+        ("pyridine\x00", "does not print"),
+        ("pyri\u200bdine", "does not print"),
+        ("acetic\u00a0acid", "does not print"),
+        pytest.param("x" * 501, "at most 500 characters", id="501 characters"),
+    ],
+)
+def test_a_compound_name_no_resolver_can_take_is_refused(op, name, match):
+    with pytest.raises(ValidationError, match=match):
+        query.Query.model_validate(_named(op, name))
+
+
+def test_one_name_asked_twice_is_one_parameter():
+    # Deduplicated by the name as written, so the executor resolves and matches it
+    # once however many predicates ask for it.
+    where = _NAMED["same_compound"] | {"compound": "acetic acid"}
+    compiled = _compile(
+        {
+            "where": {
+                "op": "or",
+                "clauses": [
+                    {"op": "exists", "path": "inputs.components", "where": where},
+                    {"op": "exists", "path": "outcomes.products", "where": where},
+                ],
+            }
+        }
+    )
+    assert [(p.op, p.compound) for p in compiled.structures] == [
+        ("same_compound", "acetic acid")
+    ]
+    assert compiled.sql.count("$structure_0") == 2
+
+
+@pytest.mark.parametrize(
+    "model",
+    [query.Substructure, query.Similarity, query.SameCompound, query.SameParent],
+)
+def test_the_published_schema_states_a_compound_name_s_bounds(model):
+    # A client reading the schema -- the NL tool definition is one -- learns the
+    # bounds there rather than from a refusal.
+    (name, _) = model.model_json_schema()["properties"]["compound"]["anyOf"]
+    assert name["minLength"] == 1
+    assert name["maxLength"] == 500
+    assert "whitespace" in name["description"]
+
+
+def test_the_repair_a_compound_comparison_suggests_is_itself_valid():
+    # Most chemical names are not identifiers, so the same_compound the refusal hands
+    # back has to accept one.
+    with pytest.raises(ValidationError, match="never a compound") as raised:
+        query.Comparison.model_validate(
+            {"op": "eq", "path": "smiles", "value": {"compound": "2-pyridone"}}
+        )
+    suggested = re.search(r'\{"op": "same_compound".*?\}', str(raised.value))
+    assert suggested is not None
+    repaired = query.SameCompound.model_validate(json.loads(suggested.group(0)))
+    assert repaired.compound == "2-pyridone"
+
+
 def _pivot_sql(body, pivot=None):
     return query.compile_query(query.Query.model_validate(body), pivot=pivot).sql
 
@@ -1793,7 +1904,8 @@ def test_an_unfiltered_reduction_reduces_every_element():
     assert "r0 ->" not in _pivot_sql(_filtered())
 
 
-def test_a_reduction_filter_may_name_a_compound():
+@pytest.mark.parametrize("name", ["thf", "acetic acid"])
+def test_a_reduction_filter_may_name_a_compound(name):
     # The filter's own clauses collect parameters like any other predicate; a
     # predicate reaching the SQL unbound is an error rather than a wasted parameter.
     compiled = query.compile_query(
@@ -1807,7 +1919,7 @@ def test_a_reduction_filter_may_name_a_compound():
                             "where": {
                                 "op": "same_compound",
                                 "path": "smiles",
-                                "compound": "thf",
+                                "compound": name,
                             },
                         }
                     }
@@ -1816,7 +1928,7 @@ def test_a_reduction_filter_may_name_a_compound():
         )
     )
     assert [(p.op, p.compound) for p in compiled.structures] == [
-        ("same_compound", "thf")
+        ("same_compound", name)
     ]
     assert "$structure_0" in compiled.sql
 
@@ -1912,24 +2024,29 @@ def test_same_compound_by_name_is_bound_rather_than_spelled():
 
 
 @pytest.mark.parametrize(
-    "payload",
+    ("payload", "match"),
     [
         # Neither a smiles nor a compound, or both at once.
-        {"op": "same_compound", "path": "smiles"},
-        {
-            "op": "same_compound",
-            "path": "smiles",
-            "smiles": "CC(=O)O",
-            "compound": "pyridine",
-        },
-        {"op": "same_compound", "path": "smiles", "smiles": "not a molecule"},
+        ({"op": "same_compound", "path": "smiles"}, "not both"),
+        (
+            {
+                "op": "same_compound",
+                "path": "smiles",
+                "smiles": "CC(=O)O",
+                "compound": "pyridine",
+            },
+            "not both",
+        ),
+        (
+            {"op": "same_compound", "path": "smiles", "smiles": "not a molecule"},
+            "does not parse",
+        ),
         # An empty molecule matches nothing and still costs a pass over the corpus.
-        {"op": "same_compound", "path": "smiles", "smiles": ""},
-        {"op": "same_compound", "path": "smiles", "compound": "not an identifier"},
+        ({"op": "same_compound", "path": "smiles", "smiles": ""}, "no atoms"),
     ],
 )
-def test_a_malformed_same_compound_is_refused_before_compilation(payload):
-    with pytest.raises(ValidationError):
+def test_a_malformed_same_compound_is_refused_before_compilation(payload, match):
+    with pytest.raises(ValidationError, match=match):
         query.Query.model_validate(
             {"where": {"op": "exists", "path": "inputs.components", "where": payload}}
         )
@@ -1991,22 +2108,27 @@ def test_the_two_compound_operators_bind_separate_parameters():
 
 
 @pytest.mark.parametrize(
-    "payload",
+    ("payload", "match"),
     [
-        {"op": "same_parent", "path": "smiles"},
-        {
-            "op": "same_parent",
-            "path": "smiles",
-            "smiles": "CC(=O)O",
-            "compound": "pyridine",
-        },
-        {"op": "same_parent", "path": "smiles", "smiles": "not a molecule"},
-        {"op": "same_parent", "path": "smiles", "smiles": ""},
-        {"op": "same_parent", "path": "smiles", "compound": "not an identifier"},
+        ({"op": "same_parent", "path": "smiles"}, "not both"),
+        (
+            {
+                "op": "same_parent",
+                "path": "smiles",
+                "smiles": "CC(=O)O",
+                "compound": "pyridine",
+            },
+            "not both",
+        ),
+        (
+            {"op": "same_parent", "path": "smiles", "smiles": "not a molecule"},
+            "does not parse",
+        ),
+        ({"op": "same_parent", "path": "smiles", "smiles": ""}, "no atoms"),
     ],
 )
-def test_a_malformed_same_parent_is_refused_before_compilation(payload):
-    with pytest.raises(ValidationError):
+def test_a_malformed_same_parent_is_refused_before_compilation(payload, match):
+    with pytest.raises(ValidationError, match=match):
         query.Query.model_validate(
             {"where": {"op": "exists", "path": "inputs.components", "where": payload}}
         )

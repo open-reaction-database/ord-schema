@@ -123,10 +123,13 @@ is a compile error rather than a wrong answer:
   query is compiled rather than left to fail where it runs.
 - A structure predicate's `compound` is resolved through
   [`ord_schema.resolvers`](../resolvers.py) when the query runs, so the model names compounds
-  and never spells structures. A comparison's value is a literal, never a compound: a resolved
-  name compared with `eq` against a `smiles` would compare spellings, which miss the same
-  compound drawn as another tautomer or protonation state and need not agree across RDKit
-  releases. A `{"compound": ...}` value is refused with a message pointing to `same_compound`.
+  and never spells structures. The name goes to the resolver and never reaches the SQL, so it
+  is any printable name of up to 500 characters with no whitespace around it: `2-pyridone`
+  and `N,N-dimethylformamide` as much as `thf`. A comparison's value is a literal, never a
+  compound: a resolved name compared with `eq` against a `smiles` would compare spellings,
+  which miss the same compound drawn as another tautomer or protonation state and need not
+  agree across RDKit releases. A `{"compound": ...}` value is refused with a message pointing
+  to `same_compound`.
 - A `{"literal": ...}` value is **bound as a parameter**, typed: a string compared against a
   date or timestamp column binds as the instant it names. No literal reaches the SQL as text.
   What the model writes that does is the `limit`, validated as a positive integer, measure
