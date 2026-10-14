@@ -344,6 +344,26 @@ class TestCorpusCheck:
             for artifact in huggingface.ARTIFACT_DIRECTORIES
         }
 
+    def test_opens_a_subset_without_requiring_the_rest(
+        self, derived_tree, tmp_path, monkeypatch
+    ):
+        root = tmp_path / "artifacts"
+        shutil.copytree(derived_tree, root)
+        levels = sorted(pivot.LEVELS)
+        paths = sorted(occurrences.PATHS)
+        shutil.rmtree(root / "pivots" / levels[-1])
+        shutil.rmtree(root / "occurrences" / paths[-1])
+        _FakeHub(monkeypatch)
+        # A Corpus requiring every level and path would refuse the tree just named.
+        upload = upload_artifacts.upload_artifacts(
+            root,
+            commit_message="derive",
+            pivot_levels=levels[:-1],
+            occurrence_paths=paths[:-1],
+            dry_run=True,
+        )
+        assert upload.uploaded
+
     def test_refuses_structures_short_of_their_projection(
         self, derived_tree, tmp_path, monkeypatch
     ):

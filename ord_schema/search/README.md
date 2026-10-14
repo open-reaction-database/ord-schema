@@ -602,7 +602,8 @@ table = corpus.search(
 ```
 
 To search the published artifacts rather than ones derived locally, fetch the build this
-library and RDKit read as current (needs the `huggingface` extra):
+library and RDKit read as current, about 3.3 GiB over ORD (needs the `huggingface`
+extra):
 
 ```python
 from ord_schema import huggingface
