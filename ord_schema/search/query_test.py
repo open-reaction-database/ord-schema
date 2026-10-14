@@ -1478,6 +1478,27 @@ def test_a_compound_name_no_resolver_can_take_is_refused(op, name, match):
         query.Query.model_validate(_named(op, name))
 
 
+def test_one_name_asked_twice_is_one_parameter():
+    # Deduplicated by the name as written, so the executor resolves and matches it
+    # once however many predicates ask for it.
+    where = _NAMED["same_compound"] | {"compound": "acetic acid"}
+    compiled = _compile(
+        {
+            "where": {
+                "op": "or",
+                "clauses": [
+                    {"op": "exists", "path": "inputs.components", "where": where},
+                    {"op": "exists", "path": "outcomes.products", "where": where},
+                ],
+            }
+        }
+    )
+    assert [(p.op, p.compound) for p in compiled.structures] == [
+        ("same_compound", "acetic acid")
+    ]
+    assert compiled.sql.count("$structure_0") == 2
+
+
 @pytest.mark.parametrize(
     "model",
     [query.Substructure, query.Similarity, query.SameCompound, query.SameParent],
@@ -1883,7 +1904,8 @@ def test_an_unfiltered_reduction_reduces_every_element():
     assert "r0 ->" not in _pivot_sql(_filtered())
 
 
-def test_a_reduction_filter_may_name_a_compound():
+@pytest.mark.parametrize("name", ["thf", "acetic acid"])
+def test_a_reduction_filter_may_name_a_compound(name):
     # The filter's own clauses collect parameters like any other predicate; a
     # predicate reaching the SQL unbound is an error rather than a wasted parameter.
     compiled = query.compile_query(
@@ -1897,7 +1919,7 @@ def test_a_reduction_filter_may_name_a_compound():
                             "where": {
                                 "op": "same_compound",
                                 "path": "smiles",
-                                "compound": "thf",
+                                "compound": name,
                             },
                         }
                     }
@@ -1906,7 +1928,7 @@ def test_a_reduction_filter_may_name_a_compound():
         )
     )
     assert [(p.op, p.compound) for p in compiled.structures] == [
-        ("same_compound", "thf")
+        ("same_compound", name)
     ]
     assert "$structure_0" in compiled.sql
 
