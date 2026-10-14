@@ -33,7 +33,11 @@ and files a build no longer holds are deleted from it. The tree has to be one bu
 * a pivot or occurrences file sits under a level or path other than the one its footer
   names, or a level or path this library derives is missing;
 * an artifact, pivot level, or indexed path restates a source dataset twice, or other
-  datasets than the projections.
+  datasets than the projections;
+* a ``Corpus`` opened on it refuses it, which is what sees a structures artifact too
+  short for its projection's IDs and a file this library and RDKit would not write.
+  Run the upload under the library that derived the tree. Over ORD this takes about
+  30 seconds and 4 GiB.
 
 Authenticates the way ``huggingface_hub`` does: ``hf auth login`` or ``$HF_TOKEN``.
 """
@@ -55,6 +59,7 @@ from huggingface_hub import (
 from ord_schema import huggingface
 from ord_schema.artifacts import base, occurrences, pivot
 from ord_schema.logging import get_logger
+from ord_schema.search import execute
 
 logger = get_logger(__name__)
 
@@ -136,7 +141,8 @@ def upload_artifacts(
 
     Raises:
         ValueError: If the tree is not one complete build; the module docstring lists
-            what that requires.
+            what that requires. A ``Corpus`` refusing it raises ``PairingError``, a
+            ``ValueError``.
     """
     root = pathlib.Path(root)
     required = {"pivot": pivot_levels, "occurrences": occurrence_paths}
@@ -169,6 +175,11 @@ def upload_artifacts(
             "every artifact must restate the same source datasets as the "
             f"{len(expected)} projections: {details}"
         )
+    _check_opens(
+        root,
+        require_pivots=set(pivot_levels) == set(pivot.LEVELS),
+        require_occurrences=set(occurrence_paths) == set(occurrences.PATHS),
+    )
     head = huggingface.resolve_revision(revision)
     published = list_repo_files(
         huggingface.ORD_ARTIFACTS_HF_REPO, repo_type="dataset", revision=head
@@ -299,6 +310,39 @@ def _check_consistent(builds: dict[str, _Build]) -> None:
                 f"{artifact} was derived from {parent} {inherited!r}, but the tree's "
                 f"{parent} is {builds[parent].lineage!r}"
             )
+
+
+def _check_opens(
+    root: pathlib.Path, *, require_pivots: bool, require_occurrences: bool
+) -> None:
+    """Opens a ``Corpus`` on the tree and publishes every pivot, as a reader will.
+
+    The stamps cannot see a structures artifact short of the IDs its projection
+    carries, or a file this library and RDKit would not write; opening can. Opened
+    without warming, so the substructure library is not built.
+
+    Args:
+        root: The local tree.
+        require_pivots: Require every level this library derives.
+        require_occurrences: Require every indexed path this library derives.
+
+    Raises:
+        PairingError: If the corpus refuses the tree.
+    """
+    with execute.Corpus(
+        huggingface.parquet_pattern(
+            root / huggingface.ARTIFACT_DIRECTORIES["projection"]
+        ),
+        huggingface.parquet_pattern(
+            root / huggingface.ARTIFACT_DIRECTORIES["structures"]
+        ),
+        pivots_dir=str(root / huggingface.ARTIFACT_DIRECTORIES["pivot"]),
+        require_pivots=require_pivots,
+        occurrences_dir=str(root / huggingface.ARTIFACT_DIRECTORIES["occurrences"]),
+        require_occurrences=require_occurrences,
+        warm=False,
+    ) as corpus:
+        corpus.check_pivots()
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

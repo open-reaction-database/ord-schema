@@ -171,16 +171,16 @@ class FetchedArtifacts:
     @property
     def projection_pattern(self) -> str:
         """A glob matching every projection, for ``Corpus``."""
-        return _parquet_pattern(self.projections)
+        return parquet_pattern(self.projections)
 
     @property
     def structures_pattern(self) -> str:
         """A glob matching every structures artifact, for ``Corpus``."""
-        return _parquet_pattern(self.structures)
+        return parquet_pattern(self.structures)
 
 
-def _parquet_pattern(directory: pathlib.Path) -> str:
-    """Returns a recursive glob for the Parquet files under ``directory``."""
+def parquet_pattern(directory: pathlib.Path) -> str:
+    """Returns a recursive glob for the Parquet files under ``directory``, escaped."""
     return f"{glob.escape(str(directory))}/**/*.parquet"
 
 
@@ -198,7 +198,7 @@ def parquet_files(directory: pathlib.Path) -> list[pathlib.Path]:
     """
     return sorted(
         pathlib.Path(found)
-        for found in glob.glob(_parquet_pattern(directory), recursive=True)
+        for found in glob.glob(parquet_pattern(directory), recursive=True)
     )
 
 
@@ -257,8 +257,9 @@ def fetch_artifacts(
         LookupError: If the revision holds no build of an artifact for this library and
             RDKit, or lacks a requested pivot level. The message lists the builds and
             levels it does hold.
-        ValueError: If a file the build no longer holds sits in a directory linked in
-            from outside what was fetched, which is not this function's to delete.
+        ValueError: If a file the build no longer holds sits in a directory reached
+            through a link beneath ``local_dir``, which is not this function's to
+            delete.
     """
     root = pathlib.Path(local_dir)
     commit = resolve_revision(revision)

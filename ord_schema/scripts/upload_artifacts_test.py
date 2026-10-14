@@ -23,9 +23,12 @@ import pytest
 from huggingface_hub import CommitOperationDelete
 from rdkit import rdBase
 
-from ord_schema import huggingface
-from ord_schema.artifacts import base, occurrences, pivot
+from ord_schema import huggingface, parquet
+from ord_schema.artifacts import base, occurrences, pivot, projection, structures
+from ord_schema.artifacts.scripts import derive_occurrences, derive_pivots
+from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import upload_artifacts
+from ord_schema.search import execute
 
 _LEVELS = ("inputs", "inputs.components")
 _PATHS = ("inputs.components",)
@@ -110,6 +113,12 @@ def _upload(root, **kwargs):
 
 
 class TestUploadArtifacts:
+    @pytest.fixture(autouse=True)
+    def _stamps_only(self, monkeypatch):
+        # These trees carry stamps and no columns, which no Corpus opens; the real
+        # opening is TestCorpusCheck's.
+        monkeypatch.setattr(upload_artifacts, "_check_opens", lambda *_, **__: None)
+
     def test_commits_each_file_under_its_build(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
         projections = huggingface.current_prefix("projection")
@@ -276,6 +285,83 @@ class TestUploadArtifacts:
         _FakeHub(monkeypatch)
         with pytest.raises(ValueError, match="no occurrences artifacts under"):
             _upload(tmp_path)
+
+
+@pytest.fixture(scope="module")
+def derived_tree(tmp_path_factory):
+    """Derives every artifact, at every level and path, for two small datasets."""
+    root = tmp_path_factory.mktemp("derived")
+    for shard, smiles in (("aa", "c1ccncc1"), ("bb", "CCO")):
+        reaction = reaction_pb2.Reaction(reaction_id=f"ord-{shard}01")
+        component = reaction.inputs["input"].components.add()
+        component.identifiers.add(type="SMILES", value=smiles)
+        component.reaction_role = reaction_pb2.ReactionRole.REACTANT
+        source = root / "data" / shard / f"ord_dataset-{shard}.parquet"
+        source.parent.mkdir(parents=True)
+        parquet.save_dataset(
+            dataset_pb2.Dataset(
+                dataset_id=f"ord_dataset-{shard}",
+                name=shard,
+                description=shard,
+                reactions=[reaction],
+            ),
+            str(source),
+        )
+        projected = root / "artifacts" / "projections" / shard / source.name
+        projected.parent.mkdir(parents=True)
+        projection.write_projection(source, projected)
+        structured = root / "artifacts" / "structures" / shard / source.name
+        structured.parent.mkdir(parents=True)
+        structures.write_structures(projected, structured)
+    artifacts = root / "artifacts"
+    derive_pivots.main(
+        derive_pivots.parse_args(
+            [
+                f"--input_pattern={artifacts}/projections/*/*.parquet",
+                f"--output_dir={artifacts}/pivots",
+            ]
+        )
+    )
+    derive_occurrences.main(
+        derive_occurrences.parse_args(
+            [
+                f"--pivots_dir={artifacts}/pivots",
+                f"--output_dir={artifacts}/occurrences",
+            ]
+        )
+    )
+    return artifacts
+
+
+class TestCorpusCheck:
+    def test_publishes_a_tree_a_corpus_opens(self, derived_tree, monkeypatch):
+        _FakeHub(monkeypatch)
+        upload = upload_artifacts.upload_artifacts(
+            derived_tree, commit_message="derive", dry_run=True
+        )
+        assert upload.prefixes == {
+            artifact: huggingface.current_prefix(artifact)
+            for artifact in huggingface.ARTIFACT_DIRECTORIES
+        }
+
+    def test_refuses_structures_short_of_their_projection(
+        self, derived_tree, tmp_path, monkeypatch
+    ):
+        # Stamps cannot see this: the short artifact keeps its source hash and lineage.
+        root = tmp_path / "artifacts"
+        shutil.copytree(derived_tree, root)
+        target = root / "structures" / "aa" / "ord_dataset-aa.parquet"
+        with pq.ParquetFile(target) as artifact:
+            table = artifact.read()
+            schema = artifact.schema_arrow
+        pq.write_table(table.slice(0, table.num_rows - 1).cast(schema), target)
+        hub = _FakeHub(monkeypatch)
+        with pytest.raises(execute.PairingError, match="would join to another dataset"):
+            upload_artifacts.upload_artifacts(
+                root, commit_message="derive", dry_run=True
+            )
+        # Refused before the Hub is asked anything.
+        assert hub.listed == []
 
 
 def test_main_requires_every_level_and_path(monkeypatch):
