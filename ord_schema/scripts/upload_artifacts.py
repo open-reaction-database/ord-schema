@@ -24,8 +24,10 @@ The tree holds one directory per artifact, as the derive scripts write them::
     artifacts/pivots/inputs.components/aa/ord_dataset-<id>.parquet
         -> pivots/pivot-1_projection-1/rdkit-<version>/inputs.components/aa/...
 
-Each file goes under the build its own footer names, everything lands in one commit,
-and files a build no longer holds are deleted from it. The tree has to be one build a
+Each file goes under the build its own footer names, and everything lands in one
+commit. Published files the tree does not hold are deleted from their build only with
+``--allow_deletes``; without it the upload is refused, since a tree that is one complete
+build of only some datasets passes every other check. The tree has to be one build a
 ``Corpus(require_pivots=True, require_occurrences=True)`` opens, so it is refused if:
 
 * any artifact spans more than one lineage or RDKit version, the artifacts disagree on
@@ -116,6 +118,7 @@ def upload_artifacts(
     pivot_levels: Collection[str] = tuple(sorted(pivot.LEVELS)),
     occurrence_paths: Collection[str] = tuple(sorted(occurrences.PATHS)),
     dry_run: bool = False,
+    allow_deletes: bool = False,
 ) -> ArtifactUpload:
     """Publishes a local artifact tree to ord-artifacts in one commit.
 
@@ -123,7 +126,8 @@ def upload_artifacts(
     ``huggingface.ARTIFACT_DIRECTORIES``, each laid out as its derive script wrote it.
     Every file goes under the prefix its own footer names, so a file cannot be
     published as a build it does not belong to. Within each prefix uploaded, a file the
-    local tree no longer holds is deleted; other builds are left alone.
+    local tree does not hold is deleted where ``allow_deletes`` says so, and refused
+    otherwise; other builds are left alone.
 
     The commit names the head it was planned against as its parent, so one that lands
     in between fails this one rather than having its files deleted.
@@ -138,14 +142,17 @@ def upload_artifacts(
         occurrence_paths: The indexed paths the occurrences must cover, exactly; every
             path this library derives by default.
         dry_run: Check the tree and work out the commit without making it.
+        allow_deletes: Delete published files of the uploaded builds that the tree
+            does not hold. Without it, any such file refuses the upload, dry run or not.
 
     Returns:
         What was, or would be, uploaded and deleted.
 
     Raises:
-        ValueError: If the tree is not one complete build; the module docstring lists
-            what that requires. A ``Corpus`` refusing it raises ``PairingError``, a
-            ``ValueError``.
+        ValueError: If the tree is not one complete build, or if the upload would
+            delete published files and ``allow_deletes`` is False; the module docstring
+            lists what a build requires. A ``Corpus`` refusing it raises
+            ``PairingError``, a ``ValueError``.
     """
     root = pathlib.Path(root)
     required = {"pivot": pivot_levels, "occurrences": occurrence_paths}
@@ -196,6 +203,7 @@ def upload_artifacts(
     operations: list[CommitOperationAdd | CommitOperationDelete] = []
     uploaded: list[str] = []
     deleted: list[str] = []
+    counts: collections.Counter[str] = collections.Counter()
     for artifact, prefix in prefixes.items():
         wanted = {
             f"{prefix}/{relative}": path
@@ -210,6 +218,14 @@ def upload_artifacts(
             if path_in_repo.startswith(f"{prefix}/") and path_in_repo not in wanted:
                 operations.append(CommitOperationDelete(path_in_repo=path_in_repo))
                 deleted.append(path_in_repo)
+                counts[prefix] += 1
+    if deleted and not allow_deletes:
+        raise ValueError(
+            f"the upload would delete {len(deleted)} published files the tree does not "
+            f"hold: {', '.join(f'{n} under {p}' for p, n in counts.items())}; pass "
+            "--allow_deletes if the tree is meant to replace them, with --dry_run to "
+            "list them"
+        )
     commit_url = None
     if not dry_run:
         info = create_commit(
@@ -368,6 +384,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Check the tree and report the commit without making it",
     )
+    parser.add_argument(
+        "--allow_deletes",
+        action="store_true",
+        help="Delete published files of the uploaded builds that the tree lacks",
+    )
     return parser.parse_args(argv)
 
 
@@ -379,6 +400,7 @@ def main(argv: list[str] | None = None) -> None:
         commit_message=args.message,
         revision=args.revision,
         dry_run=args.dry_run,
+        allow_deletes=args.allow_deletes,
     )
     for artifact, prefix in upload.prefixes.items():
         logger.info("%s -> %s", artifact, prefix)
