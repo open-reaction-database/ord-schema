@@ -2224,10 +2224,10 @@ class Corpus:
         condition on one row rather than an intersection of two reaction sets, which
         over-returns.
 
-        Costs a read of the pivot artifacts covering the indexed paths and one pass over
-        the projections per path they do not cover, charged at open under ``warm`` and
-        otherwise to the query that first wants it. Concurrent first queries serialize
-        here and share the result.
+        Costs a read of the occurrence or pivot artifacts covering the indexed paths and
+        one pass over the projections per path neither covers, charged at open under
+        ``warm`` and otherwise to the query that first wants it. Concurrent first
+        queries serialize here and share the result.
 
         Raises:
             PairingError: If the corpus states a reaction more than once, or the index

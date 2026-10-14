@@ -3055,13 +3055,24 @@ def test_a_reaction_two_files_both_state_is_refused(tmp_path):
         value.search(query.Query.model_validate(_ROUTABLE["structure alone"]))
 
 
-def test_an_index_that_misses_one_path_is_refused(corpus_dir, monkeypatch):
+@pytest.mark.parametrize(
+    ("pivoted", "source"), [(False, "the projections"), (True, "pivot artifacts")]
+)
+def test_an_index_that_misses_one_path_is_refused(
+    corpus_dir, monkeypatch, tmp_path, pivoted, source
+):
     # The dangerous shape is not an index that reaches nothing -- it is one that reaches
     # almost everything. A single traversal that binds and finds no element leaves the
     # other paths carrying the total, so a count of occurrences looks healthy while
     # every query at the dead path answers with silence. Counting the structures reached
     # is what tells the two apart. Dropping a path is what a schema walk that fell out
-    # of step with the projection would do.
+    # of step with the projection would do, whether it unnests the projection or reads
+    # a pivot.
+    pivots = (
+        _write_pivots(corpus_dir, _OCCURRENCE_LEVELS, into=tmp_path / "pivots")
+        if pivoted
+        else None
+    )
     kept = {
         path: expression
         for path, expression in execute.INDEXED_PATHS.items()
@@ -3075,12 +3086,14 @@ def test_an_index_that_misses_one_path_is_refused(corpus_dir, monkeypatch):
             str(corpus_dir / "projections" / "*.parquet"),
             str(corpus_dir / "structures" / "*.parquet"),
             resolver={}.__getitem__,
+            pivots_dir=None if pivots is None else str(pivots),
             warm=False,
         ) as value,
         pytest.raises(
             execute.PairingError,
-            match=r"reached 3 of the corpus's 5 .* from the projections; the "
-            "projections are not the schema this walk was built from",
+            match=r"reached 3 of the corpus's 5 structures, .*"
+            + re.escape(f"; it read {sorted(kept)} from {source}; the projections")
+            + " are not the schema this walk was built from",
         ),
     ):
         value.search(query.Query.model_validate(_ROUTABLE["structure alone"]))
