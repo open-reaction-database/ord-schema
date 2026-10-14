@@ -14,6 +14,8 @@
 
 """Tests for ord_schema.scripts.upload_artifacts."""
 
+import fnmatch
+import pathlib
 import shutil
 import types
 
@@ -28,7 +30,7 @@ from ord_schema.artifacts import base, occurrences, pivot, projection, structure
 from ord_schema.artifacts.scripts import derive_occurrences, derive_pivots
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import upload_artifacts
-from ord_schema.search import execute
+from ord_schema.search import execute, query
 
 _LEVELS = ("inputs", "inputs.components")
 _PATHS = ("inputs.components",)
@@ -395,6 +397,78 @@ class TestCorpusCheck:
             )
         # Refused before the Hub is asked anything.
         assert hub.listed == []
+
+
+class _DirectoryHub:
+    """A Hub backed by a local directory, so an upload can be fetched back."""
+
+    def __init__(self, monkeypatch, directory):
+        self.directory = directory
+        directory.mkdir()
+        sha = types.SimpleNamespace(sha="0123abcd")
+        monkeypatch.setattr(huggingface, "repo_info", lambda *_, **__: sha)
+        for module in (huggingface, upload_artifacts):
+            monkeypatch.setattr(module, "list_repo_files", self._list_repo_files)
+        monkeypatch.setattr(upload_artifacts, "create_commit", self._create_commit)
+        monkeypatch.setattr(huggingface, "snapshot_download", self._snapshot_download)
+
+    def _list_repo_files(self, *_, **__):
+        return [
+            path.relative_to(self.directory).as_posix()
+            for path in sorted(self.directory.rglob("*"))
+            if path.is_file()
+        ]
+
+    def _create_commit(self, repo_id, operations, **kwargs):
+        for operation in operations:
+            target = self.directory / operation.path_in_repo
+            if isinstance(operation, CommitOperationDelete):
+                target.unlink()
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(operation.path_or_fileobj, target)
+        return types.SimpleNamespace(commit_url="https://example/commit/1", oid="1")
+
+    def _snapshot_download(self, *, local_dir, allow_patterns, **_):
+        for path in self._list_repo_files():
+            if any(fnmatch.fnmatch(path, pattern) for pattern in allow_patterns):
+                target = pathlib.Path(local_dir) / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(self.directory / path, target)
+        return str(local_dir)
+
+
+def test_a_published_build_fetches_into_a_corpus(derived_tree, tmp_path, monkeypatch):
+    # Upload names prefixes from each file's stamps and fetch from this library; the
+    # two have to meet, and what lands has to be what a Corpus opens.
+    _DirectoryHub(monkeypatch, tmp_path / "hub")
+    upload_artifacts.upload_artifacts(derived_tree, commit_message="derive")
+    fetched = huggingface.fetch_artifacts(tmp_path / "local")
+    with execute.Corpus(
+        fetched.projection_pattern,
+        fetched.structures_pattern,
+        pivots_dir=str(fetched.pivots),
+        require_pivots=True,
+        occurrences_dir=str(fetched.occurrences),
+        require_occurrences=True,
+        resolver={}.__getitem__,
+    ) as corpus:
+        table = corpus.search(
+            query.Query.model_validate(
+                {
+                    "where": {
+                        "op": "exists",
+                        "path": "inputs.components",
+                        "where": {
+                            "op": "substructure",
+                            "path": "smiles",
+                            "smarts": "c1ccncc1",
+                        },
+                    }
+                }
+            )
+        )
+    assert table.column("reaction_id").to_pylist() == ["ord-aa01"]
 
 
 def test_main_requires_every_level_and_path(monkeypatch):
