@@ -41,6 +41,7 @@ import dataclasses
 import glob
 import hashlib
 import json
+import math
 import pathlib
 import random
 from collections.abc import Iterable, Sequence
@@ -613,7 +614,7 @@ def _check_round_trip(
                 # stores. That is the check finding something, not the check breaking.
                 differing.append(f"{dataset_id}[{position}] does not project: {error}")
                 continue
-            if _without_structure_ids(expected) != _without_structure_ids(row):
+            if not _same(_without_structure_ids(expected), _without_structure_ids(row)):
                 differing.append(f"{dataset_id}[{position}] {row['reaction_id']}")
     return Finding(
         "sampled reactions re-project to what is stored",
@@ -647,6 +648,35 @@ def _without_structure_ids(value: Any) -> Any:
         # where a component's structure_id lives.
         return tuple(_without_structure_ids(item) for item in value)
     return value
+
+
+def _same(expected: Any, stored: Any) -> bool:
+    """Returns whether a re-projected value equals the stored one, NaN matching NaN.
+
+    A float a depositor recorded as NaN projects to NaN, and NaN equals nothing, itself
+    included, so plain equality calls every row holding one unfaithful.
+
+    Args:
+        expected: A re-projected row, or any part of one.
+        stored: The same part of the stored row.
+
+    Returns:
+        Whether the two hold the same values, compared down through dicts, lists, and
+        the (key, value) pairs a map column reads back as.
+    """
+    if isinstance(expected, float) and isinstance(stored, float):
+        return expected == stored or (math.isnan(expected) and math.isnan(stored))
+    if isinstance(expected, dict) and isinstance(stored, dict):
+        return expected.keys() == stored.keys() and all(
+            _same(item, stored[key]) for key, item in expected.items()
+        )
+    if isinstance(expected, (list, tuple)) and isinstance(stored, (list, tuple)):
+        return (
+            type(expected) is type(stored)
+            and len(expected) == len(stored)
+            and all(map(_same, expected, stored))
+        )
+    return expected == stored
 
 
 def measure(corpus: execute.Corpus, *, timeout_seconds: float) -> dict[str, Any]:
@@ -962,6 +992,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             "unmeasured"
         ),
     )
+    parser.add_argument(
+        "--occurrences",
+        default=None,
+        help=(
+            "Directory holding occurrence artifacts, which must cover every indexed "
+            "path. Without it the occurrence index is built from the pivots or the "
+            "projections, which answers the same but leaves the artifacts unread"
+        ),
+    )
     args = parser.parse_args(argv)
     # Re-projecting a sampled reaction runs the same RDKit the derivation did, and it
     # says the same things about atom maps it said then.
@@ -983,6 +1022,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         require_current=True,
         pivot_budget_bytes=args.pivot_budget_bytes,
         pivots_dir=args.pivots,
+        occurrences_dir=args.occurrences,
+        # A path the directory left out would be read from a pivot or the projection
+        # instead, and the check would pass a tree it never read.
+        require_occurrences=args.occurrences is not None,
         # Unbounded: a baseline is a count and a digest over every matching reaction,
         # and under the corpus's own default it would be a digest over an arbitrary
         # page of them -- which compares unequal against the recorded one and reports a
