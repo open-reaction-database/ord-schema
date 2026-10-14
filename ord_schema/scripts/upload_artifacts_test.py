@@ -393,7 +393,7 @@ class TestCorpusCheck:
             schema = artifact.schema_arrow
         pq.write_table(table.slice(0, 0).cast(schema), target)
         hub = _FakeHub(monkeypatch)
-        with pytest.raises(execute.PairingError, match="reach"):
+        with pytest.raises(execute.PairingError, match="the occurrence index reached"):
             upload_artifacts.upload_artifacts(
                 root, commit_message="derive", dry_run=True
             )
