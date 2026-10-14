@@ -83,9 +83,10 @@ def _write_tree(root, sources=("aa", "bb")):
 class _FakeHub:
     """Stands in for the Hub: a head commit, its files, and the commits made."""
 
-    def __init__(self, monkeypatch, published=(), head="0123abcd"):
+    def __init__(self, monkeypatch, published=(), head="0123abcd", made="4567ef01"):
         self.published = list(published)
         self.head = head
+        self.made = made
         self.listed = []
         self.commits = []
         monkeypatch.setattr(
@@ -102,7 +103,9 @@ class _FakeHub:
 
     def _create_commit(self, repo_id, operations, **kwargs):
         self.commits.append((repo_id, operations, kwargs))
-        return types.SimpleNamespace(commit_url="https://example/commit/1")
+        return types.SimpleNamespace(
+            commit_url=f"https://example/commit/{self.made}", oid=self.made
+        )
 
 
 def _upload(root, **kwargs):
@@ -128,7 +131,7 @@ class TestUploadArtifacts:
         longer = f"{projections}0/cc/ord_dataset-cc.parquet"
         hub = _FakeHub(monkeypatch, [stale, elsewhere, longer, "README.md"])
         upload = _upload(tmp_path)
-        assert upload.commit_url == "https://example/commit/1"
+        assert upload.commit_url == f"https://example/commit/{hub.made}"
         assert upload.prefixes == {
             artifact: huggingface.current_prefix(artifact)
             for artifact in huggingface.ARTIFACT_DIRECTORIES
@@ -161,6 +164,14 @@ class TestUploadArtifacts:
         assert hub.commits == []
         assert upload.commit_url is None
         assert len(upload.uploaded) == 10
+
+    def test_reports_no_commit_when_nothing_changed(self, tmp_path, monkeypatch):
+        _write_tree(tmp_path)
+        # The Hub skips a commit that changes nothing and answers with the head.
+        hub = _FakeHub(monkeypatch, made="0123abcd")
+        upload = _upload(tmp_path)
+        assert len(hub.commits) == 1
+        assert upload.commit_url is None
 
     def test_requires_every_level_and_path_by_default(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
@@ -414,9 +425,17 @@ def test_main_requires_every_level_and_path(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "commit_url", [None, "https://example/commit/1"], ids=["dry", "committed"]
+    ("commit_url", "dry_run", "reported"),
+    [
+        (None, True, []),
+        (None, False, ["nothing changed, so nothing was committed"]),
+        ("https://example/commit/1", False, ["committed https://example/commit/1"]),
+    ],
+    ids=["dry", "unchanged", "committed"],
 )
-def test_main_reports_a_commit_only_when_made(monkeypatch, caplog, commit_url):
+def test_main_reports_a_commit_only_when_made(
+    monkeypatch, caplog, commit_url, dry_run, reported
+):
     monkeypatch.setattr(
         upload_artifacts,
         "upload_artifacts",
@@ -424,12 +443,14 @@ def test_main_reports_a_commit_only_when_made(monkeypatch, caplog, commit_url):
             prefixes={}, uploaded=[], deleted=[], commit_url=commit_url
         ),
     )
+    argv = ["--root", "artifacts", "--message", "derive"]
     with caplog.at_level("INFO"):
-        upload_artifacts.main(["--root", "artifacts", "--message", "derive"])
-    committed = [
-        r.getMessage() for r in caplog.records if "committed" in r.getMessage()
-    ]
-    assert committed == ([] if commit_url is None else [f"committed {commit_url}"])
+        upload_artifacts.main([*argv, "--dry_run"] if dry_run else argv)
+    assert [
+        record.getMessage()
+        for record in caplog.records
+        if "committed" in record.getMessage()
+    ] == reported
 
 
 def test_message_is_required():

@@ -74,8 +74,7 @@ class ArtifactUpload:
         uploaded: Repository paths written. Unchanged files are among them;
             ``huggingface_hub`` drops those from the commit itself.
         deleted: Repository paths removed because the local tree no longer holds them.
-        commit_url: The commit made, the head commit when nothing changed, or None
-            for a dry run.
+        commit_url: The commit made, or None for a dry run or when nothing changed.
     """
 
     prefixes: dict[str, str]
@@ -218,7 +217,10 @@ def upload_artifacts(
             revision=revision,
             parent_commit=head,
         )
-        commit_url = info.commit_url
+        # A commit that would change nothing is skipped, and the Hub answers with the
+        # head it was planned against rather than a new commit.
+        if info.oid != head:
+            commit_url = info.commit_url
     return ArtifactUpload(
         prefixes=prefixes, uploaded=uploaded, deleted=deleted, commit_url=commit_url
     )
@@ -386,6 +388,8 @@ def main(argv: list[str] | None = None) -> None:
         logger.info("deleting %s", path)
     if upload.commit_url is not None:
         logger.info("committed %s", upload.commit_url)
+    elif not args.dry_run:
+        logger.info("nothing changed, so nothing was committed")
 
 
 if __name__ == "__main__":
