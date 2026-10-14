@@ -212,9 +212,9 @@ _AGGREGATES = {
 # identifier shape a quoting mistake cannot escape.
 _NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
-# Room for any one compound's name in the corpus: 99.99% of the distinct names ORD
-# records fit in 301 characters, and the one name longer than this is several run
-# together.
+# Room for any one compound's name in the corpus: 99.99% of the 1.9 million distinct
+# names ORD records for its compounds fit in 305 characters, and the one name longer
+# than this is several run together.
 _COMPOUND_NAME_LENGTH = 500
 
 
