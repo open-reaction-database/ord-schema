@@ -1160,6 +1160,22 @@ def test_a_structures_artifact_short_of_its_projection_is_refused(corpus_dir, tm
         )
 
 
+def test_a_projection_without_statistics_is_refused(corpus_dir, tmp_path):
+    # The check above reads its bound from the footer, so a projection recording none
+    # would pass it whatever IDs it carries.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    target = root / "projections" / "ord_dataset-aa.parquet"
+    pq.write_table(pq.read_table(target), target, write_statistics=False)
+    with pytest.raises(
+        execute.PairingError,
+        match=re.escape(f"{target} records no statistics for its structure IDs"),
+    ):
+        execute.Corpus(
+            str(root / "projections" / "*.parquet"),
+            str(root / "structures" / "*.parquet"),
+        )
+
+
 def _rewrite_structures(root, shard, **columns):
     """Replaces whole columns of one structures artifact, keeping its schema."""
     target = root / "structures" / f"ord_dataset-{shard}.parquet"
@@ -5147,6 +5163,27 @@ def test_a_pivot_missing_a_column_the_schema_declares_is_refused(corpus_dir, tmp
         )
 
 
+def test_a_pivot_past_its_dataset_s_structures_is_refused(corpus_dir, tmp_path):
+    # The occurrence artifacts' blind spot, one derivation earlier: an index read from
+    # a pivot is counted by distinct IDs too, and a quantifier answered from one tests
+    # the bit at the element's ID plus its reaction's offset.
+    pivots = _write_pivots(corpus_dir, _OCCURRENCE_LEVELS, into=tmp_path / "pivots")
+    target = pivot.artifact_paths(pivots, "outcomes.products")[0]
+    _shift_structure_ids(target, 100)
+    with (
+        pytest.raises(
+            execute.PairingError,
+            match=re.escape(
+                f"{target} carries structure_id 102 but its dataset holds only 3 "
+                "structures"
+            )
+            + r".*ord_schema\.artifacts\.scripts\.derive_pivots --force",
+        ),
+        _indexed_corpus(corpus_dir, pivots, warm=False) as read,
+    ):
+        read.check_index()
+
+
 def test_a_pivot_filed_under_the_wrong_level_is_refused(wide_root, tmp_path):
     pivots = tmp_path / "pivots"
     (pivots / "outcomes.products").mkdir(parents=True)
@@ -5906,6 +5943,90 @@ def test_a_short_artifact_beside_walked_paths_names_both_causes(
             "the schema this walk was built from",
         ),
         _indexed_corpus(corpus_dir, None, occurrences_dir=str(partial)) as read,
+    ):
+        read.check_index()
+
+
+def _shift_structure_ids(target: pathlib.Path, by: int) -> None:
+    """Adds ``by`` to every structure ID one artifact states, keeping its stamps.
+
+    Args:
+        target: An occurrence artifact, which holds its IDs in a column of their own, or
+            a pivot, which holds them in its element struct.
+        by: What to add.
+    """
+    table = pq.read_table(target)
+    if "structure_id" in table.column_names:
+        name = "structure_id"
+        values = table.column(name)
+        shifted = pa.compute.add(values, by).cast(values.type)
+    else:
+        name = pivot.ELEMENT
+        element = table.column(name).combine_chunks()
+        shifted = pa.StructArray.from_arrays(
+            [
+                (
+                    pa.compute.add(element.field(field.name), by).cast(field.type)
+                    if field.name == "structure_id"
+                    else element.field(field.name)
+                )
+                for field in element.type
+            ],
+            fields=list(element.type),
+            mask=element.is_null(),
+        )
+    index = table.schema.get_field_index(name)
+    pq.write_table(table.set_column(index, table.schema.field(index), shifted), target)
+
+
+@pytest.mark.parametrize("by", [1, 100])
+def test_an_occurrence_past_its_dataset_s_structures_is_refused(
+    corpus, corpus_dir, occurrence_dirs, by
+):
+    # Toluene is each dataset's last structure and every reaction's product, so this
+    # moves exactly the first dataset's toluene. Past the corpus, the ID it lost and
+    # the one it gained cancel in a count of distinct IDs, which then accepts an index
+    # where that toluene answers no query. One along, it lands on the next dataset's
+    # first structure: inside the corpus, so only a bound per dataset blames the file.
+    first = corpus._connection.execute(
+        "SELECT structures_filename FROM structure_offsets WHERE structure_offset = 0"
+    ).fetchone()[0]
+    count = pq.read_metadata(first).num_rows
+    _, occurrence_dir = occurrence_dirs
+    target = next(
+        found
+        for found in occurrences.artifact_paths(occurrence_dir, "outcomes.products")
+        if found.name == pathlib.Path(first).name
+    )
+    _shift_structure_ids(target, by)
+    with (
+        pytest.raises(
+            execute.PairingError,
+            match=re.escape(
+                f"{target} carries structure_id {count - 1 + by} but its dataset holds "
+                f"only {count} structures"
+            )
+            + r".*ord_schema\.artifacts\.scripts\.derive_occurrences --force",
+        ),
+        _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read,
+    ):
+        read.check_index()
+
+
+def test_an_occurrence_artifact_without_statistics_is_refused(
+    corpus_dir, occurrence_dirs
+):
+    # The bound is read from the footer, so a file recording none states IDs nothing
+    # checked, and the count after it accepts one moved out of its dataset.
+    _, occurrence_dir = occurrence_dirs
+    target = occurrences.artifact_paths(occurrence_dir, "outcomes.products")[0]
+    pq.write_table(pq.read_table(target), target, write_statistics=False)
+    with (
+        pytest.raises(
+            execute.PairingError,
+            match=re.escape(f"{target} records no statistics for its structure IDs"),
+        ),
+        _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read,
     ):
         read.check_index()
 
