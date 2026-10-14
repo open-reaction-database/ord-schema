@@ -140,6 +140,11 @@ _CACHED_MATCHES = 16
 # its size whether or not it is kept.
 _PIVOT_BUDGET_BYTES = 4 * 1024**3
 
+# The modules that write each derived file, which a refusal names as the remedy.
+_DERIVE_PROJECTION = "ord_schema.artifacts.scripts.derive_projection"
+_DERIVE_PIVOTS = "ord_schema.artifacts.scripts.derive_pivots"
+_DERIVE_OCCURRENCES = "ord_schema.artifacts.scripts.derive_occurrences"
+
 # Most rows a search returns where the caller states no bound. The grammar leaves
 # ``limit`` optional and a question like "reactions above 350 K" matches hundreds of
 # thousands, so an unbounded default builds an Arrow table of them in whatever process
@@ -302,21 +307,26 @@ def _sql_paths(paths: Iterable[str]) -> str:
     return "[" + ", ".join(sql_string(glob.escape(path)) for path in paths) + "]"
 
 
-def _max_structure_id(path: str) -> int | None:
-    """Returns the largest ``structure_id`` a projection carries.
+def _max_structure_id(path: str, derive: str) -> int | None:
+    """Returns the largest ``structure_id`` a projection or an artifact of one carries.
 
     Read from Parquet footer statistics, so it decodes no column data however large the
-    projection is.
+    file is. Every column named ``structure_id`` counts, however deeply it is nested.
 
     Args:
-        path: Path to a projection.
+        path: Path to a projection, or to a pivot or occurrence artifact.
+        derive: The module that writes ``path``, which a refusal names.
 
     Returns:
-        The maximum across every ``structure_id`` column, or None when the projection
-        holds no compound with a structure.
+        The maximum across every ``structure_id`` column, or None when the file holds no
+        compound with a structure.
+
+    Raises:
+        PairingError: If a row group's footer records no statistics for a column of
+            structure IDs, which leaves them unbounded without reading every row.
     """
-    with pq.ParquetFile(path) as projected:
-        metadata = projected.metadata
+    with pq.ParquetFile(path) as parquet_file:
+        metadata = parquet_file.metadata
         columns = [
             index
             for index in range(metadata.num_columns)
@@ -325,10 +335,21 @@ def _max_structure_id(path: str) -> int | None:
         largest = None
         for group in range(metadata.num_row_groups):
             for index in columns:
-                statistics = metadata.row_group(group).column(index).statistics
+                chunk = metadata.row_group(group).column(index)
+                statistics = chunk.statistics
                 if statistics is not None and statistics.has_min_max:
                     value = statistics.max
                     largest = value if largest is None else max(largest, value)
+                elif statistics is None and chunk.num_values:
+                    # Statistics without a bound are a column holding no ID; no
+                    # statistics at all say nothing, and this library always writes
+                    # them, so the file was rewritten by something else.
+                    raise PairingError(
+                        f"{path} records no statistics for its structure IDs, so they "
+                        "cannot be checked against its dataset's structures without "
+                        f"reading every row; re-derive it with {derive} --force, since "
+                        "a run without it skips a file whose stamps are current"
+                    )
     return largest
 
 
@@ -1343,15 +1364,18 @@ class Corpus:
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
                 partner on the other, a pair's stamps disagree about the source dataset,
-                or -- with ``require_current`` -- any artifact is stale. Given
+                a projection carries a structure ID its structures artifact does not
+                hold or records no statistics bounding them, or -- with
+                ``require_current`` -- any artifact is stale. Given
                 ``sources_pattern``, also if it matches nothing or a file it cannot read
                 as a source dataset, two of its files hold the same content, a
                 projection's source is not among them, or one restates a dataset no
                 projection does. With ``warm``, also whatever building the occurrence
                 index and the substructure library refuse: a corpus stating a reaction
                 twice, one whose index does not reach every structure it holds, one
-                whose IDs are not every integer from zero, or pivot artifacts over an
-                indexed level that belong to another corpus, all of which otherwise
+                whose IDs are not every integer from zero, or pivot or occurrence
+                artifacts that belong to another corpus or carry a structure ID their
+                dataset does not hold, all of which otherwise
                 surface on the first query that wants what refused them rather than at
                 open.
             duckdb.OutOfMemoryException: With ``warm``, if DuckDB is held below what the
@@ -1501,9 +1525,11 @@ class Corpus:
         # for the same reason.
         self._occurrence_artifacts_found: dict[str, dict[str, str] | None] = {}
         self._artifacts_lock = threading.Lock()
-        # What a dataset's structure IDs add to reach a corpus-wide one, keyed by the
-        # source every artifact derived from it names; filled by _prepare.
+        # What a dataset's structure IDs add to reach a corpus-wide one, and how many it
+        # holds, keyed by the source every artifact derived from it names; filled by
+        # _prepare.
         self._offset_of_source: dict[str, int] = {}
+        self._structures_of_source: dict[str, int] = {}
         self._connection = duckdb.connect(
             config={"memory_limit": memory_limit} if memory_limit is not None else {}
         )
@@ -1575,7 +1601,7 @@ class Corpus:
             # then aliases its neighbor's molecules -- in range for get_bit, wrong
             # about the chemistry, and silent. Read from footer statistics, so it
             # costs no column data.
-            largest = _max_structure_id(projected)
+            largest = _max_structure_id(projected, _DERIVE_PROJECTION)
             if largest is not None and largest >= count:
                 raise PairingError(
                     f"{projected} carries structure_id {largest} but {structured} "
@@ -1588,6 +1614,7 @@ class Corpus:
             # this projection finds the offset wherever it is filed; see
             # ``_pivot_offsets``.
             self._offset_of_source[source] = total
+            self._structures_of_source[source] = count
             total += count
         registered = pa.table(
             {
@@ -1741,7 +1768,8 @@ class Corpus:
 
         Raises:
             PairingError: If any level has no artifacts. Wrong provenance, a level
-                filed under another, and staleness are raised by the publishing itself.
+                filed under another, a structure ID outside its dataset, and staleness
+                are raised by the publishing itself.
         """
         missing = [
             path for path in sorted(pivot.LEVELS) if self._pivot_view(path) is None
@@ -1750,7 +1778,7 @@ class Corpus:
             raise PairingError(
                 f"{self._pivots_dir} holds no pivot artifacts for {missing}, which "
                 "this corpus was opened requiring; derive them first with "
-                "ord_schema.artifacts.scripts.derive_pivots"
+                f"{_DERIVE_PIVOTS}"
             )
 
     def check_pivots(self) -> dict[str, int]:
@@ -1778,7 +1806,8 @@ class Corpus:
         Raises:
             PairingError: If any level's artifacts were not derived from this corpus's
                 projections, hold a different level than the one they are filed under,
-                or -- with ``require_current`` -- are stale.
+                carry a structure ID their dataset does not hold, or -- with
+                ``require_current`` -- are stale.
         """
         if self._pivots_dir is None:
             return {}
@@ -1831,8 +1860,10 @@ class Corpus:
             ordinary rather than a sign the walk missed something.
 
         Raises:
-            PairingError: If the corpus states a reaction more than once, or the index
-                does not reach every structure the corpus holds.
+            PairingError: If the corpus states a reaction more than once, the index
+                does not reach every structure the corpus holds, or a pivot or
+                occurrence artifact it reads belongs to another corpus or carries a
+                structure ID its dataset does not hold.
         """
         self._occurrences()
         cursor = self._connection.cursor()
@@ -2148,6 +2179,7 @@ class Corpus:
                 schema=occurrences.SCHEMA,
                 held=occurrences.occurrence_path,
                 reading="at",
+                derive=_DERIVE_OCCURRENCES,
             )
             self._occurrence_artifacts_found[path] = sources
             return sources
@@ -2201,7 +2233,8 @@ class Corpus:
 
         Raises:
             PairingError: If any indexed path has no artifacts. Wrong provenance, a
-                path filed under another, and staleness are raised by the check itself.
+                path filed under another, a structure ID outside its dataset, and
+                staleness are raised by the check itself.
         """
         missing = [
             path
@@ -2212,7 +2245,7 @@ class Corpus:
             raise PairingError(
                 f"{self._occurrences_dir} holds no {occurrences.ARTIFACT} artifacts "
                 f"for {missing}, which this corpus was opened requiring; derive them "
-                "first with ord_schema.artifacts.scripts.derive_occurrences"
+                f"first with {_DERIVE_OCCURRENCES}"
             )
 
     def _occurrences(self) -> None:
@@ -2322,7 +2355,9 @@ class Corpus:
                 # the index has to find all of them. Counting them is what catches a
                 # single traversal reaching nothing, which a total over every path
                 # cannot: the other paths carry the total and the dead one answers its
-                # queries with silence.
+                # queries with silence. A count equal to the total is every structure
+                # only because every ID read lies inside its own dataset's range, which
+                # _prepare holds the projections to and _check_split the artifacts.
                 if reached[0] != self._total:
                     sources = ", ".join(
                         f"{sorted(paths)} from {source}"
@@ -2342,9 +2377,8 @@ class Corpus:
                         cause = (
                             "the likeliest cause is an occurrence artifact missing "
                             f"rows; re-derive {self._occurrences_dir} with "
-                            "ord_schema.artifacts.scripts.derive_occurrences --force, "
-                            "since a run without it skips a file whose stamps are "
-                            "current"
+                            f"{_DERIVE_OCCURRENCES} --force, since a run without it "
+                            "skips a file whose stamps are current"
                         )
                         if from_pivots or from_projections:
                             cause += f"; failing that, {walk}"
@@ -2707,8 +2741,9 @@ class Corpus:
             PairingError: If the artifacts for this level were not derived from the
                 projections this corpus reads -- a pivot of another corpus answers
                 confidently and wrongly, since its reaction IDs resolve against the
-                wrong rows -- if any lacks a column this library reads, or, with
-                ``require_current``, if any of them is stale.
+                wrong rows -- if any lacks a column this library reads, if any carries
+                a structure ID its dataset does not hold, or, with ``require_current``,
+                if any of them is stale.
         """
         sources = self._pivot_artifacts(path)
         if sources is None:
@@ -2747,7 +2782,8 @@ class Corpus:
 
         Raises:
             PairingError: If the artifacts were not derived from the projections this
-                corpus reads, if any lacks a column this library reads, or -- with
+                corpus reads, if any lacks a column this library reads, if any carries
+                a structure ID its dataset does not hold, or -- with
                 ``require_current`` -- if any is stale.
         """
         if self._pivots_dir is None:
@@ -2768,6 +2804,7 @@ class Corpus:
                 schema=pivot.schema(pivot.LEVELS[path]),
                 held=pivot.pivot_path,
                 reading="over",
+                derive=_DERIVE_PIVOTS,
             )
             self._pivot_artifacts_found[path] = sources
             return sources
@@ -2781,6 +2818,7 @@ class Corpus:
         schema: pa.Schema,
         held: Callable[[str], str | None],
         reading: str,
+        derive: str,
     ) -> dict[str, str]:
         """Refuses artifacts of a tree-split artifact that do not belong to this corpus.
 
@@ -2798,6 +2836,7 @@ class Corpus:
             held: Reads the level or path a file is stamped with.
             reading: How a message names the relation to ``path`` -- "over" for a pivot
                 level, "at" for an indexed path.
+            derive: The module that writes these artifacts, which a refusal names.
 
         Returns:
             The source dataset each artifact was derived from, keyed by its path, which
@@ -2807,8 +2846,10 @@ class Corpus:
         Raises:
             PairingError: If a file is not this artifact over ``path``, if it lacks a
                 column this library reads, if two artifacts restate one source dataset,
-                if the set of source datasets differs from the projections', or -- with
-                ``require_current`` -- if any artifact is stale.
+                if the set of source datasets differs from the projections', if one
+                carries a structure ID its dataset does not hold or records no
+                statistics bounding them, or -- with ``require_current`` -- if any
+                artifact is stale.
         """
         wanted = {base.load_stamps(name).source_md5 for name in self._projections}
         sources: dict[str, str] = {}
@@ -2847,6 +2888,23 @@ class Corpus:
                 f"and {len(wanted - found)} of the projections' are missing; an "
                 "artifact of another corpus names reactions this one does not hold"
             )
+        for name, source in sources.items():
+            # Stamps and columns say nothing about the IDs a file states, so an artifact
+            # edited after it was written passes everything above. Offset onto the
+            # corpus-wide range, an ID its dataset does not hold names another
+            # dataset's structure or none, and the occurrence index's count of distinct
+            # IDs cannot see it: the ID a row lost and the one it gained cancel. Bounded
+            # per dataset rather than by the corpus total, since an ID just past its own
+            # dataset lands inside the next one's range.
+            largest = _max_structure_id(name, derive)
+            count = self._structures_of_source[source]
+            if largest is not None and largest >= count:
+                raise PairingError(
+                    f"{name} carries structure_id {largest} but its dataset holds only "
+                    f"{count} structures, so its IDs would join to another dataset's "
+                    f"molecules or to none; re-derive it with {derive} --force, since "
+                    "a run without it skips a file whose stamps are current"
+                )
         return sources
 
     def _derive_pivot(self, path: str) -> str | None:

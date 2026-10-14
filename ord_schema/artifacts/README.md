@@ -194,7 +194,12 @@ derivation and are meaningful only together:
 
 A pivot names its reactions by ID, so one derived from another corpus resolves against
 rows this one does not hold — confidently and wrongly. `Corpus` refuses pivot artifacts
-whose source datasets are not its projections'.
+whose source datasets are not its projections'. It also refuses a pivot or occurrences
+artifact carrying a `structure_id` its own dataset's structures artifact does not hold:
+an artifact edited after it was written keeps its stamps, and an ID moved out of its
+dataset names another dataset's molecule or none, which the occurrence index's count of
+distinct IDs cannot see. The bound is read from footer statistics, so a projection or
+artifact recording none for its `structure_id` columns is refused too.
 
 **No artifact carries a corpus-wide ID.** A `structure_id` is local to its dataset; the
 corpus-wide one a bitmap is indexed by is that plus an offset, and the offset is a running
