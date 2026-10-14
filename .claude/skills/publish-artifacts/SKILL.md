@@ -1,5 +1,5 @@
 ---
-name: artifact-publish
+name: publish-artifacts
 description: Use when publishing derived artifacts (projections, structures, pivots, occurrences) to the ord-artifacts Hugging Face repository, adding a new ord-data dataset to the published artifacts, re-deriving after an RDKit upgrade or an ARTIFACT_VERSIONS bump, or running ord_schema.scripts.upload_artifacts.
 ---
 
@@ -47,14 +47,14 @@ ARTIFACTS=~/ord/artifacts
 3. **Check the tree against ord-data.** Needs the network for the mirror listing:
 
    ```sh
-   python .claude/skills/artifact-publish/scripts/check_tree.py \
+   python .claude/skills/publish-artifacts/scripts/check_tree.py \
        --root=$ARTIFACTS --ord_data=$ORD_DATA
    ```
 
    It requires every Parquet dataset in the checkout to have exactly one projection
-   stamped with its current content hash, and the checkout to hold the same dataset IDs
-   as the ord-data mirror on `main`. A mismatch is fixed by deriving or by updating the
-   checkout, never by uploading anyway.
+   stamped with its current content hash, and the checkout to hold the same datasets as
+   the ord-data mirror on `main`, byte for byte. A mismatch is fixed by deriving or by
+   updating the checkout, never by uploading anyway.
 
 4. **Dry run.**
 

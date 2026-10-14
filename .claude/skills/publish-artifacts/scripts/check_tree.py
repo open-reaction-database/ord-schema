@@ -21,8 +21,9 @@ Face mirror:
 
 * every Parquet dataset in the checkout has exactly one projection, stamped with that
   dataset's current content hash, and no projection restates anything else;
-* the checkout holds the same dataset IDs as the mirror at ``--revision``, so a stale
-  checkout cannot pass for the whole corpus.
+* the checkout holds the same datasets as the mirror at ``--revision``, byte for byte
+  by the SHA-256 the mirror's LFS records, so a stale checkout cannot pass for the
+  whole corpus.
 
 ``upload_artifacts`` carries the projections' dataset set to every other artifact.
 Exits non-zero on any mismatch. Hashing the checkout takes under a minute over ORD.
@@ -30,11 +31,13 @@ Exits non-zero on any mismatch. Hashing the checkout takes under a minute over O
 
 import argparse
 import collections
+import hashlib
 import pathlib
 import re
 import sys
 
-from huggingface_hub import list_repo_files
+from huggingface_hub import HfApi
+from huggingface_hub.hf_api import RepoFile
 
 from ord_schema import huggingface, parquet
 from ord_schema.artifacts import base, projection
@@ -42,23 +45,53 @@ from ord_schema.artifacts import base, projection
 _MIRROR_DATASET = re.compile(r"^data/\w{2}/(ord_dataset-\w+)\.(parquet|pb\.gz)$")
 
 
-def _checkout(ord_data: pathlib.Path) -> dict[str, str]:
-    """Returns each Parquet dataset's content hash in the checkout, keyed by ID."""
-    hashes = {}
+def _sha256(path: pathlib.Path) -> str:
+    """Returns the SHA-256 of a file's bytes."""
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        while chunk := file.read(1 << 20):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _checkout(ord_data: pathlib.Path) -> dict[str, tuple[str, str]]:
+    """Returns each Parquet dataset in the checkout, keyed by ID.
+
+    Values are ``(content MD5, file SHA-256)``: the hash a projection's stamps restate,
+    and the one the mirror's LFS records.
+    """
+    datasets = {}
     for path in sorted(ord_data.glob("data/*/*.parquet")):
         view = parquet.DatasetView(path)
-        if not view.dataset_id or view.dataset_id in hashes:
+        if not view.dataset_id or view.dataset_id in datasets:
             raise ValueError(f"{path} has a missing or repeated dataset ID")
-        hashes[view.dataset_id] = view.md5()
-    return hashes
+        datasets[view.dataset_id] = (view.md5(), _sha256(path))
+    return datasets
 
 
-def _mirror(revision: str) -> set[str]:
-    """Returns the dataset IDs on the ord-data mirror at ``revision``."""
-    files = list_repo_files(
-        huggingface.ORD_DATA_HF_REPO, repo_type="dataset", revision=revision
+def _mirror(revision: str) -> dict[str, str | None]:
+    """Returns each dataset on the ord-data mirror at ``revision``, keyed by ID.
+
+    Values are the Parquet file's LFS SHA-256, or None for a dataset with no Parquet
+    file in LFS, such as one held only as ``.pb.gz``.
+    """
+    datasets: dict[str, str | None] = {}
+    tree = HfApi().list_repo_tree(
+        huggingface.ORD_DATA_HF_REPO,
+        repo_type="dataset",
+        revision=revision,
+        path_in_repo="data",
+        recursive=True,
     )
-    return {match[1] for name in files if (match := _MIRROR_DATASET.match(name))}
+    for item in tree:
+        match = _MIRROR_DATASET.match(item.path)
+        if not isinstance(item, RepoFile) or match is None:
+            continue
+        if match[2] == "parquet" and item.lfs is not None:
+            datasets[match[1]] = item.lfs.sha256
+        else:
+            datasets.setdefault(match[1], None)
+    return datasets
 
 
 def _projections(root: pathlib.Path) -> dict[str, list[str]]:
@@ -79,18 +112,20 @@ def check(root: pathlib.Path, ord_data: pathlib.Path, revision: str) -> list[str
     held = _projections(root)
     problems = [
         f"on the mirror but not in the checkout: {dataset_id}"
-        for dataset_id in sorted(mirror - set(checkout))
+        for dataset_id in sorted(set(mirror) - set(checkout))
     ]
-    problems.extend(
-        f"in the checkout but not on the mirror: {dataset_id}"
-        for dataset_id in sorted(set(checkout) - mirror)
-    )
-    expected = {md5: dataset_id for dataset_id, md5 in checkout.items()}
-    problems.extend(
-        f"no current projection of {dataset_id}"
-        for dataset_id, md5 in sorted(checkout.items())
-        if md5 not in held
-    )
+    for dataset_id, (md5, sha256) in sorted(checkout.items()):
+        if dataset_id not in mirror:
+            problems.append(f"in the checkout but not on the mirror: {dataset_id}")
+        elif mirror[dataset_id] is None:
+            problems.append(f"the mirror records no Parquet hash for {dataset_id}")
+        elif mirror[dataset_id] != sha256:
+            problems.append(
+                f"the checkout's copy differs from the mirror's: {dataset_id}"
+            )
+        if md5 not in held:
+            problems.append(f"no current projection of {dataset_id}")
+    expected = {md5: dataset_id for dataset_id, (md5, _) in checkout.items()}
     for md5, projections in sorted(held.items()):
         if md5 not in expected:
             problems.extend(
