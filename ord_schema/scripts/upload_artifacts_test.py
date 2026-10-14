@@ -399,6 +399,26 @@ class TestCorpusCheck:
             )
         assert hub.listed == []
 
+    def test_refuses_structures_the_library_cannot_load(
+        self, derived_tree, tmp_path, monkeypatch
+    ):
+        # A molecule without its fingerprint: only building the library can tell.
+        root = tmp_path / "artifacts"
+        shutil.copytree(derived_tree, root)
+        target = root / "structures" / "aa" / "ord_dataset-aa.parquet"
+        with pq.ParquetFile(target) as artifact:
+            table = artifact.read()
+            schema = artifact.schema_arrow
+        column = schema.get_field_index("pattern_fp")
+        emptied = pa.array([None] * table.num_rows, type=schema.field(column).type)
+        pq.write_table(table.set_column(column, schema.field(column), emptied), target)
+        hub = _FakeHub(monkeypatch)
+        with pytest.raises(execute.PairingError, match="molecule but no fingerprint"):
+            upload_artifacts.upload_artifacts(
+                root, commit_message="derive", dry_run=True
+            )
+        assert hub.listed == []
+
     def test_refuses_structures_short_of_their_projection(
         self, derived_tree, tmp_path, monkeypatch
     ):

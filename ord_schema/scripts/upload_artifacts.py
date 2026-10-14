@@ -34,10 +34,12 @@ and files a build no longer holds are deleted from it. The tree has to be one bu
   names, or a level or path this library derives is missing;
 * an artifact, pivot level, or indexed path restates a source dataset twice, or other
   datasets than the projections;
-* a ``Corpus`` opened on it refuses it, which is what sees a structures artifact too
-  short for its projection's IDs and a file this library and RDKit would not write.
-  Run the upload under the library that derived the tree. Over ORD this takes about
-  30 seconds and 4 GiB.
+* a ``Corpus`` opened warm on it refuses it, which is what sees a structures artifact
+  too short for its projection's IDs or unloadable by the substructure library,
+  occurrences that miss a structure, and a file this library and RDKit would not
+  write. Run the upload under the library that derived the tree. Over ORD this took
+  43 seconds and 5.7 GiB at peak; a tree without occurrences for every path builds
+  the index from its pivots instead, which wants several GB more.
 
 Needs the ``search`` and ``huggingface`` extras. Authenticates the way
 ``huggingface_hub`` does: ``hf auth login`` or ``$HF_TOKEN``.
@@ -321,11 +323,10 @@ def _check_opens(
     """Opens a ``Corpus`` on the tree and builds what a reader's first query would.
 
     The stamps cannot see a structures artifact short of the IDs its projection
-    carries, a file this library and RDKit would not write, or occurrences that miss a
-    structure; opening, publishing every pivot, and building the occurrence index can.
-    Opened without warming, so the substructure library is not built. With occurrence
-    artifacts for every path the index is a view, which over ORD is a fraction of a
-    second; with fewer, it is built from the pivots, which wants several GB.
+    carries, a file this library and RDKit would not write, occurrences that miss a
+    structure, or a structure the substructure library cannot load. Opening warm
+    builds the occurrence index and the library, which is where a reader's first
+    structure query would meet those, and publishing every pivot covers the rest.
 
     Args:
         root: The local tree.
@@ -346,10 +347,9 @@ def _check_opens(
         require_pivots=require_pivots,
         occurrences_dir=str(root / huggingface.ARTIFACT_DIRECTORIES["occurrences"]),
         require_occurrences=require_occurrences,
-        warm=False,
+        warm=True,
     ) as corpus:
         corpus.check_pivots()
-        corpus.check_index()
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
