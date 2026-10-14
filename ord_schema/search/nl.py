@@ -221,7 +221,7 @@ class UnanswerableError(NLQueryError):
 
     Distinct from a malformed query: nothing was wrong with the model's reasoning, and
     retrying will not help. Comparing two columns is the standard case -- a value is a
-    literal or a compound, never another column -- and a layer without a way to say so
+    literal, never another column -- and a layer without a way to say so
     answers with a plausible query that means something else.
     """
 

@@ -55,7 +55,7 @@ Predicate  = { op: "and" | "or", clauses: [Predicate] }
            | { op: "same_parent", path: Path, smiles?: string, compound?: <name> }
            | { op: "reaction_smarts", smarts: string, chirality?: bool }
 
-Value      = { literal: <scalar> } | { compound: <name> }
+Value      = { literal: <scalar> }
 
 Aggregate  = { over?: Path, where?: Predicate, group_by: [Path],
                measures: [{ fn: "count"|"count_distinct"|"sum"|"avg"|"min"|"max",
@@ -121,13 +121,17 @@ is a compile error rather than a wrong answer:
 - `min`, `max`, `avg`, and `sum` need a numeric column, whether they reduce a repeated path
   or aggregate a scalar one; `count` takes any. Arithmetic over text is refused where the
   query is compiled rather than left to fail where it runs.
-- A `{"compound": ...}` value is resolved through [`ord_schema.resolvers`](../resolvers.py) and
-  **bound as a parameter**, so the model names compounds and never spells structures.
-- A `{"literal": ...}` value is **bound as a parameter** too, typed: a string compared
-  against a date or timestamp column binds as the instant it names. No literal reaches the
-  SQL as text. What the model writes that does is the `limit`, validated as a positive
-  integer, measure and compound names, both held to an identifier shape, and each
-  `group_by` path, quoted as its column's name once it has resolved against the schema.
+- A structure predicate's `compound` is resolved through
+  [`ord_schema.resolvers`](../resolvers.py) when the query runs, so the model names compounds
+  and never spells structures. A comparison's value is a literal, never a compound: a resolved
+  name compared with `eq` against a `smiles` would compare spellings, which miss the same
+  compound drawn as another tautomer or protonation state and need not agree across RDKit
+  releases. A `{"compound": ...}` value is refused with a message pointing to `same_compound`.
+- A `{"literal": ...}` value is **bound as a parameter**, typed: a string compared against a
+  date or timestamp column binds as the instant it names. No literal reaches the SQL as text.
+  What the model writes that does is the `limit`, validated as a positive integer, measure
+  names, held to an identifier shape, and each `group_by` path, quoted as its column's name
+  once it has resolved against the schema.
 - A `substructure` respects the stereocenters its pattern draws, as RDKit does: a
   pattern drawn as one enantiomer matches that enantiomer, not its mirror image or the
   same molecule recorded without stereo. `chirality: false` ignores them, for a question
@@ -181,18 +185,16 @@ is a compile error rather than a wrong answer:
 
 ## How a query is answered
 
-One `Query` becomes one SQL statement. The chemistry, the compound names, and every
-literal are lifted out of it and bound as parameters, so what DuckDB runs is a filter
-over the projection and nothing else:
+One `Query` becomes one SQL statement. The chemistry and every literal are lifted out of it
+and bound as parameters, so what DuckDB runs is a filter over the projection and nothing
+else:
 
 ```mermaid
 flowchart TB
     Q["Query, as JSON"] --> V["validate against projection.SCHEMA<br/>paths, leaf types, quantifiers"]
     V --> C["compile to one SQL statement<br/>one relation, no join, no recursion"]
-    C --> N["compound names<br/>resolvers → SMILES"]
-    C --> S["structure predicates<br/>RDKit screen → verify → bitmap"]
+    C --> S["structure predicates<br/>compound names → resolvers → SMILES<br/>RDKit screen → verify → bitmap"]
     C --> X["run on this search's own cursor"]
-    N -- "bound parameters" --> X
     S -- "bound parameters" --> X
     X --> O["reaction_id, or the group<br/>and measure columns"]
 ```
@@ -869,42 +871,44 @@ compiled = query.compile_query(
             "where": {
                 "op": "exists",
                 "path": "inputs.components",
-                "where": {"op": "eq", "path": "smiles", "value": {"compound": "thf"}},
+                "where": {
+                    "op": "eq",
+                    "path": "reaction_role",
+                    "value": {"literal": "SOLVENT"},
+                },
             },
             "limit": 100,
         }
     )
 )
 print(compiled.sql)
-print(compiled.compounds)  # ('thf',) -- resolve and bind these
+print(compiled.literals)  # {'literal_0': 'SOLVENT'} -- bind these
 ```
 
 ```sql
 SELECT reaction_id FROM reactions
-WHERE len(list_filter(flatten(list_transform(map_values(inputs), x -> x.components)),
-                      e0 -> e0.smiles = $thf)) > 0
+WHERE coalesce(len(list_filter(flatten(list_transform(map_values(inputs), x -> x.components)),
+                               e0 -> e0.reaction_role = $literal_0)) > 0, false)
 LIMIT 100
 ```
 
-`compiled.compounds` names the parameters still to be bound. Resolve each through
-`ord_schema.resolvers` and pass the SMILES at execution — the name never reaches the SQL as
-text. `compiled.literals` maps every other parameter to its value, already typed, to bind
-as it is.
+`compiled.literals` maps every parameter to its value, already typed, to bind as it is.
+`compiled.structures` lists the structure predicates, each bound as a bitmap over
+corpus-wide structure IDs; a query holding any runs only through `Corpus`, which resolves
+their compound names and computes the bitmaps.
 
 ### Run it
 
 ```python
 import duckdb
 
-from ord_schema.resolvers import resolve_name
-
 connection = duckdb.connect()
 connection.execute(
     "CREATE VIEW reactions AS SELECT * FROM read_parquet('projections/*/*.parquet')"
 )
-parameters = dict(compiled.literals)
-parameters.update({name: resolve_name("name", name)[0] for name in compiled.compounds})
-reaction_ids = [row[0] for row in connection.execute(compiled.sql, parameters).fetchall()]
+reaction_ids = [
+    row[0] for row in connection.execute(compiled.sql, compiled.literals).fetchall()
+]
 ```
 
 A connection opened this way reaches whatever the process can. `Corpus` confines its own;
@@ -918,13 +922,13 @@ element rather than a row:
 ```python
 # One component that is BOTH tetrahydrofuran AND used in quantity.
 {"op": "exists", "path": "inputs.components", "where": {"op": "and", "clauses": [
-    {"op": "eq", "path": "smiles", "value": {"compound": "thf"}},
+    {"op": "same_compound", "path": "smiles", "compound": "thf"},
     {"op": "gt", "path": "amount.volume_liters", "value": {"literal": 0.005}}]}}
 
 # A reaction containing each, possibly as different components.
 {"op": "and", "clauses": [
     {"op": "exists", "path": "inputs.components",
-     "where": {"op": "eq", "path": "smiles", "value": {"compound": "thf"}}},
+     "where": {"op": "same_compound", "path": "smiles", "compound": "thf"}},
     {"op": "exists", "path": "inputs.components",
      "where": {"op": "gt", "path": "amount.volume_liters", "value": {"literal": 0.005}}}]}
 ```
@@ -1022,5 +1026,5 @@ nothing here is indexed, cached, or budgeted on their behalf, and a measurement 
 involving a substring is reported rather than optimized against. Doing it properly wants an
 inverted index over the prose columns, a different shape from a scan of a nested projection,
 and building toward that inside this design would put it further off rather than nearer.
-Compound names have a route that is not string matching anyway: a `{"compound": ...}` value
-resolves to SMILES and becomes a structure predicate.
+Compound names have a route that is not string matching anyway: a structure predicate's
+`compound` resolves to SMILES and is matched by structure.

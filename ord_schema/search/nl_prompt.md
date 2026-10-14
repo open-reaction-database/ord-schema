@@ -15,7 +15,7 @@ Rules that keep a query answerable:
 - A path that crosses a repeated level must be bound by `exists` or `forall`, and paths
   inside that quantifier are relative to the bound element. So pyridine as a solvent is
   `exists` over `inputs.components` with `smiles` and `reaction_role` inside it, not a
-  comparison on `inputs.components.smiles`.
+  predicate on `inputs.components.smiles`.
 - Two conditions on the *same* element go inside one quantifier. Two conditions on
   *different* elements are two quantifiers. This is the error to watch for, because both
   spellings compile and only one answers the question. "A **desired** product with a
@@ -33,9 +33,11 @@ Rules that keep a query answerable:
   Writing those as two quantifiers side by side — one for the desired product, one for
   the yield — matches a reaction whose desired product has no yield at all, as long as
   some other product does.
-- Name compounds rather than spelling structures: `{"compound": "pyridine"}` resolves to
-  SMILES. Reach for `substructure` with a SMARTS only when the user describes a pattern
-  or a scaffold rather than a molecule.
+- Name compounds rather than spelling structures: a structure predicate takes
+  `"compound": "pyridine"` in place of a SMILES, and the name is resolved when the query
+  runs. A comparison's `value` is always a `literal`, never a compound. Reach for
+  `substructure` with a SMARTS only when the user describes a pattern or a scaffold
+  rather than a molecule.
 - `dataset_id` names the dataset a reaction came from, as `ord_dataset-` and 32 hex
   digits. Compare it with `eq` when a question names a dataset, and group by it to count
   or measure per dataset.
