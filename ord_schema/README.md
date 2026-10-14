@@ -51,7 +51,7 @@ flowchart TB
 | --- | --- |
 | [`datasets.py`](datasets.py) | the entry point for whole-dataset I/O, dispatching on filename suffix |
 | [`parquet.py`](parquet.py) | the Parquet serialization of a `Dataset`, and `DatasetView`, which streams a file rather than materializing it |
-| [`huggingface.py`](huggingface.py) | fetches published datasets from the ord-data mirror, and fetches and publishes derived artifacts; needs the `huggingface` extra |
+| [`huggingface.py`](huggingface.py) | fetches published datasets from the ord-data mirror and derived artifacts from ord-artifacts; needs the `huggingface` extra |
 | [`atomic_io.py`](atomic_io.py) | write-then-rename helpers, so a failure partway leaves the previous file intact |
 
 A Parquet dataset is one row per `Reaction` — `reaction_id` plus the wire-format

@@ -297,8 +297,13 @@ def fetch_artifacts(
                 f"{ORD_ARTIFACTS_HF_REPO}@{revision} has no pivots for {missing} under "
                 f"{pivots}; it has {sorted(levels)}"
             )
+        # A dotted directory is some tool's, not a level; no reader looks inside one.
         held = (
-            {entry.name for entry in (root / pivots).iterdir() if entry.is_dir()}
+            {
+                entry.name
+                for entry in (root / pivots).iterdir()
+                if entry.is_dir() and not entry.name.startswith(".")
+            }
             if (root / pivots).is_dir()
             else set()
         )

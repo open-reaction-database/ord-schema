@@ -160,7 +160,7 @@ commit, each file under the build its own footer names. It accepts only a tree a
 `Corpus(require_pivots=True, require_occurrences=True)` opens: one RDKit version, each
 artifact derived from its parent's build, every pivot level and indexed path present
 and filed where its footer says, and each restating the projections' source datasets
-once. Its docstring lists the refusals.
+once. Its docstring lists the refusals; it needs the `search` and `huggingface` extras.
 
 ```bash
 python -m ord_schema.scripts.upload_artifacts \

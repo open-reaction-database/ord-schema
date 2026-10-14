@@ -606,6 +606,7 @@ library and RDKit read as current (needs the `huggingface` extra):
 
 ```python
 from ord_schema import huggingface
+from ord_schema.search import execute
 
 artifacts = huggingface.fetch_artifacts("ord-artifacts")
 corpus = execute.Corpus(

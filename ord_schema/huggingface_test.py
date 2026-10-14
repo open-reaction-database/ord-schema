@@ -148,6 +148,10 @@ class TestArtifactPrefix:
         # DuckDB reads a key=value directory as a partition column.
         assert "=" not in huggingface.current_prefix("occurrences")
 
+    def test_covers_every_artifact_the_library_versions(self):
+        # An artifact missing here would be skipped by fetch and upload alike.
+        assert set(huggingface.ARTIFACT_DIRECTORIES) == set(base.ARTIFACT_VERSIONS)
+
     def test_current_prefix_names_this_library(self):
         assert huggingface.current_prefix("pivot") == huggingface.artifact_prefix(
             "pivot", base.lineage("pivot"), rdBase.rdkitVersion
@@ -268,6 +272,16 @@ class TestFetchArtifacts:
         assert f"{pivots}/inputs/**" in download["allow_patterns"]
         assert held.exists()
         assert not dropped.exists()
+
+    def test_leaves_a_dotted_directory_alone(self, tmp_path, monkeypatch):
+        hub = _FakeHub(monkeypatch, _published())
+        pivots = huggingface.current_prefix("pivot")
+        kept = tmp_path / pivots / ".checkpoints" / "x.parquet"
+        _touch(kept)
+        huggingface.fetch_artifacts(tmp_path, pivot_levels=["inputs.components"])
+        [download] = hub.downloads
+        assert f"{pivots}/.checkpoints/**" not in download["allow_patterns"]
+        assert kept.exists()
 
     def test_refuses_missing_pivot_level(self, tmp_path, monkeypatch):
         _FakeHub(monkeypatch, _published())

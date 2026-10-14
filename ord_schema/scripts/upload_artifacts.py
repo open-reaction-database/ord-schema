@@ -39,7 +39,8 @@ and files a build no longer holds are deleted from it. The tree has to be one bu
   Run the upload under the library that derived the tree. Over ORD this takes about
   30 seconds and 4 GiB.
 
-Authenticates the way ``huggingface_hub`` does: ``hf auth login`` or ``$HF_TOKEN``.
+Needs the ``search`` and ``huggingface`` extras. Authenticates the way
+``huggingface_hub`` does: ``hf auth login`` or ``$HF_TOKEN``.
 """
 
 import argparse
