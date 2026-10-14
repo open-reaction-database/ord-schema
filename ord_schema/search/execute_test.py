@@ -3077,7 +3077,11 @@ def test_an_index_that_misses_one_path_is_refused(corpus_dir, monkeypatch):
             resolver={}.__getitem__,
             warm=False,
         ) as value,
-        pytest.raises(execute.PairingError, match="reached 3 of the corpus's 5"),
+        pytest.raises(
+            execute.PairingError,
+            match=r"reached 3 of the corpus's 5 .* from the projections; the "
+            "projections are not the schema this walk was built from",
+        ),
     ):
         value.search(query.Query.model_validate(_ROUTABLE["structure alone"]))
 
@@ -5829,6 +5833,68 @@ def test_a_stale_occurrence_artifact_is_refused(tmp_path, corpus_dir, occurrence
         corpus_dir, None, occurrences_dir=str(staled), require_current=False
     ) as read:
         assert sum(read.check_index().values()) > 0
+
+
+def _empty_products(occurrence_dir) -> None:
+    """Empties one dataset's products artifact, keeping its schema and stamps."""
+    # Toluene is every reaction's product and nobody's input, so this leaves exactly
+    # that dataset's toluene unreached.
+    target = occurrences.artifact_paths(occurrence_dir, "outcomes.products")[0]
+    pq.write_table(pq.read_table(target).slice(0, 0), target)
+
+
+def test_an_occurrence_artifact_short_of_rows_is_named_as_the_cause(
+    corpus_dir, occurrence_dirs
+):
+    # A truncated file keeps the stamps and columns the reader checks, so the only sign
+    # is a structure the index never reaches. Blaming the projections there sends the
+    # reader to the one input that is fine.
+    _, occurrence_dir = occurrence_dirs
+    _empty_products(occurrence_dir)
+    every = sorted(execute.INDEXED_PATHS)
+    with (
+        pytest.raises(
+            execute.PairingError,
+            match=(
+                r"reached 4 of the corpus's 5 structures.*"
+                + re.escape(f"it read {every} from occurrence artifacts;")
+                + r".*re-derive .* with ord_schema\.artifacts\.scripts\."
+                r"derive_occurrences --force"
+            ),
+        ) as raised,
+        _indexed_corpus(
+            corpus_dir,
+            None,
+            occurrences_dir=str(occurrence_dir),
+            require_occurrences=True,
+        ) as read,
+    ):
+        read.check_index()
+    assert "not the schema" not in str(raised.value)
+
+
+def test_a_short_artifact_beside_walked_paths_names_both_causes(
+    corpus_dir, occurrence_dirs, tmp_path
+):
+    # Where some paths were walked, a walk that fell out of step with the projections
+    # reaches the same shortfall, so the message gives that diagnosis after the first.
+    pivots, _ = occurrence_dirs
+    partial = _write_occurrences(pivots, tmp_path / "partial", ("outcomes.products",))
+    _empty_products(partial)
+    walked = sorted(set(execute.INDEXED_PATHS) - {"outcomes.products"})
+    with (
+        pytest.raises(
+            execute.PairingError,
+            match=re.escape(
+                "it read ['outcomes.products'] from occurrence artifacts, "
+                f"{walked} from the projections;"
+            )
+            + r".*derive_occurrences --force.*; failing that, the projections are not "
+            "the schema this walk was built from",
+        ),
+        _indexed_corpus(corpus_dir, None, occurrences_dir=str(partial)) as read,
+    ):
+        read.check_index()
 
 
 def test_requiring_occurrences_refuses_a_partial_directory(
