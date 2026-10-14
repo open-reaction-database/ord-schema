@@ -163,8 +163,9 @@ and filed where its footer says, and each restating the projections' source data
 once. Unchanged files drop out of the commit, so a new dataset goes up by deriving it
 into the full tree and uploading that. Published files the tree lacks are deleted from
 their build only with `--allow_deletes`; otherwise the upload is refused, because a tree
-holding only the new dataset is a complete build of it and would replace the rest. Its
-docstring lists the refusals; it needs the `search` and `huggingface` extras.
+holding only the new dataset is a complete build of it, and uploading it would delete
+the rest. Its docstring lists the refusals; it needs the `search` and `huggingface`
+extras.
 
 ```bash
 python -m ord_schema.scripts.upload_artifacts \

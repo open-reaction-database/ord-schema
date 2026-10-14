@@ -126,8 +126,8 @@ def upload_artifacts(
     ``huggingface.ARTIFACT_DIRECTORIES``, each laid out as its derive script wrote it.
     Every file goes under the prefix its own footer names, so a file cannot be
     published as a build it does not belong to. Within each prefix uploaded, a file the
-    local tree does not hold is deleted where ``allow_deletes`` says so, and refused
-    otherwise; other builds are left alone.
+    local tree does not hold is deleted if ``allow_deletes``, and otherwise refuses the
+    upload; other builds are left alone.
 
     The commit names the head it was planned against as its parent, so one that lands
     in between fails this one rather than having its files deleted.
