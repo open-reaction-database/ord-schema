@@ -379,6 +379,26 @@ class TestCorpusCheck:
         )
         assert upload.uploaded
 
+    def test_refuses_occurrences_that_miss_a_structure(
+        self, derived_tree, tmp_path, monkeypatch
+    ):
+        # Stamps and columns intact, rows gone: only building the index can tell.
+        root = tmp_path / "artifacts"
+        shutil.copytree(derived_tree, root)
+        target = (
+            root / "occurrences" / "inputs.components" / "aa" / "ord_dataset-aa.parquet"
+        )
+        with pq.ParquetFile(target) as artifact:
+            table = artifact.read()
+            schema = artifact.schema_arrow
+        pq.write_table(table.slice(0, 0).cast(schema), target)
+        hub = _FakeHub(monkeypatch)
+        with pytest.raises(execute.PairingError, match="reach"):
+            upload_artifacts.upload_artifacts(
+                root, commit_message="derive", dry_run=True
+            )
+        assert hub.listed == []
+
     def test_refuses_structures_short_of_their_projection(
         self, derived_tree, tmp_path, monkeypatch
     ):

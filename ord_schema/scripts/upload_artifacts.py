@@ -318,11 +318,14 @@ def _check_consistent(builds: dict[str, _Build]) -> None:
 def _check_opens(
     root: pathlib.Path, *, require_pivots: bool, require_occurrences: bool
 ) -> None:
-    """Opens a ``Corpus`` on the tree and publishes every pivot, as a reader will.
+    """Opens a ``Corpus`` on the tree and builds what a reader's first query would.
 
     The stamps cannot see a structures artifact short of the IDs its projection
-    carries, or a file this library and RDKit would not write; opening can. Opened
-    without warming, so the substructure library is not built.
+    carries, a file this library and RDKit would not write, or occurrences that miss a
+    structure; opening, publishing every pivot, and building the occurrence index can.
+    Opened without warming, so the substructure library is not built. With occurrence
+    artifacts for every path the index is a view, which over ORD is a fraction of a
+    second; with fewer, it is built from the pivots, which wants several GB.
 
     Args:
         root: The local tree.
@@ -346,6 +349,7 @@ def _check_opens(
         warm=False,
     ) as corpus:
         corpus.check_pivots()
+        corpus.check_index()
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
