@@ -2224,10 +2224,10 @@ class Corpus:
         condition on one row rather than an intersection of two reaction sets, which
         over-returns.
 
-        Costs a read of the pivot artifacts covering the indexed paths and one pass over
-        the projections per path they do not cover, charged at open under ``warm`` and
-        otherwise to the query that first wants it. Concurrent first queries serialize
-        here and share the result.
+        Costs a read of the occurrence or pivot artifacts covering the indexed paths and
+        one pass over the projections per path neither covers, charged at open under
+        ``warm`` and otherwise to the query that first wants it. Concurrent first
+        queries serialize here and share the result.
 
         Raises:
             PairingError: If the corpus states a reaction more than once, or the index
@@ -2250,7 +2250,7 @@ class Corpus:
             # megabytes against a traversal of every reaction. Failing both, the
             # projection is unnested. Decided per path, so a directory holding some and
             # not others is a partial speedup rather than a missing index.
-            reads, from_artifacts, from_pivots = [], [], []
+            reads, from_artifacts, from_pivots, from_projections = [], [], [], []
             for path, expression in INDEXED_PATHS.items():
                 reading = self._occurrences_from_artifact(path)
                 if reading is not None:
@@ -2261,6 +2261,7 @@ class Corpus:
                         from_pivots.append(path)
                     else:
                         reading = _occurrences_from_projection(path, expression)
+                        from_projections.append(path)
                 reads.append(reading)
             selects = "\nUNION ALL\n".join(reads)
             # A view where every path is an artifact, and a table otherwise. Read per
@@ -2323,11 +2324,36 @@ class Corpus:
                 # cannot: the other paths carry the total and the dead one answers its
                 # queries with silence.
                 if reached[0] != self._total:
+                    sources = ", ".join(
+                        f"{sorted(paths)} from {source}"
+                        for paths, source in (
+                            (from_artifacts, "occurrence artifacts"),
+                            (from_pivots, "pivot artifacts"),
+                            (from_projections, "the projections"),
+                        )
+                        if paths
+                    )
+                    walk = "the projections are not the schema this walk was built from"
+                    # An occurrence artifact short of rows -- truncated or edited --
+                    # keeps the stamps and columns its reader checks, so this count is
+                    # the first thing to see it. derive_occurrences skips a file whose
+                    # stamps are current, so only --force rewrites it.
+                    if from_artifacts:
+                        cause = (
+                            "the likeliest cause is an occurrence artifact missing "
+                            f"rows; re-derive {self._occurrences_dir} with "
+                            "ord_schema.artifacts.scripts.derive_occurrences --force, "
+                            "since a run without it skips a file whose stamps are "
+                            "current"
+                        )
+                        if from_pivots or from_projections:
+                            cause += f"; failing that, {walk}"
+                    else:
+                        cause = walk
                     self._refused = (
                         f"the occurrence index reached {reached[0]} of the corpus's "
-                        f"{self._total} structures over {sorted(INDEXED_PATHS)}, so "
-                        "the reactions holding the rest cannot be found; the "
-                        "projections are not the schema this walk was built from"
+                        f"{self._total} structures, so the reactions holding the rest "
+                        f"cannot be found; it read {sources}; {cause}"
                     )
                     raise PairingError(self._refused)
                 self._occurrences_built = True
