@@ -173,18 +173,27 @@ class TestFetchArtifacts:
         assert hub.listed == [hub.head]
         assert download["revision"] == hub.head
         assert fetched.revision == hub.head
-        assert fetched.pivots == tmp_path / huggingface.current_prefix("pivot")
-        assert fetched.occurrences == tmp_path / huggingface.current_prefix(
-            "occurrences"
-        )
+        assert {
+            "projection": fetched.projections,
+            "structures": fetched.structures,
+            "pivot": fetched.pivots,
+            "occurrences": fetched.occurrences,
+        } == {
+            artifact: tmp_path / huggingface.current_prefix(artifact)
+            for artifact in huggingface.ARTIFACT_DIRECTORIES
+        }
 
     def test_patterns_find_what_was_fetched(self, tmp_path, monkeypatch):
         _FakeHub(monkeypatch, _published())
         fetched = huggingface.fetch_artifacts(tmp_path / "a[1]")
-        shard = fetched.projections / "aa" / "ord_dataset-aa.parquet"
-        _touch(shard)
+        projected = fetched.projections / "aa" / "ord_dataset-aa.parquet"
+        structured = fetched.structures / "aa" / "ord_dataset-aa.parquet"
+        _touch(projected, structured)
         # Escaped, so a bracket in the directory is not a character class.
-        assert glob.glob(fetched.projection_pattern, recursive=True) == [str(shard)]
+        assert glob.glob(fetched.projection_pattern, recursive=True) == [str(projected)]
+        assert glob.glob(fetched.structures_pattern, recursive=True) == [
+            str(structured)
+        ]
 
     def test_deletes_what_the_build_no_longer_holds(self, tmp_path, monkeypatch):
         _FakeHub(monkeypatch, _published())
@@ -293,6 +302,17 @@ class TestFetchArtifacts:
         with pytest.raises(LookupError, match="reports no commit for main"):
             huggingface.fetch_artifacts(tmp_path)
         assert hub.listed == []
+
+    def test_a_longer_build_name_is_not_this_build(self, tmp_path, monkeypatch):
+        projections = huggingface.current_prefix("projection")
+        published = [
+            path for path in _published() if not path.startswith("projections/")
+        ]
+        # The same name with a digit more: a prefix of its path, not this build.
+        published.append(f"{projections}0/aa/ord_dataset-aa.parquet")
+        _FakeHub(monkeypatch, published)
+        with pytest.raises(LookupError, match="holds no projection artifacts"):
+            huggingface.fetch_artifacts(tmp_path)
 
     def test_refuses_when_no_build_matches(self, tmp_path, monkeypatch):
         other = huggingface.artifact_prefix(

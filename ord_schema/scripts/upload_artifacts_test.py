@@ -124,7 +124,9 @@ class TestUploadArtifacts:
         projections = huggingface.current_prefix("projection")
         stale = f"{projections}/cc/ord_dataset-cc.parquet"
         elsewhere = "projections/projection-0/rdkit-1999.09.1/cc/ord_dataset-cc.parquet"
-        hub = _FakeHub(monkeypatch, [stale, elsewhere, "README.md"])
+        # A build whose name extends this one's is another build, and not deleted.
+        longer = f"{projections}0/cc/ord_dataset-cc.parquet"
+        hub = _FakeHub(monkeypatch, [stale, elsewhere, longer, "README.md"])
         upload = _upload(tmp_path)
         assert upload.commit_url == "https://example/commit/1"
         assert upload.prefixes == {
@@ -409,6 +411,25 @@ def test_main_requires_every_level_and_path(monkeypatch):
     assert calls == [
         ("artifacts", {"commit_message": "derive", "revision": "next", "dry_run": True})
     ]
+
+
+@pytest.mark.parametrize(
+    "commit_url", [None, "https://example/commit/1"], ids=["dry", "committed"]
+)
+def test_main_reports_a_commit_only_when_made(monkeypatch, caplog, commit_url):
+    monkeypatch.setattr(
+        upload_artifacts,
+        "upload_artifacts",
+        lambda *_, **__: upload_artifacts.ArtifactUpload(
+            prefixes={}, uploaded=[], deleted=[], commit_url=commit_url
+        ),
+    )
+    with caplog.at_level("INFO"):
+        upload_artifacts.main(["--root", "artifacts", "--message", "derive"])
+    committed = [
+        r.getMessage() for r in caplog.records if "committed" in r.getMessage()
+    ]
+    assert committed == ([] if commit_url is None else [f"committed {commit_url}"])
 
 
 def test_message_is_required():
