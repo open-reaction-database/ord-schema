@@ -132,7 +132,7 @@ class TestUploadArtifacts:
         # A build whose name extends this one's is another build, and not deleted.
         longer = f"{projections}0/cc/ord_dataset-cc.parquet"
         hub = _FakeHub(monkeypatch, [stale, elsewhere, longer, "README.md"])
-        upload = _upload(tmp_path)
+        upload = _upload(tmp_path, allow_deletes=True)
         assert upload.commit_url == f"https://example/commit/{hub.made}"
         assert upload.prefixes == {
             artifact: huggingface.current_prefix(artifact)
@@ -166,6 +166,35 @@ class TestUploadArtifacts:
         assert hub.commits == []
         assert upload.commit_url is None
         assert len(upload.uploaded) == 10
+
+    @pytest.mark.parametrize("dry_run", [False, True])
+    def test_refuses_to_delete_unless_allowed(self, tmp_path, monkeypatch, dry_run):
+        # A tree holding only a new dataset is a complete build of that one dataset,
+        # and every check passes it; publishing it as is would delete the rest.
+        _write_tree(tmp_path, sources=("cc",))
+        published = [
+            f"{huggingface.current_prefix('projection')}/{source}/"
+            f"ord_dataset-{source}.parquet"
+            for source in ("aa", "bb")
+        ]
+        hub = _FakeHub(monkeypatch, published)
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"would delete 2 published files the tree does not hold: "
+                r"2 under projections/.*; pass --allow_deletes"
+            ),
+        ):
+            _upload(tmp_path, dry_run=dry_run)
+        assert hub.commits == []
+
+    def test_dry_run_lists_allowed_deletes(self, tmp_path, monkeypatch):
+        _write_tree(tmp_path)
+        stale = f"{huggingface.current_prefix('structures')}/cc/ord_dataset-cc.parquet"
+        hub = _FakeHub(monkeypatch, [stale])
+        upload = _upload(tmp_path, dry_run=True, allow_deletes=True)
+        assert upload.deleted == [stale]
+        assert hub.commits == []
 
     def test_reports_no_commit_when_nothing_changed(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
@@ -534,8 +563,32 @@ def test_main_requires_every_level_and_path(monkeypatch):
     )
     # Levels and paths are left to their defaults, which are everything derived.
     assert calls == [
-        ("artifacts", {"commit_message": "derive", "revision": "next", "dry_run": True})
+        (
+            "artifacts",
+            {
+                "commit_message": "derive",
+                "revision": "next",
+                "dry_run": True,
+                "allow_deletes": False,
+            },
+        )
     ]
+
+
+def test_main_passes_allow_deletes(monkeypatch):
+    calls = []
+
+    def fake_upload(root, **kwargs):
+        calls.append(kwargs["allow_deletes"])
+        return upload_artifacts.ArtifactUpload(
+            prefixes={}, uploaded=[], deleted=[], commit_url=None
+        )
+
+    monkeypatch.setattr(upload_artifacts, "upload_artifacts", fake_upload)
+    upload_artifacts.main(
+        ["--root", "artifacts", "--message", "derive", "--allow_deletes"]
+    )
+    assert calls == [True]
 
 
 @pytest.mark.parametrize(
