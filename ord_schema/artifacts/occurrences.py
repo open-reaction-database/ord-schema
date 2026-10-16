@@ -161,7 +161,7 @@ def _select(level: pivot.RepeatedLevel, remainder: tuple[str, ...]) -> str:
                {element}.{INDEXED_FIELD} AS {INDEXED_FIELD}
         FROM elements
         WHERE {element}.structure_id IS NOT NULL
-        ORDER BY {pivot.REACTION_ID}, structure_id, {INDEXED_FIELD}
+        ORDER BY {", ".join(SCHEMA.names)}
         """  # noqa: S608
 
 

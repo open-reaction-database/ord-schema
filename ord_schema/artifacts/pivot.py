@@ -814,10 +814,10 @@ def write_pivot(
 
     One artifact holds one level of one projection, because the levels have different
     schemas and a reader globs the one it wants. The rows stream out of DuckDB a batch
-    at a time, so a level that explodes -- a corpus of long measurement lists -- costs a
-    batch rather than the whole level on the way out. Its ancestors are another matter:
-    ``stage`` holds each one whole, repeated fields and all, under DuckDB's memory limit
-    rather than the caller's.
+    at a time, so the caller holds a batch of a level that explodes -- a corpus of long
+    measurement lists -- rather than the whole level. DuckDB holds more, under its own
+    memory limit rather than the caller's: the sort that orders the rows holds the
+    whole level, and ``stage`` holds each ancestor whole, repeated fields and all.
 
     The output is published atomically, so a failure partway leaves any existing
     artifact untouched.
@@ -832,8 +832,8 @@ def write_pivot(
         source_dataset_id: Source dataset ID to stamp, if the caller already read one.
             Taken from the projection's stamps when omitted.
         compression: Parquet codec, any name ``pq.ParquetWriter`` accepts.
-        row_group_size: Rows per output row group, which is also how many elements are
-            held in memory at a time.
+        row_group_size: Rows per output row group, which is also how many elements the
+            caller holds at a time.
         counts: What ``count_levels`` read off ``source``, where the caller has already
             counted. Counted here when omitted. A build deriving every level counts
             them together, since one query answers for all of them at the cost of
@@ -879,9 +879,9 @@ def write_pivot(
     connection = duckdb.connect()
     written = 0
     try:
-        # Holding insertion order through the unnest costs it the parallelism that is
-        # most of what a build takes over a large projection. The order a file is
-        # written in comes from the sort below instead.
+        # Holding insertion order would cost the unnest the parallelism that is most of
+        # a build's time over a large projection; the sort below fixes the order a file
+        # is written in.
         connection.execute("SET preserve_insertion_order=false")
         # Through the relational API rather than a path interpolated into SQL, which a
         # filename holding a quote would otherwise close. One view serves the count and
@@ -902,9 +902,9 @@ def write_pivot(
             if element_count:
                 # Counting settled the other case: the unnest would walk every ancestor
                 # of a level this projection never records to reach the same nothing.
-                # Sorted on reaction_id and every ordinal, which together name one
-                # element, so rebuilding the artifact writes the same bytes and an
-                # upload drops it as unchanged.
+                # Sorted on reaction_id and every ordinal, which name one element in a
+                # dataset whose reaction IDs are unique -- what every reader of a pivot
+                # assumes -- so a rebuild writes the same bytes and an upload skips it.
                 key = ", ".join([REACTION_ID, *level.ordinals])
                 reader = connection.execute(
                     f"{stage(connection, level, 'reactions')} ORDER BY {key}"

@@ -63,10 +63,10 @@ A fifth, `ord.source_dataset_id`, is written only when the source records one, a
 only key not required to read stamps back.
 
 Rebuilding an artifact from the same source writes the same bytes, under any ord-schema
-release that leaves its definition alone, until pyarrow changes: every Parquet footer
-names the pyarrow that wrote it. Pivots are sorted on `reaction_id` and their ordinals,
-and occurrences on all three columns, since the unnest that produces them runs without
-holding any order.
+release that leaves its definition alone, until pyarrow or DuckDB changes: every Parquet
+footer names the pyarrow that wrote it, and DuckDB's batches are a pivot's row groups.
+Pivots are sorted on `reaction_id` and their ordinals, and occurrences on every column,
+since the unnest that produces them runs without holding any order.
 
 `ord.artifact` carries a second job the other keys do not: nothing outside this library
 writes it, so its presence alone says a file is ours to replace. That is what
