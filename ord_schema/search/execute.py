@@ -1836,7 +1836,7 @@ class Corpus:
         A corpus opened with ``warm`` has paid whichever of those it owes already, and
         the call is then its counts. Leaving it cold suits one asked only for scalar or
         similarity queries, which never spends what a built index costs: about a minute
-        over ORD where no artifact covers a path, and 1.1-1.35 GiB resident once built.
+        over ORD where no artifact covers a path, and 1.1 GiB resident once built.
 
         Returns:
             The number of occurrences found per indexed path, including the paths that
