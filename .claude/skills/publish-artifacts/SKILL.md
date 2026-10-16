@@ -73,11 +73,12 @@ ARTIFACTS=~/ord/artifacts
 
 6. **Push the dataset card** on the first publish and after every new build in step 4.
    [`dataset_card.md`](dataset_card.md) is the repository's `README.md`, which
-   `upload_artifacts` never touches. First check that the card names the prefixes the
-   dry run printed: both `data_files` globs, the Layout block, and the sentence ending
-   "for the `rdkit-<version>` build". Fix a stale card here and land the fix through a
-   PR, so the Hub's README is always a copy of this file. Then push it, once the user
-   has confirmed: this publishes too.
+   `upload_artifacts` never touches. First check that the card names the dry run's
+   prefixes in both `data_files` globs, the Layout block, and the sentence ending "for
+   the `rdkit-<version>` build";
+   `grep -n rdkit- .claude/skills/publish-artifacts/dataset_card.md` lists each one. Fix
+   a stale card here, through a PR, so the Hub's README is always a copy of this file.
+   Then push it once the user has confirmed: it publishes too.
 
    ```sh
    hf upload open-reaction-database/ord-artifacts \
@@ -86,13 +87,13 @@ ARTIFACTS=~/ord/artifacts
    ```
 
    Then check that the [dataset viewer](https://huggingface.co/datasets/open-reaction-database/ord-artifacts/viewer)
-   shows rows for both configs. From the shell, a response holding `rows` passes and
-   one holding `error` names what failed:
+   shows rows for both configs. From the shell, each config should print a row count
+   rather than an error:
 
    ```sh
    for config in projections structures; do
-       curl -s "https://datasets-server.huggingface.co/first-rows?dataset=open-reaction-database/ord-artifacts&config=$config&split=train" | head -c 300
-       echo
+       curl -s "https://datasets-server.huggingface.co/first-rows?dataset=open-reaction-database/ord-artifacts&config=$config&split=train" \
+           | jq '.error // (.rows | length)'
    done
    ```
 
