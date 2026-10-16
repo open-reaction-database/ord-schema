@@ -47,7 +47,7 @@ current:
 | key | why it can invalidate |
 | --- | --- |
 | `ord.artifact` | tells one artifact from another without inspecting the schema |
-| `ord.artifact_schema` | what the artifact's columns are and what each holds; one for every artifact, since they are published and fetched as one build |
+| `ord.artifact_schema_version` | the version of the artifact's schema: its columns and what each holds; one for every artifact, since they are published and fetched as one build |
 | `ord.source_md5` | the content of the source dataset this restates |
 | `ord.rdkit_version` | RDKit releases have changed both canonicalization and pattern fingerprints, either of which silently breaks a file whose consumers run the newer one |
 
@@ -56,7 +56,7 @@ development build reports the last release's number, so a release stamp says not
 about currency while making a rebuild of an unchanged artifact write different bytes.
 
 A change a reader of the current schema would misread — a column renamed, removed, or
-given a different meaning — bumps `ARTIFACT_SCHEMA`, which makes every artifact stale. A
+given a different meaning — bumps `ARTIFACT_SCHEMA_VERSION`, which makes every artifact stale. A
 change a reader of either schema reads correctly does not: a column added is seen by
 `missing_columns` and derives again on its own, and values improved by a fixed
 normalization are derived again with `--force` and published in place. `base_test.py`
@@ -136,7 +136,7 @@ projections/aa/ord_dataset-<id>.parquet
 pivots/inputs.components/aa/ord_dataset-<id>.parquet
 ```
 
-An earlier build, of an older artifact schema or another RDKit, stays in the
+An earlier build, of an older artifact schema version or another RDKit, stays in the
 repository's history. [`huggingface.fetch_artifacts`](../huggingface.py) reads the
 build's stamps in place before downloading anything and refuses a schema or RDKit this
 library does not read, so a local tree holding a build it reads is not overwritten with
@@ -147,10 +147,10 @@ registration hashes both drift between releases, patch releases included, and a
 structure query computes its side of each comparison with the RDKit it runs.
 
 [`upload_artifacts`](../scripts/upload_artifacts.py) publishes a local tree in one
-commit, replacing the build the repository held, and reports the schema and RDKit of the
+commit, replacing the build the repository held, and reports the schema version and RDKit of the
 one it replaces: a change switches every reader at once. It accepts only a tree a
-`Corpus(require_pivots=True, require_occurrences=True)` opens: one artifact schema and
-RDKit version, every pivot level and indexed path present and filed where its footer
+`Corpus(require_pivots=True, require_occurrences=True)` opens: one artifact schema version
+and RDKit version, every pivot level and indexed path present and filed where its footer
 says, and each restating the projections' source datasets once. Unchanged files drop out
 of the commit, so a new dataset goes up by deriving it into the full tree and uploading
 that. Published files the tree lacks are deleted only with `--allow_deletes`; otherwise
@@ -165,7 +165,7 @@ python -m ord_schema.scripts.upload_artifacts \
 
 A value-only change is published in place, and a reader's next fetch brings its copy up
 to date. A change a reader of the current schema would misread needs the
-`ARTIFACT_SCHEMA` bump, so that readers still on the old schema are refused rather than
+`ARTIFACT_SCHEMA_VERSION` bump, so that readers still on the old schema are refused rather than
 served files they would misread.
 
 ## What pairs with what

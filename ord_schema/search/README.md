@@ -608,7 +608,7 @@ table = corpus.search(
 
 To search the published artifacts rather than ones derived locally, fetch the published
 build, about 3.3 GiB over ORD (needs the `huggingface` extra). The fetch refuses a build
-whose artifact schema or RDKit version this library does not read, before downloading
+whose artifact schema version or RDKit version this library does not read, before downloading
 anything:
 
 ```python

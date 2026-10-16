@@ -197,10 +197,10 @@ def resolve_revision(revision: str) -> str:
 def published_build(commit: str, published: Iterable[str]) -> base.Stamps | None:
     """Returns the stamps of the build ord-artifacts holds at ``commit``, read in place.
 
-    Every file of a published build carries the same artifact schema and RDKit version,
-    which ``upload_artifacts`` checks, so one footer speaks for the build. It is an
-    occurrences file's, whose three columns make for a small footer, and nothing else
-    of the file is downloaded.
+    Every file of a published build carries the same artifact schema version and RDKit
+    version, which ``upload_artifacts`` checks, so one footer speaks for the build.
+    It is an occurrences file's, whose few columns make for a small footer, and
+    nothing else of the file is downloaded.
 
     Args:
         commit: The commit SHA ``published`` was listed at.
@@ -256,7 +256,7 @@ def fetch_artifacts(
 
     Raises:
         LookupError: If the revision holds no artifacts of some kind, holds a build of
-            another artifact schema or RDKit version, or lacks a requested pivot level.
+            another artifact schema version or RDKit, or lacks a requested pivot level.
             The message names what it does hold.
         ValueError: If a file the build no longer holds sits in a directory reached
             through a link beneath ``local_dir``, which is not this function's to
@@ -279,17 +279,18 @@ def fetch_artifacts(
             f"{ORD_ARTIFACTS_HF_REPO}@{revision} holds no "
             f"{', '.join(missing)} artifacts"
         )
-    if (stamps.artifact_schema, stamps.rdkit_version) != (
-        base.ARTIFACT_SCHEMA,
+    if (stamps.artifact_schema_version, stamps.rdkit_version) != (
+        base.ARTIFACT_SCHEMA_VERSION,
         rdBase.rdkitVersion,
     ):
         raise LookupError(
-            f"{ORD_ARTIFACTS_HF_REPO}@{revision} holds artifact schema "
-            f"{stamps.artifact_schema} derived under RDKit {stamps.rdkit_version}, and "
-            f"this library reads schema {base.ARTIFACT_SCHEMA} under RDKit "
+            f"{ORD_ARTIFACTS_HF_REPO}@{revision} holds artifact schema version "
+            f"{stamps.artifact_schema_version} derived under RDKit "
+            f"{stamps.rdkit_version}, and this library reads schema version "
+            f"{base.ARTIFACT_SCHEMA_VERSION} under RDKit "
             f"{rdBase.rdkitVersion}. Install the ord-schema and RDKit that build was "
-            "derived with, or pass as the revision an earlier commit holding schema "
-            f"{base.ARTIFACT_SCHEMA} derived under RDKit {rdBase.rdkitVersion}."
+            "derived with, or pass revision= an earlier commit; each upload's commit "
+            "description names the schema version and RDKit it holds."
         )
     pivots = ARTIFACT_DIRECTORIES["pivot"]
     scopes = [

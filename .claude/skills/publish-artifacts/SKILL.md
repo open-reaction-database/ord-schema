@@ -1,6 +1,6 @@
 ---
 name: publish-artifacts
-description: Use when publishing derived artifacts (projections, structures, pivots, occurrences) to the ord-artifacts Hugging Face repository, adding a new ord-data dataset to the published artifacts, re-deriving after an RDKit upgrade or an ARTIFACT_SCHEMA bump, running ord_schema.scripts.upload_artifacts, or updating the ord-artifacts dataset card.
+description: Use when publishing derived artifacts (projections, structures, pivots, occurrences) to the ord-artifacts Hugging Face repository, adding a new ord-data dataset to the published artifacts, re-deriving after an RDKit upgrade or an ARTIFACT_SCHEMA_VERSION bump, running ord_schema.scripts.upload_artifacts, or updating the ord-artifacts dataset card.
 ---
 
 # Publishing derived artifacts
@@ -64,11 +64,11 @@ ARTIFACTS=~/ord/artifacts
        --message="Derive from ord-data $(git -C $ORD_DATA rev-parse --short HEAD)"
    ```
 
-   Read the artifact schema and RDKit it reports against the build it replaces. The same
-   pair updates that build; a new one switches every reader at once, and readers left on
-   the old pair have to pass an earlier revision, so confirm the switch with the user.
-   The count of files to upload is the whole tree; unchanged files drop out only inside
-   the real commit.
+   Read the artifact schema version and RDKit it reports against the build it replaces.
+   The same pair updates that build; a new one switches every reader at once, and
+   readers left on the old pair have to pass an earlier revision, so confirm the switch
+   with the user. The count of files to upload is the whole tree; unchanged files drop
+   out only inside the real commit.
 
 5. **Upload,** with the same command minus `--dry_run`, once the user has confirmed: it
    publishes. It needs `hf auth login` or `$HF_TOKEN` with write access, and logs the

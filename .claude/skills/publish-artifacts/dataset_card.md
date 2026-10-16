@@ -59,8 +59,8 @@ occurrences/<path>/<shard>/ord_dataset-<id>.parquet
 ```
 
 - The shard and file name are the source dataset's own, as in ord-data's `data/<shard>/ord_dataset-<id>.parquet`.
-- The repository holds one build at a time. Every file's Parquet footer names the artifact (`ord.artifact`), the artifact schema (`ord.artifact_schema`), the RDKit release it was derived under (`ord.rdkit_version`), and the MD5 of the source dataset it restates (`ord.source_md5`).
-- A new artifact schema or RDKit release replaces the build, and earlier builds stay in the repository's history. A reader needs the RDKit the build was derived under exactly, since fingerprints and registration hashes change between releases.
+- The repository holds one build at a time. Every file's Parquet footer names the artifact (`ord.artifact`), the artifact schema version (`ord.artifact_schema_version`), the RDKit release it was derived under (`ord.rdkit_version`), and the MD5 of the source dataset it restates (`ord.source_md5`).
+- A new artifact schema version or RDKit release replaces the build, and earlier builds stay in the repository's history. A reader needs the RDKit the build was derived under exactly, since fingerprints and registration hashes change between releases.
 
 The dataset viewer shows the reaction ID, reaction SMILES, and identifiers of the projections, and the structures in full.
 

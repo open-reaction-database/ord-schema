@@ -31,7 +31,7 @@ stay in its history. Published files the tree does not hold are deleted only wit
 build of only some datasets passes every other check. The tree has to be one build a
 ``Corpus(require_pivots=True, require_occurrences=True)`` opens, so it is refused if:
 
-* its files carry more than one artifact schema or RDKit version;
+* its files carry more than one artifact schema version or RDKit version;
 * a pivot or occurrences file sits under a level or path other than the one its footer
   names, or a level or path this library derives is missing;
 * an artifact, pivot level, or indexed path restates a source dataset twice, or other
@@ -75,18 +75,18 @@ class ArtifactUpload:
     """What ``upload_artifacts`` sent, or would send.
 
     Attributes:
-        artifact_schema: The artifact schema every file carries.
+        artifact_schema_version: The artifact schema version every file carries.
         rdkit_version: The RDKit version every file carries.
         replaced: The stamps of the build the repository held, or None if it held none.
-            A schema or RDKit version other than the tree's means every reader on the
-            old one has to pass an earlier revision once this commit lands.
+            A schema version or RDKit other than the tree's means a reader that reads
+            only the old pair has to pass an earlier revision once this commit lands.
         uploaded: Repository paths written. Unchanged files are among them;
             ``huggingface_hub`` drops those from the commit itself.
         deleted: Repository paths removed because the local tree no longer holds them.
         commit_url: The commit made, or None for a dry run or when nothing changed.
     """
 
-    artifact_schema: str
+    artifact_schema_version: str
     rdkit_version: str
     replaced: base.Stamps | None
     uploaded: list[str]
@@ -99,14 +99,14 @@ class _Build:
     """One artifact's local tree, checked to be a single build.
 
     Attributes:
-        artifact_schema: The artifact schema every file carries.
+        artifact_schema_version: The artifact schema version every file carries.
         rdkit_version: The RDKit version every file carries.
         files: The files, keyed by path relative to the artifact's directory.
         covered: The source MD5s each group restates. A group is the level or indexed
             path for pivots and occurrences, and the empty string otherwise.
     """
 
-    artifact_schema: str
+    artifact_schema_version: str
     rdkit_version: str
     files: dict[str, pathlib.Path]
     covered: dict[str, set[str]]
@@ -135,7 +135,9 @@ def upload_artifacts(
     refuses the upload; files outside them, such as the dataset card, are left alone.
 
     The commit names the head it was planned against as its parent, so one that lands
-    in between fails this one rather than having its files deleted.
+    in between fails this one rather than having its files deleted. Its description
+    names the artifact schema version and RDKit version, which is how a reader finds
+    an earlier build in the repository's history.
 
     Args:
         root: The local tree.
@@ -147,8 +149,8 @@ def upload_artifacts(
         occurrence_paths: The indexed paths the occurrences must cover, exactly; every
             path this library derives by default.
         dry_run: Check the tree and work out the commit without making it.
-        allow_deletes: Delete published files of the uploaded builds that the tree
-            does not hold. Without it, any such file refuses the upload, dry run or not.
+        allow_deletes: Delete published artifact files the tree does not hold. Without
+            it, any such file refuses the upload, dry run or not.
 
     Returns:
         What was, or would be, uploaded and deleted.
@@ -165,7 +167,7 @@ def upload_artifacts(
         artifact: _check_build(root / directory, artifact)
         for artifact, directory in huggingface.ARTIFACT_DIRECTORIES.items()
     }
-    artifact_schema, rdkit_version = _check_one_build(builds)
+    artifact_schema_version, rdkit_version = _check_one_build(builds)
     sources: dict[str, set[str]] = {}
     for artifact, build in builds.items():
         directory = huggingface.ARTIFACT_DIRECTORIES[artifact]
@@ -199,6 +201,8 @@ def upload_artifacts(
     published = list_repo_files(
         huggingface.ORD_ARTIFACTS_HF_REPO, repo_type="dataset", revision=head
     )
+    # Read before committing, so a failure here cannot follow a commit that landed.
+    replaced = huggingface.published_build(head, published)
     operations: list[CommitOperationAdd | CommitOperationDelete] = []
     uploaded: list[str] = []
     deleted: list[str] = []
@@ -231,6 +235,10 @@ def upload_artifacts(
             huggingface.ORD_ARTIFACTS_HF_REPO,
             operations,
             commit_message=commit_message,
+            commit_description=(
+                f"Artifact schema version {artifact_schema_version}, "
+                f"RDKit {rdkit_version}."
+            ),
             repo_type="dataset",
             revision=revision,
             parent_commit=head,
@@ -240,9 +248,9 @@ def upload_artifacts(
         if info.oid != head:
             commit_url = info.commit_url
     return ArtifactUpload(
-        artifact_schema=artifact_schema,
+        artifact_schema_version=artifact_schema_version,
         rdkit_version=rdkit_version,
-        replaced=huggingface.published_build(head, published),
+        replaced=replaced,
         uploaded=uploaded,
         deleted=deleted,
         commit_url=commit_url,
@@ -278,7 +286,7 @@ def _check_build(directory: pathlib.Path, artifact: str) -> _Build:
             raise ValueError(f"{path} holds {stamps.artifact}, not {artifact}")
         if stamps.rdkit_version is None:
             raise ValueError(f"{path} carries no RDKit stamp; derive it again")
-        stamped[stamps.artifact_schema, stamps.rdkit_version] += 1
+        stamped[stamps.artifact_schema_version, stamps.rdkit_version] += 1
         relative = path.relative_to(directory)
         group = ""
         if group_stamp is not None:
@@ -301,9 +309,9 @@ def _check_build(directory: pathlib.Path, artifact: str) -> _Build:
             f"{directory} spans more than one build, so part of it is stale: "
             f"{dict(stamped.most_common())}"
         )
-    [(artifact_schema, rdkit_version)] = stamped
+    [(artifact_schema_version, rdkit_version)] = stamped
     return _Build(
-        artifact_schema=artifact_schema,
+        artifact_schema_version=artifact_schema_version,
         rdkit_version=rdkit_version,
         files=files,
         covered=dict(covered),
@@ -313,26 +321,28 @@ def _check_build(directory: pathlib.Path, artifact: str) -> _Build:
 def _check_one_build(builds: dict[str, _Build]) -> tuple[str, str]:
     """Checks that the artifacts were derived together, as one build.
 
-    Each artifact checked on its own can still pair a rederived projection with
-    structures derived before it, each internally whole.
+    Each artifact checked on its own can still pair a projection rederived under a new
+    schema version or RDKit with structures derived under the old, each internally
+    whole.
 
     Args:
         builds: Every artifact's build.
 
     Returns:
-        The artifact schema and RDKit version they share.
+        The artifact schema version and RDKit version they share.
 
     Raises:
-        ValueError: If the artifacts carry different artifact schemas or RDKit versions.
+        ValueError: If the artifacts carry different artifact schema versions or RDKit
+            versions.
     """
     stamped = {
-        artifact: (build.artifact_schema, build.rdkit_version)
+        artifact: (build.artifact_schema_version, build.rdkit_version)
         for artifact, build in builds.items()
     }
     if len(set(stamped.values())) > 1:
         raise ValueError(
-            "the artifacts were derived under different artifact schemas or RDKit, as "
-            f"(schema, RDKit): {stamped}"
+            "the artifacts were derived under different artifact schema versions or "
+            f"RDKit, as (schema version, RDKit): {stamped}"
         )
     [build] = set(stamped.values())
     return build
@@ -407,14 +417,16 @@ def main(argv: list[str] | None = None) -> None:
         allow_deletes=args.allow_deletes,
     )
     logger.info(
-        "artifact schema %s, RDKit %s", upload.artifact_schema, upload.rdkit_version
+        "artifact schema version %s, RDKit %s",
+        upload.artifact_schema_version,
+        upload.rdkit_version,
     )
     if upload.replaced is None:
         logger.info("the repository holds no build yet")
     else:
         logger.info(
-            "replaces artifact schema %s, RDKit %s",
-            upload.replaced.artifact_schema,
+            "replaces artifact schema version %s, RDKit %s",
+            upload.replaced.artifact_schema_version,
             upload.replaced.rdkit_version,
         )
     verb = "would be" if args.dry_run else "were"

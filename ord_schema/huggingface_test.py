@@ -105,13 +105,13 @@ def _published(levels=("inputs", "inputs.components")):
     ]
 
 
-def _footer(artifact_schema=None, rdkit_version=None):
+def _footer(artifact_schema_version=None, rdkit_version=None):
     """Returns a Parquet file's bytes, stamped as an occurrences artifact."""
     stamps = base.Stamps(
         artifact="occurrences",
         source_dataset_id=None,
         source_md5="aa",
-        artifact_schema=artifact_schema or base.ARTIFACT_SCHEMA,
+        artifact_schema_version=artifact_schema_version or base.ARTIFACT_SCHEMA_VERSION,
         rdkit_version=rdkit_version or rdBase.rdkitVersion,
     )
     table = pa.table({"x": [1]}).replace_schema_metadata(base.to_metadata(stamps))
@@ -172,10 +172,12 @@ def test_directories_cover_every_artifact():
 
 class TestPublishedBuild:
     def test_reads_one_occurrences_footer_at_the_commit(self, monkeypatch):
-        hub = _FakeHub(monkeypatch, _published(), footer=_footer(artifact_schema="7"))
+        hub = _FakeHub(
+            monkeypatch, _published(), footer=_footer(artifact_schema_version="7")
+        )
         stamps = huggingface.published_build(hub.head, _published())
         assert stamps is not None
-        assert stamps.artifact_schema == "7"
+        assert stamps.artifact_schema_version == "7"
         assert hub.opened == [
             f"datasets/{huggingface.ORD_ARTIFACTS_HF_REPO}@{hub.head}/"
             "occurrences/inputs.components/aa/ord_dataset-aa.parquet"
@@ -238,17 +240,19 @@ class TestFetchArtifacts:
         assert elsewhere.exists()
 
     @pytest.mark.parametrize(
-        ("artifact_schema", "rdkit_version", "message"),
+        ("artifact_schema_version", "rdkit_version", "message"),
         [
-            ("0", None, "holds artifact schema 0 derived under RDKit"),
+            ("0", None, "holds artifact schema version 0 derived under RDKit"),
             (None, "1999.09.1", "derived under RDKit 1999.09.1"),
         ],
         ids=["schema", "rdkit"],
     )
     def test_refuses_a_build_this_library_cannot_read(
-        self, tmp_path, monkeypatch, artifact_schema, rdkit_version, message
+        self, tmp_path, monkeypatch, artifact_schema_version, rdkit_version, message
     ):
-        footer = _footer(artifact_schema=artifact_schema, rdkit_version=rdkit_version)
+        footer = _footer(
+            artifact_schema_version=artifact_schema_version, rdkit_version=rdkit_version
+        )
         hub = _FakeHub(monkeypatch, _published(), footer=footer)
         held = tmp_path / "projections" / "cc" / "ord_dataset-cc.parquet"
         _touch(held)

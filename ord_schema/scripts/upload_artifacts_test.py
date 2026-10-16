@@ -46,7 +46,7 @@ def _write_artifact(
     source_md5,
     *,
     group=None,
-    artifact_schema=None,
+    artifact_schema_version=None,
     rdkit_version=None,
     stamp_rdkit=True,
 ):
@@ -55,7 +55,7 @@ def _write_artifact(
         artifact=artifact,
         source_dataset_id=None,
         source_md5=source_md5,
-        artifact_schema=artifact_schema or base.ARTIFACT_SCHEMA,
+        artifact_schema_version=artifact_schema_version or base.ARTIFACT_SCHEMA_VERSION,
         rdkit_version=(rdkit_version or rdBase.rdkitVersion) if stamp_rdkit else None,
     )
     metadata = base.to_metadata(stamps)
@@ -145,7 +145,7 @@ class TestUploadArtifacts:
         hub = _FakeHub(monkeypatch, [stale, longer, "README.md"])
         upload = _upload(tmp_path, allow_deletes=True)
         assert upload.commit_url == f"https://example/commit/{hub.made}"
-        assert upload.artifact_schema == base.ARTIFACT_SCHEMA
+        assert upload.artifact_schema_version == base.ARTIFACT_SCHEMA_VERSION
         assert upload.rdkit_version == rdBase.rdkitVersion
         # 2 sources x (projection, structures, 2 pivot levels, 1 indexed path).
         assert len(upload.uploaded) == 10
@@ -156,6 +156,11 @@ class TestUploadArtifacts:
         [(repo_id, operations, kwargs)] = hub.commits
         assert repo_id == huggingface.ORD_ARTIFACTS_HF_REPO
         assert kwargs["commit_message"] == "derive"
+        # What a reader searches the history by for an earlier build.
+        assert kwargs["commit_description"] == (
+            f"Artifact schema version {base.ARTIFACT_SCHEMA_VERSION}, "
+            f"RDKit {rdBase.rdkitVersion}."
+        )
         assert kwargs["repo_type"] == "dataset"
         # Planned against the head it lists, so a commit landing in between fails it.
         assert hub.listed == [hub.head]
@@ -210,7 +215,7 @@ class TestUploadArtifacts:
             artifact="occurrences",
             source_dataset_id=None,
             source_md5="aa",
-            artifact_schema="0",
+            artifact_schema_version="0",
             rdkit_version="1999.09.1",
         )
         hub = _FakeHub(monkeypatch, published, replaced=replaced)
@@ -218,6 +223,19 @@ class TestUploadArtifacts:
         # Read at the head the upload is planned against.
         assert hub.read == [(hub.head, published)]
         assert upload.replaced == replaced
+
+    def test_reads_the_replaced_build_before_committing(self, tmp_path, monkeypatch):
+        # A failed read after the commit would report an upload that landed as failed.
+        _write_tree(tmp_path)
+        hub = _FakeHub(monkeypatch)
+
+        def unreadable(commit, published):
+            raise OSError("footer unreadable")
+
+        monkeypatch.setattr(huggingface, "published_build", unreadable)
+        with pytest.raises(OSError, match="footer unreadable"):
+            _upload(tmp_path)
+        assert hub.commits == []
 
     def test_reports_no_commit_when_nothing_changed(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
@@ -273,7 +291,9 @@ class TestUploadArtifacts:
                 rdkit_version="1999.09.1",
             )
         _FakeHub(monkeypatch)
-        with pytest.raises(ValueError, match="different artifact schemas or RDKit"):
+        with pytest.raises(
+            ValueError, match="different artifact schema versions or RDKit"
+        ):
             _upload(tmp_path)
 
     def test_refuses_artifacts_of_different_schemas(self, tmp_path, monkeypatch):
@@ -284,7 +304,7 @@ class TestUploadArtifacts:
                 tmp_path / "structures" / source / f"ord_dataset-{source}.parquet",
                 "structures",
                 source,
-                artifact_schema="0",
+                artifact_schema_version="0",
             )
         _FakeHub(monkeypatch)
         with pytest.raises(ValueError, match=r"'structures': \('0', '[^']+'\)"):
@@ -405,7 +425,7 @@ class TestCorpusCheck:
         upload = upload_artifacts.upload_artifacts(
             derived_tree, commit_message="derive", dry_run=True
         )
-        assert upload.artifact_schema == base.ARTIFACT_SCHEMA
+        assert upload.artifact_schema_version == base.ARTIFACT_SCHEMA_VERSION
         assert upload.rdkit_version == rdBase.rdkitVersion
 
     def test_opens_a_subset_without_requiring_the_rest(
@@ -570,7 +590,7 @@ def test_a_published_build_fetches_into_a_corpus(derived_tree, tmp_path, monkeyp
 def _report(commit_url=None):
     """Returns what an upload of nothing would report."""
     return upload_artifacts.ArtifactUpload(
-        artifact_schema=base.ARTIFACT_SCHEMA,
+        artifact_schema_version=base.ARTIFACT_SCHEMA_VERSION,
         rdkit_version=rdBase.rdkitVersion,
         replaced=None,
         uploaded=[],

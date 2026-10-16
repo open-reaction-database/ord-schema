@@ -841,7 +841,7 @@ def test_counting_a_level_twice_is_refused(populated):
 def test_counting_a_stale_projection_is_refused(populated, tmp_path, monkeypatch):
     # An artifact derived from a stale projection inherits the dataset hash and so
     # claims a provenance it does not have; nothing would mark it stale again.
-    monkeypatch.setattr(base, "ARTIFACT_SCHEMA", "later")
+    monkeypatch.setattr(base, "ARTIFACT_SCHEMA_VERSION", "later")
     with pytest.raises(ValueError, match="stale projection"):
         pivot.count_levels(populated, ["workups"])
     with pytest.raises(ValueError, match="stale projection"):

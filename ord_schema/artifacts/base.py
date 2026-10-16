@@ -35,9 +35,9 @@ already uses for source datasets:
 
 * ``ord.artifact`` -- which artifact this is, so a reader can tell one from another
   without inspecting the schema.
-* ``ord.artifact_schema`` -- the schema the artifact was derived to: what its columns
-  are and what each holds. One for every artifact, because they are published and
-  fetched as one build.
+* ``ord.artifact_schema_version`` -- the version of the schema the artifact was
+  derived to: its columns and what each holds. One for every artifact, because they
+  are published and fetched as one build.
 * ``ord.source_md5`` -- the content of the source dataset it restates. An artifact
   derived from another artifact passes this through rather than hashing its parent, so
   every artifact names the dataset it reflects however many derivations away it sits,
@@ -51,15 +51,15 @@ already uses for source datasets:
 * ``ord.source_dataset_id`` -- the source's ID, written only when the source records
   one, and so the only key not required to read stamps back.
 
-``is_current`` requires the artifact name, the source content, the artifact schema, and
-the RDKit version to all match, since any of the four changing can change a value or
-mean the file answers a different question.
+``is_current`` requires the artifact name, the source content, the artifact schema
+version, and the RDKit version to all match, since any of the four changing can
+change a value or mean the file answers a different question.
 
 No key names the ord-schema release. A release need not change any artifact, and a
 development build reports the last release's number, so a release stamp says nothing
-about whether a file is current -- ``ord.artifact_schema`` is what says the columns
-moved -- while making a rebuild of an unchanged artifact write different bytes, which an
-upload then carries as a change.
+about whether a file is current -- ``ord.artifact_schema_version`` is what says the
+columns moved -- while making a rebuild of an unchanged artifact write different
+bytes, which an upload then carries as a change.
 """
 
 import dataclasses
@@ -90,18 +90,18 @@ _ESCAPED_WILDCARD = re.compile(r"\[([*?\[])\]")
 # and published in place. base_test pins what each artifact holds, so a change to it
 # fails there until someone decides which kind it is. One schema for every artifact,
 # because they are published and fetched as one build.
-ARTIFACT_SCHEMA = "1"
+ARTIFACT_SCHEMA_VERSION = "1"
 
 
 _META_ARTIFACT = "ord.artifact"
-_META_ARTIFACT_SCHEMA = "ord.artifact_schema"
+_META_ARTIFACT_SCHEMA_VERSION = "ord.artifact_schema_version"
 _META_RDKIT_VERSION = "ord.rdkit_version"
 _META_SOURCE_DATASET_ID = "ord.source_dataset_id"
 _META_SOURCE_MD5 = "ord.source_md5"
 
 _REQUIRED = (
     _META_ARTIFACT,
-    _META_ARTIFACT_SCHEMA,
+    _META_ARTIFACT_SCHEMA_VERSION,
     _META_SOURCE_MD5,
 )
 
@@ -117,7 +117,7 @@ class Stamps:
     artifact: str
     source_dataset_id: str | None
     source_md5: str
-    artifact_schema: str
+    artifact_schema_version: str
     rdkit_version: str | None = None
 
 
@@ -155,13 +155,13 @@ def current_stamps(
         source_md5: Hash of the source, from ``parquet.DatasetView.md5``.
 
     Returns:
-        Stamps carrying the artifact schema and the RDKit version in use.
+        Stamps carrying the artifact schema version and the RDKit version in use.
     """
     return Stamps(
         artifact=artifact,
         source_dataset_id=source_dataset_id,
         source_md5=source_md5,
-        artifact_schema=ARTIFACT_SCHEMA,
+        artifact_schema_version=ARTIFACT_SCHEMA_VERSION,
         rdkit_version=rdBase.rdkitVersion,
     )
 
@@ -170,7 +170,7 @@ def to_metadata(value: Stamps) -> dict[str, str]:
     """Returns ``value`` as Parquet footer key-value metadata."""
     result = {
         _META_ARTIFACT: value.artifact,
-        _META_ARTIFACT_SCHEMA: value.artifact_schema,
+        _META_ARTIFACT_SCHEMA_VERSION: value.artifact_schema_version,
         _META_SOURCE_MD5: value.source_md5,
     }
     if value.source_dataset_id is not None:
@@ -227,7 +227,7 @@ def stamps_from_metadata(raw: Mapping[bytes, bytes]) -> Stamps:
             source_dataset_id.decode() if source_dataset_id is not None else None
         ),
         source_md5=values[_META_SOURCE_MD5],
-        artifact_schema=values[_META_ARTIFACT_SCHEMA],
+        artifact_schema_version=values[_META_ARTIFACT_SCHEMA_VERSION],
         rdkit_version=rdkit_version.decode() if rdkit_version is not None else None,
     )
 
@@ -328,7 +328,8 @@ def is_current(
 ) -> bool:
     """Returns whether ``path`` holds ``artifact`` derived from ``source_md5`` by us.
 
-    All of the source content, the artifact schema, and the RDKit version must match;
+    All of the source content, the artifact schema version, and the RDKit version must
+    match;
     any of them changing can change a value. A missing, unreadable, or wrong-artifact
     file is not current.
 
@@ -366,12 +367,12 @@ def stamps_are_current(value: Stamps, artifact: str) -> bool:
         artifact: Artifact name the file is expected to hold.
 
     Returns:
-        Whether the artifact name, the artifact schema, and the RDKit version all
-        match. A file with no RDKit stamp is not current.
+        Whether the artifact name, the artifact schema version, and the RDKit version
+        all match. A file with no RDKit stamp is not current.
     """
     return (
         value.artifact == artifact
-        and value.artifact_schema == ARTIFACT_SCHEMA
+        and value.artifact_schema_version == ARTIFACT_SCHEMA_VERSION
         and value.rdkit_version == rdBase.rdkitVersion
     )
 
