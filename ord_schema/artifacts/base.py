@@ -46,11 +46,6 @@ already uses for source datasets:
   derived from another artifact passes this through rather than hashing its parent, so
   every artifact names the dataset it reflects however many derivations away it sits,
   and one comparison answers "is this current for that dataset?"
-* ``ord.ord_schema_version`` -- the library release that derived it. Recorded, not
-  compared: a release need not change any artifact, and a development build between
-  releases reports the last release's number, so the version would both stale files no
-  change touched and pass files a change did. ``ord.artifact_lineage`` is what says a
-  definition moved.
 * ``ord.rdkit_version`` -- the RDKit that derived it. Every artifact leans on RDKit --
   canonical SMILES in the projection, fingerprints in the structures artifact -- and
   RDKit releases have changed both canonicalization and pattern fingerprints, either of
@@ -63,6 +58,12 @@ already uses for source datasets:
 ``is_current`` requires the artifact name, the source content, the artifact lineage, and
 the RDKit version to all match, since any of the four changing can change a value or
 mean the file answers a different question.
+
+No key names the ord-schema release. A release need not change any artifact, and a
+development build reports the last release's number, so a release stamp says nothing
+about whether a file is current -- ``ord.artifact_lineage`` is what says a definition
+moved -- while making a rebuild of an unchanged artifact write different bytes, which an
+upload then carries as a change.
 """
 
 import dataclasses
@@ -71,7 +72,6 @@ import os
 import pathlib
 import re
 from collections.abc import Callable, Collection, Mapping
-from importlib import metadata
 from typing import Protocol
 
 import pyarrow as pa
@@ -157,13 +157,11 @@ _META_ARTIFACT_LINEAGE = "ord.artifact_lineage"
 _META_RDKIT_VERSION = "ord.rdkit_version"
 _META_SOURCE_DATASET_ID = "ord.source_dataset_id"
 _META_SOURCE_MD5 = "ord.source_md5"
-_META_ORD_SCHEMA_VERSION = "ord.ord_schema_version"
 
 _REQUIRED = (
     _META_ARTIFACT,
     _META_ARTIFACT_LINEAGE,
     _META_SOURCE_MD5,
-    _META_ORD_SCHEMA_VERSION,
 )
 
 
@@ -178,7 +176,6 @@ class Stamps:
     artifact: str
     source_dataset_id: str | None
     source_md5: str
-    ord_schema_version: str
     artifact_lineage: str
     rdkit_version: str | None = None
 
@@ -217,13 +214,12 @@ def current_stamps(
         source_md5: Hash of the source, from ``parquet.DatasetView.md5``.
 
     Returns:
-        Stamps carrying the current library version and the artifact's lineage.
+        Stamps carrying the artifact's lineage and the RDKit version in use.
     """
     return Stamps(
         artifact=artifact,
         source_dataset_id=source_dataset_id,
         source_md5=source_md5,
-        ord_schema_version=metadata.version("ord-schema"),
         artifact_lineage=lineage(artifact),
         rdkit_version=rdBase.rdkitVersion,
     )
@@ -235,7 +231,6 @@ def to_metadata(value: Stamps) -> dict[str, str]:
         _META_ARTIFACT: value.artifact,
         _META_ARTIFACT_LINEAGE: value.artifact_lineage,
         _META_SOURCE_MD5: value.source_md5,
-        _META_ORD_SCHEMA_VERSION: value.ord_schema_version,
     }
     if value.source_dataset_id is not None:
         result[_META_SOURCE_DATASET_ID] = value.source_dataset_id
@@ -276,7 +271,6 @@ def load_stamps(path: str | os.PathLike[str]) -> Stamps:
             source_dataset_id.decode() if source_dataset_id is not None else None
         ),
         source_md5=values[_META_SOURCE_MD5],
-        ord_schema_version=values[_META_ORD_SCHEMA_VERSION],
         artifact_lineage=values[_META_ARTIFACT_LINEAGE],
         rdkit_version=rdkit_version.decode() if rdkit_version is not None else None,
     )
@@ -418,8 +412,7 @@ def stamps_are_current(value: Stamps, artifact: str) -> bool:
     Returns:
         Whether the artifact name, the artifact lineage, and the RDKit version all
         match. A file with no RDKit stamp is not current -- and a lineage mismatch
-        covers a redefinition of this artifact or of anything it was derived from. The
-        library version is not compared; see the module docstring.
+        covers a redefinition of this artifact or of anything it was derived from.
     """
     return (
         value.artifact == artifact

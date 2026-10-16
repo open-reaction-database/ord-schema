@@ -152,12 +152,16 @@ def _select(level: pivot.RepeatedLevel, remainder: tuple[str, ...]) -> str:
     element = ".".join([pivot.ELEMENT, *remainder])
     # An element carrying no structure is no occurrence: the pivot is complete, holding
     # a row for every element including one whose fields are all NULL, and this is not.
+    # Sorted on every column, so rebuilding the artifact writes the same bytes. Rows can
+    # repeat -- one structure under one role twice in a reaction -- and repeats are
+    # identical, so no order among them can show.
     # S608: the level and its remainder come from this module's walk of the schema.
     return f"""
         SELECT {pivot.REACTION_ID}, {element}.structure_id AS structure_id,
                {element}.{INDEXED_FIELD} AS {INDEXED_FIELD}
         FROM elements
         WHERE {element}.structure_id IS NOT NULL
+        ORDER BY {", ".join(SCHEMA.names)}
         """  # noqa: S608
 
 
@@ -239,8 +243,8 @@ def write_occurrences(
     connection = duckdb.connect()
     written = 0
     try:
-        # No row order to keep: a reader semi-joins this on reaction_id, and which
-        # occurrence came back first says nothing. Same trade the pivot makes.
+        # The order a file is written in comes from the sort in _select, as the
+        # pivot's does, so nothing upstream of it needs to hold one.
         connection.execute("SET preserve_insertion_order=false")
         # Through the relational API rather than a path interpolated into SQL, which a
         # filename holding a quote would otherwise close.

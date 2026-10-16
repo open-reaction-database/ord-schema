@@ -165,6 +165,45 @@ def test_a_workup_component_is_read_from_its_own_level(pivots, tmp_path):
     assert _rows(written) == [("ord-oc01", 2, "SOLVENT")]
 
 
+def test_occurrences_are_sorted_on_their_columns(tmp_path):
+    # ord-ocb is recorded first, so pyridine takes structure ID 0 and ethanol 1, and
+    # ord-oca lists ethanol before pyridine: its rows in the pivot's order are not also
+    # in structure_id order.
+    first = reaction_pb2.Reaction(reaction_id="ord-ocb")
+    _component(first.inputs["in"], "c1ccncc1", _ROLE.SOLVENT)
+    second = reaction_pb2.Reaction(reaction_id="ord-oca")
+    _component(second.inputs["in"], "CCO", _ROLE.REACTANT)
+    _component(second.inputs["in"], "c1ccncc1", _ROLE.SOLVENT)
+    source = tmp_path / "ord_dataset-ocsort.parquet"
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-ocsort",
+            name="test",
+            description="test",
+            reactions=[first, second],
+        ),
+        str(source),
+    )
+    projected = tmp_path / "projection.parquet"
+    projection.write_projection(source, projected)
+    pivoted = tmp_path / "pivot.parquet"
+    pivot.write_pivot(projected, pivoted, level_path="inputs.components")
+    elements = pq.read_table(pivoted).to_pylist()
+    in_pivot_order = [
+        (row["reaction_id"], row["element"]["structure_id"]) for row in elements
+    ]
+    assert in_pivot_order == [("ord-oca", 1), ("ord-oca", 0), ("ord-ocb", 0)]
+    written = tmp_path / "occurrences.parquet"
+    occurrences.write_occurrences(pivoted, written, path="inputs.components")
+    table = pq.read_table(written)
+    rows = list(zip(*(column.to_pylist() for column in table.columns), strict=True))
+    assert rows == [
+        ("ord-oca", 0, "SOLVENT"),
+        ("ord-oca", 1, "REACTANT"),
+        ("ord-ocb", 0, "SOLVENT"),
+    ]
+
+
 def test_a_path_the_source_never_recorded_writes_an_empty_artifact(tmp_path):
     # Empty rather than missing: a reader globs a path and finds a file holding nothing
     # but carrying the schema and the stamps, which is what a corpus recording no

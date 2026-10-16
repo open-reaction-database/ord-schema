@@ -40,8 +40,8 @@ round-tripping.
 
 ## Stamps
 
-Every artifact carries five footer keys in the `ord.` namespace, and
-[`base.is_current`](base.py) requires four of them to match before a file counts as
+Every artifact carries four footer keys in the `ord.` namespace, and
+[`base.is_current`](base.py) requires all of them to match before a file counts as
 current:
 
 | key | why it can invalidate |
@@ -51,17 +51,22 @@ current:
 | `ord.source_md5` | the content of the source dataset this restates |
 | `ord.rdkit_version` | RDKit releases have changed both canonicalization and pattern fingerprints, either of which silently breaks a file whose consumers run the newer one |
 
-The fifth, `ord.ord_schema_version`, records the release that derived the file and is
-not compared. A release need not change any artifact, and a development build between
-releases reports the last release's number, so comparing it would stale files no change
-touched and pass files a change did. A change to how an artifact is derived bumps its
-entry in `ARTIFACT_VERSIONS`; one left unbumped is invisible to the check, and `--force`
-is how a run rebuilds past it. `base_test.py` pins what each artifact holds when derived
-from two fixtures, so a change to an artifact fails there until someone decides whether
-it needs the bump.
+No key names the ord-schema release. A release need not change any artifact, and a
+development build reports the last release's number, so a release stamp says nothing
+about currency while making a rebuild of an unchanged artifact write different bytes. A
+change to how an artifact is derived bumps its entry in `ARTIFACT_VERSIONS`; one left
+unbumped is invisible to the check, and `--force` is how a run rebuilds past it.
+`base_test.py` pins what each artifact holds when derived from two fixtures, so a change
+to an artifact fails there until someone decides whether it needs the bump.
 
-A sixth, `ord.source_dataset_id`, is written only when the source records one, and is the
+A fifth, `ord.source_dataset_id`, is written only when the source records one, and is the
 only key not required to read stamps back.
+
+Rebuilding an artifact from the same source writes the same bytes, under any ord-schema
+release that leaves its definition alone, until pyarrow or DuckDB changes: every Parquet
+footer names the pyarrow that wrote it, and DuckDB's batches are a pivot's row groups.
+Pivots are sorted on `reaction_id` and their ordinals, and occurrences on every column,
+since the unnest that produces them runs without holding any order.
 
 `ord.artifact` carries a second job the other keys do not: nothing outside this library
 writes it, so its presence alone says a file is ours to replace. That is what

@@ -356,6 +356,45 @@ def test_a_written_pivot_carries_its_rows_and_its_ordinals(projected, tmp_path):
     ]
 
 
+def test_a_written_pivot_is_sorted_on_its_key(tmp_path):
+    # Recorded in descending reaction_id order, so rows written in the order the unnest
+    # produces them are not also sorted. The row groups are smaller than the level, so
+    # a sort applied to each batch rather than to the whole level fails too.
+    reactions = []
+    for reaction_id in ("ord-pv03", "ord-pv02", "ord-pv01"):
+        reaction = reaction_pb2.Reaction(reaction_id=reaction_id)
+        for _ in range(2):
+            outcome = reaction.outcomes.add()
+            outcome.products.add(is_desired_product=True)
+            outcome.products.add(is_desired_product=False)
+        reactions.append(reaction)
+    source = tmp_path / "ord_dataset-pvsort.parquet"
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-pvsort",
+            name="test",
+            description="test",
+            reactions=reactions,
+        ),
+        str(source),
+    )
+    projected = tmp_path / "projection.parquet"
+    projection.write_projection(source, projected)
+    recorded = pq.read_table(projected, columns=["reaction_id"]).column(0).to_pylist()
+    assert recorded == ["ord-pv03", "ord-pv02", "ord-pv01"]
+    output = tmp_path / "products.parquet"
+    pivot.write_pivot(
+        projected, output, level_path="outcomes.products", row_group_size=5
+    )
+    assert pq.read_metadata(output).num_row_groups == 3
+    table = pq.read_table(
+        output, columns=["reaction_id", "outcome_index", "product_index"]
+    )
+    keys = list(zip(*(column.to_pylist() for column in table.columns), strict=True))
+    assert len(keys) == 12
+    assert keys == sorted(keys)
+
+
 def test_a_written_pivot_is_stamped_with_its_level(projected, tmp_path):
     output = tmp_path / "products.parquet"
     pivot.write_pivot(projected, output, level_path="outcomes.products")
