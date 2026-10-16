@@ -14,15 +14,18 @@
 """Tests for ord_schema.huggingface."""
 
 import glob
+import io
 import re
 import types
 
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 from huggingface_hub.errors import EntryNotFoundError
 from rdkit import rdBase
 
 from ord_schema import huggingface, message_helpers
-from ord_schema.artifacts import base
+from ord_schema.artifacts import base, occurrences, pivot, projection, structures
 
 _DATASET_ID = "ord_dataset-35a5a513f1dd44a3a97c88da99f81a00"
 
@@ -90,18 +93,31 @@ class TestFetchDataset:
 
 
 def _published(levels=("inputs", "inputs.components")):
-    """Returns repository paths holding this library's build of every artifact."""
+    """Returns repository paths holding a build of every artifact."""
     shard = "aa/ord_dataset-aa.parquet"
-    pivots = huggingface.current_prefix("pivot")
     return [
         ".gitattributes",
         "README.md",
-        *(
-            f"{huggingface.current_prefix(artifact)}/{shard}"
-            for artifact in ("projection", "structures", "occurrences")
-        ),
-        *(f"{pivots}/{level}/{shard}" for level in levels),
+        f"projections/{shard}",
+        f"structures/{shard}",
+        f"occurrences/inputs.components/{shard}",
+        *(f"pivots/{level}/{shard}" for level in levels),
     ]
+
+
+def _footer(artifact_schema_version=None, rdkit_version=None):
+    """Returns a Parquet file's bytes, stamped as an occurrences artifact."""
+    stamps = base.Stamps(
+        artifact="occurrences",
+        source_dataset_id=None,
+        source_md5="aa",
+        artifact_schema_version=artifact_schema_version or base.ARTIFACT_SCHEMA_VERSION,
+        rdkit_version=rdkit_version or rdBase.rdkitVersion,
+    )
+    table = pa.table({"x": [1]}).replace_schema_metadata(base.to_metadata(stamps))
+    sink = io.BytesIO()
+    pq.write_table(table, sink)
+    return sink.getvalue()
 
 
 def _touch(*paths):
@@ -114,13 +130,16 @@ def _touch(*paths):
 class _FakeHub:
     """Stands in for the Hub's read side: a head commit, its files, the downloads."""
 
-    def __init__(self, monkeypatch, published, head="0123abcd"):
+    def __init__(self, monkeypatch, published, head="0123abcd", footer=None):
         self.published = list(published)
         self.head = head
+        self.footer = footer or _footer()
         self.listed = []
+        self.opened = []
         self.downloads = []
         monkeypatch.setattr(huggingface, "repo_info", self._repo_info)
         monkeypatch.setattr(huggingface, "list_repo_files", self._list_repo_files)
+        monkeypatch.setattr(huggingface, "HfFileSystem", lambda: self)
         monkeypatch.setattr(huggingface, "snapshot_download", self._snapshot_download)
 
     def _repo_info(self, repo_id, *, repo_type, revision):
@@ -132,45 +151,58 @@ class _FakeHub:
         self.listed.append(revision)
         return list(self.published)
 
+    def open(self, location, *, block_size):
+        self.opened.append(location)
+        return io.BytesIO(self.footer)
+
     def _snapshot_download(self, **kwargs):
         self.downloads.append(kwargs)
         return str(kwargs["local_dir"])
 
 
-class TestArtifactPrefix:
-    def test_keys_by_lineage_and_rdkit(self):
-        prefix = huggingface.artifact_prefix(
-            "structures", "structures=1,projection=2", "2026.03.5"
+def test_directories_cover_every_artifact():
+    # An artifact missing here would be skipped by fetch and upload alike.
+    assert set(huggingface.ARTIFACT_DIRECTORIES) == {
+        projection.ARTIFACT,
+        structures.ARTIFACT,
+        pivot.ARTIFACT,
+        occurrences.ARTIFACT,
+    }
+
+
+class TestPublishedBuild:
+    def test_reads_one_occurrences_footer_at_the_commit(self, monkeypatch):
+        hub = _FakeHub(
+            monkeypatch, _published(), footer=_footer(artifact_schema_version="7")
         )
-        assert prefix == "structures/structures-1_projection-2/rdkit-2026.03.5"
+        stamps = huggingface.published_build(hub.head, _published())
+        assert stamps is not None
+        assert stamps.artifact_schema_version == "7"
+        assert hub.opened == [
+            f"datasets/{huggingface.ORD_ARTIFACTS_HF_REPO}@{hub.head}/"
+            "occurrences/inputs.components/aa/ord_dataset-aa.parquet"
+        ]
 
-    def test_spells_no_hive_partition(self):
-        # DuckDB reads a key=value directory as a partition column.
-        assert "=" not in huggingface.current_prefix("occurrences")
-
-    def test_covers_every_artifact_the_library_versions(self):
-        # An artifact missing here would be skipped by fetch and upload alike.
-        assert set(huggingface.ARTIFACT_DIRECTORIES) == set(base.ARTIFACT_VERSIONS)
-
-    def test_current_prefix_names_this_library(self):
-        assert huggingface.current_prefix("pivot") == huggingface.artifact_prefix(
-            "pivot", base.lineage("pivot"), rdBase.rdkitVersion
-        )
+    def test_reports_no_build_without_occurrences(self, monkeypatch):
+        published = [p for p in _published() if not p.startswith("occurrences/")]
+        hub = _FakeHub(monkeypatch, published)
+        assert huggingface.published_build(hub.head, published) is None
+        assert hub.opened == []
 
 
 class TestFetchArtifacts:
-    def test_fetches_this_librarys_build_at_one_commit(self, tmp_path, monkeypatch):
+    def test_fetches_the_build_at_one_commit(self, tmp_path, monkeypatch):
         hub = _FakeHub(monkeypatch, _published())
         fetched = huggingface.fetch_artifacts(tmp_path, revision="main")
         [download] = hub.downloads
         assert download["repo_id"] == huggingface.ORD_ARTIFACTS_HF_REPO
         assert download["local_dir"] == tmp_path
         assert sorted(download["allow_patterns"]) == sorted(
-            f"{huggingface.current_prefix(artifact)}/**"
-            for artifact in huggingface.ARTIFACT_DIRECTORIES
+            f"{directory}/**" for directory in huggingface.ARTIFACT_DIRECTORIES.values()
         )
         # The branch is resolved once, so the build checked is the build downloaded.
         assert hub.listed == [hub.head]
+        assert all(f"@{hub.head}/" in location for location in hub.opened)
         assert download["revision"] == hub.head
         assert fetched.revision == hub.head
         assert {
@@ -179,8 +211,8 @@ class TestFetchArtifacts:
             "pivot": fetched.pivots,
             "occurrences": fetched.occurrences,
         } == {
-            artifact: tmp_path / huggingface.current_prefix(artifact)
-            for artifact in huggingface.ARTIFACT_DIRECTORIES
+            artifact: tmp_path / directory
+            for artifact, directory in huggingface.ARTIFACT_DIRECTORIES.items()
         }
 
     def test_patterns_find_what_was_fetched(self, tmp_path, monkeypatch):
@@ -197,42 +229,76 @@ class TestFetchArtifacts:
 
     def test_deletes_what_the_build_no_longer_holds(self, tmp_path, monkeypatch):
         _FakeHub(monkeypatch, _published())
-        projections = tmp_path / huggingface.current_prefix("projection")
-        kept = projections / "aa" / "ord_dataset-aa.parquet"
-        removed = projections / "cc" / "ord_dataset-cc.parquet"
-        other_build = tmp_path / "projections/projection-0/rdkit-1/cc/x.parquet"
-        _touch(kept, removed, other_build)
+        kept = tmp_path / "projections" / "aa" / "ord_dataset-aa.parquet"
+        removed = tmp_path / "projections" / "cc" / "ord_dataset-cc.parquet"
+        elsewhere = tmp_path / "notes" / "cc" / "x.parquet"
+        _touch(kept, removed, elsewhere)
         huggingface.fetch_artifacts(tmp_path)
         assert kept.exists()
         assert not removed.exists()
-        # Only what was fetched is pruned; another build's files are not its to judge.
-        assert other_build.exists()
+        # Only what was fetched is pruned; files outside it are not its to judge.
+        assert elsewhere.exists()
+
+    @pytest.mark.parametrize(
+        ("artifact_schema_version", "rdkit_version", "message"),
+        [
+            ("0", None, "holds artifact schema version 0 derived under RDKit"),
+            (None, "1999.09.1", "derived under RDKit 1999.09.1"),
+        ],
+        ids=["schema", "rdkit"],
+    )
+    def test_refuses_a_build_this_library_cannot_read(
+        self, tmp_path, monkeypatch, artifact_schema_version, rdkit_version, message
+    ):
+        footer = _footer(
+            artifact_schema_version=artifact_schema_version, rdkit_version=rdkit_version
+        )
+        hub = _FakeHub(monkeypatch, _published(), footer=footer)
+        held = tmp_path / "projections" / "cc" / "ord_dataset-cc.parquet"
+        _touch(held)
+        with pytest.raises(LookupError, match=re.escape(message)):
+            huggingface.fetch_artifacts(tmp_path)
+        # Refused before anything is downloaded or pruned, so a tree holding a build
+        # this library reads keeps it.
+        assert hub.downloads == []
+        assert held.exists()
+
+    def test_refuses_a_missing_artifact(self, tmp_path, monkeypatch):
+        published = [p for p in _published() if not p.startswith("structures/")]
+        hub = _FakeHub(monkeypatch, published)
+        with pytest.raises(LookupError, match="holds no structures artifacts"):
+            huggingface.fetch_artifacts(tmp_path)
+        assert hub.opened == []
+        assert hub.downloads == []
+
+    def test_a_longer_directory_name_is_not_the_artifact(self, tmp_path, monkeypatch):
+        published = [p for p in _published() if not p.startswith("projections/")]
+        # The same name with a digit more: a prefix of its path, not the artifact.
+        published.append("projections0/aa/ord_dataset-aa.parquet")
+        _FakeHub(monkeypatch, published)
+        with pytest.raises(LookupError, match="holds no projection artifacts"):
+            huggingface.fetch_artifacts(tmp_path)
 
     def test_leaves_a_linked_directory_alone(self, tmp_path, monkeypatch):
         _FakeHub(monkeypatch, _published())
         shared = tmp_path / "shared" / "ord_dataset-cc.parquet"
         _touch(shared)
-        projections = tmp_path / "tree" / huggingface.current_prefix("projection")
+        projections = tmp_path / "tree" / "projections"
         projections.mkdir(parents=True)
         (projections / "cc").symlink_to(shared.parent)
         with pytest.raises(ValueError, match="linked from outside the tree"):
             huggingface.fetch_artifacts(tmp_path / "tree")
         assert shared.exists()
 
-    @pytest.mark.parametrize(
-        "linked",
-        [huggingface.current_prefix("projection"), "projections"],
-        ids=["scope", "ancestor"],
-    )
-    def test_leaves_a_linked_scope_alone(self, tmp_path, monkeypatch, linked):
+    def test_leaves_a_linked_scope_alone(self, tmp_path, monkeypatch):
         _FakeHub(monkeypatch, _published())
         tree = tmp_path / "tree"
         shared = tmp_path / "shared"
-        stale = tree / huggingface.current_prefix("projection") / "cc" / "x.parquet"
+        stale = tree / "projections" / "cc" / "x.parquet"
         # Lay the shared storage out as the tree would be beneath the link.
-        _touch(shared / stale.relative_to(tree / linked))
-        (tree / linked).parent.mkdir(parents=True, exist_ok=True)
-        (tree / linked).symlink_to(shared)
+        _touch(shared / "cc" / "x.parquet")
+        tree.mkdir()
+        (tree / "projections").symlink_to(shared)
         with pytest.raises(ValueError, match="linked from outside the tree"):
             huggingface.fetch_artifacts(tree)
         assert stale.exists()
@@ -240,7 +306,7 @@ class TestFetchArtifacts:
     def test_prunes_beneath_a_linked_root(self, tmp_path, monkeypatch):
         _FakeHub(monkeypatch, _published())
         real = tmp_path / "real"
-        removed = real / huggingface.current_prefix("projection") / "cc" / "x.parquet"
+        removed = real / "projections" / "cc" / "x.parquet"
         _touch(removed)
         (tmp_path / "tree").symlink_to(real)
         # The root is the caller's choice, so a link there is not a foreign directory.
@@ -251,9 +317,7 @@ class TestFetchArtifacts:
         _FakeHub(monkeypatch, _published())
         target = tmp_path / "elsewhere.parquet"
         _touch(target)
-        link = (
-            tmp_path / "tree" / huggingface.current_prefix("projection") / "cc.parquet"
-        )
+        link = tmp_path / "tree" / "projections" / "cc.parquet"
         link.parent.mkdir(parents=True)
         link.symlink_to(target)
         huggingface.fetch_artifacts(tmp_path / "tree")
@@ -263,33 +327,30 @@ class TestFetchArtifacts:
     def test_fetches_named_pivot_levels(self, tmp_path, monkeypatch):
         hub = _FakeHub(monkeypatch, _published())
         huggingface.fetch_artifacts(tmp_path, pivot_levels=["inputs.components"])
-        pivots = huggingface.current_prefix("pivot")
         [download] = hub.downloads
-        assert f"{pivots}/inputs.components/**" in download["allow_patterns"]
-        assert f"{pivots}/**" not in download["allow_patterns"]
-        assert f"{pivots}/inputs/**" not in download["allow_patterns"]
+        assert "pivots/inputs.components/**" in download["allow_patterns"]
+        assert "pivots/**" not in download["allow_patterns"]
+        assert "pivots/inputs/**" not in download["allow_patterns"]
 
     def test_refreshes_levels_already_held(self, tmp_path, monkeypatch):
         hub = _FakeHub(monkeypatch, _published())
-        pivots = huggingface.current_prefix("pivot")
-        held = tmp_path / pivots / "inputs" / "aa" / "ord_dataset-aa.parquet"
-        dropped = tmp_path / pivots / "inputs" / "cc" / "ord_dataset-cc.parquet"
+        held = tmp_path / "pivots" / "inputs" / "aa" / "ord_dataset-aa.parquet"
+        dropped = tmp_path / "pivots" / "inputs" / "cc" / "ord_dataset-cc.parquet"
         _touch(held, dropped)
         huggingface.fetch_artifacts(tmp_path, pivot_levels=["inputs.components"])
         # A held level left at an older commit is one a Corpus refuses.
         [download] = hub.downloads
-        assert f"{pivots}/inputs/**" in download["allow_patterns"]
+        assert "pivots/inputs/**" in download["allow_patterns"]
         assert held.exists()
         assert not dropped.exists()
 
     def test_leaves_a_dotted_directory_alone(self, tmp_path, monkeypatch):
         hub = _FakeHub(monkeypatch, _published())
-        pivots = huggingface.current_prefix("pivot")
-        kept = tmp_path / pivots / ".checkpoints" / "x.parquet"
+        kept = tmp_path / "pivots" / ".checkpoints" / "x.parquet"
         _touch(kept)
         huggingface.fetch_artifacts(tmp_path, pivot_levels=["inputs.components"])
         [download] = hub.downloads
-        assert f"{pivots}/.checkpoints/**" not in download["allow_patterns"]
+        assert "pivots/.checkpoints/**" not in download["allow_patterns"]
         assert kept.exists()
 
     def test_refuses_missing_pivot_level(self, tmp_path, monkeypatch):
@@ -302,27 +363,3 @@ class TestFetchArtifacts:
         with pytest.raises(LookupError, match="reports no commit for main"):
             huggingface.fetch_artifacts(tmp_path)
         assert hub.listed == []
-
-    def test_a_longer_build_name_is_not_this_build(self, tmp_path, monkeypatch):
-        projections = huggingface.current_prefix("projection")
-        published = [
-            path for path in _published() if not path.startswith("projections/")
-        ]
-        # The same name with a digit more: a prefix of its path, not this build.
-        published.append(f"{projections}0/aa/ord_dataset-aa.parquet")
-        _FakeHub(monkeypatch, published)
-        with pytest.raises(LookupError, match="holds no projection artifacts"):
-            huggingface.fetch_artifacts(tmp_path)
-
-    def test_refuses_when_no_build_matches(self, tmp_path, monkeypatch):
-        other = huggingface.artifact_prefix(
-            "projection", base.lineage("projection"), "1999.09.1"
-        )
-        published = [
-            path for path in _published() if not path.startswith("projections/")
-        ]
-        published.append(f"{other}/ord_dataset-aa.parquet")
-        hub = _FakeHub(monkeypatch, published)
-        with pytest.raises(LookupError, match=re.escape(f"it holds ['{other}']")):
-            huggingface.fetch_artifacts(tmp_path)
-        assert hub.downloads == []
