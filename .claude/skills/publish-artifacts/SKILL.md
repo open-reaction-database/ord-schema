@@ -1,6 +1,6 @@
 ---
 name: publish-artifacts
-description: Use when publishing derived artifacts (projections, structures, pivots, occurrences) to the ord-artifacts Hugging Face repository, adding a new ord-data dataset to the published artifacts, re-deriving after an RDKit upgrade or an ARTIFACT_VERSIONS bump, or running ord_schema.scripts.upload_artifacts.
+description: Use when publishing derived artifacts (projections, structures, pivots, occurrences) to the ord-artifacts Hugging Face repository, adding a new ord-data dataset to the published artifacts, re-deriving after an RDKit upgrade or an ARTIFACT_VERSIONS bump, running ord_schema.scripts.upload_artifacts, or updating the ord-artifacts dataset card.
 ---
 
 # Publishing derived artifacts
@@ -71,6 +71,40 @@ ARTIFACTS=~/ord/artifacts
    publishes. It needs `hf auth login` or `$HF_TOKEN` with write access, and logs the
    commit URL.
 
+6. **Push the dataset card** on the first publish and after every new build in step 4.
+   [`dataset_card.md`](dataset_card.md) is the repository's `README.md`, which
+   `upload_artifacts` never touches. First check that the card names the prefixes the
+   dry run printed: both `data_files` globs, the Layout block, and the sentence ending
+   "for the `rdkit-<version>` build". Fix a stale card here and land the fix through a
+   PR, so the Hub's README is always a copy of this file. Then push it, once the user
+   has confirmed: this publishes too.
+
+   ```sh
+   hf upload open-reaction-database/ord-artifacts \
+       .claude/skills/publish-artifacts/dataset_card.md README.md --repo-type=dataset \
+       --commit-message="Describe the rdkit-<version> build in the dataset card"
+   ```
+
+   Then check that the [dataset viewer](https://huggingface.co/datasets/open-reaction-database/ord-artifacts/viewer)
+   shows rows for both configs. From the shell, a response holding `rows` passes and
+   one holding `error` names what failed:
+
+   ```sh
+   for config in projections structures; do
+       curl -s "https://datasets-server.huggingface.co/first-rows?dataset=open-reaction-database/ord-artifacts&config=$config&split=train" | head -c 300
+       echo
+   done
+   ```
+
+   The viewer reprocesses the repository after each commit, so give it a few minutes
+   before reading an error as final. `datasets` has no type for the projection's MAP
+   columns, so the `projections` config selects three columns and `dataset_info`
+   declares their features. Keep both when editing the card: `columns` alone fails,
+   because features are inferred from the full schema first. If `projections` still
+   errors, cut the card to the `structures` config alone: drop the `projections` config
+   and its `dataset_info`, make `structures` the default, rewrite the viewer sentence,
+   land that here, and push again.
+
 ## When the upload refuses to delete
 
 The refusal names a count per prefix. Rerun the dry run with `--allow_deletes` to list
@@ -87,3 +121,4 @@ already have caught.
 | Deriving under the conda `ord` env | Every file reads stale; the corpus re-derives under the older RDKit and a new prefix. |
 | Passing `--allow_deletes` to get past a refusal | Deletes published datasets from the build readers fetch. |
 | Reading the dry run's upload count as the size of the change | It is every file in the tree; a new dataset still reads as all of them. |
+| Editing the README on the Hub | The next push of `dataset_card.md` overwrites the edit. |
