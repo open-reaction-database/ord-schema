@@ -137,10 +137,11 @@ pivots/inputs.components/aa/ord_dataset-<id>.parquet
 ```
 
 An earlier build, of an older artifact schema version or another RDKit, stays in the
-repository's history. [`huggingface.fetch_artifacts`](../huggingface.py) reads the
-build's stamps in place before downloading anything and refuses a schema or RDKit this
-library does not read, so a local tree holding a build it reads is not overwritten with
-one it cannot; a reader left on the old pair passes the revision of a commit holding it.
+repository's history, and each upload's commit description names the pair it holds.
+[`huggingface.fetch_artifacts`](../huggingface.py) reads the build's stamps in place
+before downloading anything and refuses a schema version or RDKit this library does not
+read, so a local tree holding a build it reads is not overwritten with one it cannot; a
+reader left on the old pair passes the revision of a commit holding it.
 A fetch deletes local files the build has since dropped and refreshes any pivot level
 already held. The RDKit version has to match exactly: pattern fingerprints and
 registration hashes both drift between releases, patch releases included, and a

@@ -85,7 +85,7 @@ corpus = execute.Corpus(
 )
 ```
 
-Pass `revision=` a commit to pin one, or to fetch an earlier build. Each upload's commit message names the ord-data revision it was derived from. See the [search README](https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/search/README.md) for queries, and the [artifacts README](https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/artifacts/README.md) for how each artifact is derived and stamped.
+Pass `revision=` a commit to pin one, or to fetch an earlier build. Each upload's commit message names the ord-data revision it was derived from, and its description names the artifact schema version and RDKit. See the [search README](https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/search/README.md) for queries, and the [artifacts README](https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/artifacts/README.md) for how each artifact is derived and stamped.
 
 ## Citation
 

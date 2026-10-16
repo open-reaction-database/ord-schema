@@ -229,7 +229,7 @@ def fetch_artifacts(
     """Downloads the derived artifacts ord-artifacts holds, if this library reads them.
 
     The repository holds one build at a time, laid out as a local tree. A ``Corpus``
-    refuses artifacts whose schema or RDKit stamp differs from its own, so the build's
+    refuses artifacts whose schema version or RDKit differs from its own, so the build's
     stamps are read in place first and a mismatch is refused before anything is
     downloaded: a tree holding a build this library reads is not overwritten with one it
     cannot. An earlier build is fetched by passing the commit that holds it. Files are
@@ -289,8 +289,9 @@ def fetch_artifacts(
             f"{stamps.rdkit_version}, and this library reads schema version "
             f"{base.ARTIFACT_SCHEMA_VERSION} under RDKit "
             f"{rdBase.rdkitVersion}. Install the ord-schema and RDKit that build was "
-            "derived with, or pass revision= an earlier commit; each upload's commit "
-            "description names the schema version and RDKit it holds."
+            "derived with, or pass revision= an earlier commit holding a build this "
+            "library reads, if one was published; each upload's commit description "
+            "names the schema version and RDKit it holds."
         )
     pivots = ARTIFACT_DIRECTORIES["pivot"]
     scopes = [
