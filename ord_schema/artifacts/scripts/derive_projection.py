@@ -23,7 +23,7 @@ leading components of ``--input_pattern`` that hold no wildcard::
 
     data/aa/ord_dataset-<id>.parquet  ->  projections/aa/ord_dataset-<id>.parquet
 
-Projections whose footer already records the current source content, artifact lineage,
+Projections whose footer already records the current source content, artifact schema,
 and RDKit version are skipped, so re-running is cheap; ``--force`` rewrites them
 anyway. A match that is itself a derived artifact is ignored rather than derived from,
 so ``--output_dir`` may sit inside a recursive pattern's reach; an ``--output_dir`` that

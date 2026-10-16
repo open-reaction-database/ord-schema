@@ -420,7 +420,7 @@ def test_write_projection_stamps_the_footer(tmp_path):
     projection.write_projection(source, output)
     stamps = base.load_stamps(output)
     assert stamps.artifact == projection.ARTIFACT
-    assert stamps.artifact_lineage == base.lineage(projection.ARTIFACT)
+    assert stamps.artifact_schema == base.ARTIFACT_SCHEMA
     assert stamps.source_dataset_id == "ord_dataset-1"
 
 

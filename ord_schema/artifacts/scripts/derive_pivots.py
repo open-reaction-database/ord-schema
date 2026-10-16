@@ -33,7 +33,7 @@ That is the layout ``Corpus(..., pivots_dir=...)`` reads. Levels are chosen with
 usually asked about, so naming the ones a deployment answers questions over is the
 cheaper run.
 
-Artifacts whose footer already records the current source content, artifact lineage, and
+Artifacts whose footer already records the current source content, artifact schema, and
 RDKit version are skipped, so re-running is cheap; --force rewrites them anyway.
 
 A match that is not a projection -- a source dataset, or an artifact from an earlier

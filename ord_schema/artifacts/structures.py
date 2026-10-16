@@ -479,7 +479,7 @@ def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
     """Returns whether ``path`` is a structures artifact of ``source_md5`` by us.
 
     Delegates to ``base.is_current``, which requires the artifact name, the source
-    content, the artifact lineage, and the RDKit version to all match. A missing or
+    content, the artifact schema, and the RDKit version to all match. A missing or
     unreadable file is not current.
 
     Args:

@@ -29,7 +29,9 @@ import os
 import pathlib
 from collections.abc import Collection, Iterable
 
+import pyarrow.parquet as pq
 from huggingface_hub import (
+    HfFileSystem,
     hf_hub_download,
     list_repo_files,
     repo_info,
@@ -51,12 +53,16 @@ ORD_DATA_HF_REPO = "open-reaction-database/ord-data"
 ORD_ARTIFACTS_HF_REPO = "open-reaction-database/ord-artifacts"
 
 # The directory each artifact is kept under, both in the repository and in a local tree.
+# The repository holds one build at a time, laid out exactly as a local tree is.
 ARTIFACT_DIRECTORIES = {
     "projection": "projections",
     "structures": "structures",
     "pivot": "pivots",
     "occurrences": "occurrences",
 }
+
+# Small, so reading a footer in place fetches little beyond it.
+_FOOTER_BLOCK_SIZE = 64 * 1024
 
 
 def fetch_dataset(
@@ -114,40 +120,6 @@ def fetch_dataset(
     raise RuntimeError(
         f"Dataset {dataset_id} not found in {ORD_DATA_HF_REPO}@{revision}"
     )
-
-
-def artifact_prefix(artifact: str, lineage: str, rdkit_version: str) -> str:
-    """Returns the repository directory holding one artifact as one library derives it.
-
-    Keyed by the two stamps a reader compares besides the source: the artifact lineage
-    and the RDKit version. Builds from different library versions therefore sit side by
-    side, and a reader fetches only the one it would accept. The lineage's ``=`` and
-    ``,`` are respelled because DuckDB reads a ``key=value`` directory as a Hive
-    partition and adds a column for it to every file beneath.
-
-    Args:
-        artifact: Artifact name, a key of ``ARTIFACT_DIRECTORIES``.
-        lineage: The artifact lineage, as ``base.lineage`` spells it.
-        rdkit_version: The RDKit version, as ``rdBase.rdkitVersion`` spells it.
-
-    Returns:
-        A path relative to the repository root, e.g.
-        ``structures/structures-1_projection-1/rdkit-2026.03.5``.
-    """
-    key = lineage.replace("=", "-").replace(",", "_")
-    return f"{ARTIFACT_DIRECTORIES[artifact]}/{key}/rdkit-{rdkit_version}"
-
-
-def current_prefix(artifact: str) -> str:
-    """Returns the repository directory holding ``artifact`` as this library derives it.
-
-    Args:
-        artifact: Artifact name, a key of ``ARTIFACT_DIRECTORIES``.
-
-    Returns:
-        The prefix for this library's lineage and the installed RDKit.
-    """
-    return artifact_prefix(artifact, base.lineage(artifact), rdBase.rdkitVersion)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -222,18 +194,47 @@ def resolve_revision(revision: str) -> str:
     return commit
 
 
+def published_build(commit: str, published: Iterable[str]) -> base.Stamps | None:
+    """Returns the stamps of the build ord-artifacts holds at ``commit``, read in place.
+
+    Every file of a published build carries the same artifact schema and RDKit version,
+    which ``upload_artifacts`` checks, so one footer speaks for the build. It is an
+    occurrences file's, whose three columns make for a small footer, and nothing else
+    of the file is downloaded.
+
+    Args:
+        commit: The commit SHA ``published`` was listed at.
+        published: Every repository path the commit holds.
+
+    Returns:
+        The stamps, or None if the commit holds no occurrences artifacts.
+    """
+    paths = sorted(_parquet_beneath(published, ARTIFACT_DIRECTORIES["occurrences"]))
+    if not paths:
+        return None
+    location = f"datasets/{ORD_ARTIFACTS_HF_REPO}@{commit}/{paths[0]}"
+    with (
+        HfFileSystem().open(location, block_size=_FOOTER_BLOCK_SIZE) as handle,
+        pq.ParquetFile(handle) as parquet_file,
+    ):
+        return base.stamps_from_metadata(parquet_file.schema_arrow.metadata or {})
+
+
 def fetch_artifacts(
     local_dir: str | os.PathLike[str],
     *,
     revision: str = "main",
     pivot_levels: Collection[str] | None = None,
 ) -> FetchedArtifacts:
-    """Downloads the derived artifacts this library and RDKit read as current.
+    """Downloads the derived artifacts ord-artifacts holds, if this library reads them.
 
-    A ``Corpus`` refuses artifacts whose lineage or RDKit stamp differs from its own, so
-    only the build matching both is fetched. Files are written under ``local_dir``
-    rather than linked into the Hugging Face cache, because a ``Corpus`` confined to its
-    own directories refuses a link leading out of them.
+    The repository holds one build at a time, laid out as a local tree. A ``Corpus``
+    refuses artifacts whose schema or RDKit stamp differs from its own, so the build's
+    stamps are read in place first and a mismatch is refused before anything is
+    downloaded: a tree holding a build this library reads is not overwritten with one it
+    cannot. An earlier build is fetched by passing the commit that holds it. Files are
+    written under ``local_dir`` rather than linked into the Hugging Face cache, because
+    a ``Corpus`` confined to its own directories refuses a link leading out of them.
 
     Repeat calls download only what changed, and delete the Parquet files under what
     they fetched that the build no longer holds -- a dataset removed upstream would
@@ -254,9 +255,9 @@ def fetch_artifacts(
         The commit fetched, and where each artifact landed.
 
     Raises:
-        LookupError: If the revision holds no build of an artifact for this library and
-            RDKit, or lacks a requested pivot level. The message lists the builds and
-            levels it does hold.
+        LookupError: If the revision holds no artifacts of some kind, holds a build of
+            another artifact schema or RDKit version, or lacks a requested pivot level.
+            The message names what it does hold.
         ValueError: If a file the build no longer holds sits in a directory reached
             through a link beneath ``local_dir``, which is not this function's to
             delete.
@@ -266,24 +267,36 @@ def fetch_artifacts(
     published = list_repo_files(
         ORD_ARTIFACTS_HF_REPO, repo_type="dataset", revision=commit
     )
-    prefixes = {artifact: current_prefix(artifact) for artifact in ARTIFACT_DIRECTORIES}
-    for artifact, prefix in prefixes.items():
-        if not _beneath(published, prefix):
-            depth = prefix.count("/") + 1
-            available = sorted(
-                {
-                    "/".join(path.split("/")[:depth])
-                    for path in _beneath(published, ARTIFACT_DIRECTORIES[artifact])
-                    if path.count("/") >= depth
-                }
-            )
-            raise LookupError(
-                f"{ORD_ARTIFACTS_HF_REPO}@{revision} holds no {artifact} artifacts for "
-                f"this library and RDKit {rdBase.rdkitVersion} (wanted {prefix}); it "
-                f"holds {available or 'none'}"
-            )
-    pivots = prefixes["pivot"]
-    scopes = [prefixes[artifact] for artifact in prefixes if artifact != "pivot"]
+    missing = [
+        artifact
+        for artifact, directory in ARTIFACT_DIRECTORIES.items()
+        if not _parquet_beneath(published, directory)
+    ]
+    # With every artifact present, the occurrences have a footer to read.
+    stamps = None if missing else published_build(commit, published)
+    if stamps is None:
+        raise LookupError(
+            f"{ORD_ARTIFACTS_HF_REPO}@{revision} holds no "
+            f"{', '.join(missing)} artifacts"
+        )
+    if (stamps.artifact_schema, stamps.rdkit_version) != (
+        base.ARTIFACT_SCHEMA,
+        rdBase.rdkitVersion,
+    ):
+        raise LookupError(
+            f"{ORD_ARTIFACTS_HF_REPO}@{revision} holds artifact schema "
+            f"{stamps.artifact_schema} derived under RDKit {stamps.rdkit_version}, and "
+            f"this library reads schema {base.ARTIFACT_SCHEMA} under RDKit "
+            f"{rdBase.rdkitVersion}. Install the ord-schema and RDKit that build was "
+            "derived with, or pass as the revision an earlier commit holding schema "
+            f"{base.ARTIFACT_SCHEMA} derived under RDKit {rdBase.rdkitVersion}."
+        )
+    pivots = ARTIFACT_DIRECTORIES["pivot"]
+    scopes = [
+        directory
+        for artifact, directory in ARTIFACT_DIRECTORIES.items()
+        if artifact != "pivot"
+    ]
     if pivot_levels is None:
         scopes.append(pivots)
     else:
@@ -294,8 +307,8 @@ def fetch_artifacts(
         missing = sorted(set(pivot_levels) - levels)
         if missing:
             raise LookupError(
-                f"{ORD_ARTIFACTS_HF_REPO}@{revision} has no pivots for {missing} under "
-                f"{pivots}; it has {sorted(levels)}"
+                f"{ORD_ARTIFACTS_HF_REPO}@{revision} has no pivots for {missing}; it "
+                f"has {sorted(levels)}"
             )
         # A dotted directory is some tool's, not a level; no reader looks inside one.
         held = (
@@ -318,10 +331,10 @@ def fetch_artifacts(
     _prune(root, scopes, set(published))
     return FetchedArtifacts(
         revision=commit,
-        projections=root / prefixes["projection"],
-        structures=root / prefixes["structures"],
+        projections=root / ARTIFACT_DIRECTORIES["projection"],
+        structures=root / ARTIFACT_DIRECTORIES["structures"],
         pivots=root / pivots,
-        occurrences=root / prefixes["occurrences"],
+        occurrences=root / ARTIFACT_DIRECTORIES["occurrences"],
     )
 
 
@@ -363,3 +376,8 @@ def _prune(root: pathlib.Path, scopes: Iterable[str], published: set[str]) -> No
 def _beneath(paths: Iterable[str], prefix: str) -> list[str]:
     """Returns the repository paths inside the directory ``prefix``."""
     return [path for path in paths if path.startswith(f"{prefix}/")]
+
+
+def _parquet_beneath(paths: Iterable[str], prefix: str) -> list[str]:
+    """Returns the repository's Parquet files inside the directory ``prefix``."""
+    return [path for path in _beneath(paths, prefix) if path.endswith(".parquet")]

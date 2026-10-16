@@ -46,7 +46,7 @@ def _write_artifact(
     source_md5,
     *,
     group=None,
-    lineage=None,
+    artifact_schema=None,
     rdkit_version=None,
     stamp_rdkit=True,
 ):
@@ -55,7 +55,7 @@ def _write_artifact(
         artifact=artifact,
         source_dataset_id=None,
         source_md5=source_md5,
-        artifact_lineage=lineage or base.lineage(artifact),
+        artifact_schema=artifact_schema or base.ARTIFACT_SCHEMA,
         rdkit_version=(rdkit_version or rdBase.rdkitVersion) if stamp_rdkit else None,
     )
     metadata = base.to_metadata(stamps)
@@ -82,13 +82,22 @@ def _write_tree(root, sources=("aa", "bb")):
 
 
 class _FakeHub:
-    """Stands in for the Hub: a head commit, its files, and the commits made."""
+    """Stands in for the Hub: a head commit, its files and build, the commits made."""
 
-    def __init__(self, monkeypatch, published=(), head="0123abcd", made="4567ef01"):
+    def __init__(
+        self,
+        monkeypatch,
+        published=(),
+        head="0123abcd",
+        made="4567ef01",
+        replaced=None,
+    ):
         self.published = list(published)
         self.head = head
         self.made = made
+        self.replaced = replaced
         self.listed = []
+        self.read = []
         self.commits = []
         monkeypatch.setattr(
             huggingface,
@@ -96,11 +105,16 @@ class _FakeHub:
             lambda *_, **__: types.SimpleNamespace(sha=self.head),
         )
         monkeypatch.setattr(upload_artifacts, "list_repo_files", self._list_repo_files)
+        monkeypatch.setattr(huggingface, "published_build", self._published_build)
         monkeypatch.setattr(upload_artifacts, "create_commit", self._create_commit)
 
     def _list_repo_files(self, repo_id, *, repo_type, revision):
         self.listed.append(revision)
         return list(self.published)
+
+    def _published_build(self, commit, published):
+        self.read.append((commit, list(published)))
+        return self.replaced
 
     def _create_commit(self, repo_id, operations, **kwargs):
         self.commits.append((repo_id, operations, kwargs))
@@ -123,26 +137,21 @@ class TestUploadArtifacts:
         # opening is TestCorpusCheck's.
         monkeypatch.setattr(upload_artifacts, "_check_opens", lambda *_, **__: None)
 
-    def test_commits_each_file_under_its_build(self, tmp_path, monkeypatch):
+    def test_commits_the_tree_at_the_repository_root(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
-        projections = huggingface.current_prefix("projection")
-        stale = f"{projections}/cc/ord_dataset-cc.parquet"
-        elsewhere = "projections/projection-0/rdkit-1999.09.1/cc/ord_dataset-cc.parquet"
-        # A build whose name extends this one's is another build, and not deleted.
-        longer = f"{projections}0/cc/ord_dataset-cc.parquet"
-        hub = _FakeHub(monkeypatch, [stale, elsewhere, longer, "README.md"])
+        stale = "projections/cc/ord_dataset-cc.parquet"
+        # A directory whose name extends an artifact's is not that artifact's.
+        longer = "projections0/cc/ord_dataset-cc.parquet"
+        hub = _FakeHub(monkeypatch, [stale, longer, "README.md"])
         upload = _upload(tmp_path, allow_deletes=True)
         assert upload.commit_url == f"https://example/commit/{hub.made}"
-        assert upload.prefixes == {
-            artifact: huggingface.current_prefix(artifact)
-            for artifact in huggingface.ARTIFACT_DIRECTORIES
-        }
+        assert upload.artifact_schema == base.ARTIFACT_SCHEMA
+        assert upload.rdkit_version == rdBase.rdkitVersion
         # 2 sources x (projection, structures, 2 pivot levels, 1 indexed path).
         assert len(upload.uploaded) == 10
-        assert f"{projections}/aa/ord_dataset-aa.parquet" in upload.uploaded
-        pivots = huggingface.current_prefix("pivot")
-        assert f"{pivots}/inputs/bb/ord_dataset-bb.parquet" in upload.uploaded
-        # Only what this build no longer holds goes; another build is left alone.
+        assert "projections/aa/ord_dataset-aa.parquet" in upload.uploaded
+        assert "pivots/inputs/bb/ord_dataset-bb.parquet" in upload.uploaded
+        # Only what the tree no longer holds goes; the card and the rest are left alone.
         assert upload.deleted == [stale]
         [(repo_id, operations, kwargs)] = hub.commits
         assert repo_id == huggingface.ORD_ARTIFACTS_HF_REPO
@@ -172,8 +181,7 @@ class TestUploadArtifacts:
         # and every check passes it; publishing it as is would delete the rest.
         _write_tree(tmp_path, sources=("cc",))
         published = [
-            f"{huggingface.current_prefix('projection')}/{source}/"
-            f"ord_dataset-{source}.parquet"
+            f"projections/{source}/ord_dataset-{source}.parquet"
             for source in ("aa", "bb")
         ]
         hub = _FakeHub(monkeypatch, published)
@@ -181,7 +189,7 @@ class TestUploadArtifacts:
             ValueError,
             match=(
                 r"would delete 2 published files the tree does not hold: "
-                r"2 under projections/.*; pass --allow_deletes"
+                r"2 under projections; pass --allow_deletes"
             ),
         ):
             _upload(tmp_path, dry_run=dry_run)
@@ -189,11 +197,27 @@ class TestUploadArtifacts:
 
     def test_dry_run_lists_allowed_deletes(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
-        stale = f"{huggingface.current_prefix('structures')}/cc/ord_dataset-cc.parquet"
+        stale = "structures/cc/ord_dataset-cc.parquet"
         hub = _FakeHub(monkeypatch, [stale])
         upload = _upload(tmp_path, dry_run=True, allow_deletes=True)
         assert upload.deleted == [stale]
         assert hub.commits == []
+
+    def test_reports_the_build_it_replaces(self, tmp_path, monkeypatch):
+        _write_tree(tmp_path)
+        published = ["occurrences/inputs.components/aa/ord_dataset-aa.parquet"]
+        replaced = base.Stamps(
+            artifact="occurrences",
+            source_dataset_id=None,
+            source_md5="aa",
+            artifact_schema="0",
+            rdkit_version="1999.09.1",
+        )
+        hub = _FakeHub(monkeypatch, published, replaced=replaced)
+        upload = _upload(tmp_path, dry_run=True)
+        # Read at the head the upload is planned against.
+        assert hub.read == [(hub.head, published)]
+        assert upload.replaced == replaced
 
     def test_reports_no_commit_when_nothing_changed(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
@@ -249,22 +273,21 @@ class TestUploadArtifacts:
                 rdkit_version="1999.09.1",
             )
         _FakeHub(monkeypatch)
-        with pytest.raises(ValueError, match="derived under different RDKit"):
+        with pytest.raises(ValueError, match="different artifact schemas or RDKit"):
             _upload(tmp_path)
 
-    def test_refuses_a_child_of_another_parent_build(self, tmp_path, monkeypatch):
+    def test_refuses_artifacts_of_different_schemas(self, tmp_path, monkeypatch):
+        # Structures derived before their projection was, each internally whole.
         _write_tree(tmp_path)
         for source in ("aa", "bb"):
             _write_artifact(
                 tmp_path / "structures" / source / f"ord_dataset-{source}.parquet",
                 "structures",
                 source,
-                lineage="structures=1,projection=0",
+                artifact_schema="0",
             )
         _FakeHub(monkeypatch)
-        with pytest.raises(
-            ValueError, match="structures was derived from projection 'projection=0'"
-        ):
+        with pytest.raises(ValueError, match=r"'structures': \('0', '[^']+'\)"):
             _upload(tmp_path)
 
     def test_refuses_a_tree_spanning_builds(self, tmp_path, monkeypatch):
@@ -382,10 +405,8 @@ class TestCorpusCheck:
         upload = upload_artifacts.upload_artifacts(
             derived_tree, commit_message="derive", dry_run=True
         )
-        assert upload.prefixes == {
-            artifact: huggingface.current_prefix(artifact)
-            for artifact in huggingface.ARTIFACT_DIRECTORIES
-        }
+        assert upload.artifact_schema == base.ARTIFACT_SCHEMA
+        assert upload.rdkit_version == rdBase.rdkitVersion
 
     def test_opens_a_subset_without_requiring_the_rest(
         self, derived_tree, tmp_path, monkeypatch
@@ -450,7 +471,7 @@ class TestCorpusCheck:
     def test_refuses_structures_short_of_their_projection(
         self, derived_tree, tmp_path, monkeypatch
     ):
-        # Stamps cannot see this: the short artifact keeps its source hash and lineage.
+        # Stamps cannot see this: the short artifact keeps its source hash and schema.
         root = tmp_path / "artifacts"
         shutil.copytree(derived_tree, root)
         target = root / "structures" / "aa" / "ord_dataset-aa.parquet"
@@ -478,6 +499,7 @@ class _DirectoryHub:
         for module in (huggingface, upload_artifacts):
             monkeypatch.setattr(module, "list_repo_files", self._list_repo_files)
         monkeypatch.setattr(upload_artifacts, "create_commit", self._create_commit)
+        monkeypatch.setattr(huggingface, "HfFileSystem", lambda: self)
         monkeypatch.setattr(huggingface, "snapshot_download", self._snapshot_download)
 
     def _list_repo_files(self, *_, **__):
@@ -497,6 +519,11 @@ class _DirectoryHub:
                 shutil.copyfile(operation.path_or_fileobj, target)
         return types.SimpleNamespace(commit_url="https://example/commit/1", oid="1")
 
+    def open(self, location, *, block_size):
+        repository = f"datasets/{huggingface.ORD_ARTIFACTS_HF_REPO}@0123abcd/"
+        assert location.startswith(repository)
+        return (self.directory / location.removeprefix(repository)).open("rb")
+
     def _snapshot_download(self, *, local_dir, allow_patterns, **_):
         for path in self._list_repo_files():
             if any(fnmatch.fnmatch(path, pattern) for pattern in allow_patterns):
@@ -507,8 +534,9 @@ class _DirectoryHub:
 
 
 def test_a_published_build_fetches_into_a_corpus(derived_tree, tmp_path, monkeypatch):
-    # Upload names prefixes from each file's stamps and fetch from this library; the
-    # two have to meet, and what lands has to be what a Corpus opens.
+    # Upload lays the tree out at the repository root and fetch reads its stamps back
+    # before downloading it; the two have to meet, and what lands has to be what a
+    # Corpus opens.
     _DirectoryHub(monkeypatch, tmp_path / "hub")
     upload_artifacts.upload_artifacts(derived_tree, commit_message="derive")
     fetched = huggingface.fetch_artifacts(tmp_path / "local")
@@ -539,14 +567,24 @@ def test_a_published_build_fetches_into_a_corpus(derived_tree, tmp_path, monkeyp
     assert table.column("reaction_id").to_pylist() == ["ord-aa01"]
 
 
+def _report(commit_url=None):
+    """Returns what an upload of nothing would report."""
+    return upload_artifacts.ArtifactUpload(
+        artifact_schema=base.ARTIFACT_SCHEMA,
+        rdkit_version=rdBase.rdkitVersion,
+        replaced=None,
+        uploaded=[],
+        deleted=[],
+        commit_url=commit_url,
+    )
+
+
 def test_main_requires_every_level_and_path(monkeypatch):
     calls = []
 
     def fake_upload(root, **kwargs):
         calls.append((root, kwargs))
-        return upload_artifacts.ArtifactUpload(
-            prefixes={}, uploaded=[], deleted=[], commit_url=None
-        )
+        return _report()
 
     monkeypatch.setattr(upload_artifacts, "upload_artifacts", fake_upload)
     upload_artifacts.main(
@@ -579,9 +617,7 @@ def test_main_passes_allow_deletes(monkeypatch):
 
     def fake_upload(root, **kwargs):
         calls.append(kwargs["allow_deletes"])
-        return upload_artifacts.ArtifactUpload(
-            prefixes={}, uploaded=[], deleted=[], commit_url=None
-        )
+        return _report()
 
     monkeypatch.setattr(upload_artifacts, "upload_artifacts", fake_upload)
     upload_artifacts.main(
@@ -605,9 +641,7 @@ def test_main_reports_a_commit_only_when_made(
     monkeypatch.setattr(
         upload_artifacts,
         "upload_artifacts",
-        lambda *_, **__: upload_artifacts.ArtifactUpload(
-            prefixes={}, uploaded=[], deleted=[], commit_url=commit_url
-        ),
+        lambda *_, **__: _report(commit_url=commit_url),
     )
     argv = ["--root", "artifacts", "--message", "derive"]
     with caplog.at_level("INFO"):

@@ -47,17 +47,21 @@ current:
 | key | why it can invalidate |
 | --- | --- |
 | `ord.artifact` | tells one artifact from another without inspecting the schema |
-| `ord.artifact_lineage` | this artifact's version and every ancestor's, so a redefinition anywhere up the chain makes the file stale |
+| `ord.artifact_schema` | what the artifact's columns are and what each holds; one for every artifact, since they are published and fetched as one build |
 | `ord.source_md5` | the content of the source dataset this restates |
 | `ord.rdkit_version` | RDKit releases have changed both canonicalization and pattern fingerprints, either of which silently breaks a file whose consumers run the newer one |
 
 No key names the ord-schema release. A release need not change any artifact, and a
 development build reports the last release's number, so a release stamp says nothing
-about currency while making a rebuild of an unchanged artifact write different bytes. A
-change to how an artifact is derived bumps its entry in `ARTIFACT_VERSIONS`; one left
-unbumped is invisible to the check, and `--force` is how a run rebuilds past it.
-`base_test.py` pins what each artifact holds when derived from two fixtures, so a change
-to an artifact fails there until someone decides whether it needs the bump.
+about currency while making a rebuild of an unchanged artifact write different bytes.
+
+A change a reader of the current schema would misread — a column renamed, removed, or
+given a different meaning — bumps `ARTIFACT_SCHEMA`, which makes every artifact stale. A
+change a reader of either schema reads correctly does not: a column added is seen by
+`missing_columns` and derives again on its own, and values improved by a fixed
+normalization are derived again with `--force` and published in place. `base_test.py`
+pins what each artifact holds when derived from two fixtures, so a change to an artifact
+fails there until someone decides which kind it is.
 
 A fifth, `ord.source_dataset_id`, is written only when the source records one, and is the
 only key not required to read stamps back.
@@ -79,24 +83,6 @@ hashing its parent, so every artifact names the dataset it reflects however many
 derivations away it sits, and one comparison answers "is this current for that dataset?"
 A chain is invisible to a consumer checking currency.
 
-**Versions are per artifact, and the stamp carries the whole chain.** The derivations
-cost wildly different amounts — measured over the source that is 96% of ORD, a projection
-is 34.6 minutes and its structures 29.6, while the occurrences at every indexed path are
-1.9 seconds — so one shared version would charge the 81-minute rebuild for a change to
-the 1.9-second artifact.
-
-Splitting it alone would break the thing the shared version was doing, which is real: a
-change to how projections are derived has to invalidate everything built *from* a
-projection, and an artifact stamps its **source dataset's** hash rather than its parent's,
-so a child cannot otherwise see that its parent's definition moved. So the stamp is the
-chain — `occurrences=1,pivot=1,projection=1` — and the currency check compares it to what
-the library would write today. A projection bump reaches the occurrences three derivations
-down; an occurrences bump reaches nothing above it.
-
-The direct parent alone is not enough, which is the part worth stating: occurrences record
-the pivot they came from, and a projection bump moves neither the occurrences' own version
-nor the pivot's. Only the full chain says so.
-
 ## Deriving a tree
 
 [`base.derive_tree`](base.py) is the driver every script uses. It walks a glob and, for
@@ -104,7 +90,7 @@ each match:
 
 - mirrors the input's directory layout beneath `output_dir`, rooted at the leading
   components of the pattern that hold no wildcard;
-- **skips** anything whose footer already records the current source and versions, so
+- **skips** anything whose footer already records the current source, schema, and RDKit, so
   re-running is cheap and an interrupted run resumes rather than restarts;
 - **ignores** a match that is not the kind of parent this derivation reads — a source
   dataset where a projection was wanted, or an artifact from an earlier run — so
@@ -142,44 +128,45 @@ path left out is one whose structures no query can find.
 
 Derived trees are published to the Hugging Face dataset
 [ord-artifacts](https://huggingface.co/datasets/open-reaction-database/ord-artifacts),
-apart from the ord-data mirror so that rebuilding them leaves that history alone. Each
-artifact sits under a prefix naming its lineage and its RDKit version, the two stamps a
-reader compares besides the source:
+apart from the ord-data mirror so that rebuilding them leaves that history alone. The
+repository holds one build at a time, laid out exactly as a local tree is:
 
 ```text
-projections/projection-1/rdkit-2026.03.5/aa/ord_dataset-<id>.parquet
-pivots/pivot-1_projection-1/rdkit-2026.03.5/inputs.components/aa/ord_dataset-<id>.parquet
+projections/aa/ord_dataset-<id>.parquet
+pivots/inputs.components/aa/ord_dataset-<id>.parquet
 ```
 
-Builds for different library or RDKit versions therefore sit side by side, and
-[`huggingface.fetch_artifacts`](../huggingface.py) downloads only the one this library
-would accept, deleting local files the build has since dropped and refreshing any pivot
-level already held. The RDKit version has to match exactly: pattern fingerprints and
+An earlier build, of an older artifact schema or another RDKit, stays in the
+repository's history. [`huggingface.fetch_artifacts`](../huggingface.py) reads the
+build's stamps in place before downloading anything and refuses a schema or RDKit this
+library does not read, so a local tree holding a build it reads is not overwritten with
+one it cannot; a reader left on the old pair passes the revision of a commit holding it.
+A fetch deletes local files the build has since dropped and refreshes any pivot level
+already held. The RDKit version has to match exactly: pattern fingerprints and
 registration hashes both drift between releases, patch releases included, and a
-structure query computes its side of each comparison with the RDKit it runs. The
-lineage is spelled without `=` because DuckDB reads a `key=value` directory as a Hive
-partition and adds it to every file as a column.
+structure query computes its side of each comparison with the RDKit it runs.
 
 [`upload_artifacts`](../scripts/upload_artifacts.py) publishes a local tree in one
-commit, each file under the build its own footer names. It accepts only a tree a
-`Corpus(require_pivots=True, require_occurrences=True)` opens: one RDKit version, each
-artifact derived from its parent's build, every pivot level and indexed path present
-and filed where its footer says, and each restating the projections' source datasets
-once. Unchanged files drop out of the commit, so a new dataset goes up by deriving it
-into the full tree and uploading that. Published files the tree lacks are deleted from
-their build only with `--allow_deletes`; otherwise the upload is refused, because a tree
-holding only the new dataset is a complete build of it, and uploading it would delete
-the rest. Its docstring lists the refusals; it needs the `search` and `huggingface`
-extras.
+commit, replacing the build the repository held, and reports the schema and RDKit of the
+one it replaces: a change switches every reader at once. It accepts only a tree a
+`Corpus(require_pivots=True, require_occurrences=True)` opens: one artifact schema and
+RDKit version, every pivot level and indexed path present and filed where its footer
+says, and each restating the projections' source datasets once. Unchanged files drop out
+of the commit, so a new dataset goes up by deriving it into the full tree and uploading
+that. Published files the tree lacks are deleted only with `--allow_deletes`; otherwise
+the upload is refused, because a tree holding only the new dataset is a complete build of
+it, and uploading it would delete the rest. Its docstring lists the refusals; it needs
+the `search` and `huggingface` extras.
 
 ```bash
 python -m ord_schema.scripts.upload_artifacts \
     --root=artifacts --message="Derive from ord-data <commit>" --dry_run
 ```
 
-Once a build is published, a change to how an artifact is derived needs its
-`ARTIFACT_VERSIONS` bump: without one, the rebuild overwrites the published build under
-the same prefix, and a reader holding the old files cannot tell them apart from the new.
+A value-only change is published in place, and a reader's next fetch brings its copy up
+to date. A change a reader of the current schema would misread needs the
+`ARTIFACT_SCHEMA` bump, so that readers still on the old schema are refused rather than
+served files they would misread.
 
 ## What pairs with what
 

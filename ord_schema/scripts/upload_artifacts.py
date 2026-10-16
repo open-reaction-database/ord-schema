@@ -14,24 +14,24 @@
 
 r"""Publishes a derived artifact tree to the ord-artifacts Hugging Face repository.
 
-The tree holds one directory per artifact, as the derive scripts write them::
+The tree holds one directory per artifact, as the derive scripts write them, and the
+repository holds one build laid out the same way::
 
     upload_artifacts.py --root=artifacts \
         --message="Derive from ord-data <commit>" --dry_run
 
     artifacts/projections/aa/ord_dataset-<id>.parquet
-        -> projections/projection-1/rdkit-<version>/aa/ord_dataset-<id>.parquet
+        -> projections/aa/ord_dataset-<id>.parquet
     artifacts/pivots/inputs.components/aa/ord_dataset-<id>.parquet
-        -> pivots/pivot-1_projection-1/rdkit-<version>/inputs.components/aa/...
+        -> pivots/inputs.components/aa/ord_dataset-<id>.parquet
 
-Each file goes under the build its own footer names, and everything lands in one
-commit. Published files the tree does not hold are deleted from their build only with
+Everything lands in one commit, replacing the build the repository held; earlier builds
+stay in its history. Published files the tree does not hold are deleted only with
 ``--allow_deletes``; without it the upload is refused, since a tree that is one complete
 build of only some datasets passes every other check. The tree has to be one build a
 ``Corpus(require_pivots=True, require_occurrences=True)`` opens, so it is refused if:
 
-* any artifact spans more than one lineage or RDKit version, the artifacts disagree on
-  the RDKit version, or one was derived from another version of its parent;
+* its files carry more than one artifact schema or RDKit version;
 * a pivot or occurrences file sits under a level or path other than the one its footer
   names, or a level or path this library derives is missing;
 * an artifact, pivot level, or indexed path restates a source dataset twice, or other
@@ -75,14 +75,20 @@ class ArtifactUpload:
     """What ``upload_artifacts`` sent, or would send.
 
     Attributes:
-        prefixes: The repository directory each artifact went under.
+        artifact_schema: The artifact schema every file carries.
+        rdkit_version: The RDKit version every file carries.
+        replaced: The stamps of the build the repository held, or None if it held none.
+            A schema or RDKit version other than the tree's means every reader on the
+            old one has to pass an earlier revision once this commit lands.
         uploaded: Repository paths written. Unchanged files are among them;
             ``huggingface_hub`` drops those from the commit itself.
         deleted: Repository paths removed because the local tree no longer holds them.
         commit_url: The commit made, or None for a dry run or when nothing changed.
     """
 
-    prefixes: dict[str, str]
+    artifact_schema: str
+    rdkit_version: str
+    replaced: base.Stamps | None
     uploaded: list[str]
     deleted: list[str]
     commit_url: str | None
@@ -93,14 +99,14 @@ class _Build:
     """One artifact's local tree, checked to be a single build.
 
     Attributes:
-        lineage: The artifact lineage every file carries.
+        artifact_schema: The artifact schema every file carries.
         rdkit_version: The RDKit version every file carries.
         files: The files, keyed by path relative to the artifact's directory.
         covered: The source MD5s each group restates. A group is the level or indexed
             path for pivots and occurrences, and the empty string otherwise.
     """
 
-    lineage: str
+    artifact_schema: str
     rdkit_version: str
     files: dict[str, pathlib.Path]
     covered: dict[str, set[str]]
@@ -123,11 +129,10 @@ def upload_artifacts(
     """Publishes a local artifact tree to ord-artifacts in one commit.
 
     ``root`` holds one directory per artifact, named as in
-    ``huggingface.ARTIFACT_DIRECTORIES``, each laid out as its derive script wrote it.
-    Every file goes under the prefix its own footer names, so a file cannot be
-    published as a build it does not belong to. Within each prefix uploaded, a file the
-    local tree does not hold is deleted if ``allow_deletes``, and otherwise refuses the
-    upload; other builds are left alone.
+    ``huggingface.ARTIFACT_DIRECTORIES``, each laid out as its derive script wrote it,
+    and the repository takes the same layout. A published file under those directories
+    that the local tree does not hold is deleted if ``allow_deletes``, and otherwise
+    refuses the upload; files outside them, such as the dataset card, are left alone.
 
     The commit names the head it was planned against as its parent, so one that lands
     in between fails this one rather than having its files deleted.
@@ -160,7 +165,7 @@ def upload_artifacts(
         artifact: _check_build(root / directory, artifact)
         for artifact, directory in huggingface.ARTIFACT_DIRECTORIES.items()
     }
-    _check_consistent(builds)
+    artifact_schema, rdkit_version = _check_one_build(builds)
     sources: dict[str, set[str]] = {}
     for artifact, build in builds.items():
         directory = huggingface.ARTIFACT_DIRECTORIES[artifact]
@@ -194,19 +199,13 @@ def upload_artifacts(
     published = list_repo_files(
         huggingface.ORD_ARTIFACTS_HF_REPO, repo_type="dataset", revision=head
     )
-    prefixes = {
-        artifact: huggingface.artifact_prefix(
-            artifact, build.lineage, build.rdkit_version
-        )
-        for artifact, build in builds.items()
-    }
     operations: list[CommitOperationAdd | CommitOperationDelete] = []
     uploaded: list[str] = []
     deleted: list[str] = []
     counts: collections.Counter[str] = collections.Counter()
-    for artifact, prefix in prefixes.items():
+    for artifact, directory in huggingface.ARTIFACT_DIRECTORIES.items():
         wanted = {
-            f"{prefix}/{relative}": path
+            f"{directory}/{relative}": path
             for relative, path in builds[artifact].files.items()
         }
         for path_in_repo, path in sorted(wanted.items()):
@@ -215,14 +214,14 @@ def upload_artifacts(
             )
             uploaded.append(path_in_repo)
         for path_in_repo in sorted(published):
-            if path_in_repo.startswith(f"{prefix}/") and path_in_repo not in wanted:
+            if path_in_repo.startswith(f"{directory}/") and path_in_repo not in wanted:
                 operations.append(CommitOperationDelete(path_in_repo=path_in_repo))
                 deleted.append(path_in_repo)
-                counts[prefix] += 1
+                counts[directory] += 1
     if deleted and not allow_deletes:
         raise ValueError(
             f"the upload would delete {len(deleted)} published files the tree does not "
-            f"hold: {', '.join(f'{n} under {p}' for p, n in counts.items())}; pass "
+            f"hold: {', '.join(f'{n} under {d}' for d, n in counts.items())}; pass "
             "--allow_deletes if the tree is meant to replace them, with --dry_run to "
             "list them"
         )
@@ -241,7 +240,12 @@ def upload_artifacts(
         if info.oid != head:
             commit_url = info.commit_url
     return ArtifactUpload(
-        prefixes=prefixes, uploaded=uploaded, deleted=deleted, commit_url=commit_url
+        artifact_schema=artifact_schema,
+        rdkit_version=rdkit_version,
+        replaced=huggingface.published_build(head, published),
+        uploaded=uploaded,
+        deleted=deleted,
+        commit_url=commit_url,
     )
 
 
@@ -274,7 +278,7 @@ def _check_build(directory: pathlib.Path, artifact: str) -> _Build:
             raise ValueError(f"{path} holds {stamps.artifact}, not {artifact}")
         if stamps.rdkit_version is None:
             raise ValueError(f"{path} carries no RDKit stamp; derive it again")
-        stamped[stamps.artifact_lineage, stamps.rdkit_version] += 1
+        stamped[stamps.artifact_schema, stamps.rdkit_version] += 1
         relative = path.relative_to(directory)
         group = ""
         if group_stamp is not None:
@@ -297,41 +301,41 @@ def _check_build(directory: pathlib.Path, artifact: str) -> _Build:
             f"{directory} spans more than one build, so part of it is stale: "
             f"{dict(stamped.most_common())}"
         )
-    [(lineage, rdkit_version)] = stamped
+    [(artifact_schema, rdkit_version)] = stamped
     return _Build(
-        lineage=lineage, rdkit_version=rdkit_version, files=files, covered=dict(covered)
+        artifact_schema=artifact_schema,
+        rdkit_version=rdkit_version,
+        files=files,
+        covered=dict(covered),
     )
 
 
-def _check_consistent(builds: dict[str, _Build]) -> None:
-    """Checks that the artifacts were derived together, each from its parent's build.
+def _check_one_build(builds: dict[str, _Build]) -> tuple[str, str]:
+    """Checks that the artifacts were derived together, as one build.
 
-    A build checked one artifact at a time can still pair a rederived projection with
-    structures derived from the one before: each is internally whole, and each is
-    published under a prefix no single library version fetches beside the other.
+    Each artifact checked on its own can still pair a rederived projection with
+    structures derived before it, each internally whole.
 
     Args:
         builds: Every artifact's build.
 
+    Returns:
+        The artifact schema and RDKit version they share.
+
     Raises:
-        ValueError: If the artifacts carry different RDKit versions, or an artifact's
-            lineage does not continue its parent's.
+        ValueError: If the artifacts carry different artifact schemas or RDKit versions.
     """
-    versions = {artifact: build.rdkit_version for artifact, build in builds.items()}
-    if len(set(versions.values())) > 1:
+    stamped = {
+        artifact: (build.artifact_schema, build.rdkit_version)
+        for artifact, build in builds.items()
+    }
+    if len(set(stamped.values())) > 1:
         raise ValueError(
-            f"the artifacts were derived under different RDKit: {versions}"
+            "the artifacts were derived under different artifact schemas or RDKit, as "
+            f"(schema, RDKit): {stamped}"
         )
-    for artifact, build in builds.items():
-        parent = base.DERIVED_FROM[artifact]
-        if parent is None:
-            continue
-        inherited = build.lineage.partition(",")[2]
-        if inherited != builds[parent].lineage:
-            raise ValueError(
-                f"{artifact} was derived from {parent} {inherited!r}, but the tree's "
-                f"{parent} is {builds[parent].lineage!r}"
-            )
+    [build] = set(stamped.values())
+    return build
 
 
 def _check_opens(
@@ -402,8 +406,17 @@ def main(argv: list[str] | None = None) -> None:
         dry_run=args.dry_run,
         allow_deletes=args.allow_deletes,
     )
-    for artifact, prefix in upload.prefixes.items():
-        logger.info("%s -> %s", artifact, prefix)
+    logger.info(
+        "artifact schema %s, RDKit %s", upload.artifact_schema, upload.rdkit_version
+    )
+    if upload.replaced is None:
+        logger.info("the repository holds no build yet")
+    else:
+        logger.info(
+            "replaces artifact schema %s, RDKit %s",
+            upload.replaced.artifact_schema,
+            upload.replaced.rdkit_version,
+        )
     verb = "would be" if args.dry_run else "were"
     logger.info(
         "%d files %s uploaded (unchanged ones are dropped from the commit), %d deleted",
