@@ -55,7 +55,6 @@ def _write_artifact(
         artifact=artifact,
         source_dataset_id=None,
         source_md5=source_md5,
-        ord_schema_version="0",
         artifact_lineage=lineage or base.lineage(artifact),
         rdkit_version=(rdkit_version or rdBase.rdkitVersion) if stamp_rdkit else None,
     )

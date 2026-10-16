@@ -879,12 +879,9 @@ def write_pivot(
     connection = duckdb.connect()
     written = 0
     try:
-        # A pivot has no row order to keep: a reader semi-joins it on reaction_id and
-        # the ordinals, and which element came back first says nothing. Keeping one
-        # costs the parallelism of the unnest that produces it, which over ORD's
-        # largest projection is most of what a build costs. The price is that two
-        # builds of one artifact need not agree byte for byte, which nothing checks --
-        # currency is keyed on the source hash, not on the bytes written.
+        # Holding insertion order through the unnest costs it the parallelism that is
+        # most of what a build takes over a large projection. The order a file is
+        # written in comes from the sort below instead.
         connection.execute("SET preserve_insertion_order=false")
         # Through the relational API rather than a path interpolated into SQL, which a
         # filename holding a quote would otherwise close. One view serves the count and
@@ -905,8 +902,12 @@ def write_pivot(
             if element_count:
                 # Counting settled the other case: the unnest would walk every ancestor
                 # of a level this projection never records to reach the same nothing.
+                # Sorted on reaction_id and every ordinal, which together name one
+                # element, so rebuilding the artifact writes the same bytes and an
+                # upload drops it as unchanged.
+                key = ", ".join([REACTION_ID, *level.ordinals])
                 reader = connection.execute(
-                    stage(connection, level, "reactions")
+                    f"{stage(connection, level, 'reactions')} ORDER BY {key}"
                 ).to_arrow_reader(row_group_size)
                 for batch in reader:
                     # Cast rather than trust: DuckDB's own widths are its business, and

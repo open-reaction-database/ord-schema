@@ -18,9 +18,9 @@ import collections
 import dataclasses
 import glob
 import hashlib
+import importlib.metadata
 import json
 import pathlib
-from importlib import metadata
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -41,7 +41,6 @@ def _valid_metadata(**overrides):
     metadata = {
         "ord.artifact": "structures",
         "ord.source_md5": "0" * 32,
-        "ord.ord_schema_version": "9.9.9",
         "ord.rdkit_version": rdBase.rdkitVersion,
         "ord.source_dataset_id": "ord_dataset-1",
     }
@@ -59,7 +58,20 @@ def test_stamps_carries_the_current_versions():
     value = base.current_stamps("structures", "ord_dataset-1", "abc")
     assert value.artifact == "structures"
     assert value.artifact_lineage == base.lineage("structures")
-    assert value.ord_schema_version
+    assert value.rdkit_version == rdBase.rdkitVersion
+
+
+def test_to_metadata_names_no_library_release():
+    # A release need not change any artifact, so a key naming one would make a rebuild
+    # of an unchanged artifact write different bytes.
+    stamps = base.current_stamps("structures", "ord_dataset-1", "abc")
+    assert set(base.to_metadata(stamps)) == {
+        "ord.artifact",
+        "ord.artifact_lineage",
+        "ord.source_md5",
+        "ord.source_dataset_id",
+        "ord.rdkit_version",
+    }
 
 
 def test_to_metadata_omits_a_missing_dataset_id():
@@ -91,7 +103,6 @@ def test_load_stamps_tolerates_a_missing_dataset_id(tmp_path):
         "ord.artifact",
         "ord.artifact_lineage",
         "ord.source_md5",
-        "ord.ord_schema_version",
     ],
 )
 def test_load_stamps_names_every_missing_key(tmp_path, missing):
@@ -141,13 +152,11 @@ def test_is_current_requires_every_compared_stamp_to_match(tmp_path, monkeypatch
     assert not base.is_current(path, "structures", "0" * 32)
 
 
-def test_a_different_library_release_alone_leaves_an_artifact_current(tmp_path):
-    # A release need not change any artifact, and a development build between releases
-    # reports the last release's number, so the stamp records what derived the file
-    # without deciding whether it is current; ARTIFACT_VERSIONS says a definition moved.
+def test_a_footer_key_the_stamps_do_not_define_leaves_an_artifact_current(tmp_path):
+    # A release number in the footer is read past rather than compared: a release need
+    # not change any artifact, and ARTIFACT_VERSIONS is what says a definition moved.
     path = tmp_path / "artifact.parquet"
     _write(path, _valid_metadata(**{"ord.ord_schema_version": "0.0.1"}))
-    assert metadata.version("ord-schema") != "0.0.1"
     assert base.is_current(path, "structures", "0" * 32)
     assert base.stamps_are_current(base.load_stamps(path), "structures")
 
@@ -707,14 +716,12 @@ _GOLDEN_RDKIT = "2026.03.5"
 # One reaction setting nearly every field, and 80 real ones with slash-format dates.
 _GOLDEN_FIXTURES = ("full.pbtxt", "ord-nielsen-example.pbtxt")
 
-# Footer keys recording who derived a file rather than what it holds: the release,
-# which nothing compares; the RDKit and the lineage, pinned on their own above; and
-# the hash of how the fixture happened to serialize. The rest -- the artifact name,
-# the pivot or occurrence path a reader checks a file against -- are part of what the
-# artifact says.
+# Footer keys recording who derived a file rather than what it holds: the RDKit and the
+# lineage, pinned on their own above, and the hash of how the fixture happened to
+# serialize. The rest -- the artifact name, the pivot or occurrence path a reader checks
+# a file against -- are part of what the artifact says.
 _PROVENANCE_KEYS = frozenset(
     {
-        b"ord.ord_schema_version",
         b"ord.rdkit_version",
         b"ord.artifact_lineage",
         b"ord.source_md5",
@@ -726,8 +733,9 @@ def _content_hash(paths: list[pathlib.Path]) -> str:
     """Returns a hash of the footer, columns, and rows the artifacts at ``paths`` hold.
 
     Provenance stamps are left out (see ``_PROVENANCE_KEYS``); Parquet encoding is left
-    out by hashing decoded rows; and row order is left out by sorting them, since DuckDB
-    writes a pivot's rows in no fixed order.
+    out by hashing decoded rows; and row order is left out by sorting them, so the
+    digest pins what the artifacts hold. The order they hold it in is pinned by the
+    pivot and occurrence tests, and the bytes by a rebuild below.
 
     Args:
         paths: Artifact files, in a fixed order.
@@ -752,10 +760,15 @@ def _content_hash(paths: list[pathlib.Path]) -> str:
     return digest.hexdigest()
 
 
-@pytest.fixture(scope="module")
-def golden_output(tmp_path_factory) -> dict[str, str]:
-    """Derives every artifact from the fixtures and hashes each artifact's files."""
-    root = tmp_path_factory.mktemp("golden")
+def _derive_fixtures(root: pathlib.Path) -> dict[str, list[pathlib.Path]]:
+    """Derives every artifact from the golden fixtures beneath ``root``.
+
+    Args:
+        root: An empty directory to write the sources and artifacts beneath.
+
+    Returns:
+        Each artifact's files, in a fixed order.
+    """
     testdata = pathlib.Path(__file__).parents[1] / "orm" / "testdata"
     derived: dict[str, list[pathlib.Path]] = collections.defaultdict(list)
     for name in _GOLDEN_FIXTURES:
@@ -785,7 +798,27 @@ def golden_output(tmp_path_factory) -> dict[str, str]:
                 root / "pivots" / level.path / source.name, indexed, path=path
             )
             derived["occurrences"].append(indexed)
+    return derived
+
+
+@pytest.fixture(scope="module")
+def golden_output(tmp_path_factory) -> dict[str, str]:
+    """Derives every artifact from the fixtures and hashes each artifact's files."""
+    derived = _derive_fixtures(tmp_path_factory.mktemp("golden"))
     return {artifact: _content_hash(paths) for artifact, paths in derived.items()}
+
+
+def test_a_rebuild_under_another_release_writes_the_same_bytes(tmp_path, monkeypatch):
+    # What lets an upload drop the files a build left unchanged: a release need not
+    # change any artifact, so nothing it reports about itself may reach the bytes.
+    first = _derive_fixtures(tmp_path / "first")
+    monkeypatch.setattr(importlib.metadata, "version", lambda name: "0.0.1")
+    second = _derive_fixtures(tmp_path / "second")
+    assert first.keys() == second.keys() == set(base.ARTIFACT_VERSIONS)
+    for artifact, paths in first.items():
+        assert len(paths) == len(second[artifact])
+        for path, rebuilt in zip(paths, second[artifact], strict=True):
+            assert path.read_bytes() == rebuilt.read_bytes(), path
 
 
 def test_every_artifact_has_pinned_output():

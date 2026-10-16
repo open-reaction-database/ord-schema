@@ -15,7 +15,6 @@
 """Tests for ord_schema.artifacts.structures."""
 
 import pathlib
-from importlib import metadata
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -217,7 +216,6 @@ def test_stamps_name_the_source_dataset_not_the_projection(tmp_path):
     assert stamps.artifact == structures.ARTIFACT
     assert stamps.source_md5 == parquet.DatasetView(source_path).md5()
     assert stamps.source_dataset_id == "ord_dataset-1"
-    assert stamps.ord_schema_version == metadata.version("ord-schema")
     assert structures.is_current(output, stamps.source_md5)
 
 
@@ -341,7 +339,6 @@ def test_a_stale_projection_is_refused(tmp_path):
         artifact=projection.ARTIFACT,
         source_dataset_id="ord_dataset-1",
         source_md5="0" * 32,
-        ord_schema_version="0.0.0",
         artifact_lineage=base.lineage(structures.ARTIFACT),
         rdkit_version="0000.00.0",
     )
