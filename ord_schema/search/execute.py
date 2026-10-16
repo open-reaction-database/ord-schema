@@ -1281,15 +1281,15 @@ class Corpus:
             occurrences_dir: Directory holding derived occurrence artifacts, one
                 subdirectory per indexed path. Given one covering every path, the
                 occurrence index is a view over those files rather than a table built
-                at open: the corpus stops holding the 1.19 GB the table costs over ORD,
-                stops wanting the 5-6.5 GB of DuckDB memory and 16-25 GB of temporary
-                files to build it, and pays instead about 1.28x per query -- less on
-                the narrow paths, where reading one path's files beats filtering across
-                every occurrence in the corpus. A path with no artifacts is read from a
-                pivot or unnested from the projection as before, and one uncovered path
-                materializes the whole index, since a view would repeat that traversal
-                on every query; ``require_occurrences`` refuses that rather than
-                falling back to it. Derived by
+                at open: the corpus stops holding the 1.1-1.35 GiB the table costs over
+                ORD, stops wanting the 5 GB of DuckDB memory and 15-35 GiB of temporary
+                files to unnest it from the projections, and pays instead about 1.28x
+                per query -- less on the narrow paths, where reading one path's files
+                beats filtering across every occurrence in the corpus. A path with no
+                artifacts is read from a pivot or unnested from the projection as
+                before, and one uncovered path materializes the whole index, since a
+                view would repeat that traversal on every query; ``require_occurrences``
+                refuses that rather than falling back to it. Derived by
                 ``ord_schema.artifacts.scripts.derive_occurrences``.
             require_occurrences: Refuse a corpus whose ``occurrences_dir`` does not
                 cover every indexed path, rather than materializing the index because
@@ -1314,15 +1314,15 @@ class Corpus:
                 index nothing to build, so what this then pays for it is the scan that
                 checks it reaches every structure the corpus holds. Built, the index
                 costs a read of the pivot artifacts covering the indexed paths and a
-                pass over the projections for every path they do not
-                cover -- over ORD the difference between a second and a minute -- and it
-                wants 5-6.5 GB of DuckDB memory to build and holds 1.19 GB afterwards.
-                The library is about 8s and 2.2 GB on top. Together they are most of
-                what a container is sized against, which is the reason to spend them
-                where falling short is a failed deployment rather than a failed request;
-                see ``check_index``. A corpus asked only scalar queries needs neither,
-                and one asked scalar and similarity queries needs the index without the
-                library -- ``warm=False`` beside ``check_index`` builds that pair.
+                pass over the projections for every path they do not cover -- over ORD
+                3s against a minute, and the minute wants 5 GB of DuckDB memory -- and
+                holds 1.1-1.35 GiB afterwards. The library is about 8s and 2.2 GB on
+                top. Together they are most of what a container is sized against, which
+                is the reason to spend them where falling short is a failed deployment
+                rather than a failed request; see ``check_index``. A corpus asked only
+                scalar queries needs neither, and one asked scalar and similarity
+                queries needs the index without the library -- ``warm=False`` beside
+                ``check_index`` builds that pair.
             max_rows: Most rows a search may return, applied whether or not the query
                 asked for a limit and clamping one that asks for more. The grammar
                 leaves ``limit`` optional, so a query without one returns every matching
@@ -1812,10 +1812,12 @@ class Corpus:
         without ``warm`` builds the index on the first query that can spend it, so a
         corpus it refuses -- a reaction stated twice, a structure no indexed path
         reaches -- fails that query rather than the deployment. It also has a memory
-        floor, and meeting that one the other way is worse still. Over ORD the build
-        wants 5-6.5 GB of DuckDB memory and writes 16-25 GB of temporary files getting
-        there; below that it raises ``duckdb.OutOfMemoryException`` rather than running
-        slowly, since a block it cannot pin is not one it can spill.
+        floor, and meeting that one the other way is worse still. Over ORD, unnesting
+        the index from the projections wants 5 GB of DuckDB memory and writes 15-35 GiB
+        of temporary files getting there; below that it raises
+        ``duckdb.OutOfMemoryException`` rather than running slowly, since a block it
+        cannot pin is not one it can spill. Read from pivot artifacts, it builds under a
+        1 GB limit, spilling half a gigabyte.
 
         That exception is the good outcome, and under a cgroup cap it is only reached
         with room to spare above ``memory_limit``: the build holds up to 2.8 GB outside
@@ -1828,13 +1830,13 @@ class Corpus:
         None of that applies to an index published as a view, which an
         ``occurrences_dir`` covering every indexed path gets: there is nothing to
         materialize, so the floor is the scan this call makes rather than a build. Over
-        ORD that is 0.13s and 0.32 GiB resident, against 2.9s and 1.92 GiB for the table
+        ORD that is 0.18s and 0.40 GiB resident, against 3.1s and 1.49 GiB for the table
         read from pivots.
 
         A corpus opened with ``warm`` has paid whichever of those it owes already, and
         the call is then its counts. Leaving it cold suits one asked only for scalar or
         similarity queries, which never spends what a built index costs: about a minute
-        over ORD where no artifact covers a path, and 1.19 GB resident once built.
+        over ORD where no artifact covers a path, and 1.1-1.35 GiB resident once built.
 
         Returns:
             The number of occurrences found per indexed path, including the paths that
@@ -2205,11 +2207,12 @@ class Corpus:
         """Refuses a corpus whose occurrences_dir does not hold every indexed path.
 
         A path with no artifact is otherwise read from a pivot or unnested out of the
-        projection, and either leaves the index a materialized table -- 1.19 GB held
-        over ORD, and 5-6.5 GB of DuckDB memory wanted to build it. A deployment sized
-        for the view is sized for neither, so the fallback that keeps a corpus
-        answering is the one that gets the container killed, which is the failure a
-        caller naming an occurrences_dir is least likely to be expecting.
+        projection, and either leaves the index a materialized table -- 1.1-1.35 GiB
+        held over ORD, and 5 GB of DuckDB memory wanted to unnest it from the
+        projections. A deployment sized for the view is sized for neither, so the
+        fallback that keeps a corpus answering is the one that gets the container
+        killed, which is the failure a caller naming an occurrences_dir is least likely
+        to be expecting.
 
         Raises:
             PairingError: If any indexed path has no artifacts. Wrong provenance, a
@@ -2278,7 +2281,7 @@ class Corpus:
             # query the artifacts cost 1.28x the built table summed over every path and
             # pattern -- and less on the narrow paths, where reading one path's files
             # beats filtering path = ? across every occurrence in the corpus -- against
-            # the 1.19 GB the table holds and the 5-6.5 GB it wants to build. A path
+            # the 1.1-1.35 GiB the table holds and the 5 GB it wants to unnest. A path
             # read from a pivot or unnested out of the projection is the traversal this
             # index exists to avoid, and a view would repeat it on every query rather
             # than pay it once, so one uncovered path materializes all of them.

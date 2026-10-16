@@ -5720,7 +5720,7 @@ def test_a_covered_corpus_publishes_the_index_as_a_view(
     corpus_dir, occurrence_dirs, caplog
 ):
     # The whole point of the artifact: the rows stay on disk. Over ORD the table holds
-    # 1.19 GB and wants several more to build, and the view holds none of it.
+    # 1.1-1.35 GiB, and the view holds none of it.
     _, occurrence_dir = occurrence_dirs
     with (
         caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),

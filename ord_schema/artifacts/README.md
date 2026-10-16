@@ -209,11 +209,12 @@ production. The corpus assigns offsets at open and joins them on, keyed by the s
 dataset every artifact names. That rule is what lets the occurrence index be an artifact
 at all rather than a relation rebuilt at every startup: given an `occurrences_dir`
 covering every indexed path, [`Corpus`](../search/execute.py) publishes it as a view over
-those files and builds nothing. Measured over the full corpus that is 0.13 s and 0.32 GiB
-resident against 2.9 s and 1.92 GiB for the table, and DuckDB holds 28 MiB where it held
-1.66 GiB. A path with no artifact is read from a pivot or unnested from the projection as
-before, and one uncovered path materializes the whole index — a view whose branches unnest
-the projection would repeat that traversal on every query rather than pay it once.
+those files and builds nothing. Measured over the full corpus that is 0.18 s and 0.40 GiB
+resident against 3.1 s and 1.49 GiB for the table read from pivots, and DuckDB holds
+30 MiB where it held 1.40 GiB. A path with no artifact is read from a pivot or unnested
+from the projection as before, and one uncovered path materializes the whole index — a
+view whose branches unnest the projection would repeat that traversal on every query
+rather than pay it once.
 
 ## Querying a projection
 
