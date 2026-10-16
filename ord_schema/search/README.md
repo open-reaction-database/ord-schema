@@ -294,8 +294,8 @@ for `warm` to do but check that the index reaches every structure the corpus hol
 
 ## Pivoted levels
 
-The occurrence index answers a quantifier about a *structure*. A **pivot** answers one
-about anything else: one row per element of a repeated level, carrying `reaction_id`,
+The occurrence index answers a quantifier about a *structure* alone. A **pivot** answers
+one about anything else: one row per element of a repeated level, carrying `reaction_id`,
 the ordinal of every repeated level from the root down to that one, and the element's
 own fields with the repeated ones removed recursively. A quantifier over a covered level
 becomes `EXISTS (SELECT 1 FROM <pivot> AS x WHERE x.reaction_id = reactions.reaction_id

@@ -806,7 +806,7 @@ def _index_condition(
     Returns:
         The condition, or None to leave the quantifier compiled over the elements.
     """
-    del bind  # The hook's, for an index carrying fields; this one carries none.
+    del bind  # Part of the hook's signature; this index binds no field.
     if path not in INDEXED_PATHS or fields:
         return None
     conditions = [

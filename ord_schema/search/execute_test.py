@@ -2951,8 +2951,8 @@ def test_a_spent_clause_reads_the_index_and_a_declined_one_does_not(corpus_dir):
     ) as value:
         spent = query.Query.model_validate(_ROUTABLE["structure alone"])
         assert _reactions(value.search(spent)) == {"ord-aa01", "ord-aa02"}
-        # One of aa01's inputs is its pyridine, so this copies the rows the query just
-        # matched on and attributes them to bb01, which holds no pyridine at all.
+        # Copies aa01's occurrence rows, its pyridine among them, and attributes them to
+        # bb01, which holds no pyridine at all.
         value._connection.execute(
             "INSERT INTO occurrences SELECT 'ord-bb01', path, global_id "
             "FROM occurrences WHERE reaction_id = 'ord-aa01'"

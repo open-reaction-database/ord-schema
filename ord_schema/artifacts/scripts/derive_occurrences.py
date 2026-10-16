@@ -36,7 +36,7 @@ The pivots for the levels those paths range within have to exist first --
 ``derive_pivots.py --levels`` names them, and ``--print_levels`` here prints exactly
 that list. Deriving from the pivot rather than from the projection is what keeps the two
 from disagreeing about which elements exist: the occurrences are that artifact projected
-down to three columns.
+down to two columns.
 
 Artifacts whose footer already records the current source content, artifact schema
 version, and RDKit version are skipped, so re-running is cheap; --force rewrites them
@@ -218,7 +218,7 @@ def main(args: argparse.Namespace) -> None:
         for name, held in mismatched:
             logger.error("%s: holds %s, not %s", name, held or "no path", path)
         if mismatched:
-            # Every indexed path writes the same three columns, so a file filed under
+            # Every indexed path writes the same two columns, so a file filed under
             # the wrong one passes the currency check: same artifact name, same source
             # hash, same versions, same columns. It is then skipped by every later run
             # and read as this path's occurrences ever after, answering a quantifier
@@ -260,7 +260,7 @@ def main(args: argparse.Namespace) -> None:
     behind = base.left_behind(
         args.output_dir,
         occurrences.ARTIFACT,
-        # One schema for every path: the three columns are the same wherever a
+        # One schema for every path: the two columns are the same wherever a
         # structure sits, so nothing on disk is short one until this schema grows.
         dict.fromkeys(occurrences.PATHS, occurrences.SCHEMA),
         occurrences.artifact_paths,
