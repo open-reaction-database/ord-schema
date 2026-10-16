@@ -636,7 +636,7 @@ _GOLDEN_OUTPUT = {
     "projection": "520a65d1c31b0f706ecbfa03692237c6045f23d9b49707cad478ea8e44e40291",
     "structures": "3c397cfc3ba2b8e0debd9b725ada6d119551e42aa7c20bf9791983e679ce7158",
     "pivot": "750b720d4c31d8c2796d455cc75ab21e91a5527015c2cbcc7684d4944809c276",
-    "occurrences": "d6312e28a622267a8832197ddae709e78ef1a5199135e0530a624a8200e3ea15",
+    "occurrences": "d0617c0972b1c054c5f4507760cc53e055eb5cfd1336b0279e700a3c0a8c1118",
 }
 # The RDKit those hashes were derived under. An RDKit upgrade can change canonical
 # SMILES and fingerprints, but ord.rdkit_version already makes every artifact stale

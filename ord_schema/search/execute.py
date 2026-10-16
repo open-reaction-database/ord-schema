@@ -43,22 +43,23 @@ connection that registered them, so every relation here is a catalog table or vi
 
 Finding the reactions that hold a match is a scan of every reaction, which costs more
 than the chemistry for all but the narrowest queries. An **occurrence index** -- one row
-per structure occurrence, carrying the corpus-wide ID, the path it sat at, and the
-element's own ``reaction_role`` -- turns that scan into a semi-join against a narrow
-table. It is spent through the compiler's ``ElementIndex`` hook, one quantifier at a
-time: an ``exists`` whose body asks one occurrence row's worth -- a structure predicate
-on the element's own ``smiles``, at most a ``reaction_role`` equality beside it --
-becomes a condition on the row, and everything around it compiles exactly as it would
-have. An aggregate over the quantifier, a scalar beside it, an ordering, a limit, a
-negation, a disjunction, or a second quantifier each compose with the condition rather
-than disqualifying it. Keeping the role beside the structure in the index is what
-preserves element binding: "pyridine as the solvent" stays a condition on a single row
-rather than an intersection of two reaction sets, which over-returns.
+per structure occurrence, carrying the corpus-wide ID and the path it sat at -- turns
+that scan into a semi-join against a narrow table. It is spent through the compiler's
+``ElementIndex`` hook, one quantifier at a time: an ``exists`` whose body is one
+structure predicate on the element's own ``smiles`` and nothing else becomes a condition
+on the row, and everything around it compiles exactly as it would have. An aggregate
+over the quantifier, a scalar beside it, an ordering, a limit, a negation, a
+disjunction, or a second quantifier each compose with the condition rather than
+disqualifying it.
 
-What still compiles over the elements, and so reads the projection: a quantifier whose
-body binds any other element field, reaches a nested one, holds no structure predicate
-or more than one, or is not a plain conjunction -- and every ``forall``, since the index
-shows the elements that match, never that every element does.
+What still compiles over the elements, and so reads the level's pivot where there is
+one and the projection where there is not: a quantifier whose body binds any element
+field beside the structure -- ``reaction_role`` as much as any other -- reaches a nested
+one, holds no structure predicate or more than one, or is not a plain conjunction, and
+every ``forall``, since the index shows the elements that match, never that every
+element does. Either one reads the whole element, so "pyridine as the solvent" stays a
+condition on one element rather than an intersection of two reaction sets, which
+over-returns.
 
 An occurrence names its reaction by ID, so the index is built only over a corpus that
 states each reaction once; two files carrying one reaction would have each copy's
@@ -665,12 +666,6 @@ def _pair_sources(
 _UNPARSEABLE = Chem.Mol().ToBinary()
 _NO_BITS = DataStructs.ExplicitBitVect(structures.PATTERN_FP_SIZE)
 
-# The one element field the occurrence index carries besides the structure. A query
-# binding anything else to the element runs against the projection instead. Taken from
-# the artifact, so the column the index filters on and the column an occurrences
-# artifact carries cannot come apart.
-_INDEXED_FIELD = occurrences.INDEXED_FIELD
-
 
 def _indexed_paths(schema: pa.Schema = projection.SCHEMA) -> dict[str, str]:
     """Returns the paths an occurrence index covers, mapped to their traversals.
@@ -731,8 +726,7 @@ def _occurrences_from_projection(path: str, expression: str) -> str:
     # and the path is a key of INDEXED_PATHS, quoted.
     return f"""
         SELECT reaction_id, {sql_string(path)} AS path,
-               (element.structure_id + {query.STRUCTURE_OFFSET})::UINTEGER AS global_id,
-               element.{_INDEXED_FIELD} AS {_INDEXED_FIELD}
+               (element.structure_id + {query.STRUCTURE_OFFSET})::UINTEGER AS global_id
         FROM {query.TABLE}, unnest({expression}) AS unnested(element)
         WHERE element.structure_id IS NOT NULL
         """  # noqa: S608
@@ -782,20 +776,13 @@ def _warn_when_the_bound_was_reached(
     return True
 
 
-def _index_condition(
-    path: str,
-    fields: dict[str, str],
-    allocate: Callable[[], str],
-    bind: Callable[[str], str],
-) -> str | None:
+def _index_condition(path: str, allocate: Callable[[], str]) -> str | None:
     """Returns a row condition standing for an element quantifier, or None.
 
-    The compiler's ``ElementIndex``: it has already read the quantifier's body down
-    to a structure predicate on the element's own ``smiles`` and the field
-    equalities beside it, and this decides whether an occurrence row can carry that
-    question. A row holds the path, the corpus-wide structure ID, and one element
-    field, so a query binding any other field, or asking about a path the index does
-    not cover, is left to the elements.
+    The compiler's ``ElementIndex``: it offers only a quantifier whose body is a lone
+    structure predicate on the element's own ``smiles``, since a row holds the path
+    and the corpus-wide structure ID and no element field. This declines a path the
+    index does not cover, which is left to the elements.
 
     What comes back is a semi-join rather than a whole query, which is what lets the
     rest of the query stay exactly what it was: the aggregate, the ordering, the
@@ -805,22 +792,17 @@ def _index_condition(
 
     Args:
         path: The path the quantifier ranges over.
-        fields: Element fields the body requires, mapped to their literals.
         allocate: Names the structure parameter the match set binds under.
-        bind: Binds a field's literal, and names the parameter it binds under.
 
     Returns:
         The condition, or None to leave the quantifier compiled over the elements.
     """
-    if path not in INDEXED_PATHS or set(fields) - {_INDEXED_FIELD}:
+    if path not in INDEXED_PATHS:
         return None
     conditions = [
         f"occurrence.path = {sql_string(path)}",
         f"get_bit(CAST(${allocate()} AS BITSTRING), occurrence.global_id::INTEGER) = 1",
     ]
-    role = fields.get(_INDEXED_FIELD)
-    if role is not None:
-        conditions.append(f"occurrence.{_INDEXED_FIELD} = ${bind(role)}")
     # S608: every fragment is a path this module indexes or a compiler-issued
     # parameter name. The inner relation is aliased so that the outer reaction_id and
     # the inner one cannot be confused for each other.
@@ -2089,8 +2071,7 @@ class Corpus:
         return f"""
             SELECT x.{pivot.REACTION_ID}, {sql_string(path)} AS path,
                    ({element}.structure_id + o.{query.STRUCTURE_OFFSET})::UINTEGER
-                       AS global_id,
-                   {element}.{_INDEXED_FIELD} AS {_INDEXED_FIELD}
+                       AS global_id
             FROM read_parquet({_sql_paths(sources)}, filename=true) x
             JOIN {offsets} o ON x.filename = o.artifact_filename
             WHERE {element}.structure_id IS NOT NULL
@@ -2215,8 +2196,7 @@ class Corpus:
         # process's own glob, quoted with their single quotes escaped.
         return f"""
             SELECT x.reaction_id, {sql_string(path)} AS path,
-                   (x.structure_id + o.{query.STRUCTURE_OFFSET})::UINTEGER AS global_id,
-                   x.{_INDEXED_FIELD}
+                   (x.structure_id + o.{query.STRUCTURE_OFFSET})::UINTEGER AS global_id
             FROM read_parquet({_sql_paths(sources)}, filename=true) x
             JOIN {offsets} o ON x.filename = o.artifact_filename
             """  # noqa: S608
@@ -2251,11 +2231,8 @@ class Corpus:
     def _occurrences(self) -> None:
         """Builds the occurrence index, once.
 
-        One row per structure occurrence, carrying the corpus-wide ID, the path it sat
-        at, and the element's own ``reaction_role``. Keeping the role beside the
-        structure is what preserves element binding: "pyridine as the solvent" stays a
-        condition on one row rather than an intersection of two reaction sets, which
-        over-returns.
+        One row per structure occurrence, carrying the corpus-wide ID and the path it
+        sat at.
 
         Costs a read of the occurrence or pivot artifacts covering the indexed paths and
         one pass over the projections per path neither covers, charged at open under
@@ -3185,14 +3162,9 @@ class Corpus:
         # Corpus, and whether the index answered is a fact about one of them.
         indexing = False
 
-        def index(
-            path: str,
-            fields: dict[str, str],
-            allocate: Callable[[], str],
-            bind: Callable[[str], str],
-        ) -> str | None:
+        def index(path: str, allocate: Callable[[], str]) -> str | None:
             nonlocal indexing
-            condition = _index_condition(path, fields, allocate, bind)
+            condition = _index_condition(path, allocate)
             indexing = indexing or condition is not None
             return condition
 

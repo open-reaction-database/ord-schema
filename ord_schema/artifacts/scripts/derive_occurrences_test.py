@@ -134,7 +134,7 @@ def test_the_levels_to_derive_first_are_printed(capsys):
 
 
 def test_an_artifact_filed_under_another_path_is_refused(pivots, tmp_path):
-    # Every path writes the same three columns, so a file copied from one to another
+    # Every path writes the same two columns, so a file copied from one to another
     # passes the currency check on every measure it has -- artifact name, source hash,
     # versions, columns -- and is skipped by every later run, answering that path's
     # quantifiers with another level's elements. The stamped path is the only thing
@@ -231,7 +231,7 @@ def test_a_path_this_run_did_not_name_is_checked_against_the_schema(pivots, tmp_
     output = tmp_path / "occurrences"
     _run(pivots, output)
     left_behind = occurrences.artifact_paths(output, "inputs.components")[0]
-    _drop_column(left_behind, "reaction_role")
+    _drop_column(left_behind, "structure_id")
     with pytest.raises(ValueError, match="did not derive"):
         _run(pivots, output, "--paths", "outcomes.products")
 

@@ -2094,9 +2094,9 @@ def _index_spent(body) -> bool:
     """Returns whether the occurrence index takes any clause of this query."""
     spent = False
 
-    def index(path, fields, allocate, bind):
+    def index(path, allocate):
         nonlocal spent
-        condition = execute._index_condition(path, fields, allocate, bind)
+        condition = execute._index_condition(path, allocate)
         spent = spent or condition is not None
         return condition
 
@@ -2104,29 +2104,38 @@ def _index_spent(body) -> bool:
     return spent
 
 
-def test_the_occurrence_index_binds_the_role_it_filters_on():
+def test_a_role_beside_the_structure_is_left_to_the_pivot():
+    # The role is an element field, and an occurrence row carries none, so the
+    # quantifier goes to the level's pivot, which holds the whole element, and the role
+    # binds there as a parameter like any other literal.
     compiled = query.compile_query(
         query.Query.model_validate(
             {"where": _exists({"op": "and", "clauses": [_SUBSTRUCTURE, _SOLVENT]})}
         ),
         index=execute._index_condition,
+        pivot=lambda path: "pivoted" if path == "inputs.components" else None,
     )
-    assert "FROM occurrences" in compiled.sql
+    assert "FROM occurrences" not in compiled.sql
+    assert "FROM pivoted" in compiled.sql
     assert "SOLVENT" not in compiled.sql
     assert list(compiled.literals.values()) == ["SOLVENT"]
 
 
-def test_a_reaction_smarts_spends_the_occurrence_index_on_its_reactants():
-    # A reactant template compiles to an exists over components with a structure and a
-    # role, which is the shape the index answers without reading the projection.
+def test_a_reaction_smarts_spends_the_occurrence_index_on_its_products_alone():
+    # A product template compiles to an exists over products with a structure alone,
+    # which the index answers. A reactant template binds the role beside its structure,
+    # which an occurrence row does not carry.
     assert _index_spent(
         {"where": {"op": "reaction_smarts", "smarts": "C(=O)O.N>>C(=O)N"}}
     )
+    assert not _index_spent(
+        {"where": {"op": "reaction_smarts", "smarts": "C(=O)O.N>>"}}
+    )
 
 
-def _no_index_condition(path, fields, allocate, bind):
+def _no_index_condition(path, allocate):
     """Stands in for _index_condition so every quantifier compiles over the elements."""
-    del path, fields, allocate, bind  # Unused.
+    del path, allocate  # Unused.
 
 
 # Every shape where the index takes a clause. The index answers one quantifier, not the
@@ -2134,12 +2143,6 @@ def _no_index_condition(path, fields, allocate, bind):
 # negation, disjunction, a second quantifier -- composes and belongs here.
 _ROUTABLE = {
     "structure alone": {"where": _exists(_SUBSTRUCTURE)},
-    "structure and role": {
-        "where": _exists({"op": "and", "clauses": [_SUBSTRUCTURE, _SOLVENT]})
-    },
-    "role and structure, reversed": {
-        "where": _exists({"op": "and", "clauses": [_SOLVENT, _SUBSTRUCTURE]})
-    },
     "similarity": {
         "where": _exists(
             {"op": "similarity", "path": "smiles", "smiles": "OCC", "threshold": 0.4}
@@ -2224,7 +2227,7 @@ _ROUTABLE = {
         "where": {
             "op": "and",
             "clauses": [
-                _exists({"op": "and", "clauses": [_SUBSTRUCTURE, _SOLVENT]}),
+                _exists(_SUBSTRUCTURE),
                 _exists({"op": "substructure", "path": "smiles", "smarts": "c1ccccc1"}),
             ],
         }
@@ -2258,6 +2261,17 @@ _ROUTABLE = {
             ],
         }
     },
+    # The first quantifier binds a role and compiles over the elements; the second is
+    # the index's. One statement holds both routes.
+    "a role-bound quantifier beside an indexed one": {
+        "where": {
+            "op": "and",
+            "clauses": [
+                _exists({"op": "and", "clauses": [_SUBSTRUCTURE, _SOLVENT]}),
+                _exists({"op": "substructure", "path": "smiles", "smarts": "c1ccccc1"}),
+            ],
+        }
+    },
 }
 
 # Element predicates an occurrence row cannot carry, so the quantifier compiles over
@@ -2265,6 +2279,14 @@ _ROUTABLE = {
 _NOT_ROUTABLE = {
     # No structure means no bitmap, and the index is only worth its scan with one.
     "a role alone": {"where": _exists(_SOLVENT)},
+    # The role is an element field like any other, and an occurrence row carries none.
+    # Routed, the condition would be dropped and pyridine as a reactant would match.
+    "structure and role": {
+        "where": _exists({"op": "and", "clauses": [_SUBSTRUCTURE, _SOLVENT]})
+    },
+    "role and structure, reversed": {
+        "where": _exists({"op": "and", "clauses": [_SOLVENT, _SUBSTRUCTURE]})
+    },
     # amount lives on the element but not in the index.
     "an unindexed element field": {
         "where": _exists(
@@ -2294,8 +2316,8 @@ _NOT_ROUTABLE = {
             }
         )
     },
-    # The index carries the role a row has, never the roles it does not have, so an
-    # inequality routed as an equality would invert the answer.
+    # Routed, the inequality would be dropped and the pyridine that is the solvent would
+    # match too.
     "a role inequality": {
         "where": _exists(
             {
@@ -2312,7 +2334,7 @@ _NOT_ROUTABLE = {
         )
     },
     # Two roles on one element is a contradiction the projection answers with no rows.
-    # An index keeping only the last would answer with the rows holding that one.
+    # Routed, both would be dropped and every pyridine would match.
     "two roles at once": {
         "where": _exists(
             {
@@ -2355,8 +2377,7 @@ _NOT_ROUTABLE = {
     "a universal": {
         "where": {"op": "forall", "path": "inputs.components", "where": _SUBSTRUCTURE}
     },
-    # isolated_color is an element field no occurrence row carries, like any of the
-    # dozens beside the one indexed field.
+    # isolated_color is an element field no occurrence row carries, like every other.
     "an equality on an element field of the products": {
         "where": {
             "op": "exists",
@@ -2409,14 +2430,16 @@ def test_the_index_declines_what_an_occurrence_row_cannot_carry(label):
 @pytest.mark.parametrize(
     ("label", "expected"),
     [
-        # A pyridine that is not the solvent, which is aa02's reactant. Routed as an
-        # equality, this would come back as aa01 -- the one reaction it excludes.
+        # Pyridine as the solvent, which is aa01's and not aa02's. Routed with the role
+        # dropped, this would come back as both.
+        ("structure and role", {"ord-aa01"}),
+        # A pyridine that is not the solvent, which is aa02's reactant. Routed with the
+        # role dropped, this would come back as aa01 too, the one reaction it excludes.
         ("a role inequality", {"ord-aa02"}),
         # One component required to be two roles at once, which nothing is. Routed with
-        # only the last role kept, this would come back as every pyridine reactant.
+        # both roles dropped, this would come back as every pyridine.
         ("two roles at once", set()),
-        # Declined by the executor rather than by the shape, so the search exercises
-        # the decline that happens after the terms were read.
+        # An equality on smiles is a condition beside the structure like any other.
         ("an equality on another element field", {"ord-aa01", "ord-aa02"}),
         # No molecule is a pyridine ring and a benzene ring at once. Kept as one of the
         # two clauses -- either one -- this would return that clause's matches instead.
@@ -2428,8 +2451,8 @@ def test_a_declined_query_is_answered_rather_than_only_declined(
 ):
     # The planner declining is half the property; the other half is that the projection
     # answers, and answers what the comments beside these cases say routing would get
-    # wrong. Asserted for the two whose routed answer would not merely differ but invert
-    # or over-return.
+    # wrong. Asserted for the cases whose routed answer would not merely differ but
+    # invert or over-return.
     assert (
         _reactions(corpus.search(query.Query.model_validate(_NOT_ROUTABLE[label])))
         == expected
@@ -2467,10 +2490,10 @@ def test_a_limited_query_takes_some_of_the_match_set(corpus):
 
 
 def test_a_role_literal_cannot_close_its_quote(corpus):
-    # The role is the one thing a query supplies that reaches the index SQL as text
-    # rather than as a parameter. Unescaped, this literal closes the string and leaves
-    # `OR '1'='1` as a condition, which matches every row at every path -- so the
-    # assertion that bites is that nothing comes back, not that nothing raises.
+    # A role is text a query supplies. Spliced into the SQL unescaped, this literal
+    # closes the string and leaves `OR '1'='1` as a condition, which matches every
+    # element -- so the assertion that bites is that nothing comes back, not that
+    # nothing raises.
     matched = _search(corpus, _role_and_structure("c1ccncc1", "SOLVENT' OR '1'='1"))
     assert matched == set()
 
@@ -2507,12 +2530,10 @@ def test_the_index_is_built_once_and_only_when_wanted(corpus_dir, caplog):
     assert len(builds) == 1
 
 
-def test_the_indexed_paths_and_field_come_from_the_artifact():
+def test_the_indexed_paths_come_from_the_artifact():
     # One walk, in the artifact, and this pins that it stays one. A path routed here
-    # that no artifact carries is a quantifier answered from nothing, and a field name
-    # spelled here rather than read is a column the artifact does not hold.
+    # that no artifact carries is a quantifier answered from nothing.
     assert set(execute.INDEXED_PATHS) == set(occurrences.PATHS)
-    assert execute._INDEXED_FIELD == occurrences.INDEXED_FIELD
 
 
 def test_a_corpus_builds_the_occurrence_index_at_open(corpus_dir):
@@ -2862,10 +2883,10 @@ def test_a_universal_holds_of_a_level_the_source_never_recorded(deep_corpus):
     ("role", "expected"), [("SOLVENT", {"ord-cc01"}), ("REACTANT", set())]
 )
 def test_a_role_binds_to_the_element_at_a_deep_path(deep_corpus, role, expected):
-    # The index writes reaction_role for all four paths, and every other role condition
-    # here asks about inputs.components. A role that came out right for the inputs and
-    # NULL elsewhere would answer "pyridine as the solvent in the workup" with nothing,
-    # silently, while the same query without the role still worked.
+    # Every other role condition here asks about inputs.components. A role that came
+    # out right for the inputs and NULL elsewhere would answer "pyridine as the solvent
+    # in the workup" with nothing, silently, while the same query without the role
+    # still worked.
     request = query.Query.model_validate(
         {
             "where": {
@@ -2901,10 +2922,13 @@ def test_a_routed_query_is_bounded_by_the_timeout(corpus, monkeypatch):
         return original(cursor, sql, parameters, timeout_seconds)
 
     monkeypatch.setattr(execute, "_run_with_timeout", recording)
-    body = _ROUTABLE["structure and role"]
+    body = _ROUTABLE["structure alone"]
     assert _index_spent(body), "expected the index to take the clause"
     request = query.Query.model_validate(body)
-    assert _reactions(corpus.search(request, timeout_seconds=60)) == {"ord-aa01"}
+    assert _reactions(corpus.search(request, timeout_seconds=60)) == {
+        "ord-aa01",
+        "ord-aa02",
+    }
     # What reaches the query is what the earlier phases left, not the whole bound: the
     # screen and the index build come out of the same budget.
     (spent,) = [timeout for _, timeout in seen]
@@ -2924,30 +2948,19 @@ def test_a_spent_clause_reads_the_index_and_a_declined_one_does_not(corpus_dir):
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
     ) as value:
-        spent = query.Query.model_validate(_ROUTABLE["structure and role"])
-        assert _reactions(value.search(spent)) == {"ord-aa01"}
-        # aa01's solvent is its pyridine, so this copies the row the query just matched
-        # on and attributes it to bb01, which holds no pyridine at all.
+        spent = query.Query.model_validate(_ROUTABLE["structure alone"])
+        assert _reactions(value.search(spent)) == {"ord-aa01", "ord-aa02"}
+        # Copies aa01's occurrence rows, its pyridine among them, and attributes them to
+        # bb01, which holds no pyridine at all.
         value._connection.execute(
-            "INSERT INTO occurrences SELECT 'ord-bb01', path, global_id, "
-            "reaction_role FROM occurrences "
-            "WHERE reaction_id = 'ord-aa01' AND reaction_role = 'SOLVENT'"
+            "INSERT INTO occurrences SELECT 'ord-bb01', path, global_id "
+            "FROM occurrences WHERE reaction_id = 'ord-aa01'"
         )
-        assert _reactions(value.search(spent)) == {"ord-aa01", "ord-bb01"}
-        # The same question about an element field no occurrence row carries, so the
-        # quantifier compiles over the elements and the planted row is invisible.
-        declined_body = {
-            "where": _exists(
-                {
-                    "op": "and",
-                    "clauses": [
-                        _SUBSTRUCTURE,
-                        _SOLVENT,
-                        {"op": "is_null", "path": "amount.mass_grams"},
-                    ],
-                }
-            )
-        }
+        assert _reactions(value.search(spent)) == {"ord-aa01", "ord-aa02", "ord-bb01"}
+        # The same structure bound to the element's role, which no occurrence row
+        # carries, so the quantifier compiles over the elements and the planted row is
+        # invisible.
+        declined_body = _NOT_ROUTABLE["structure and role"]
         assert not _index_spent(declined_body)
         declined = query.Query.model_validate(declined_body)
         assert _reactions(value.search(declined)) == {"ord-aa01"}
@@ -3153,36 +3166,13 @@ def test_the_indexed_paths_are_the_ones_a_structure_can_sit_at():
         "outcomes.products.measurements.authentic_standard",
         "workups.input.components",
     ]
-    # A structure at a path with no role is one the index cannot carry -- and one it
-    # would then report as a structure it failed to reach.
-    with pytest.raises(ValueError, match="no reaction_role"):
-        execute._indexed_paths(
-            pa.schema(
-                [
-                    pa.field(
-                        "inputs",
-                        pa.list_(pa.struct([pa.field("structure_id", pa.uint32())])),
-                    )
-                ]
-            )
-        )
     # A structure on a level that is not repeated is one no pivot holds the elements of,
     # so no artifact can carry it and the build would have to unnest a level that is not
     # one. Refused by the artifact's walk, which is the walk this reads.
     with pytest.raises(ValueError, match="no repeated level reaches it"):
         execute._indexed_paths(
             pa.schema(
-                [
-                    pa.field(
-                        "setup",
-                        pa.struct(
-                            [
-                                pa.field("structure_id", pa.uint32()),
-                                pa.field("reaction_role", pa.string()),
-                            ]
-                        ),
-                    )
-                ]
+                [pa.field("setup", pa.struct([pa.field("structure_id", pa.uint32())]))]
             )
         )
     # A schema with no structure anywhere would assemble a build with no SQL in it.
@@ -4723,17 +4713,20 @@ def test_an_index_read_from_pivots_keeps_a_structure_in_its_own_dataset(
     assert matched == {"ord-bb01"}
 
 
-def test_an_index_read_from_pivots_keeps_the_element_s_role(tmp_path, corpus_dir):
-    # The role travels beside the structure, and it is what binds a query to one
-    # element: aa01 holds benzene as a reactant and pyridine as its solvent. A role read
-    # wrong from the artifact answers "pyridine as the solvent" with silence and
-    # "benzene as the solvent" with aa01, neither of which raises.
+def test_a_role_beside_the_structure_is_answered_by_the_pivot(tmp_path, corpus_dir):
+    # The role binds a query to one element: aa01 holds benzene as a reactant and
+    # pyridine as its solvent. No occurrence row carries it, so the pivot answers, and
+    # the index is never built for the asking. A role read wrong from the pivot answers
+    # "pyridine as the solvent" with silence and "benzene as the solvent" with aa01,
+    # neither of which raises.
     pivots = _write_pivots(corpus_dir, _OCCURRENCE_LEVELS, into=tmp_path / "pivots")
-    with _indexed_corpus(corpus_dir, pivots) as corpus:
+    with _indexed_corpus(corpus_dir, pivots, warm=False) as corpus:
         assert _search(corpus, _role_and_structure("c1ccncc1", "SOLVENT")) == {
             "ord-aa01"
         }
         assert _search(corpus, _role_and_structure("c1ccccc1", "SOLVENT")) == set()
+        assert "inputs.components" in corpus._pivot_views
+        assert not corpus._occurrences_built
 
 
 # One structure per indexed path, with the reactions holding it. The two deepest paths
@@ -5672,7 +5665,7 @@ def test_an_occurrences_artifact_missing_a_column_is_refused(
     corpus_dir, occurrence_dirs
 ):
     # The same check _check_pivots makes, for an artifact whose columns cannot drift
-    # today: the three are the same at every path and have not moved. It is here
+    # today: the two are the same at every path. It is here
     # because the stamps say nothing about columns whatever the artifact, so the day
     # this schema grows one, every file written before it would read as current and
     # fail deep in DuckDB rather than here.
@@ -5681,7 +5674,7 @@ def test_an_occurrences_artifact_missing_a_column_is_refused(
     table = pq.read_table(target)
     metadata = table.schema.metadata
     pq.write_table(
-        table.drop_columns(["reaction_role"]).replace_schema_metadata(metadata), target
+        table.drop_columns(["structure_id"]).replace_schema_metadata(metadata), target
     )
     with (
         pytest.raises(execute.PairingError, match="without"),
@@ -5703,19 +5696,6 @@ def test_an_index_read_from_artifacts_answers_what_unnesting_answers(
     with _indexed_corpus(corpus_dir, None) as unnested:
         expected = _search(unnested, where)
     assert expected
-    with _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read:
-        assert _search(read, where) == expected
-
-
-def test_an_index_read_from_artifacts_binds_the_role_to_the_element(
-    corpus_dir, occurrence_dirs
-):
-    # The role travels on the occurrence row, which is what keeps "pyridine as the
-    # solvent" a condition on one row rather than an intersection of two reaction sets.
-    _, occurrence_dir = occurrence_dirs
-    where = _role_and_structure("c1ccncc1", "SOLVENT")
-    with _indexed_corpus(corpus_dir, None) as unnested:
-        expected = _search(unnested, where)
     with _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read:
         assert _search(read, where) == expected
 
@@ -5824,7 +5804,7 @@ def test_occurrence_artifacts_of_another_corpus_are_refused(
 def test_an_artifact_stamped_with_another_path_is_refused(
     tmp_path, corpus_dir, occurrence_dirs
 ):
-    # Every indexed path writes the same three columns, so where a file sits says
+    # Every indexed path writes the same two columns, so where a file sits says
     # nothing about what it holds and the stamped path is the only thing that does.
     _, occurrence_dir = occurrence_dirs
     misfiled = tmp_path / "misfiled"
