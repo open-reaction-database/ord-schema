@@ -45,7 +45,7 @@ Each dataset in the [Open Reaction Database](https://huggingface.co/datasets/ope
 | `projections` | source dataset | every field of every reaction as nested Parquet, with units folded into column names (`setpoint_kelvin`) and each molecule's structural identifiers resolved to one `smiles` |
 | `structures` | source dataset | one row per distinct molecule: SMILES, registration hashes, pattern and Morgan fingerprints, and a serialized RDKit mol, keyed by `structure_id` |
 | `pivots` | source dataset and repeated level | one row per element of that level, with its `reaction_id`, the ordinal of every enclosing level, and the element's own non-repeated fields |
-| `occurrences` | source dataset and indexed path | one row per molecule occurrence: `reaction_id`, `structure_id`, `reaction_role` |
+| `occurrences` | source dataset and indexed path | one row per molecule occurrence at that path: `reaction_id`, `structure_id` |
 
 A `structure_id` is local to its dataset: it joins a projection, pivot, or occurrences file only to the structures file derived from the same source dataset.
 

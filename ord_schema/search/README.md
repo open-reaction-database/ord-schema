@@ -149,7 +149,7 @@ is a compile error rather than a wrong answer:
   other role. Templates on one side match different molecules, so `C(=O)O.N` needs an
   acid and an amine rather than one molecule holding both, even one recorded twice; a
   grouped template, `(C(=O)O.N)`, asks for both pieces in one molecule. It compiles to
-  one `exists` per template, which the occurrence index answers for a reactant template,
+  one `exists` per template, which the occurrence index answers for a product template,
   and a count of distinct SMILES per subset of two or more templates on a side, which is
   what holds them to different molecules; a side holds at most five templates, which
   bounds the counts at 26 per side. That is stricter than the RDKit cartridge's `@>`,
@@ -208,7 +208,7 @@ and a pivot on the next:
 
 ```mermaid
 flowchart TB
-    A["exists / forall over a repeated level"] --> B{"an exists whose body is one structure<br/>predicate on the element's own smiles,<br/>at most a reaction_role beside it?"}
+    A["exists / forall over a repeated level"] --> B{"an exists whose body is one structure<br/>predicate on the element's own smiles<br/>and nothing else?"}
     B -- yes --> I["<b>occurrence index</b><br/>reaction_id IN (SELECT … FROM occurrences …)"]
     B -- no --> P{"does the body resolve against<br/>the pivot's pruned element,<br/>and does a pivot fit?"}
     P -- yes --> V["<b>a pivot</b><br/>EXISTS (SELECT 1 FROM pivot_… AS x0 …)"]
@@ -221,8 +221,9 @@ in what they read. Worked examples, with the route each clause takes:
 | query | clause | route |
 | --- | --- | --- |
 | above 350 K | `conditions.temperature.setpoint_kelvin > 350` | no quantifier: the projection |
-| pyridine as the solvent | `exists inputs.components` | occurrence index |
-| pyridine as the solvent, yield above 50% | `exists inputs.components` | occurrence index |
+| pyridine among the inputs | `exists inputs.components` | occurrence index |
+| pyridine as the solvent | `exists inputs.components` | pivot — the role is an element field, which an occurrence row does not carry |
+| pyridine among the inputs, yield above 50% | `exists inputs.components` | occurrence index |
 | | `exists outcomes.products.measurements` | pivot |
 | solvent-free: no component is a solvent | `forall inputs.components` | pivot — the index shows which elements match, never that all of them do |
 | pyridine **and** a boronic acid in one component | `exists inputs.components` | pivot — two structure predicates is one more than an occurrence row can carry |
@@ -251,16 +252,15 @@ should set it to the core count divided by that concurrency instead of leaving i
 
 Finding which reactions hold a match is a separate cost from the chemistry, and the
 larger one. An **occurrence index** — one row per structure occurrence, carrying the
-corpus-wide ID, the path, and the element's own `reaction_role` — makes that a semi-join
-against a narrow table rather than a scan of every reaction. Keeping the role beside the
-structure is what keeps a bound query a condition on one row. At corpus scale the index
-is 18,847,978 rows and **1.19 GiB**, built in 58s and resident for the life of the
-`Corpus` — a row is three strings and an integer, and the strings are what it costs. A
-search for pyridine among the inputs returns in 1.46s **end to end**, pyridine as the
-solvent in 1.74s, and a boronic acid in 0.15s — and for a common pattern nearly all of
-that is the RDKit screen and verify, which the index does not touch: pyridine's match
-alone is about 1.4s of its 1.46s. What the index cut is the reaction lookup, from roughly
-3.5s to 0.2s.
+corpus-wide ID and the path — makes that a semi-join against a narrow table rather than
+a scan of every reaction. It carries nothing of the element, so a structure bound to one
+of the element's fields — pyridine *as the solvent* — is answered by the level's pivot,
+which holds the whole element. At corpus scale the index is 18,847,978 rows and **1.19
+GiB**, built in 58s and resident for the life of the `Corpus`. A search for pyridine
+among the inputs returns in 1.46s **end to end**, and a boronic acid in 0.15s — and for a
+common pattern nearly all of that is the RDKit screen and verify, which the index does
+not touch: pyridine's match alone is about 1.4s of its 1.46s. What the index cut is the
+reaction lookup, from roughly 3.5s to 0.2s.
 
 Whichever route a clause takes, aggregates, orderings, limits, negations, disjunctions,
 and a second structure predicate compose around it, and the screening and verification

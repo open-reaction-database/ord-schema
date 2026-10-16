@@ -26,7 +26,7 @@ flowchart LR
 | [`projection`](projection.py) | source dataset | every field of every message reachable from `Reaction`, as `STRUCT` / `LIST` / `MAP` | any query engine; the compiler in [`ord_schema.search`](../search/) |
 | [`structures`](structures.py) | projection | one row per distinct structure: `pattern_fp`, `morgan_fp`, `morgan_popcount`, `mol_binary`, keyed by `structure_id` | the screen and verify steps of substructure search |
 | [`pivot`](pivot.py) | projection × repeated level | one row per element, carrying `reaction_id`, the ordinal of every enclosing level, and the element's own non-repeated fields | quantifiers, as a semi-join |
-| [`occurrences`](occurrences.py) | pivot × indexed path | one row per structure occurrence: `reaction_id`, `structure_id`, `reaction_role` | the semi-join a structure query is routed to, as a view rather than a table the corpus builds |
+| [`occurrences`](occurrences.py) | pivot × indexed path | one row per structure occurrence: `reaction_id`, `structure_id` | the semi-join a structure query with no other element condition is routed to, as a view rather than a table the corpus builds |
 
 The projection leaves **no field out** — a field left out is a question nobody can ask.
 Its schema is generated from the proto descriptors, so a field added upstream appears

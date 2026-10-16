@@ -231,7 +231,7 @@ def test_a_path_this_run_did_not_name_is_checked_against_the_schema(pivots, tmp_
     output = tmp_path / "occurrences"
     _run(pivots, output)
     left_behind = occurrences.artifact_paths(output, "inputs.components")[0]
-    _drop_column(left_behind, "reaction_role")
+    _drop_column(left_behind, "structure_id")
     with pytest.raises(ValueError, match="did not derive"):
         _run(pivots, output, "--paths", "outcomes.products")
 

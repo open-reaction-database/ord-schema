@@ -1485,9 +1485,10 @@ def _expand_reaction_smarts(node: ReactionSmarts) -> And:
     """Returns the quantifiers a reaction SMARTS stands for, one per template.
 
     Built from the grammar's own nodes, so each template is routed as any other
-    quantifier is: a reactant template's ``exists`` over components with a structure and
-    a role is exactly what the occurrence index answers. ``_distinct_matches`` adds
-    what gives each template a component of its own.
+    quantifier is: a product template's ``exists`` is a structure alone, which an
+    occurrence index answers, and a reactant or agent template's binds the role beside
+    it and compiles over the components. ``_distinct_matches`` adds what gives each
+    template a component of its own.
 
     Args:
         node: The reaction SMARTS predicate.

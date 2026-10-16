@@ -126,15 +126,12 @@ def test_a_path_is_read_from_the_level_it_ranges_within():
 # Derivation
 
 
-def test_an_occurrence_carries_the_reaction_the_structure_and_the_role(
-    pivots, tmp_path
-):
+def test_an_occurrence_carries_the_reaction_and_the_structure(pivots, tmp_path):
+    # Nothing of the element: the role and every other element field are the pivot's,
+    # and a query binding one is answered there.
+    assert occurrences.SCHEMA.names == ["reaction_id", "structure_id"]
     written = _derive(pivots, tmp_path, "inputs.components")
-    assert _rows(written) == [
-        ("ord-oc01", 0, "REACTANT"),
-        ("ord-oc01", 1, "SOLVENT"),
-        ("ord-oc02", 0, "REACTANT"),
-    ]
+    assert _rows(written) == [("ord-oc01", 0), ("ord-oc01", 1), ("ord-oc02", 0)]
 
 
 def test_an_element_carrying_no_structure_is_no_occurrence(pivots, tmp_path):
@@ -151,18 +148,15 @@ def test_an_element_carrying_no_structure_is_no_occurrence(pivots, tmp_path):
 def test_a_path_below_its_level_is_read_through_the_remainder(pivots, tmp_path):
     # The authentic standard sits inside the measurement's element rather than being an
     # element of its own, so this is the one path whose read is not the level itself.
-    # Its role is NULL, which is what the source records: a standard is named to
-    # identify a peak rather than to play a part in the reaction, so a role-bound query
-    # over this path matches nothing, and that is the right answer.
     written = _derive(
         pivots, tmp_path, "outcomes.products.measurements.authentic_standard"
     )
-    assert _rows(written) == [("ord-oc01", 4, None)]
+    assert _rows(written) == [("ord-oc01", 4)]
 
 
 def test_a_workup_component_is_read_from_its_own_level(pivots, tmp_path):
     written = _derive(pivots, tmp_path, "workups.input.components")
-    assert _rows(written) == [("ord-oc01", 2, "SOLVENT")]
+    assert _rows(written) == [("ord-oc01", 2)]
 
 
 def test_occurrences_are_sorted_on_their_columns(tmp_path):
@@ -197,11 +191,7 @@ def test_occurrences_are_sorted_on_their_columns(tmp_path):
     occurrences.write_occurrences(pivoted, written, path="inputs.components")
     table = pq.read_table(written)
     rows = list(zip(*(column.to_pylist() for column in table.columns), strict=True))
-    assert rows == [
-        ("ord-oca", 0, "SOLVENT"),
-        ("ord-oca", 1, "REACTANT"),
-        ("ord-ocb", 0, "SOLVENT"),
-    ]
+    assert rows == [("ord-oca", 0), ("ord-oca", 1), ("ord-ocb", 0)]
 
 
 def test_a_path_the_source_never_recorded_writes_an_empty_artifact(tmp_path):
