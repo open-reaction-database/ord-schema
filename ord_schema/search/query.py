@@ -108,16 +108,13 @@ SCHEMA = projection.SCHEMA.append(pa.field(DATASET_ID, pa.string()))
 BoundValue = bool | int | float | str | datetime.date
 
 
-# Consulted for an ``exists`` at the row, given the path it quantifies over, the field
-# equalities its body asks for, a thunk naming the structure parameter the match set
-# will bind under, and a function binding a field's literal and returning the parameter
-# name it binds under. Returns a row condition standing for the whole quantifier, or
-# None to leave it compiled as a filter over the elements. Both are called only by an
-# index that takes the clause, because a parameter named and left unbound is an error
-# rather than a wasted name.
-ElementIndex = Callable[
-    [str, dict[str, str], Callable[[], str], Callable[[str], str]], str | None
-]
+# Consulted for an ``exists`` at the row whose body is one structure predicate on the
+# element's own ``smiles`` and nothing else, given the path it quantifies over and a
+# thunk naming the structure parameter the match set will bind under. Returns a row
+# condition standing for the whole quantifier, or None to leave it compiled as a filter
+# over the elements. The thunk is called only by an index that takes the clause, because
+# a parameter named and left unbound is an error rather than a wasted name.
+ElementIndex = Callable[[str, Callable[[], str]], str | None]
 
 
 # Consulted for a quantifier at the row, given the path it ranges over. Returns the
@@ -1169,48 +1166,30 @@ def _structure(
     )
 
 
-def _element_terms(
-    node: "Quantifier",
-) -> "tuple[StructurePredicate, dict[str, str]] | None":
-    """Returns what an ``exists`` body asks of one element, or None if it asks more.
+def _element_structure(node: "Quantifier") -> "StructurePredicate | None":
+    """Returns an ``exists`` body's lone structure predicate, or None if it asks more.
 
-    The shape an element index can answer, stated without knowing what any index holds:
-    one structure predicate on the element's own ``smiles``, and equalities on the
-    element's own fields. A caller decides whether those fields are ones it carries.
+    The shape an element index can answer: one structure predicate on the element's own
+    ``smiles`` and nothing else. A field of the element beside it -- the role, an
+    amount -- is a condition no index row carries, so the elements answer it.
 
     Args:
         node: The quantifier to read.
 
     Returns:
-        ``(structure, fields)``, where ``fields`` maps a field name to the literal it
-        must equal, or None if the body is anything else -- a ``forall``, a negation, a
-        disjunction, a nested quantifier, a comparison that is not an equality against a
-        string literal, a path that descends past the element, a field equated twice,
-        or a count of structure predicates that is not exactly one.
+        The structure predicate, or None if the body is anything else -- a ``forall``,
+        a negation, a disjunction, a nested quantifier, any condition beside the
+        structure, or a structure predicate on another path.
     """
     if node.op != "exists":
         return None
     clauses = node.where.clauses if isinstance(node.where, And) else [node.where]
-    structure: StructurePredicate | None = None
-    fields: dict[str, str] = {}
-    for clause in clauses:
-        if isinstance(clause, StructurePredicate):
-            if structure is not None or clause.path != "smiles":
-                return None
-            structure = clause
-        elif (
-            isinstance(clause, Comparison)
-            and clause.op == "eq"
-            and "." not in clause.path
-            and clause.path not in fields
-            and isinstance(clause.value.literal, str)
-        ):
-            fields[clause.path] = clause.value.literal
-        else:
-            return None
-    if structure is None:
+    if len(clauses) != 1:
         return None
-    return structure, fields
+    (clause,) = clauses
+    if not isinstance(clause, StructurePredicate) or clause.path != "smiles":
+        return None
+    return clause
 
 
 def _pivot_target(
@@ -1394,18 +1373,14 @@ def _quantifier(
     # not match an index's absolute paths anyway, so the scope check is defense in
     # depth rather than the working guard.
     if routing.index is not None and scope is None:
-        terms = _element_terms(node)
-        if terms is not None:
-            structure, fields = terms
+        structure = _element_structure(node)
+        if structure is not None:
             # The thunk defers naming the structure parameter until the index accepts.
             # A declined clause allocates through its element compilation instead, and
             # _structure_parameter dedupes by content, so early or late it is one name.
-            # A field's literal is bound the same way, by an index that has accepted.
             condition = routing.index(
                 node.path,
-                fields,
                 lambda: _structure_parameter(structure, parameters.structures),
-                parameters.bind,
             )
             if condition is not None:
                 return condition

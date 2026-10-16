@@ -776,20 +776,13 @@ def _warn_when_the_bound_was_reached(
     return True
 
 
-def _index_condition(
-    path: str,
-    fields: dict[str, str],
-    allocate: Callable[[], str],
-    bind: Callable[[str], str],
-) -> str | None:
+def _index_condition(path: str, allocate: Callable[[], str]) -> str | None:
     """Returns a row condition standing for an element quantifier, or None.
 
-    The compiler's ``ElementIndex``: it has already read the quantifier's body down
-    to a structure predicate on the element's own ``smiles`` and the field
-    equalities beside it, and this decides whether an occurrence row can carry that
-    question. A row holds the path and the corpus-wide structure ID and no element
-    field, so a query binding any field, or asking about a path the index does not
-    cover, is left to the elements -- the level's pivot, where the corpus has one.
+    The compiler's ``ElementIndex``: it offers only a quantifier whose body is a lone
+    structure predicate on the element's own ``smiles``, since a row holds the path
+    and the corpus-wide structure ID and no element field. This declines a path the
+    index does not cover, which is left to the elements.
 
     What comes back is a semi-join rather than a whole query, which is what lets the
     rest of the query stay exactly what it was: the aggregate, the ordering, the
@@ -799,15 +792,12 @@ def _index_condition(
 
     Args:
         path: The path the quantifier ranges over.
-        fields: Element fields the body requires, mapped to their literals.
         allocate: Names the structure parameter the match set binds under.
-        bind: Binds a field's literal; never called, since no field is carried.
 
     Returns:
         The condition, or None to leave the quantifier compiled over the elements.
     """
-    del bind  # Part of the hook's signature; this index binds no field.
-    if path not in INDEXED_PATHS or fields:
+    if path not in INDEXED_PATHS:
         return None
     conditions = [
         f"occurrence.path = {sql_string(path)}",
@@ -3172,14 +3162,9 @@ class Corpus:
         # Corpus, and whether the index answered is a fact about one of them.
         indexing = False
 
-        def index(
-            path: str,
-            fields: dict[str, str],
-            allocate: Callable[[], str],
-            bind: Callable[[str], str],
-        ) -> str | None:
+        def index(path: str, allocate: Callable[[], str]) -> str | None:
             nonlocal indexing
-            condition = _index_condition(path, fields, allocate, bind)
+            condition = _index_condition(path, allocate)
             indexing = indexing or condition is not None
             return condition
 

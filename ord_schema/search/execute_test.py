@@ -2094,9 +2094,9 @@ def _index_spent(body) -> bool:
     """Returns whether the occurrence index takes any clause of this query."""
     spent = False
 
-    def index(path, fields, allocate, bind):
+    def index(path, allocate):
         nonlocal spent
-        condition = execute._index_condition(path, fields, allocate, bind)
+        condition = execute._index_condition(path, allocate)
         spent = spent or condition is not None
         return condition
 
@@ -2133,9 +2133,9 @@ def test_a_reaction_smarts_spends_the_occurrence_index_on_its_products_alone():
     )
 
 
-def _no_index_condition(path, fields, allocate, bind):
+def _no_index_condition(path, allocate):
     """Stands in for _index_condition so every quantifier compiles over the elements."""
-    del path, fields, allocate, bind  # Unused.
+    del path, allocate  # Unused.
 
 
 # Every shape where the index takes a clause. The index answers one quantifier, not the
@@ -2439,8 +2439,7 @@ def test_the_index_declines_what_an_occurrence_row_cannot_carry(label):
         # One component required to be two roles at once, which nothing is. Routed with
         # both roles dropped, this would come back as every pyridine.
         ("two roles at once", set()),
-        # Declined by the executor rather than by the shape, so the search exercises
-        # the decline that happens after the terms were read.
+        # An equality on smiles is a condition beside the structure like any other.
         ("an equality on another element field", {"ord-aa01", "ord-aa02"}),
         # No molecule is a pyridine ring and a benzene ring at once. Kept as one of the
         # two clauses -- either one -- this would return that clause's matches instead.
