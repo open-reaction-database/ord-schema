@@ -42,7 +42,9 @@ _DATETIME_CACHE_SIZE = 10_000
 # written under. A time without one could be in any zone, so it is not accepted.
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _TIME = re.compile(
-    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})"
+    # fromisoformat reads an offset of "+00:60" as one hour, so the minutes are bounded
+    # here; it rejects out-of-range hours itself.
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:[0-5]\d)"
 )
 
 
@@ -1295,7 +1297,7 @@ def _validate_analysis(
 
 
 def _as_date(value: datetime.date) -> datetime.date:
-    """Returns a parsed DateTime's date: a time's is the date it was written on."""
+    """Returns a parsed DateTime's date, taking a time's date as written."""
     return value.date() if isinstance(value, datetime.datetime) else value
 
 
