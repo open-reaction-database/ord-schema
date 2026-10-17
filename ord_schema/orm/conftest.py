@@ -17,10 +17,10 @@
 One PostgreSQL cluster per session, and a database cloned from a template per test.
 
 Starting a cluster, installing the ORM schema and the RDKit cartridge, and loading the
-example dataset with its derived tables cost far more than most test bodies, and this
-package has many tests. ``CREATE DATABASE ... TEMPLATE`` copies a prepared database in a
-fraction of that, so the templates are built once per session and every test clones
-one.
+example dataset with its derived tables is a fixed cost before every test body, and
+this package has many tests. ``CREATE DATABASE ... TEMPLATE`` copies a prepared database
+in a fraction of that time, so the templates are built once per session and every test
+clones one.
 
 A clone is a byte copy, so a test owns a database nobody else writes to, and dropping it
 leaves the template as it was. Under xdist each worker is its own session and so runs

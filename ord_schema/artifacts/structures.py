@@ -19,10 +19,9 @@ tests the query's fingerprint bits against every row -- a bitwise scan a query e
 runs in milliseconds without a chemistry library -- and is complete but not exact: it
 never misses a true match, and passes false ones. **Verification** then runs
 real subgraph isomorphism over the survivors, from the serialized molecule carried
-here, which skips re-parsing SMILES and runs faster for it. Neither
-step needs an index; the reason a structure search elsewhere needs one is the cost of
-scanning rows one at a time, and a columnar scan of every distinct structure in the
-corpus is cheap.
+here, which skips re-parsing SMILES and runs faster for it. Neither step needs an
+index; the reason a structure search elsewhere needs one is the cost of scanning rows
+one at a time, and a columnar scan of every distinct structure in the corpus is cheap.
 
 The artifact is deduplicated, which is what makes both steps affordable: the corpus
 holds roughly fifteen component occurrences per distinct structure, so screening and

@@ -15,8 +15,8 @@
 """The projection schema, rendered for a model that has to write SQL against it.
 
 A model cannot query columns it has not been told about, so the whole schema goes in the
-prompt. It is small enough to, rendered whole, which is why translation can stay a
-single forced tool call instead of a retrieval loop over column metadata.
+prompt. It is small enough to fit whole, which is why translation can stay a single
+forced tool call instead of a retrieval loop over column metadata.
 
 An enum projects as its value *name*, so each enum column carries its members beside
 it. Without them a model has the column and no way to learn the spelling it must compare

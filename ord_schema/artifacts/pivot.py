@@ -705,9 +705,8 @@ def _count_expression(level: RepeatedLevel) -> str:
     elements -- not because it reads less of the column. Reaching an element to measure
     its list pulls the whole nested payload off disk either way, and the count scales
     with the payload's width, so the margin is a property of the corpus and not of this
-    expression. What it buys reliably is on the levels a corpus
-    never records, where the answer is nothing and the unnest would still walk every
-    ancestor to say so.
+    expression. What it buys reliably is on the levels a corpus never records, where
+    the answer is nothing and the unnest would still walk every ancestor to say so.
 
     Args:
         level: The level to count.

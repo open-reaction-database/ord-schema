@@ -76,8 +76,8 @@ which are only checked. Both builds happen
 at open unless the corpus was given ``warm=False``, which leaves the index to the first
 query taking a clause of it and the library to the first substructure predicate. A
 search that pays for either pays for the build on top of whatever timeout it was given
--- unless an ``occurrences_dir`` covers every indexed
-path, where the index is a view over those files and there is nothing to build.
+-- unless an ``occurrences_dir`` covers every indexed path, where the index is a view
+over those files and there is nothing to build.
 
 Given the source datasets, a corpus also serves what a search found. A search returns
 reaction IDs, and ``Corpus.reactions`` reads each one's serialized ``Reaction`` out of
@@ -1283,11 +1283,11 @@ class Corpus:
                 DuckDB memory and temporary files that unnesting it from the projections
                 takes, and pays instead a little more per query -- less on the narrow
                 paths, where reading one path's files beats filtering across every
-                occurrence in the corpus. A path with no
-                artifacts is read from a pivot or unnested from the projection as
-                before, and one uncovered path materializes the whole index, since a
-                view would repeat that traversal on every query; ``require_occurrences``
-                refuses that rather than falling back to it. Derived by
+                occurrence in the corpus. A path with no artifacts is read from a pivot
+                or unnested from the projection as before, and one uncovered path
+                materializes the whole index, since a view would repeat that traversal
+                on every query; ``require_occurrences`` refuses that rather than falling
+                back to it. Derived by
                 ``ord_schema.artifacts.scripts.derive_occurrences``.
             require_occurrences: Refuse a corpus whose ``occurrences_dir`` does not
                 cover every indexed path, rather than materializing the index because
@@ -2202,10 +2202,9 @@ class Corpus:
         A path with no artifact is otherwise read from a pivot or unnested out of the
         projection, and either leaves the index a materialized table, held for the
         life of the corpus and, unnested, built under a memory floor. A deployment
-        sized for the view is sized for neither, so the
-        fallback that keeps a corpus answering is the one that gets the container
-        killed, which is the failure a caller naming an occurrences_dir is least likely
-        to be expecting.
+        sized for the view is sized for neither, so the fallback that keeps a corpus
+        answering is the one that gets the container killed, which is the failure a
+        caller naming an occurrences_dir is least likely to be expecting.
 
         Raises:
             PairingError: If any indexed path has no artifacts. Wrong provenance, a
@@ -2253,9 +2252,9 @@ class Corpus:
             # Three ways to reach a path's occurrences, cheapest first. An occurrences
             # artifact is the rows themselves and needs only the offset joined on. A
             # level's pivot holds one row per element, which is a scan of one level
-            # against a traversal of every reaction. Failing both, the
-            # projection is unnested. Decided per path, so a directory holding some and
-            # not others is a partial speedup rather than a missing index.
+            # against a traversal of every reaction. Failing both, the projection is
+            # unnested. Decided per path, so a directory holding some and not others is
+            # a partial speedup rather than a missing index.
             reads, from_artifacts, from_pivots, from_projections = [], [], [], []
             for path, expression in INDEXED_PATHS.items():
                 reading = self._occurrences_from_artifact(path)
@@ -2274,10 +2273,10 @@ class Corpus:
             # query the artifacts cost a little more than the built table -- and less on
             # the narrow paths, where reading one path's files beats filtering path = ?
             # across every occurrence in the corpus -- against the memory the table
-            # holds and the floor unnesting it has. A path
-            # read from a pivot or unnested out of the projection is the traversal this
-            # index exists to avoid, and a view would repeat it on every query rather
-            # than pay it once, so one uncovered path materializes all of them.
+            # holds and the floor unnesting it has. A path read from a pivot or unnested
+            # out of the projection is the traversal this index exists to avoid, and a
+            # view would repeat it on every query rather than pay it once, so one
+            # uncovered path materializes all of them.
             held = "VIEW" if len(from_artifacts) == len(INDEXED_PATHS) else "TABLE"
             # Its own cursor: this runs while searches are in flight, and the shared
             # connection holds their results.

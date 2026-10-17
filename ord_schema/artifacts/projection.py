@@ -559,8 +559,8 @@ def _struct_fields(descriptor: Descriptor, stack: frozenset[str]) -> list[pa.Fie
             if descriptor.name in _TIMESTAMP_TYPES and field.name == "value":
                 # The depositor's own spelling, kept because the timestamp beside it is
                 # an interpretation and cannot be turned back into it -- and is null for
-                # the ambiguous dates no evidence settles, which would otherwise
-                # have no representation at all. Internal because a date question is
+                # the ambiguous dates no evidence settles, which would otherwise have
+                # no representation at all. Internal because a date question is
                 # answered by the timestamp: matching text against a date the corpus
                 # spells many ways finds a fraction of what it asks for and reads as if
                 # it found all of it.
