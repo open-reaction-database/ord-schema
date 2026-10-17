@@ -525,7 +525,7 @@ log line. Two thirds of that is resident before the build starts, most of it the
 projections' parsed footers, which the corpus parses at open and DuckDB's accounting
 books a fifth of. Heap the open frees is heap the build reuses, so freeing more of it at
 open does not lower the peak. With swap off, as a deployment runs, an 8 GiB container on
-DuckDB's own 6.3 GiB default was killed 40–66s into the build, and one holding DuckDB to
+DuckDB's own 6.3 GiB default was killed 40–70s into the build, and one holding DuckDB to
 5 GiB was killed in two runs of three; a 12 GiB container finished at both 5 GiB and
 `6500MiB`, peaking at 8.1–8.4 and 9.5 GiB resident. Swap only postpones the kill.
 `Corpus` warns at open when a cap it can read leaves less than 4 GB above the limit

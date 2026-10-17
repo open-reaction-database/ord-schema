@@ -316,8 +316,8 @@ def _max_structure_id(path: str, derive: str) -> int | None:
     The columns are found by the paths their chunks record rather than through
     ``metadata.schema``. pyarrow's ``ParquetSchema`` and the ``FileMetaData`` it belongs
     to refer to each other, so a footer whose schema was read stays parsed after the
-    file closes, until the cyclic collector runs; read over every file of a corpus, that
-    holds all of their footers at once.
+    file closes, until the cyclic collector runs. Read over every file of a corpus, that
+    holds many footers at once.
 
     Args:
         path: Path to a projection, or to a pivot or occurrence artifact.
