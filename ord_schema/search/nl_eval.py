@@ -427,6 +427,7 @@ def run_case(
         attempts=translated.attempts,
         turns=translated.turns,
         row_count=table.num_rows,
+        resolved=execute.resolutions(table),
         usage=translated.usage,
         translate_ms=translated.elapsed_ms,
     )

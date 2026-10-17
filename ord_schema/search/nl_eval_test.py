@@ -584,6 +584,50 @@ def test_a_query_built_for_an_inexpressible_question_is_recorded(tmp_path):
     assert event["source"] == "eval"
 
 
+class _NamingCorpus(_StubCorpus):
+    """Answers as a search whose query named pyridine, stamping what it resolved to."""
+
+    def search(self, translated: Any, **kwargs: Any) -> pa.Table:
+        """Returns the canned result, stamped with its resolutions.
+
+        Args:
+            translated: The query, which the stub ignores.
+            **kwargs: Bounds the stub ignores.
+
+        Returns:
+            A one-row table carrying ``execute.RESOLVED``.
+        """
+        stamp = json.dumps({"pyridine": "c1ccncc1"}).encode()
+        return (
+            super()
+            .search(translated, **kwargs)
+            .replace_schema_metadata({execute.RESOLVED: stamp})
+        )
+
+
+@pytest.mark.parametrize(
+    ("corpus", "expected"),
+    [(_NamingCorpus(), {"pyridine": "c1ccncc1"}), (_StubCorpus(), {})],
+)
+def test_a_case_records_what_each_compound_resolved_to(tmp_path, corpus, expected):
+    # An eval run is replayed months later against whatever the resolver says then, so
+    # its record has to keep the structures it searched as much as a served one does.
+    sink = nl_log.JsonlSink(tmp_path / "run.jsonl")
+    nl_eval.run_case(
+        _INEXPRESSIBLE,
+        cast(execute.Corpus, corpus),
+        client=cast(
+            Any,
+            _StubClient("build_query", {"where": {"op": "not_null", "path": "smiles"}}),
+        ),
+        model="stub",
+        repair=False,
+        sink=sink,
+    )
+    (line,) = (tmp_path / "run.jsonl").read_text(encoding="utf-8").splitlines()
+    assert json.loads(json.loads(line)["resolved"]) == expected
+
+
 def test_a_run_without_a_sink_records_nothing(tmp_path):
     result = _run(_CASE, _StubClient("build_query", _BAD_PATH))
     assert not result.passed
