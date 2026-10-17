@@ -1251,8 +1251,11 @@ def _validate_mass_spec_measurement_type(
 
 
 @functools.lru_cache(maxsize=_DATETIME_CACHE_SIZE)
-def _parse_date_time(value: str) -> datetime.date | None:
+def parse_date_time(value: str) -> datetime.date | None:
     """Parses a DateTime value: a date, or a time with its UTC offset.
+
+    The one definition of the shapes a DateTime may take: validation accepts exactly
+    the values this parses, and the artifact projection reads times through it.
 
     Memoized: a DateTime string is parsed once by this module's per-message walk
     and again by :func:`_validate_reaction_provenance` to order the timestamps,
@@ -1281,7 +1284,7 @@ def _validate_date_time(
     message: reaction_pb2.DateTime, context: ValidationContext
 ) -> None:
     """Validates that a DateTime value is a date or a time with its UTC offset."""
-    if message.value and _parse_date_time(message.value) is None:
+    if message.value and parse_date_time(message.value) is None:
         context.error(
             f"Could not parse DateTime string {message.value}: write a date "
             "(YYYY-MM-DD) or a time with its UTC offset (YYYY-MM-DDTHH:MM:SS+00:00)"
@@ -1307,7 +1310,7 @@ def _is_before(value: datetime.date, other: datetime.date) -> bool:
     Two times compare by the instants they name. Any other pair compares by date.
 
     Args:
-        value: The DateTime that may come first, from :func:`_parse_date_time`.
+        value: The DateTime that may come first, from :func:`parse_date_time`.
         other: The DateTime to compare it against.
 
     Returns:
@@ -1325,16 +1328,15 @@ def _validate_reaction_provenance(
     if not message.HasField("record_created"):
         context.error("Reactions must have record_created defined")
     values = [message.experiment_start.value, message.record_created.time.value]
-    if any(value and _parse_date_time(value) is None for value in values) or any(
-        _parse_date_time(record.time.value) is None
-        for record in message.record_modified
+    if any(value and parse_date_time(value) is None for value in values) or any(
+        parse_date_time(record.time.value) is None for record in message.record_modified
     ):
         context.warn("Failed to parse DateTime string(s)")
-    experiment_start = _parse_date_time(message.experiment_start.value)
-    record_created = _parse_date_time(message.record_created.time.value)
+    experiment_start = parse_date_time(message.experiment_start.value)
+    record_created = parse_date_time(message.record_created.time.value)
     # The last record is the most recent modification.
     record_modified = (
-        _parse_date_time(message.record_modified[-1].time.value)
+        parse_date_time(message.record_modified[-1].time.value)
         if message.record_modified
         else None
     )

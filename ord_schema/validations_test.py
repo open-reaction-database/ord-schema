@@ -361,7 +361,7 @@ def test_the_two_identifier_checks_share_one_parse():
 
 def test_a_warm_cache_does_not_change_what_validation_reports():
     message_helpers.canonical_smiles_for_identifier.cache_clear()
-    validations._parse_date_time.cache_clear()
+    validations.parse_date_time.cache_clear()
     cold = _run_validation(_compound_with_two_identifiers())
     warm = _run_validation(_compound_with_two_identifiers())
     assert (cold.errors, cold.warnings) == (warm.errors, warm.warnings)
@@ -369,14 +369,14 @@ def test_a_warm_cache_does_not_change_what_validation_reports():
 
 def test_provenance_and_the_message_walk_share_one_datetime_parse():
     """Both the per-message walk and the ordering check need the same parse."""
-    validations._parse_date_time.cache_clear()
+    validations.parse_date_time.cache_clear()
     message = reaction_pb2.ReactionProvenance()
     message.experiment_start.value = "2024-01-01"
     message.record_created.time.value = "2024-01-02T09:30:00+01:00"
     message.record_created.person.name = "test"
     message.record_created.person.email = "test@example.com"
     _run_validation(message)
-    info = validations._parse_date_time.cache_info()
+    info = validations.parse_date_time.cache_info()
     # Two distinct strings, each parsed once by the walk; the ordering check reads
     # each twice, once to look for unparseable values and once to order them.
     assert info.misses == 2
@@ -1359,8 +1359,8 @@ def _provenance_with_times(created, modified=None, experiment_start=None):
     ],
 )
 def test_is_before(value, other, expected):
-    parsed_value = validations._parse_date_time(value)
-    parsed_other = validations._parse_date_time(other)
+    parsed_value = validations.parse_date_time(value)
+    parsed_other = validations.parse_date_time(other)
     assert parsed_value is not None
     assert parsed_other is not None
     assert validations._is_before(parsed_value, parsed_other) is expected

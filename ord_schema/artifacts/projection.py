@@ -47,6 +47,11 @@ real trap:
   rather than replacing what the source says, and a shape none of the formats cover is
   a visible null.
 
+  A time with its UTC offset, the one shape validation accepts that names a zone, is
+  read through ``validations.parse_date_time`` and becomes its UTC instant, since the
+  column carries no zone. Every other shape, a bare date included, records no zone and
+  is read as written.
+
   ``NN/NN/NNNN`` is the part that needs more than a format list, since the string never
   says which field is the month. It is settled per dataset and before any row is
   written -- the convention belongs to the depositor, not to a value -- from
@@ -121,7 +126,7 @@ reproducible from the projection alone.
 import os
 import re
 from collections.abc import Iterable, Iterator, MutableMapping
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, cast, get_args
 
 import pyarrow as pa
@@ -130,7 +135,7 @@ from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import Message
 
 import ord_schema
-from ord_schema import atomic_io, message_helpers, parquet, units
+from ord_schema import atomic_io, message_helpers, parquet, units, validations
 from ord_schema.artifacts import base
 from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
@@ -408,9 +413,13 @@ def parse_timestamp(value: str, *, day_first: bool | None = None) -> datetime | 
             see and a date that is silently the wrong month.
 
     Returns:
-        The parsed instant, or None where no format matched or the value is ambiguous
-        and the dataset does not say which way to read it.
+        The parsed instant, in UTC where the value states its offset; None where no
+        format matched or the value is ambiguous and the dataset does not say which way
+        to read it.
     """
+    valid = validations.parse_date_time(value)
+    if isinstance(valid, datetime):
+        return valid.astimezone(UTC).replace(tzinfo=None)
     matched = _SLASH_DATE.match(value)
     if matched is not None:
         first, second = int(matched.group(1)), int(matched.group(2))
@@ -427,9 +436,9 @@ def parse_timestamp(value: str, *, day_first: bool | None = None) -> datetime | 
         formats = _DATE_FORMATS
     for shape in formats:
         try:
-            # DTZ007: naive on purpose. None of the recorded shapes carries an offset,
-            # so the zone is not in the data; attaching one would state a fact the
-            # source never recorded, and shift every instant by it.
+            # DTZ007: naive on purpose. None of these shapes carries an offset, so the
+            # zone is not in the data; attaching one would state a fact the source
+            # never recorded, and shift every instant by it.
             return datetime.strptime(value, shape)  # noqa: DTZ007
         except ValueError:
             continue
@@ -541,8 +550,8 @@ def _struct_fields(descriptor: Descriptor, stack: frozenset[str]) -> list[pa.Fie
     if descriptor.name in _STRUCTURAL_TYPES:
         fields.append(pa.field("smiles", pa.string()))
     if descriptor.name in _TIMESTAMP_TYPES:
-        # Microseconds, because the source records them: 1.77M values in the corpus
-        # are str(datetime) output carrying a fractional part, and a second-resolution
+        # Microseconds, because the source records them: much of the corpus is
+        # str(datetime) output carrying a fractional part, and a second-resolution
         # column would drop it while still reading as the instant the source wrote.
         fields.append(pa.field(TIMESTAMP_COLUMN, pa.timestamp("us")))
     if descriptor.name in _STRUCTURE_ID_TYPES:
