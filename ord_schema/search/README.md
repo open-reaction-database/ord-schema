@@ -125,11 +125,13 @@ is a compile error rather than a wrong answer:
   [`ord_schema.resolvers`](../resolvers.py) when the query runs, so the model names compounds
   and never spells structures. The name goes to the resolver and never reaches the SQL, so it
   is any printable name of up to 500 characters with no whitespace around it: `2-pyridone`
-  and `N,N-dimethylformamide` as much as `thf`. A comparison's value is a literal, never a
-  compound: a resolved name compared with `eq` against a `smiles` would compare spellings,
-  which miss the same compound drawn as another tautomer or protonation state and need not
-  agree across RDKit releases. A `{"compound": ...}` value is refused with a message pointing
-  to `same_compound`.
+  and `N,N-dimethylformamide` as much as `thf`. The corpus keeps each name's answer for
+  later searches, and a name the resolver fails on is asked again next time. A result states
+  what each name was searched as under `execute.RESOLVED`, which `execute.resolutions` reads.
+- A comparison's value is a literal, never a compound: a resolved name compared with `eq`
+  against a `smiles` would compare spellings, which miss the same compound drawn as another
+  tautomer or protonation state and need not agree across RDKit releases. A
+  `{"compound": ...}` value is refused with a message pointing to `same_compound`.
 - A `{"literal": ...}` value is **bound as a parameter**, typed: a string compared against a
   date or timestamp column binds as the instant it names. No literal reaches the SQL as text.
   What the model writes that does is the `limit`, validated as a positive integer, measure
@@ -714,7 +716,9 @@ without effort levels reject it.
 
 The ~15k-token prefix — these rules plus `describe()` plus the grammar — is cached, which
 is most of what a query costs. `answer.query` is the query that ran, so a caller can show
-what was searched and offer to run it again.
+what was searched and offer to run it again. It names compounds as the model wrote them;
+`answer.resolved` maps each name to the SMILES the search matched it as, so a reader can see
+that `ibuprofen` became `CC(C)Cc1ccc(C(C)C(=O)O)cc1`.
 
 ### Keep the questions
 

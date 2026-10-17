@@ -18,7 +18,8 @@ The compiler (:mod:`ord_schema.search.query`) leaves two kinds of work undone on
 purpose, and this module is where both happen:
 
 * **Names become structures.** Compound names bind as resolved SMILES, through
-  :mod:`ord_schema.resolvers` by default or any injected resolver.
+  :mod:`ord_schema.resolvers` by default or any injected resolver. The corpus keeps
+  what each name resolved to, and a result states it under ``RESOLVED``.
 * **Structure predicates become bitmaps.** Each compiles to a bitmap test on the
   element's ``structure_id``, and the chemistry runs here. Substructure goes through an
   RDKit ``SubstructLibrary`` built over the corpus: it screens on the pattern
@@ -93,6 +94,7 @@ import dataclasses
 import functools
 import glob
 import hashlib
+import json
 import math
 import pathlib
 import threading
@@ -127,6 +129,10 @@ _BUILD_BATCH = 50_000
 # the cache is small beside the chemistry whose repeat it saves.
 _CACHED_MATCHES = 16
 
+# Compound names kept resolved for reuse. An entry is a name and its SMILES, and a miss
+# is a call to an external service, so the bound is generous.
+_CACHED_RESOLUTIONS = 1024
+
 # How much memory the pivots built in process may hold between them, when the caller
 # states no budget. Over ORD this holds any single one of the pivots worth the most and
 # not all of them, so every budget is a partial cache; the question is only which fit. A
@@ -158,6 +164,11 @@ DEFAULT_MAX_ROWS = 1000
 # than logged alone, because whoever reads the answer is often not whoever reads the
 # log: a summary saying "1000 reactions" is wrong in a way nothing in the rows shows.
 TRUNCATED = "ord.truncated"
+
+# Stamped on a result whose query named a compound: a JSON object mapping each name to
+# the SMILES it was searched as. The query keeps the name, and the structure is what a
+# reader needs to judge the answer; read it with ``resolutions``.
+RESOLVED = "ord.resolved"
 
 # What Corpus.reactions returns. ``reaction`` is the serialized Reaction as its source
 # stores it, so serving one parses nothing.
@@ -258,8 +269,8 @@ def _resolve_with_resolvers(name: str) -> str:
     return smiles
 
 
-def _canonical(smiles: str) -> str:
-    """Returns the SMILES as the corpus spells it.
+def _canonical(smiles: str) -> str | None:
+    """Returns the SMILES as the corpus spells it, or None if RDKit cannot parse it.
 
     A resolver answers in whatever form its service uses -- PubChem returns pyridine
     as ``C1=CC=NC=C1`` -- and a structure predicate's match set is cached under the
@@ -272,14 +283,26 @@ def _canonical(smiles: str) -> str:
         smiles: What the resolver returned.
 
     Returns:
-        The canonical form, or the input unchanged if RDKit cannot parse it, since a
-        name that resolves to something unparseable is the resolver's problem to report
-        and not this function's to hide.
+        The canonical form, or None if RDKit cannot parse it.
     """
     try:
         return resolvers.canonicalize_smiles(smiles)
     except ValueError:
-        return smiles
+        return None
+
+
+def resolutions(table: pa.Table) -> dict[str, str]:
+    """Returns each compound name a search resolved, mapped to the SMILES it matched.
+
+    Args:
+        table: What ``Corpus.search`` returned.
+
+    Returns:
+        Each name mapped to the canonical SMILES the search matched it as, read from
+        the ``RESOLVED`` stamp; empty for a query that named no compound.
+    """
+    stamp = (table.schema.metadata or {}).get(RESOLVED.encode())
+    return json.loads(stamp) if stamp is not None else {}
 
 
 def sql_string(value: str) -> str:
@@ -1229,7 +1252,10 @@ class Corpus:
             structures_pattern: Glob matching the structures base.
             resolver: Maps a compound name to SMILES. Defaults to
                 ``ord_schema.resolvers``, which calls external services; inject
-                something local for tests or offline use.
+                something local for tests or offline use. An answer RDKit can read is
+                kept for later searches, up to ``_CACHED_RESOLUTIONS`` names, so a name
+                costs one call per corpus rather than one per search. A failure is not
+                kept, and the next search naming that compound asks again.
             threads: Threads RDKit uses to match a substructure query; -1 means one
                 per core. These are real threads with the GIL released, so concurrent
                 searches overlap instead of serializing. The count is per search, not
@@ -1368,6 +1394,9 @@ class Corpus:
                 ``require_occurrences`` is set without an ``occurrences_dir``.
         """
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
+        # Names the resolver answered, canonical, most recently used last; see _resolve.
+        self._resolutions: collections.OrderedDict[str, str] = collections.OrderedDict()
+        self._resolutions_lock = threading.Lock()
         if max_rows is not None and max_rows <= 0:
             raise ValueError(
                 f"max_rows is {max_rows}, which no query can return; leave it unset to "
@@ -3000,6 +3029,42 @@ class Corpus:
             with self._pivots_lock:
                 entry.readers -= 1
 
+    def _resolve(self, name: str) -> str:
+        """Returns a compound name's SMILES, calling the resolver only on a miss.
+
+        The resolver is called outside the lock, so a slow service holds up only the
+        search that asked. Two searches missing on one name at once both call it, and
+        whichever stores last is kept.
+
+        Args:
+            name: The compound name a structure predicate gives.
+
+        Returns:
+            The canonical SMILES, or the resolver's answer unchanged if RDKit cannot
+            parse it. That answer is left for the query molecule to refuse by name, and
+            is not kept, so the next search naming the compound asks again.
+
+        Raises:
+            ValueError: If the default resolver cannot resolve the name; an injected
+                resolver's own errors pass through unchanged. Nothing is kept.
+        """
+        with self._resolutions_lock:
+            smiles = self._resolutions.get(name)
+            if smiles is not None:
+                self._resolutions.move_to_end(name)
+                return smiles
+        answered = self._resolver(name)
+        smiles = _canonical(answered)
+        if smiles is None:
+            return answered
+        logger.info("resolved %r to %r", name, smiles)
+        with self._resolutions_lock:
+            self._resolutions[name] = smiles
+            self._resolutions.move_to_end(name)
+            while len(self._resolutions) > _CACHED_RESOLUTIONS:
+                self._resolutions.popitem(last=False)
+        return smiles
+
     def _matches(
         self,
         cursor: duckdb.DuckDBPyConnection,
@@ -3142,7 +3207,8 @@ class Corpus:
             ``max_rows``, where it has one: an answer that reached the bound is logged
             as possibly cut and carries ``TRUNCATED`` in its schema metadata.
             ``Compiled.limit`` is what actually reached the SQL, for a caller that
-            wants the number rather than the flag.
+            wants the number rather than the flag. A query naming a compound carries
+            ``RESOLVED`` as well, which ``resolutions`` reads.
 
         Raises:
             query.QueryError: If the query does not compile.
@@ -3163,13 +3229,14 @@ class Corpus:
             indexing = indexing or condition is not None
             return condition
 
-        # Cached across the whole search: a compound named in two structure predicates
-        # is one external lookup, not two.
+        # Held for this search beside the corpus's cache, which another search can evict
+        # from meanwhile: a compound named in two structure predicates is one molecule,
+        # and what the result says each name was searched as is what this search used.
         resolved: dict[str, str] = {}
 
         def resolve(name: str) -> str:
             if name not in resolved:
-                resolved[name] = _canonical(self._resolver(name))
+                resolved[name] = self._resolve(name)
             return resolved[name]
 
         deadline = _Deadline(timeout_seconds)
@@ -3225,11 +3292,16 @@ class Corpus:
                     answered = cursor.execute(compiled.sql, parameters).to_arrow_table()
                 else:
                     answered = _run_with_timeout(cursor, compiled.sql, parameters, left)
+                stamps: dict[str, bytes] = {}
                 if _warn_when_the_bound_was_reached(
                     request, compiled, answered.num_rows
                 ):
+                    stamps[TRUNCATED] = b"true"
+                if resolved:
+                    stamps[RESOLVED] = json.dumps(resolved).encode()
+                if stamps:
                     answered = answered.replace_schema_metadata(
-                        (answered.schema.metadata or {}) | {TRUNCATED: b"true"}
+                        (answered.schema.metadata or {}) | stamps
                     )
                 return answered
             finally:

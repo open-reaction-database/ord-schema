@@ -65,7 +65,9 @@ def corpus(tmp_path_factory):
     structured.parent.mkdir(parents=True, exist_ok=True)
     structures.write_structures(projected, structured)
     with execute.Corpus(
-        str(projected), str(structured), resolver={}.__getitem__
+        str(projected),
+        str(structured),
+        resolver={"pyridine": "C1=CC=NC=C1"}.__getitem__,
     ) as value:
         yield value
 
@@ -451,6 +453,22 @@ def test_ask_returns_the_query_it_ran(corpus):
     assert _predicate(answer.query).op == "exists"
     assert answer.table.num_rows == corpus.search(answer.query).num_rows
     assert answer.text == "Two reactions, both with pyridine."
+    assert answer.resolved == {}
+
+
+def test_ask_says_what_each_compound_resolved_to(corpus):
+    # The query keeps the name the model wrote; the structure searched for sits beside
+    # it, so a reader can see what the name became.
+    where = {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {"op": "same_compound", "path": "smiles", "compound": "pyridine"},
+    }
+    client = _stub({"where": where}, "One reaction used pyridine.")
+    answer = nl.ask("reactions using pyridine", corpus, client=client)
+    assert _predicate(answer.query).where.compound == "pyridine"
+    assert answer.resolved == {"pyridine": "c1ccncc1"}
+    assert answer.table.num_rows == 1
 
 
 def test_ask_passes_the_timeout_through(corpus, monkeypatch):
