@@ -43,6 +43,9 @@ _DATETIME_CACHE_SIZE = 10_000
 # so parsing is a pure function of the string and safe to memoize; a leap year so
 # "Feb 29" still parses, and naive to match what a full value produces.
 _DATETIME_DEFAULT = datetime.datetime(2000, 1, 1)  # noqa: DTZ001
+# The (dayfirst, yearfirst) orders ``dateutil`` can read a numeric date under. A value
+# whose string does not fix the order names a different date under some of them.
+_DATETIME_ORDERS = ((False, False), (True, False), (False, True), (True, True))
 
 
 @dataclasses.dataclass
@@ -1294,12 +1297,61 @@ def _parse_date_time_or_raise(value: str) -> datetime.datetime:
     return parsed
 
 
+@functools.lru_cache(maxsize=_DATETIME_CACHE_SIZE)
+def _is_ambiguous_date_time(value: str) -> bool:
+    """Returns whether a DateTime value names different dates under different orders.
+
+    ``07/01/2008`` is 1 July read month first and 7 January read day first, and nothing
+    in the string says which the writer meant; ``18/09/2024`` and ``07/07/2024`` read
+    the same either way. ISO 8601 fixes its order by definition, so it is never
+    ambiguous -- even though ``dateutil`` reads ``2024-07-06`` as 7 June when asked to
+    put the day first.
+
+    Memoized for the same reason as :func:`_parse_date_time`.
+
+    Args:
+        value: The DateTime value.
+
+    Returns:
+        True if the value is not ISO 8601 and ``dateutil`` reads it as more than one
+        date across the day-first and year-first orders.
+    """
+    try:
+        datetime.datetime.fromisoformat(value)
+    except ValueError:
+        pass
+    else:
+        return False
+    readings = set()
+    for day_first, year_first in _DATETIME_ORDERS:
+        try:
+            readings.add(
+                parser.parse(
+                    value,
+                    default=_DATETIME_DEFAULT,
+                    dayfirst=day_first,
+                    yearfirst=year_first,
+                )
+            )
+        except parser.ParserError:
+            continue
+    return len(readings) > 1
+
+
 def _validate_date_time(
     message: reaction_pb2.DateTime, context: ValidationContext
 ) -> None:
-    """Validates that a DateTime value is parseable."""
-    if message.value and _parse_date_time(message.value) is None:
+    """Validates that a DateTime value is parseable and names exactly one date."""
+    if not message.value:
+        return
+    if _parse_date_time(message.value) is None:
         context.error(f"Could not parse DateTime string {message.value}")
+    elif _is_ambiguous_date_time(message.value):
+        context.error(
+            f"Ambiguous DateTime string {message.value}: its date depends on whether "
+            "the day, month, or year comes first; write it as ISO 8601 "
+            "(YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"
+        )
 
 
 def _validate_analysis(

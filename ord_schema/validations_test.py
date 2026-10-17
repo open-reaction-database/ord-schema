@@ -1267,6 +1267,55 @@ def test_bad_datetime():
         _run_validation(message)
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        "07/01/2008",
+        "2/4/2021, 11:24:34 AM",
+        "05/12/2024, 15:29:23",
+        "05/08/2021 10:29:17",
+        "01.02.2020",
+        "01-02-2020",
+        "2024/07/06",
+        "21/02/03",
+        "07/01",
+    ],
+)
+def test_ambiguous_datetime(value):
+    message = reaction_pb2.DateTime(value=value)
+    with pytest.raises(
+        validations.ValidationError, match=rf"Ambiguous DateTime string {value}:"
+    ):
+        _run_validation(message)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        # ISO 8601, in each shape the corpus and its producers write.
+        "2024-07-06",
+        "2024-07-06T23:25:41",
+        "2022-12-02 17:42:01.780701",
+        "2025-12-19T10:27:58Z",
+        # A field above twelve can only be the day.
+        "18/09/2024, 16:54:56",
+        "10/19/2021, 12:16:25 PM",
+        # The day and the month agree, so both orders name one date.
+        "07/07/2024",
+        "8/8/2020, 3:01:25 PM",
+        # A named month, or no date at all, leaves nothing to order.
+        "Fri Oct 22 22:19:55 2021",
+        "Thu Mar  4 12:00:00 2021",
+        "1 Jul 2021",
+        "10:30",
+    ],
+)
+def test_unambiguous_datetime(value):
+    output = _run_validation(reaction_pb2.DateTime(value=value))
+    assert not output.errors
+    assert not output.warnings
+
+
 def test_provenance_record_modified_before_created():
     message = reaction_pb2.ReactionProvenance(
         record_created={
