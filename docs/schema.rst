@@ -371,11 +371,9 @@ DatasetExample
 DateTime
 ========
 
-* ``value`` must be parsable with Python's ``dateutil`` module.
-* ``value`` must name one date: a value such as ``07/01/2008``, whose date depends
-  on whether the day, month, or year comes first, is rejected. ISO 8601
-  (``YYYY-MM-DD`` or ``YYYY-MM-DDTHH:MM:SS``) and other dates led by a four-digit
-  year are never ambiguous.
+* ``value`` must be a date, ``YYYY-MM-DD``, or a time with the UTC offset it was
+  written under, ``YYYY-MM-DDTHH:MM:SS[.ffffff]`` followed by ``Z`` or ``±HH:MM``.
+  A time without an offset is rejected: write the date alone if the zone is unknown.
 
 ElectrochemistryCell
 ====================
@@ -525,11 +523,10 @@ ReactionProvenance
 
 * Required fields: ``record_created``.
 * ``record_created`` must not be before ``experiment_start``.
-* ``record_modified`` must not be before ``record_created``.
-* Times that carry a UTC offset are ordered by the instant they name. A time without
-  one could have been written under any offset from -12:00 to +14:00, so when only one
-  of a pair has an offset, the pair is an error only if it is out of order under all of
-  them, and a warning if the missing offset would decide the order.
+* ``record_modified`` must not be before ``record_created``. The last
+  ``record_modified`` is the one compared.
+* Two times are ordered by the instant they name. Any other pair is ordered by date,
+  a time's being the date it was written on.
 
 ReactionSetup
 =============

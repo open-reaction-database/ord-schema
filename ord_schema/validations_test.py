@@ -13,7 +13,7 @@
 # limitations under the License.
 """Tests for ord_schema.validations."""
 
-import datetime
+import re
 
 import pytest
 
@@ -367,52 +367,20 @@ def test_a_warm_cache_does_not_change_what_validation_reports():
     assert (cold.errors, cold.warnings) == (warm.errors, warm.warnings)
 
 
-def _provenance_with_partial_timestamps():
-    """Builds a ReactionProvenance whose timestamps name a time but no date."""
-    message = reaction_pb2.ReactionProvenance()
-    message.experiment_start.value = "01:00"
-    message.record_created.time.value = "23:00"
-    message.record_created.person.name = "test"
-    message.record_created.person.email = "test@example.com"
-    return message
-
-
-def test_partial_timestamps_do_not_inherit_the_current_date():
-    """A partial DateTime must parse the same however old its cache entry is.
-
-    ``parser.parse`` fills absent fields from the current date unless given a
-    default, which would make a cached value depend on the day it was created: a
-    run spanning midnight would then order two partial timestamps by when each
-    was first seen rather than by the times they name.
-    """
-    validations._parse_date_time.cache_clear()
-    first = validations._parse_date_time("01:00")
-    second = validations._parse_date_time("23:00")
-    assert first is not None
-    assert second is not None
-    # One nominal date for both, so the comparison reflects the times they name.
-    assert first.date() == second.date()
-    assert first < second
-    # That date is fixed rather than today's, so an entry cached yesterday still
-    # compares correctly against one cached today.
-    assert first.date() != datetime.datetime.now(tz=datetime.UTC).date()
-
-
-def test_partial_timestamps_are_ordered_by_time_not_cache_age():
-    """The provenance ordering check reads the times, not the caching order."""
-    validations._parse_date_time.cache_clear()
-    output = _run_validation(_provenance_with_partial_timestamps())
-    assert not any("after experiment" in error for error in output.errors)
-
-
 def test_provenance_and_the_message_walk_share_one_datetime_parse():
     """Both the per-message walk and the ordering check need the same parse."""
     validations._parse_date_time.cache_clear()
-    _run_validation(_provenance_with_partial_timestamps())
+    message = reaction_pb2.ReactionProvenance()
+    message.experiment_start.value = "2024-01-01"
+    message.record_created.time.value = "2024-01-02T09:30:00+01:00"
+    message.record_created.person.name = "test"
+    message.record_created.person.email = "test@example.com"
+    _run_validation(message)
     info = validations._parse_date_time.cache_info()
-    # Two distinct strings, each parsed once and reused by the other caller.
+    # Two distinct strings, each parsed once by the walk; the ordering check reads
+    # each twice, once to look for unparseable values and once to order them.
     assert info.misses == 2
-    assert info.hits == 2
+    assert info.hits == 4
 
 
 @pytest.mark.parametrize(
@@ -949,7 +917,7 @@ def test_dataset_example():
     message.url = "example.com"
     with pytest.raises(validations.ValidationError, match="created is required"):
         _run_validation(message)
-    message.created.time.value = "11 am"
+    message.created.time.value = "2020-01-01T11:00:00Z"
     message.created.person.name = "test"
     message.created.person.email = "test@example.com"
     output = _run_validation(message)
@@ -1270,21 +1238,34 @@ def test_bad_datetime():
 @pytest.mark.parametrize(
     "value",
     [
+        # Times without an offset, whatever their shape.
+        "2024-07-06T23:25:41",
+        "2022-12-02 17:42:01.780701",
+        "2024-07-06 17:42:01 UTC",
+        "Fri Oct 22 22:19:55 2021",
+        "10/19/2021, 12:16:25 PM",
+        "10:30",
+        # Dates in any other shape, ambiguous or not.
         "07/01/2008",
-        "2/4/2021, 11:24:34 AM",
-        "05/12/2024, 15:29:23",
-        "05/08/2021 10:29:17",
-        "01.02.2020",
-        "01-02-2020",
-        " 07/01/2008",
-        "21/02/03",
-        "07/01",
+        "18/09/2024",
+        "2024/07/06",
+        "2024-7-6",
+        "20240706",
+        "1 Jul 2021",
+        # Close to a valid value, but not one.
+        "2024-13-01",
+        "2024-07-06T23:25Z",
+        "2024-07-06t23:25:41z",
+        "2024-07-06T23:25:41+25:00",
+        "2024-07-06T23:25:41.1234567Z",
+        " 2024-07-06",
     ],
 )
-def test_ambiguous_datetime(value):
+def test_datetime_must_be_a_date_or_a_time_with_an_offset(value):
     message = reaction_pb2.DateTime(value=value)
     with pytest.raises(
-        validations.ValidationError, match=rf"Ambiguous DateTime string {value}:"
+        validations.ValidationError,
+        match=re.escape(f"Could not parse DateTime string {value}: write a date"),
     ):
         _run_validation(message)
 
@@ -1292,32 +1273,14 @@ def test_ambiguous_datetime(value):
 @pytest.mark.parametrize(
     "value",
     [
-        # ISO 8601, in the shapes the corpus holds and the compact form.
         "2024-07-06",
-        "2024-07-06T23:25:41",
-        "2022-12-02 17:42:01.780701",
-        "2025-12-19T10:27:58Z",
-        "20240706",
-        # A leading year comes before the month and then the day, ISO or not.
-        "2024/07/06",
-        "2024.07.06",
-        "2024-7-6",
-        "2024-07-06 17:42:01 UTC",
-        "2024-07-06 10:00 PM",
-        # A field above twelve can only be the day.
-        "18/09/2024, 16:54:56",
-        "10/19/2021, 12:16:25 PM",
-        # The day and the month agree, so both orders name one date.
-        "07/07/2024",
-        "8/8/2020, 3:01:25 PM",
-        # A named month, or no date at all, leaves nothing to order.
-        "Fri Oct 22 22:19:55 2021",
-        "Thu Mar  4 12:00:00 2021",
-        "1 Jul 2021",
-        "10:30",
+        "2024-07-06T23:25:41Z",
+        "2024-07-06T23:25:41+00:00",
+        "2024-07-06T23:25:41.780701-05:00",
+        "2024-07-06T23:25:41.5+05:30",
     ],
 )
-def test_unambiguous_datetime(value):
+def test_datetime_date_or_time_with_an_offset(value):
     output = _run_validation(reaction_pb2.DateTime(value=value))
     assert not output.errors
     assert not output.warnings
@@ -1378,27 +1341,20 @@ def _provenance_with_times(created, modified=None, experiment_start=None):
 @pytest.mark.parametrize(
     ("value", "other", "expected"),
     [
-        # Naive against naive compares wall-clock times exactly.
-        ("2024-01-01T00:00:00", "2024-01-01T00:00:01", True),
-        ("2024-01-01T23:00:00", "2024-01-01T01:00:00", False),
-        # Aware against aware compares instants: 12:00+09:00 is 03:00Z.
+        # Two dates compare as dates.
+        ("2024-01-01", "2024-01-02", True),
+        ("2024-01-02", "2024-01-01", False),
+        ("2024-01-01", "2024-01-01", False),
+        # Two times compare by instant: 12:00+09:00 is 03:00Z.
         ("2024-01-01T12:00:00+09:00", "2024-01-01T04:00:00Z", True),
         ("2024-01-01T04:00:00Z", "2024-01-01T12:00:00+09:00", False),
-        # A naive value spans 14 hours before to 12 hours after itself read as UTC,
-        # and an aware value inside that span cannot be ordered against it.
-        ("2024-01-01T00:00:00", "2024-01-01T12:00:01Z", True),
-        ("2024-01-01T00:00:00", "2024-01-01T21:00:01+09:00", True),
-        ("2024-01-01T00:00:00", "2024-01-01T12:00:00Z", None),
-        ("2024-01-01T00:00:00", "2023-12-31T10:00:01Z", None),
-        ("2024-01-01T00:00:00", "2023-12-31T10:00:00Z", False),
-        ("2023-12-31T09:59:59Z", "2024-01-01T00:00:00", True),
-        ("2023-12-31T10:00:00Z", "2024-01-01T00:00:00", None),
-        ("2024-01-01T11:59:59Z", "2024-01-01T00:00:00", None),
-        ("2024-01-01T12:00:00Z", "2024-01-01T00:00:00", False),
-        ("2024-01-01T21:00:00+09:00", "2024-01-01T00:00:00", False),
-        # The span around a naive value may reach past the range datetime can hold.
-        ("0001-01-01T00:00:00", "0001-01-01T00:00:00Z", None),
-        ("9999-12-31T23:59:59Z", "9999-12-31T23:59:59", None),
+        ("2024-01-01T04:00:00Z", "2024-01-01T13:00:00+09:00", False),
+        # A date and a time compare by date, the time's as it was written.
+        ("2024-01-01", "2024-01-02T00:30:00+09:00", True),
+        ("2024-01-02", "2024-01-01T23:59:59Z", False),
+        ("2024-01-01", "2024-01-01T23:59:59-05:00", False),
+        ("2024-01-01T23:59:59Z", "2024-01-02", True),
+        ("2024-01-02T00:30:00+09:00", "2024-01-02", False),
     ],
 )
 def test_is_before(value, other, expected):
@@ -1410,62 +1366,70 @@ def test_is_before(value, other, expected):
 
 
 @pytest.mark.parametrize(
-    ("created", "modified", "error", "warning"),
+    ("created", "modified", "error"),
     [
-        # Naive and naive.
-        ("2024-01-01T00:00:00", "2024-01-02T00:00:00", None, None),
-        ("2024-01-02T00:00:00", "Mon Jan  1 00:00:00 2024", "after creation", None),
-        # Aware and aware, ordered by instant rather than wall-clock time.
-        ("2024-01-01T12:00:00+09:00", "2024-01-01T04:00:00Z", None, None),
-        ("2024-01-01T04:00:00Z", "2024-01-01T12:00:00+09:00", "after creation", None),
-        # Naive created, aware modified.
-        ("2024-01-01T00:00:00", "2026-10-17T00:00:00+00:00", None, None),
-        ("2024-01-02T00:00:00", "2024-01-01T00:00:00Z", "after creation", None),
-        ("2024-01-01T09:00:00", "2024-01-01T01:00:00Z", None, "Could not check"),
-        # Aware created, naive modified.
-        ("2024-01-01T00:00:00Z", "Fri Jan  5 12:00:00 2024", None, None),
-        ("2024-01-02T00:00:00+00:00", "2024-01-01T00:00:00", "after creation", None),
-        ("2024-01-01T12:00:00+00:00", "2024-01-01T08:00:00", None, "Could not check"),
+        ("2024-01-01", "2024-01-02", None),
+        ("2024-01-02", "2024-01-01", "after creation"),
+        ("2024-01-01T12:00:00+09:00", "2024-01-01T04:00:00Z", None),
+        ("2024-01-01T04:00:00Z", "2024-01-01T12:00:00+09:00", "after creation"),
+        # A date and a time on the same day are in order.
+        ("2024-01-01", "2024-01-01T00:00:00Z", None),
+        ("2024-01-01T12:00:00+00:00", "2024-01-01", None),
+        ("2024-01-02", "2024-01-01T23:59:59Z", "after creation"),
+        ("2024-01-03T12:00:00Z", "2024-01-01", "after creation"),
     ],
 )
-def test_provenance_record_modified_order(created, modified, error, warning):
+def test_provenance_record_modified_order(created, modified, error):
     output = _run_validation(
         _provenance_with_times(created, modified), raise_on_error=False
     )
-    assert len(output.errors) == (1 if error else 0)
-    if error:
-        assert error in output.errors[0]
-    assert len(output.warnings) == (1 if warning else 0)
-    if warning:
-        assert warning in output.warnings[0]
-        assert "record_modified is not before record_created" in output.warnings[0]
+    assert output.errors == (
+        [f"ReactionProvenance: Record modified time should be {error}"] if error else []
+    )
+    assert not output.warnings
 
 
 @pytest.mark.parametrize(
-    ("experiment_start", "created", "error", "warning"),
+    ("experiment_start", "created", "error"),
     [
-        # Naive experiment_start, aware record_created.
-        ("2024-01-03", "2024-01-01T00:00:00Z", "after experiment", None),
-        ("2024-01-01", "2024-01-01T10:00:00Z", None, "Could not check"),
-        ("2023-12-31", "2024-01-01T10:00:00Z", None, None),
-        # Aware experiment_start, naive record_created.
-        ("2024-01-03T00:00:00Z", "2024-01-01", "after experiment", None),
-        ("2024-01-01T10:00:00Z", "2024-01-01", None, "Could not check"),
-        ("2023-12-31T00:00:00Z", "2024-01-01", None, None),
+        ("2024-01-03", "2024-01-01T00:00:00Z", "after experiment"),
+        ("2024-01-01", "2024-01-01T10:00:00Z", None),
+        ("2023-12-31", "2024-01-01T10:00:00Z", None),
+        ("2024-01-03T00:00:00Z", "2024-01-01", "after experiment"),
+        ("2024-01-01T10:00:00Z", "2024-01-01", None),
     ],
 )
-def test_provenance_record_created_order(experiment_start, created, error, warning):
+def test_provenance_record_created_order(experiment_start, created, error):
     output = _run_validation(
         _provenance_with_times(created, experiment_start=experiment_start),
         raise_on_error=False,
     )
-    assert len(output.errors) == (1 if error else 0)
-    if error:
-        assert error in output.errors[0]
-    assert len(output.warnings) == (1 if warning else 0)
-    if warning:
-        assert warning in output.warnings[0]
-        assert "record_created is not before experiment_start" in output.warnings[0]
+    assert output.errors == (
+        [f"ReactionProvenance: Record creation time should be {error}"] if error else []
+    )
+    assert not output.warnings
+
+
+def test_provenance_orders_the_last_record_modified():
+    """The most recent modification is the last record, not the latest time."""
+    message = _provenance_with_times("2024-01-02", "2024-01-05")
+    message.record_modified.add(
+        time={"value": "2024-01-01"}, person={"username": "u", "email": "a@b.com"}
+    )
+    output = _run_validation(message, raise_on_error=False)
+    assert output.errors == [
+        "ReactionProvenance: Record modified time should be after creation"
+    ]
+
+
+def test_provenance_skips_ordering_an_unparseable_time():
+    message = _provenance_with_times("2024-01-02", "Mon Jan  1 00:00:00 2024")
+    output = _run_validation(message, raise_on_error=False)
+    assert len(output.errors) == 1
+    assert (
+        "Could not parse DateTime string Mon Jan  1 00:00:00 2024" in output.errors[0]
+    )
+    assert output.warnings == ["ReactionProvenance: Failed to parse DateTime string(s)"]
 
 
 def test_temperature_fahrenheit_below_absolute_zero():
