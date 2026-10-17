@@ -46,6 +46,8 @@ _DATETIME_DEFAULT = datetime.datetime(2000, 1, 1)  # noqa: DTZ001
 # The (dayfirst, yearfirst) orders ``dateutil`` can read a numeric date under. A value
 # whose string does not fix the order names a different date under some of them.
 _DATETIME_ORDERS = ((False, False), (True, False), (False, True), (True, True))
+# A date led by a four-digit year, in any of the separators ``dateutil`` reads.
+_YEAR_LED_DATE = re.compile(r"\s*\d{4}[-/.]\d{1,2}[-/.]\d{1,2}(?!\d)")
 
 
 @dataclasses.dataclass
@@ -1303,9 +1305,11 @@ def _is_ambiguous_date_time(value: str) -> bool:
 
     ``07/01/2008`` is 1 July read month first and 7 January read day first, and nothing
     in the string says which the writer meant; ``18/09/2024`` and ``07/07/2024`` read
-    the same either way. ISO 8601 fixes its order by definition, so it is never
-    ambiguous -- even though ``dateutil`` reads ``2024-07-06`` as 7 June when asked to
-    put the day first.
+    the same either way. Neither ISO 8601 nor a date led by a four-digit year is
+    ambiguous: ISO fixes its order by definition, and no convention in use writes the
+    day before the month after a leading year. ``dateutil`` reads both year-day-month
+    when asked to put the day first (``2024-07-06`` as 7 June), so they are settled
+    before it is asked.
 
     Memoized for the same reason as :func:`_parse_date_time`.
 
@@ -1313,9 +1317,12 @@ def _is_ambiguous_date_time(value: str) -> bool:
         value: The DateTime value.
 
     Returns:
-        True if the value is not ISO 8601 and ``dateutil`` reads it as more than one
-        date across the day-first and year-first orders.
+        True if the value is neither ISO 8601 nor led by a four-digit year, and
+        ``dateutil`` reads it as more than one date across the day-first and year-first
+        orders.
     """
+    if _YEAR_LED_DATE.match(value):
+        return False
     try:
         datetime.datetime.fromisoformat(value)
     except ValueError:

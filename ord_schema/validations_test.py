@@ -1276,7 +1276,7 @@ def test_bad_datetime():
         "05/08/2021 10:29:17",
         "01.02.2020",
         "01-02-2020",
-        "2024/07/06",
+        " 07/01/2008",
         "21/02/03",
         "07/01",
     ],
@@ -1292,11 +1292,18 @@ def test_ambiguous_datetime(value):
 @pytest.mark.parametrize(
     "value",
     [
-        # ISO 8601, in each shape the corpus and its producers write.
+        # ISO 8601, in the shapes the corpus holds and the compact form.
         "2024-07-06",
         "2024-07-06T23:25:41",
         "2022-12-02 17:42:01.780701",
         "2025-12-19T10:27:58Z",
+        "20240706",
+        # A leading year comes before the month and then the day, ISO or not.
+        "2024/07/06",
+        "2024.07.06",
+        "2024-7-6",
+        "2024-07-06 17:42:01 UTC",
+        "2024-07-06 10:00 PM",
         # A field above twelve can only be the day.
         "18/09/2024, 16:54:56",
         "10/19/2021, 12:16:25 PM",

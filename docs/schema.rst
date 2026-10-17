@@ -374,7 +374,8 @@ DateTime
 * ``value`` must be parsable with Python's ``dateutil`` module.
 * ``value`` must name one date: a value such as ``07/01/2008``, whose date depends
   on whether the day, month, or year comes first, is rejected. ISO 8601
-  (``YYYY-MM-DD`` or ``YYYY-MM-DDTHH:MM:SS``) is never ambiguous.
+  (``YYYY-MM-DD`` or ``YYYY-MM-DDTHH:MM:SS``) and other dates led by a four-digit
+  year are never ambiguous.
 
 ElectrochemistryCell
 ====================
