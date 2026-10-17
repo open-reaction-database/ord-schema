@@ -16,6 +16,7 @@
 
 import contextlib
 import dataclasses
+import gc
 import logging
 import pathlib
 import re
@@ -1175,6 +1176,27 @@ def test_a_projection_without_statistics_is_refused(corpus_dir, tmp_path):
             str(root / "projections" / "*.parquet"),
             str(root / "structures" / "*.parquet"),
         )
+
+
+def _footers_alive() -> int:
+    """Returns how many parsed Parquet footers the collector can still see."""
+    return sum(isinstance(found, pq.FileMetaData) for found in gc.get_objects())
+
+
+def test_reading_the_structure_id_bound_frees_the_footer_on_return(corpus_dir):
+    # Opening a corpus reads the bound from every projection, so a footer that waits for
+    # the cyclic collector rather than going with its file is one more parsed footer per
+    # dataset held at once. The collector is held off so that it cannot free one first.
+    path = str(corpus_dir / "projections" / "ord_dataset-aa.parquet")
+    gc.collect()
+    gc.disable()
+    try:
+        before = _footers_alive()
+        assert execute._max_structure_id(path, "") is not None
+        after = _footers_alive()
+    finally:
+        gc.enable()
+    assert after == before
 
 
 def _rewrite_structures(root, shard, **columns):
