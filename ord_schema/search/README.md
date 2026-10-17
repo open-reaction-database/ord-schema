@@ -255,12 +255,13 @@ larger one. An **occurrence index** — one row per structure occurrence, carryi
 corpus-wide ID and the path — makes that a semi-join against a narrow table rather than
 a scan of every reaction. It carries nothing of the element, so a structure bound to one
 of the element's fields — pyridine *as the solvent* — is answered by the level's pivot,
-which holds the whole element. At corpus scale the index is 18,847,978 rows and **1.19
-GiB**, built in 58s and resident for the life of the `Corpus`. A search for pyridine
-among the inputs returns in 1.46s **end to end**, and a boronic acid in 0.15s — and for a
-common pattern nearly all of that is the RDKit screen and verify, which the index does
-not touch: pyridine's match alone is about 1.4s of its 1.46s. What the index cut is the
-reaction lookup, from roughly 3.5s to 0.2s.
+which holds the whole element. At corpus scale the index is 18,847,978 rows and **1.1
+GiB** unnested from the projections in 54s, or 1.35 GiB read from pivots in 3.1s, and
+resident for the life of the `Corpus`. A search for pyridine among the inputs returns in
+1.46s **end to end**, and a boronic acid in 0.15s — and for a common pattern nearly all
+of that is the RDKit screen and verify, which the index does not touch: pyridine's match
+alone is about 1.4s of its 1.46s. What the index cut is the reaction lookup, from roughly
+3.5s to 0.2s.
 
 Whichever route a clause takes, aggregates, orderings, limits, negations, disjunctions,
 and a second structure predicate compose around it, and the screening and verification
@@ -274,16 +275,16 @@ Three ways to reach those rows, cheapest first, decided per path.
 `Corpus(..., occurrences_dir=...)` reads an **occurrences artifact**, which is the rows
 themselves: the read adds only the corpus-wide offset. Where the directory covers every
 indexed path the index is published as a **view over Parquet** and nothing is built —
-0.13s and 0.32 GiB resident over ORD, against 2.9s and 1.92 GiB for the table, with
-DuckDB holding 28 MiB where it held 1.66 GiB — at about the same per-query cost, and less
-on the narrow paths, where reading one path's files beats filtering `path = ?` across
-every occurrence in the corpus. `require_occurrences=True` refuses a directory that does
-not cover every path, which is worth setting wherever the container was sized for the
-view.
+0.18s and 0.40 GiB resident over ORD, against 3.1s and 1.49 GiB for the table read from
+pivots, with DuckDB holding 30 MiB where it held 1.40 GiB — at about the same per-query
+cost, and less on the narrow paths, where reading one path's files beats filtering
+`path = ?` across every occurrence in the corpus. `require_occurrences=True` refuses a
+directory that does not cover every path, which is worth setting wherever the container
+was sized for the view.
 
 Failing that, a **pivot artifact** over the path's level holds one row per element, which
-is what the build would otherwise unnest the projection to produce — over ORD **3.3s
-against 59.4s** for the same 18,847,978 occurrences. Failing both, the projection is
+is what the build would otherwise unnest the projection to produce — over ORD **3.1s
+against 54s** for the same 18,847,978 occurrences. Failing both, the projection is
 unnested.
 
 One uncovered path materializes the whole index rather than leaving a view whose branches
@@ -430,10 +431,10 @@ derived artifacts spends none of it: those are views over Parquet, not tables.
 ## Sizing a deployment
 
 Budget **about 8 GiB of resident memory** for a corpus serving substructure search over
-ORD: 1.1 GiB for the relations, 2.2 GiB for the `SubstructLibrary`, 1.19 GiB for the
+ORD: 1.1 GiB for the relations, 2.2 GiB for the `SubstructLibrary`, 1.1–1.35 GiB for the
 occurrence index, and DuckDB's own caches on top, which fill whatever `memory_limit`
 allows. An `occurrences_dir` covering every indexed path takes about a gigabyte off that:
-the index becomes a view holding 0.32 GiB rather than a table holding 1.92 GiB, and the
+the index becomes a view holding 0.40 GiB rather than a table holding 1.49 GiB, and the
 build floor below goes with it. An open corpus holds all three, since the two builds
 happen at open unless it
 was given `warm=False` — which is what makes the resident figure something to size a
@@ -463,16 +464,17 @@ the projection, in seconds rather than the tens of milliseconds a pivot takes. T
 no managed service to move this to — Athena and its kin can scan the Parquet, but the
 chemistry is not SQL.
 
-**A built index has a floor, and it is not a soft one** — a corpus given a covering
-`occurrences_dir` builds nothing and meets none of what follows. Over ORD the build
-wants **5–6.5 GB**
-of DuckDB memory, and below that it raises `OutOfMemoryException` rather than running
-slowly — a block it cannot pin is not one it can spill, so a `temp_directory` does not
-rescue it. Near the floor it also wants 16–25 GiB of scratch disk, which a container may
-not have: a Fargate task carries 20 GB of ephemeral storage by default, and `Corpus` sets
-no `temp_directory`. Three remedies were measured and none moves the floor; a fourth,
-building per projection file, lowers it to ~2 GB and costs every unconstrained deployment
-68% more time — measured and rejected ([logbook][cache-entry], findings 16–17).
+**An index unnested from the projections has a floor, and it is not a soft one** — a
+corpus given a covering `occurrences_dir` builds nothing and meets none of what follows,
+and one reading every indexed level from pivot artifacts builds the index under a 1 GB
+limit. Unnesting over ORD wants **5 GB** of DuckDB memory, and at 4.5 GB it raises
+`OutOfMemoryException` rather than running slowly — a block it cannot pin is not one it
+can spill, so a `temp_directory` does not rescue it. Near the floor it also writes about
+35 GiB of temporary files, and 15 GiB even at DuckDB's default limit, which a container
+may not have room for: a Fargate task carries 20 GB of ephemeral storage by default, and
+`Corpus` sets no `temp_directory`. Three remedies were measured and none moves the floor;
+a fourth, building per projection file, lowers it but costs every unconstrained
+deployment time — measured and rejected ([logbook][cache-entry], findings 16–17).
 
 **Nothing supports swapping a corpus in place.** A
 structure's corpus-wide ID is its dataset-local one plus an offset that is a running total
@@ -529,8 +531,8 @@ raises at whoever runs the first substructure search. Warming puts both builds a
 where falling short is a failed deployment rather than a failed request;
 `Corpus.check_index()` does the same for the index alone over a cold corpus, which is
 what a deployment answering scalar and similarity queries wants — those spend the index
-but never the library. What a cold corpus buys is the memory floor above, the 1.19 GB
-the index holds, and the 2.2 GB the library holds, none of which a scalar-only corpus
+but never the library. What a cold corpus buys is the memory floor above, the 1.1–1.35
+GiB the index holds, and the 2.2 GB the library holds, none of which a scalar-only corpus
 needs to spend.
 
 Across a mixed workload pairing an indexed structure clause with one the index cannot

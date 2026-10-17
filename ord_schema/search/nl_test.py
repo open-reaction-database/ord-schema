@@ -524,8 +524,8 @@ def test_declining_is_told_apart_from_failing():
 
 def test_a_query_that_asks_nothing_is_handed_back():
     # An empty query compiles and returns the corpus, which reads as an answer rather
-    # than as the failure it is. Opus writes one for "reactions with no solvent at
-    # all" about two times in three.
+    # than as the failure it is. Opus often writes one for "reactions with no solvent
+    # at all".
     client = _stub({}, {"where": _SOLVENT})
     result = nl.translate("reactions with no solvent at all", client=client)
     assert _where(result) is not None

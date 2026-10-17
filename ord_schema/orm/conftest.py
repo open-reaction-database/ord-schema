@@ -16,11 +16,11 @@
 
 One PostgreSQL cluster per session, and a database cloned from a template per test.
 
-Starting a cluster costs 0.47s, installing the ORM schema and the RDKit cartridge
-another 0.14s, and loading the example dataset with its derived tables 1.0s more: 1.6s
-before a test body runs, and this package has 74 of them. ``CREATE DATABASE ...
-TEMPLATE`` copies a prepared database in 0.06s, so the templates are built once per
-session and every test clones one.
+Starting a cluster, installing the ORM schema and the RDKit cartridge, and loading the
+example dataset with its derived tables is a fixed cost before every test body, and
+this package has many tests. ``CREATE DATABASE ... TEMPLATE`` copies a prepared database
+in a fraction of that time, so the templates are built once per session and every test
+clones one.
 
 A clone is a byte copy, so a test owns a database nobody else writes to, and dropping it
 leaves the template as it was. Under xdist each worker is its own session and so runs
@@ -182,9 +182,9 @@ def databases_fixture(
 
     Every database a test runs against comes from here, so disposal and dropping live in
     one place. Neither is optional: a pooled connection outlives the test and a
-    session's worth reaches the server's connection limit, and a clone is a full copy --
-    11.7 MB for the prepared schema, so a run of this package would leave most of a
-    gigabyte behind.
+    session's worth reaches the server's connection limit, and a clone is a full copy
+    of the prepared schema, so a run of this package would leave a copy per test
+    behind.
 
     Args:
         postgres: The running cluster.

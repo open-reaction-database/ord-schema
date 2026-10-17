@@ -38,10 +38,10 @@ ones the query runs with.
 
 .. warning::
    **Nothing here bounds what a query costs.** ``UNNEST`` in a ``FROM`` clause is
-   refused, because it materializes the exploded intermediate -- measured at 27-200x the
-   cost of the equivalent list lambdas, and over the full corpus the difference between
-   0.9 seconds and no result in four minutes -- and because it is the spelling every SQL
-   tutorial teaches, so a model reaches for it by default.
+   refused, because it materializes the exploded intermediate -- far costlier than the
+   equivalent list lambdas, and over the full corpus the difference between an answer
+   and none -- and because it is the spelling every SQL tutorial teaches, so a model
+   reaches for it by default.
 
    That is one entry in a blacklist, not a guard. A self-join over 2.4M reactions, a
    cross join against ``range``, a recursive CTE counting to a billion, and a

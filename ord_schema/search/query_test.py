@@ -104,7 +104,7 @@ def test_a_comparison_compiles_to_a_scalar_test():
 
 def test_exists_compiles_to_a_list_lambda_never_to_unnest():
     # The whole reason the model does not write SQL: the fast idiom is the only one the
-    # compiler can emit, so the 27-200x cliff is unreachable rather than discouraged.
+    # compiler can emit, so the UNNEST cliff is unreachable rather than discouraged.
     compiled = _compile(
         {
             "where": {
@@ -653,7 +653,7 @@ def test_ordering_by_a_reduction_over_a_repeated_path():
 
 def test_max_rows_bounds_a_query_that_asked_for_no_limit():
     # The grammar leaves limit optional, so the unbounded query is the ordinary one: a
-    # predicate matching much of the corpus returns millions of rows to whoever ran it.
+    # predicate matching much of the corpus returns all of it to whoever ran it.
     compiled = _compile({}, max_rows=100)
     assert compiled.sql.endswith(" LIMIT 100")
     assert compiled.limit == 100
@@ -1332,7 +1332,7 @@ def test_a_smarts_with_an_explicit_hydrogen_is_merged_with_a_warning():
 def test_an_unfoldable_explicit_hydrogen_passes_through(smarts):
     # These hydrogens cannot be implicit in a stored molecule either -- an isotope and
     # H2 have no heavy atom to hide in -- so they are real graph atoms the query
-    # already matches. 28,297 ORD reactions have an [H][H] component, so rewriting or
+    # already matches. Many ORD reactions have an [H][H] component, so rewriting or
     # refusing them would lose exactly the queries that work.
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -1579,9 +1579,9 @@ def test_forall_over_a_pivoted_level_becomes_a_negated_semi_join():
 
 def test_a_nested_quantifier_joins_on_the_whole_ordinal_prefix():
     # The correctness point the ordinals exist for. Correlating a measurement to its
-    # product on the reaction alone returned 23,608 reactions over ORD where the answer
-    # is 22,666 -- and dropping only the outcome ordinal changed nothing at all, since
-    # the corpus is effectively single-outcome, which is what made it look right.
+    # product on the reaction alone over-returned over ORD -- and dropping only the
+    # outcome ordinal changed nothing at all, since the corpus is effectively
+    # single-outcome, which is what made it look right.
     sql = _pivot_sql(
         {
             "where": {
@@ -1740,7 +1740,7 @@ def test_a_structure_predicate_routes_through_the_pivot_with_the_outer_offset():
 
 
 def test_a_declining_body_is_never_charged_for_a_pivot():
-    # Supplying a pivot is what builds it, and over ORD that is minutes per level. A
+    # Supplying a pivot is what builds it, an unnest of the projection per level. A
     # body reaching a repeated field declines, so it must not ask for one first.
     asked = []
 

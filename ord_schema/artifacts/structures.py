@@ -19,10 +19,9 @@ tests the query's fingerprint bits against every row -- a bitwise scan a query e
 runs in milliseconds without a chemistry library -- and is complete but not exact: it
 never misses a true match, and passes false ones. **Verification** then runs
 real subgraph isomorphism over the survivors, from the serialized molecule carried
-here, which skips re-parsing SMILES and runs about five times faster for it. Neither
-step needs an index; the reason a structure search elsewhere needs one is the cost of
-scanning rows one at a time, and a columnar scan of every distinct structure in the
-corpus is cheap.
+here, which skips re-parsing SMILES and runs faster for it. Neither step needs an
+index; the reason a structure search elsewhere needs one is the cost of scanning rows
+one at a time, and a columnar scan of every distinct structure in the corpus is cheap.
 
 The artifact is deduplicated, which is what makes both steps affordable: the corpus
 holds roughly fifteen component occurrences per distinct structure, so screening and
@@ -38,7 +37,7 @@ check cannot see that the pairing changed.
 
 The screen's completeness is an invariant, not a hope: if query ``Q`` is a subgraph of
 target ``T``, every bit of ``Q``'s pattern fingerprint is set in ``T``'s, so
-``bit_count(fp & q) = popcount(q)`` never rejects a true match -- measured across 221
+``bit_count(fp & q) = popcount(q)`` never rejects a true match -- checked across
 query/target pairs, including explicit-hydrogen queries, with no exception. What a
 query layer still has to handle is that these molecules are built from SMILES and so
 hold their hydrogens implicitly: a SMARTS naming one as its own atom matches nothing,
@@ -60,11 +59,9 @@ API rather than a bare tautomer hash because it normalizes what a bare hash does
 atom-map labels, unnecessary explicit hydrogens, enhanced stereo, S-group data -- so a
 compound written with atom maps is the same compound. It is a hash rather than a
 canonical tautomer because canonicalizing one costs what the corpus does not have:
-measured over ORD's own molecules, RDKit's tautomer enumerator runs at ~500 structures
-a second against ~2,600 for this hash, which is an hour against thirteen minutes over
-the two million distinct structures here, before the per-file parallelism the build
-already has. The stored SMILES beside it is what a reader looks at; the hash is only
-ever compared.
+over ORD's own molecules, RDKit's tautomer enumerator is several times slower than this
+hash, before the per-file parallelism the build already has. The stored SMILES beside
+it is what a reader looks at; the hash is only ever compared.
 
 Fragments are left alone, so sodium acetate stays distinct from acetic acid. The
 question that counts a reagent and the salt it was sold as as one is a different one,
@@ -353,7 +350,7 @@ def salt_parent(molecule: Chem.Mol) -> Chem.Mol:
     list is not a counterion here: cesium carbonate keeps its cesium and so does not
     share a parent with the potassium carbonate that loses its potassium. Widening the
     list is not obviously right -- the metals a corpus of reactions carries beside an
-    anion are mostly reagents rather than spectators, and 1,500 of this corpus's
+    anion are mostly reagents rather than spectators, and many of this corpus's
     multi-fragment structures hold iron, zinc, copper, silver or aluminium -- so the
     list stays RDKit's, and the RDKit version the artifact stamps says which one.
 

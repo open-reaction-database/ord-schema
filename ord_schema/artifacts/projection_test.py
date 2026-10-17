@@ -692,13 +692,13 @@ def test_structure_ids_span_source_row_groups(tmp_path):
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        # Every shape the corpus records, with its share of ORD beside it.
-        ("2022-01-01 00:00:00.0", datetime(2022, 1, 1)),  # 1,771,416
-        ("2025-06-30T05:22:18", datetime(2025, 6, 30, 5, 22, 18)),  # 48,498
-        ("2/25/2021, 1:05:42 PM", datetime(2021, 2, 25, 13, 5, 42)),  # 20,745
-        ("18/08/2024 02:10:09", datetime(2024, 8, 18, 2, 10, 9)),  # 1,430
-        ("2024-07-30", datetime(2024, 7, 30)),  # 1,241
-        ("Thu Jul 18 18:22:17 2024", datetime(2024, 7, 18, 18, 22, 17)),  # 48
+        # Every shape the corpus records.
+        ("2022-01-01 00:00:00.0", datetime(2022, 1, 1)),
+        ("2025-06-30T05:22:18", datetime(2025, 6, 30, 5, 22, 18)),
+        ("2/25/2021, 1:05:42 PM", datetime(2021, 2, 25, 13, 5, 42)),
+        ("18/08/2024 02:10:09", datetime(2024, 8, 18, 2, 10, 9)),
+        ("2024-07-30", datetime(2024, 7, 30)),
+        ("Thu Jul 18 18:22:17 2024", datetime(2024, 7, 18, 18, 22, 17)),
         ("not a date", None),
         ("", None),
     ],

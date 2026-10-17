@@ -502,7 +502,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         help=(
             "What pivots built in process may hold. Zero by default: a run is a "
             "handful of queries, and building a pivot over the whole corpus costs "
-            "minutes to save milliseconds"
+            "far more than it saves"
         ),
     )
     parser.add_argument(
