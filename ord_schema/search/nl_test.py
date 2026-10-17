@@ -32,7 +32,7 @@ from anthropic.types import TextBlock, ThinkingBlock, ToolUseBlock
 from ord_schema import parquet
 from ord_schema.artifacts import projection, structures
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.search import execute, nl, nl_log
+from ord_schema.search import execute, nl, nl_log, placeholders
 
 
 @pytest.fixture(scope="module")
@@ -806,3 +806,93 @@ def test_a_declined_question_records_whether_a_query_came_first(corpus):
     assert event["declined_reason"] == "values are literals, never other columns"
     # No attempt: the model read the question rather than backing off after a refusal.
     assert json.loads(event["attempts"]) == []
+
+
+# Placeholders
+
+_PYRIDINE = placeholders.Placeholder(
+    format=placeholders.StructureFormat.COMPOUND_SMILES, text="c1ccncc1"
+)
+
+
+def _uses(slot: dict) -> dict:
+    """Returns a query for reactions with an input matching a structure predicate."""
+    return {"where": {"op": "exists", "path": "inputs.components", "where": slot}}
+
+
+def test_placeholders_follow_the_question():
+    client = _stub(_uses({"op": "same_compound", "path": "smiles", "compound": "@A"}))
+    nl.translate("reactions using @A", structures={"@A": _PYRIDINE}, client=client)
+    assert client.requests[0]["messages"][0]["content"] == (
+        "reactions using @A\n\nPlaceholders in this question:\n@A is a compound SMILES."
+    )
+
+
+def test_a_question_without_placeholders_is_sent_alone():
+    client = _stub({"where": _SOLVENT})
+    nl.translate("reactions run in a solvent", client=client)
+    assert client.requests[0]["messages"][0]["content"] == "reactions run in a solvent"
+
+
+def test_a_placeholder_is_substituted_and_the_attempt_keeps_it():
+    # The query names the structure outright, so it runs again as it stands; the
+    # attempt keeps what the model wrote, which is what prompt work reads.
+    client = _stub(_uses({"op": "same_compound", "path": "smiles", "compound": "@A"}))
+    translated = nl.translate(
+        "reactions using @A", structures={"@A": _PYRIDINE}, client=client
+    )
+    clause = _where(translated).where
+    assert (clause.smiles, clause.compound) == ("c1ccncc1", None)
+    assert translated.attempts[0].translation["where"]["where"]["compound"] == "@A"
+
+
+def test_a_format_the_predicate_refuses_is_handed_back():
+    pattern = placeholders.Placeholder(
+        format=placeholders.StructureFormat.COMPOUND_SMARTS, text="c[Br,I]"
+    )
+    client = _stub(
+        _uses(
+            {"op": "similarity", "path": "smiles", "compound": "@B", "threshold": 0.6}
+        ),
+        _uses({"op": "substructure", "path": "smiles", "compound": "@B"}),
+    )
+    translated = nl.translate(
+        "inputs like @B", structures={"@B": pattern}, client=client
+    )
+    error = translated.attempts[0].error
+    assert error is not None
+    assert "@B is a compound SMARTS, which similarity does not take" in error
+    assert translated.turns == 2
+
+
+def test_an_unbound_placeholder_never_reaches_the_resolver(corpus):
+    # The corpus's resolver knows only pyridine, so a placeholder looked up as a name
+    # would fail differently: as an unresolved compound, after the search began.
+    unbound = _uses({"op": "same_compound", "path": "smiles", "compound": "@D"})
+    client = _stub(unbound, unbound)
+    with pytest.raises(nl.MalformedQueryError, match="@D is not a placeholder"):
+        nl.ask(
+            "reactions using @A", corpus, structures={"@A": _PYRIDINE}, client=client
+        )
+
+
+def test_a_question_that_fails_the_check_makes_no_call():
+    client = _stub()
+    with pytest.raises(
+        placeholders.PlaceholderError,
+        match="@A is in the question but has no structure",
+    ):
+        nl.translate("reactions using @A", client=client)
+    assert client.requests == []
+
+
+def test_ask_searches_with_the_placeholder(corpus):
+    client = _stub(
+        _uses({"op": "same_compound", "path": "smiles", "compound": "@A"}),
+        "One reaction uses @A.",
+    )
+    answer = nl.ask(
+        "reactions using @A", corpus, structures={"@A": _PYRIDINE}, client=client
+    )
+    assert answer.table.column("reaction_id").to_pylist() == ["ord-nl01"]
+    assert _predicate(answer.query).where.smiles == "c1ccncc1"

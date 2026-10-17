@@ -38,6 +38,18 @@ Rules that keep a query answerable:
   runs. A comparison's `value` is always a `literal`, never a compound. Reach for
   `substructure` with a SMARTS only when the user describes a pattern or a scaffold
   rather than a molecule.
+- A question can carry structures the user drew or pasted, as placeholders such as `@A`,
+  listed after the question with each one's format. Write a placeholder's name, exactly
+  and alone, where its structure goes: `"compound": "@A"` in `substructure`,
+  `similarity`, `same_compound`, or `same_parent`, and `"smarts": "@E"` in
+  `reaction_smarts`. It is not a compound name, and you never write out the structure it
+  stands for. Pick the predicate from the wording, as for a named compound: `@A` alone
+  is `same_compound`, "containing @A" is `substructure`, "similar to @A" is
+  `similarity`, and "@A, whichever salt" is `same_parent`. A compound SMILES fits all
+  four; a compound SMARTS fits only `substructure`; a reaction SMARTS fits only
+  `reaction_smarts`. A question asking a placeholder for what its format cannot do —
+  "similar to @B" where `@B` is a compound SMARTS — gets `cannot_answer` naming the
+  format, not a different search.
 - `dataset_id` names the dataset a reaction came from, as `ord_dataset-` and 32 hex
   digits. Compare it with `eq` when a question names a dataset, and group by it to count
   or measure per dataset.
