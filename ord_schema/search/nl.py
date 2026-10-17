@@ -40,7 +40,7 @@ import hashlib
 import json
 import os
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from importlib import resources
 from typing import Any
@@ -57,7 +57,7 @@ from anthropic.types import (
 
 from ord_schema.artifacts import pivot as pivot_levels
 from ord_schema.logging import get_logger
-from ord_schema.search import execute, nl_log, query, schema
+from ord_schema.search import execute, nl_log, placeholders, query, schema
 
 logger = get_logger(__name__)
 
@@ -558,6 +558,7 @@ def _repair(turn: _Turn, rejection: str) -> MessageParam:
 def translate(
     question: str,
     *,
+    structures: Mapping[str, placeholders.Placeholder] | None = None,
     client: anthropic.Anthropic | None = None,
     model: str = DEFAULT_MODEL,
     effort: str | None = None,
@@ -567,6 +568,9 @@ def translate(
 
     Args:
         question: The question, in English.
+        structures: Each placeholder the question writes, mapped to the structure
+            it stands for. The model is told each one's format and never its
+            text, which is substituted into the query before it is validated.
         client: Anthropic client; one is built from the environment if omitted.
         model: Which model translates.
         effort: How much the model thinks, one of ``EFFORTS``, or None for the model's
@@ -587,7 +591,11 @@ def translate(
         ModelUnavailableError: If the model cannot be reached. Every one of these
             carries the attempts and the usage spent reaching it, because a failed
             translation is a record worth keeping and an exception has no return value.
+        PlaceholderError: If the question and its placeholders do not fit each
+            other, before the model is asked anything.
     """
+    structures = structures or {}
+    placeholders.check(question, structures)
     client = client if client is not None else get_client()
     started = time.monotonic()
     attempts: list[nl_log.Attempt] = []
@@ -628,14 +636,16 @@ def translate(
             return None, "the model returned no query"
         coerced = _unwrapped(_coerce(turn.call.input))
         try:
-            parsed = _validated(coerced)
+            parsed = _validated(placeholders.substitute(coerced, structures))
         except (ValueError, query.QueryError) as error:
             attempts.append(nl_log.Attempt(coerced, str(error), turn.usage))
             return None, str(error)
         attempts.append(nl_log.Attempt(coerced, None, turn.usage))
         return parsed, ""
 
-    messages: list[MessageParam] = [{"role": "user", "content": question}]
+    described = placeholders.describe(structures)
+    content = f"{question}\n\n{described}" if described else question
+    messages: list[MessageParam] = [{"role": "user", "content": content}]
     first = call(messages)
     parsed, rejection = judged(first)
     if parsed is not None:
@@ -784,6 +794,7 @@ def ask(
     question: str,
     corpus: execute.Corpus,
     *,
+    structures: Mapping[str, placeholders.Placeholder] | None = None,
     client: anthropic.Anthropic | None = None,
     model: str = DEFAULT_MODEL,
     effort: str | None = None,
@@ -806,6 +817,8 @@ def ask(
     Args:
         question: The question, in English.
         corpus: The corpus to search.
+        structures: Each placeholder the question writes, mapped to the structure
+            it stands for.
         client: Anthropic client; one is built from the environment if omitted.
         model: Which model translates and describes.
         effort: How much the model thinks, or None for the model's default.
@@ -829,6 +842,8 @@ def ask(
         ModelRateLimitedError: If the caller is over its rate limit.
         ModelUnavailableError: If the model cannot be reached.
         ValueError: If a compound the query names cannot be resolved.
+        PlaceholderError: If the question and its placeholders do not fit each
+            other, before the model is asked anything; nothing is recorded.
         TimeoutError: If the search exceeds ``timeout_seconds``.
         QueryError: If the compiled query cannot be run against these artifacts.
         PairingError: If the corpus and its structures do not line up.
@@ -859,12 +874,19 @@ def ask(
                 session_id=session_id,
                 record_id=record_id,
                 timestamp=timestamp,
+                structures=placeholders.dump(structures or {}),
                 **fields,
             ),
         )
 
     try:
-        translated = translate(question, client=client, model=model, effort=effort)
+        translated = translate(
+            question,
+            structures=structures,
+            client=client,
+            model=model,
+            effort=effort,
+        )
     except NLQueryError as error:
         record(
             outcome_of(error),
