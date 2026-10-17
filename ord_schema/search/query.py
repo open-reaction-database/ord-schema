@@ -844,10 +844,14 @@ _DISTINCT_COUNT = "coalesce(len(list_distinct({expression})), 0)"
 # to.
 _REDUCTION_ALIAS = "r0"
 
-# Reducers and aggregates that arithmetic has to carry. The grammar already holds
-# ordered comparisons to numbers, and a sum over text is a DuckDB error rather than an
-# answer, so both are refused where the query is compiled rather than where it runs.
+# Reducers and aggregates that combine their values, which have to be of a kind they can
+# combine; see ``_check_combinable``. A sum over text is a DuckDB error rather than an
+# answer, so it is refused where the query is compiled rather than where it runs.
 _ARITHMETIC = frozenset({"min", "max", "avg", "sum"})
+
+# The ones among them that only compare their values, so an instant serves as well as a
+# number: when a dataset was first recorded is a ``min`` over its records.
+_ORDERING = frozenset({"min", "max"})
 
 
 class Reduction(_Node):
@@ -1609,8 +1613,11 @@ def _scalar(
     return resolved
 
 
-def _check_numeric(path: str, leaf: pa.DataType, what: str) -> None:
-    """Raises unless a leaf holds numbers.
+def _check_combinable(path: str, leaf: pa.DataType, what: str) -> None:
+    """Raises unless a leaf holds values the reducer or aggregate can combine.
+
+    ``min`` and ``max`` take numbers and instants; ``sum`` and ``avg`` are arithmetic,
+    which the grammar keeps to numbers.
 
     Args:
         path: The path, named in the message.
@@ -1618,10 +1625,17 @@ def _check_numeric(path: str, leaf: pa.DataType, what: str) -> None:
         what: The reducer or aggregate asking, named in the message.
 
     Raises:
-        QueryError: If the leaf is neither an integer nor a floating-point type.
+        QueryError: If the leaf is not a number, nor for ``min`` and ``max`` a date
+            or timestamp.
     """
-    if not (pa.types.is_integer(leaf) or pa.types.is_floating(leaf)):
+    if pa.types.is_integer(leaf) or pa.types.is_floating(leaf):
+        return
+    if what not in _ORDERING:
         raise QueryError(f"{path}: {what} needs a numeric column, not {leaf}")
+    if not _is_temporal(leaf):
+        raise QueryError(
+            f"{path}: {what} needs a numeric or temporal column, not {leaf}"
+        )
 
 
 def _sum(expression: str, *, integers: bool) -> str:
@@ -1786,8 +1800,8 @@ def _reduced(
     Raises:
         QueryError: If the path is already scalar, which needs no reduction (accepting
             one would give the same query two spellings), if an arithmetic reducer
-            reaches a leaf that does not hold numbers, or if a ``where`` quantifies
-            over a level of its own.
+            reaches a leaf it cannot combine (see ``_check_combinable``), or if a
+            ``where`` quantifies over a level of its own.
         ValueError: If ``distinct`` is asked of a reducer other than ``count``.
     """
     if distinct and reduction.reduce != "count":
@@ -1801,7 +1815,7 @@ def _reduced(
             f"path is already scalar; order by the path itself"
         )
     if reduction.reduce in _ARITHMETIC:
-        _check_numeric(reduction.path, resolved.type, reduction.reduce)
+        _check_combinable(reduction.path, resolved.type, reduction.reduce)
     if reduction.where is not None:
         level, _, _ = _reduced_element(reduction)
         _refuse_quantified(reduction.where, level.path, "a reduction's where")
@@ -1821,21 +1835,27 @@ def _reduced(
     return reduced
 
 
-def _reduces_to_integer(reduction: Reduction, schema: pa.Schema) -> bool:
-    """Returns whether a reduction yields an integer for each reaction.
+def _reduced_type(reduction: Reduction, schema: pa.Schema) -> pa.DataType:
+    """Returns the type a reduction yields for each reaction.
 
     Args:
         reduction: The reduction, whose path ``_reduced`` has already resolved.
         schema: Schema its path resolves against.
 
     Returns:
-        True for a ``count``, whatever it counts, and for a ``min``, ``max``, or ``sum``
-        of integers. An ``avg`` is a DOUBLE whatever it averages.
+        An integer for a ``count``, whatever it counts, and for a ``sum`` of integers;
+        a double for an ``avg`` and for a ``sum`` of floating-point values; and the
+        leaf's own type for a ``min`` or ``max``, which is an instant where the leaf
+        is one.
     """
     if reduction.reduce == "count":
-        return True
+        return pa.int64()
+    if reduction.reduce == "avg":
+        return pa.float64()
     leaf = resolve(reduction.path, schema=schema).type
-    return reduction.reduce != "avg" and pa.types.is_integer(leaf)
+    if reduction.reduce == "sum":
+        return pa.int64() if pa.types.is_integer(leaf) else pa.float64()
+    return leaf
 
 
 def _measure(
@@ -1879,12 +1899,16 @@ def _measure(
         argument = _reduced(
             measure.path, schema, parameters=parameters, routing=routing
         )
-        integers = _reduces_to_integer(measure.path, schema)
+        reduced = _reduced_type(measure.path, schema)
+        if measure.fn in _ARITHMETIC:
+            # A min of instants is an instant, which a sum over reactions cannot add.
+            _check_combinable(measure.path.path, reduced, measure.fn)
+        integers = pa.types.is_integer(reduced)
     elif element is not None and measure.path == pivot_levels.REACTION_ID:
         # The one path a pivot row carries outside its element, and what makes a count
         # of elements answerable as a count of reactions.
         if measure.fn in _ARITHMETIC:
-            _check_numeric(measure.path, pa.string(), measure.fn)
+            _check_combinable(measure.path, pa.string(), measure.fn)
         argument = f"{element}.{pivot_levels.REACTION_ID}"
         integers = False
     else:
@@ -1895,7 +1919,7 @@ def _measure(
             None if element is None else f"{element}.{pivot_levels.ELEMENT}",
         )
         if measure.fn in _ARITHMETIC:
-            _check_numeric(measure.path, resolved.type, measure.fn)
+            _check_combinable(measure.path, resolved.type, measure.fn)
         argument = resolved.expression
         integers = pa.types.is_integer(resolved.type)
     if measure.fn == "count_distinct":

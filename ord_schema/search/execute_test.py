@@ -16,6 +16,7 @@
 
 import contextlib
 import dataclasses
+import datetime
 import gc
 import logging
 import pathlib
@@ -4812,6 +4813,114 @@ def test_a_sum_over_a_floating_point_leaf_stays_a_float(integral_corpus):
     (total,) = table.column("measured").to_pylist()
     assert total == 650.75
     assert isinstance(total, float)
+
+
+_MODIFIED = "provenance.record_modified.time.timestamp"
+
+
+def _modified_reaction(reaction_id, *stamps) -> reaction_pb2.Reaction:
+    """A reaction whose record was modified at each of ``stamps``."""
+    reaction = _reaction(reaction_id, components=[("CCO", _ROLE.REACTANT)])
+    for stamp in stamps:
+        reaction.provenance.record_modified.add().time.value = stamp
+    return reaction
+
+
+@pytest.fixture(scope="module")
+def modified_root(tmp_path_factory) -> pathlib.Path:
+    """Three datasets whose earliest and latest modifications disagree on an order.
+
+    aa was submitted first and edited last, so ranking datasets by their latest
+    modification and by their earliest give different answers. cc records none.
+    """
+    root = tmp_path_factory.mktemp("modified")
+    _derive(
+        root,
+        "aa",
+        [
+            _modified_reaction("ord-md01", "2021-03-01", "2024-06-01"),
+            _modified_reaction("ord-md02", "2021-03-02"),
+        ],
+    )
+    _derive(
+        root,
+        "bb",
+        [
+            _modified_reaction("ord-md03", "2023-01-15 09:30:00", "2023-02-01"),
+            _modified_reaction("ord-md04", "2023-01-15 10:00:00"),
+        ],
+    )
+    _derive(root, "cc", [_modified_reaction("ord-md05")])
+    return root
+
+
+@pytest.fixture(scope="module", params=[None, 0], ids=["pivoted", "unpivoted"])
+def modified_corpus(request, modified_root) -> Iterator[execute.Corpus]:
+    """The modified reactions, reduced through pivots built in process and the lists."""
+    with execute.Corpus(
+        str(modified_root / "projections" / "*.parquet"),
+        str(modified_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivot_budget_bytes=request.param,
+    ) as value:
+        yield value
+
+
+@pytest.mark.parametrize(
+    ("fn", "expected"),
+    [
+        ("min", {"ord_dataset-bb": datetime.datetime(2023, 1, 15, 9, 30)}),
+        ("max", {"ord_dataset-aa": datetime.datetime(2024, 6, 1)}),
+    ],
+)
+def test_datasets_rank_by_an_instant_reduced_from_their_reactions(
+    modified_corpus, fn, expected
+):
+    # min of each reaction's min is when the dataset was first recorded, and max of
+    # each reaction's max is when it was last edited; aa is the newest by one and not
+    # the other. cc records no instant, so its NULL sorts after both.
+    table = modified_corpus.search(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "group_by": ["dataset_id"],
+                    "measures": [
+                        {
+                            "fn": fn,
+                            "path": {"reduce": fn, "path": _MODIFIED},
+                            "name": "modified",
+                        }
+                    ],
+                },
+                "order_by": [{"key": "modified", "descending": True}],
+                "limit": 1,
+            }
+        )
+    )
+    assert table.schema.field("modified").type == pa.timestamp("us")
+    assert {row["dataset_id"]: row["modified"] for row in table.to_pylist()} == expected
+
+
+def test_reactions_order_by_their_latest_modification(modified_corpus):
+    table = modified_corpus.search(
+        query.Query.model_validate(
+            {
+                "order_by": [
+                    {
+                        "key": {"reduce": "max", "path": _MODIFIED},
+                        "descending": True,
+                    }
+                ]
+            }
+        )
+    )
+    assert table.column("reaction_id").to_pylist() == [
+        "ord-md01",
+        "ord-md03",
+        "ord-md04",
+        "ord-md02",
+        "ord-md05",
+    ]
 
 
 # The levels the occurrence index's paths range within: three are indexed paths of
