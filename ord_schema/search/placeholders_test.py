@@ -33,12 +33,18 @@ def test_a_placeholder_is_validated_by_its_format():
         placeholders.Placeholder(format=_COMPOUND_SMILES, text="c1ccnc")
     with pytest.raises(ValidationError, match="wildcard"):
         placeholders.Placeholder(format=_COMPOUND_SMILES, text="c1ccccc1*")
-    with pytest.raises(ValidationError, match="SMARTS has no atoms"):
+    with pytest.raises(ValidationError, match="at least 1 character"):
         placeholders.Placeholder(format=_COMPOUND_SMARTS, text="")
     with pytest.raises(ValidationError, match="at most 5 are supported"):
         placeholders.Placeholder(format=_REACTION_SMARTS, text="C.C.C.C.C.C>>C")
     with pytest.raises(ValidationError, match="at most 2000 characters"):
         placeholders.Placeholder(format=_COMPOUND_SMILES, text="C" * 2001)
+
+
+def test_the_schema_states_the_text_bounds():
+    # A server publishing this model's schema tells clients the bounds it enforces.
+    text = placeholders.Placeholder.model_json_schema()["properties"]["text"]
+    assert (text["minLength"], text["maxLength"]) == (1, 2000)
 
 
 @pytest.mark.parametrize(
@@ -171,6 +177,10 @@ def test_substitute_leaves_a_query_without_placeholders_alone():
         (
             {"op": "eq", "path": "smiles", "value": {"literal": "@A"}},
             "@A appears in eq",
+        ),
+        (
+            {"op": "substructure", "path": "smiles", "compound": "@B", "smarts": "CC"},
+            "substructure names @B beside another structure",
         ),
     ],
 )

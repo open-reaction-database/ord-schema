@@ -730,6 +730,35 @@ what was searched and offer to run it again. It names compounds as the model wro
 `answer.resolved` maps each name to the SMILES the search matched it as, so a reader can see
 that `ibuprofen` became `CC(C)Cc1ccc(C(C)C(=O)O)cc1`.
 
+### Ask about a structure that has no name
+
+```python
+from ord_schema.search import nl, placeholders
+
+drawn = placeholders.Placeholder(
+    format=placeholders.StructureFormat.COMPOUND_SMARTS, text="[c;R1]-[Br,I]"
+)
+answer = nl.ask("reactions using an aryl halide matching @A", corpus, structures={"@A": drawn})
+```
+
+A question can carry structures a person drew or pasted, each named in the question by a
+placeholder -- `@` and capital letters -- and passed beside it. A placeholder is a
+**compound SMILES**, a **compound SMARTS**, or a **reaction SMARTS**, and its text is held
+to what the grammar accepts for that format. A compound SMILES fits every structure
+predicate, read as SMARTS in a `substructure`; a compound SMARTS fits only
+`substructure`; a reaction SMARTS fits only `reaction_smarts`.
+
+The model is told each placeholder's name and format after the question, never its text,
+and writes the name where the structure goes. The text is substituted into its query
+before the query is validated, so the grammar never sees a placeholder, `answer.query`
+names the structures outright and runs again as it stands, and a placeholder never
+reaches a name resolver. A placeholder the question does not define, one in a predicate
+its format does not fit, or one anywhere but a structure predicate's whole `compound`,
+`smiles`, or `smarts` is handed back through the repair turn. A question and placeholders
+that do not match -- a name written with no structure, a structure the question never
+names, more than ten -- raise `PlaceholderError` before the model is asked anything.
+`placeholders.classify()` reads pasted text as one of the three formats, or refuses it.
+
 ### Keep the questions
 
 ```python
@@ -766,17 +795,20 @@ mints that identifier and decides what it spans.
 holds all of them, and nothing else in a record separates a person rephrasing from a
 harness working through a case file.
 
-Results are **not** stored; `translation`, `resolved`, and `corpus_fingerprint`
-reproduce them. The translation names compounds as the model wrote them, and a resolver
-can answer differently later, so `resolved` keeps the SMILES each name was searched as.
+Results are **not** stored; `translation`, `resolved`, `structures`, and
+`corpus_fingerprint` reproduce them. The translation names compounds as the model wrote
+them, and a resolver can answer differently later, so `resolved` keeps the SMILES each
+name was searched as. It keeps the placeholders the model wrote too, so `structures`
+keeps the format and text each one stood for.
 `prompt_fingerprint` names the translator that wrote a record, and moves exactly when the
 cached prefix does.
 
 A record is a typed envelope around an opaque payload: identifiers, outcome, usage, and
-timings are fields, while the question, `resolved`, and the whole `attempts` list — not
-only the query inside it — are strings. They stay strings because a `Query` is recursive
-and differently shaped record to record, because `resolved` is keyed by whatever
-compounds a month's questions named, and because a month in which everything compiled
+timings are fields, while the question, `resolved`, `structures`, and the whole
+`attempts` list — not only the query inside it — are strings. They stay strings because
+a `Query` is recursive and differently shaped record to record, because `resolved` and
+`structures` are keyed by whatever compounds and placeholders a month's questions named,
+and because a month in which everything compiled
 writes `"error": null` throughout and infers that field as JSON where a month holding one
 rejection infers it as text. Either way DuckDB would be inferring a struct from whichever
 shapes a month happened to hold, and whether two months read back together would depend

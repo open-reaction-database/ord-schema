@@ -32,7 +32,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from rdkit import Chem, rdBase
 
 from ord_schema.search import query
@@ -71,8 +71,7 @@ _LABELS = {
 }
 
 # The field each structure predicate takes its structure in, and the formats it takes.
-# A compound SMILES read as a substructure is read as SMARTS, as the search form reads
-# a drawn substructure.
+# A compound SMILES searched as a substructure is read as SMARTS.
 _FIELDS = {
     "substructure": "smarts",
     "similarity": "smiles",
@@ -98,7 +97,7 @@ def _grammar_check(model: type[BaseModel], payload: dict[str, Any]) -> None:
 
     Args:
         model: The predicate that would hold the structure.
-        payload: The predicate, holding it.
+        payload: That predicate as a dict, with the structure in its field.
 
     Raises:
         ValueError: With the grammar's messages, unwrapped from pydantic's report.
@@ -129,14 +128,10 @@ class Placeholder(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     format: StructureFormat
-    text: str
+    text: str = Field(min_length=1, max_length=MOST_CHARACTERS)
 
     @model_validator(mode="after")
     def _check(self) -> "Placeholder":
-        if len(self.text) > MOST_CHARACTERS:
-            raise ValueError(
-                f"a placeholder's text is at most {MOST_CHARACTERS} characters"
-            )
         match self.format:
             case StructureFormat.COMPOUND_SMILES:
                 _grammar_check(
@@ -195,8 +190,9 @@ def classify(text: str) -> Placeholder:
 
     Raises:
         PlaceholderError: If the text is none of the three.
-        ValueError: If it reads as a reaction but the grammar refuses it, such as one
-            with too many templates on a side.
+        ValueError: If the text is longer than ``MOST_CHARACTERS``, or reads as a
+            reaction the grammar refuses, such as one with too many templates on a
+            side.
     """
     if ">" in text:
         return Placeholder(format=StructureFormat.REACTION_SMARTS, text=text)
