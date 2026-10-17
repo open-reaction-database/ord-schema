@@ -830,11 +830,19 @@ def test_a_reduction_over_a_scalar_path_is_refused():
         )
 
 
-@pytest.mark.parametrize("reducer", ["min", "max", "avg", "sum"])
-def test_an_arithmetic_reduction_over_text_is_refused(reducer):
+@pytest.mark.parametrize(
+    ("reducer", "message"),
+    [
+        ("min", "needs a numeric or temporal column, not string"),
+        ("max", "needs a numeric or temporal column, not string"),
+        ("avg", "needs a numeric column, not string"),
+        ("sum", "needs a numeric column, not string"),
+    ],
+)
+def test_an_arithmetic_reduction_over_text_is_refused(reducer, message):
     # Summing a list of strings is a DuckDB error rather than an answer, and a query
     # that cannot mean anything is worth refusing where it is compiled.
-    with pytest.raises(query.QueryError, match="needs a numeric column"):
+    with pytest.raises(query.QueryError, match=message):
         _compile(
             {
                 "order_by": [
@@ -932,6 +940,96 @@ def test_a_sum_of_integers_comes_back_as_an_integer(measure):
 )
 def test_a_sum_of_floating_point_values_stays_a_double(measure):
     assert _measured_type(measure) == pa.float64()
+
+
+_CREATED = "provenance.record_created.time.timestamp"
+_MODIFIED = "provenance.record_modified.time.timestamp"
+
+
+@pytest.mark.parametrize(
+    "measure",
+    [
+        {"fn": "min", "path": _CREATED},
+        {"fn": "max", "path": _CREATED},
+        {"fn": "min", "path": {"reduce": "min", "path": _MODIFIED}},
+        {"fn": "max", "path": {"reduce": "max", "path": _MODIFIED}},
+        {"fn": "max", "path": {"reduce": "min", "path": _MODIFIED}},
+    ],
+)
+def test_the_least_or_greatest_instant_comes_back_as_a_timestamp(measure):
+    assert _measured_type(measure) == pa.timestamp("us")
+
+
+@pytest.mark.parametrize("fn", ["sum", "avg"])
+@pytest.mark.parametrize(
+    "path", [_CREATED, {"reduce": "min", "path": _MODIFIED}], ids=["scalar", "reduced"]
+)
+def test_adding_instants_in_a_measure_is_refused(fn, path):
+    # min and max only compare their values, which instants support; sum and avg are
+    # arithmetic, which the grammar keeps to numbers.
+    with pytest.raises(query.QueryError, match="needs a numeric column, not timestamp"):
+        _compile(
+            {"aggregate": {"measures": [{"fn": fn, "path": path, "name": "measured"}]}}
+        )
+
+
+@pytest.mark.parametrize("reducer", ["sum", "avg"])
+def test_adding_instants_in_a_reduction_is_refused(reducer):
+    with pytest.raises(
+        query.QueryError, match=f"{_MODIFIED}: {reducer} needs a numeric column"
+    ):
+        _compile({"order_by": [{"key": {"reduce": reducer, "path": _MODIFIED}}]})
+
+
+@pytest.mark.parametrize("reducer", ["min", "max"])
+def test_ordering_by_a_reduced_instant_runs(reducer):
+    compiled = _compile(
+        {
+            "order_by": [
+                {"key": {"reduce": reducer, "path": _MODIFIED}, "descending": True}
+            ]
+        }
+    )
+    assert f"ORDER BY list_{reducer}(" in compiled.sql
+    assert _run(compiled) == []
+
+
+@pytest.mark.parametrize("reducer", ["min", "max"])
+def test_a_reduced_instant_reads_the_pivot_where_one_covers_its_level(reducer):
+    sql = _pivot_sql(
+        {"order_by": [{"key": {"reduce": reducer, "path": _MODIFIED}}]},
+        pivot=_every_level,
+    )
+    assert f"list_{reducer}(" not in sql
+    assert f"(SELECT {reducer}(r0.element.time.timestamp) " in sql
+    assert (
+        "FROM pivot_provenance_record_modified AS r0 "
+        "WHERE r0.reaction_id = reactions.reaction_id)"
+    ) in sql
+
+
+def test_datasets_rank_by_their_earliest_modification():
+    # When a dataset was submitted is the first modification any of its reactions
+    # records, and the newest submission is the dataset where that is latest.
+    compiled = _compile(
+        {
+            "aggregate": {
+                "group_by": ["dataset_id"],
+                "measures": [
+                    {
+                        "fn": "min",
+                        "path": {"reduce": "min", "path": _MODIFIED},
+                        "name": "submitted",
+                    }
+                ],
+            },
+            "order_by": [{"key": "submitted", "descending": True}],
+            "limit": 1,
+        }
+    )
+    assert "min(list_min(" in compiled.sql
+    assert compiled.sql.endswith("ORDER BY submitted DESC LIMIT 1")
+    assert _run(compiled) == []
 
 
 def test_ordering_by_a_summed_reduction_orders_by_an_integer():
@@ -2239,6 +2337,35 @@ def test_arithmetic_over_reaction_id_across_a_level_is_refused(fn):
         }
     }
     with pytest.raises(query.QueryError, match=rf"reaction_id: {fn} needs a numeric"):
+        _over(body)
+
+
+@pytest.mark.parametrize("fn", ["min", "max"])
+def test_the_extreme_instant_over_a_level_reads_the_element(fn):
+    # Over a level the measure's path is relative to the element, so the timestamp is
+    # checked against the element's type rather than the reaction's.
+    sql = _over(
+        {
+            "aggregate": {
+                "over": "provenance.record_modified",
+                "measures": [{"fn": fn, "path": "time.timestamp", "name": "edited"}],
+            }
+        }
+    )
+    assert f"{fn}(x0.element.time.timestamp) AS edited" in sql
+
+
+@pytest.mark.parametrize("fn", ["sum", "avg"])
+def test_adding_instants_over_a_level_is_refused(fn):
+    body = {
+        "aggregate": {
+            "over": "provenance.record_modified",
+            "measures": [{"fn": fn, "path": "time.timestamp", "name": "edited"}],
+        }
+    }
+    with pytest.raises(
+        query.QueryError, match=rf"time\.timestamp: {fn} needs a numeric column"
+    ):
         _over(body)
 
 

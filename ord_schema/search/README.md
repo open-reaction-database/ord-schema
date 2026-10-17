@@ -84,7 +84,8 @@ is a compile error rather than a wrong answer:
   structures artifact) is refused, and internal columns are withheld from the rendered
   schema and from "did you mean" suggestions: their values are not stable across
   builds.
-- Operators must suit the leaf type — `contains` is text-only, ordering is numeric-only.
+- Operators must suit the leaf type — `contains` is text-only, ordering is numeric or
+  temporal only.
 - `group_by` paths must be scalar, so the number of groups is bounded by the values a column
   holds rather than by an explosion over a repeated level.
 - No two output columns of an aggregate share a name: a `group_by` path given twice, two
@@ -118,9 +119,11 @@ is a compile error rather than a wrong answer:
   788,334 reactions record no workups this way -- so the list route coalesces, because
   "how many does this reaction have" is answered by none rather than by unknown. The
   arithmetic reducers yield NULL there, which is what an average over nothing is.
-- `min`, `max`, `avg`, and `sum` need a numeric column, whether they reduce a repeated path
-  or aggregate a scalar one; `count` takes any. Arithmetic over text is refused where the
-  query is compiled rather than left to fail where it runs.
+- `avg` and `sum` need a numeric column, whether they reduce a repeated path or aggregate a
+  scalar one, and so does a measure reading a reduction: a `sum` over each reaction's `min`
+  of a timestamp is refused. `min` and `max` take a date or timestamp column too, and answer
+  the earliest or latest instant. `count` takes any. Arithmetic over text is refused where
+  the query is compiled rather than left to fail where it runs.
 - A structure predicate's `compound` is resolved through
   [`ord_schema.resolvers`](../resolvers.py) when the query runs, so the model names compounds
   and never spells structures. The name goes to the resolver and never reaches the SQL, so it
