@@ -36,6 +36,10 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
 
+# The UTC offsets in use run from -12:00 to +14:00. A naive DateTime carries no offset,
+# so it could have been written under any of them.
+_MIN_UTC_OFFSET = datetime.timedelta(hours=-12)
+_MAX_UTC_OFFSET = datetime.timedelta(hours=14)
 # Record timestamps repeat across a dataset's reactions, but the distinct set is
 # small next to the identifier caches in message_helpers, so this stays modest.
 _DATETIME_CACHE_SIZE = 10_000
@@ -1369,6 +1373,52 @@ def _validate_analysis(
     _check_type_and_details(message, context)
 
 
+def _offset_range(
+    value: datetime.datetime,
+) -> tuple[datetime.timedelta, datetime.timedelta]:
+    """Returns the smallest and largest UTC offsets a parsed DateTime can carry.
+
+    Args:
+        value: The parsed DateTime.
+
+    Returns:
+        The value's own offset as both bounds if it has one, otherwise -12:00 and
+        +14:00.
+    """
+    offset = value.utcoffset()
+    if offset is None:
+        return _MIN_UTC_OFFSET, _MAX_UTC_OFFSET
+    return offset, offset
+
+
+def _is_before(value: datetime.datetime, other: datetime.datetime) -> bool | None:
+    """Returns whether one parsed DateTime names an earlier time than another.
+
+    Two naive values compare by wall-clock time, and two aware values by the instants
+    their offsets name. When only one is aware, the naive one could have been written
+    under any offset in use, so the answer is known only if every one of them gives it.
+
+    Args:
+        value: The DateTime that may come first.
+        other: The DateTime to compare it against.
+
+    Returns:
+        True if ``value`` is before ``other`` and False if it is not, or None if that
+        depends on the offset the naive one of a naive/aware pair was written under.
+    """
+    if (value.utcoffset() is None) == (other.utcoffset() is None):
+        return value < other
+    value_low, value_high = _offset_range(value)
+    other_low, other_high = _offset_range(other)
+    # A time's UTC instant is its wall-clock time less its offset.
+    wall_clock_gap = other.replace(tzinfo=None) - value.replace(tzinfo=None)
+    if wall_clock_gap - other_high + value_low > datetime.timedelta(0):
+        return True
+    if wall_clock_gap - other_low + value_high <= datetime.timedelta(0):
+        return False
+    return None
+
+
 def _validate_reaction_provenance(
     message: reaction_pb2.ReactionProvenance, context: ValidationContext
 ) -> None:
@@ -1391,13 +1441,33 @@ def _validate_reaction_provenance(
             record_modified = _parse_date_time_or_raise(record.time.value)
     except parser.ParserError:
         context.warn("Failed to parse DateTime string(s)")
-    # Check signs of time differences
-    if experiment_start and record_created:
-        if (record_created - experiment_start).total_seconds() < 0:
-            context.error("Record creation time should be after experiment")
-    if record_modified and record_created:
-        if (record_modified - record_created).total_seconds() < 0:
-            context.error("Record modified time should be after creation")
+    for earlier_name, earlier, later_name, later, error in (
+        (
+            "experiment_start",
+            experiment_start,
+            "record_created",
+            record_created,
+            "Record creation time should be after experiment",
+        ),
+        (
+            "record_created",
+            record_created,
+            "record_modified",
+            record_modified,
+            "Record modified time should be after creation",
+        ),
+    ):
+        if earlier is None or later is None:
+            continue
+        out_of_order = _is_before(later, earlier)
+        if out_of_order is None:
+            context.warn(
+                f"Could not check that {later_name} is not before {earlier_name}: "
+                "only one carries a UTC offset, and they are close enough that the "
+                "missing offset decides their order"
+            )
+        elif out_of_order:
+            context.error(error)
     if not message.record_created.person.email:
         context.error("User email is required for record_created")
     for record in message.record_modified:

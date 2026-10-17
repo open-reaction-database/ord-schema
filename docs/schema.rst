@@ -526,6 +526,10 @@ ReactionProvenance
 * Required fields: ``record_created``.
 * ``record_created`` must not be before ``experiment_start``.
 * ``record_modified`` must not be before ``record_created``.
+* Times that carry a UTC offset are ordered by the instant they name. A time without
+  one could have been written under any offset from -12:00 to +14:00, so when only one
+  of a pair has an offset, the pair is an error only if it is out of order under all of
+  them, and a warning if the missing offset would decide the order.
 
 ReactionSetup
 =============
