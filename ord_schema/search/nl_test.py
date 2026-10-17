@@ -65,7 +65,9 @@ def corpus(tmp_path_factory):
     structured.parent.mkdir(parents=True, exist_ok=True)
     structures.write_structures(projected, structured)
     with execute.Corpus(
-        str(projected), str(structured), resolver={}.__getitem__
+        str(projected),
+        str(structured),
+        resolver={"pyridine": "C1=CC=NC=C1"}.__getitem__,
     ) as value:
         yield value
 
@@ -451,6 +453,22 @@ def test_ask_returns_the_query_it_ran(corpus):
     assert _predicate(answer.query).op == "exists"
     assert answer.table.num_rows == corpus.search(answer.query).num_rows
     assert answer.text == "Two reactions, both with pyridine."
+    assert answer.resolved == {}
+
+
+def test_ask_says_what_each_compound_resolved_to(corpus):
+    # The query keeps the name the model wrote; the structure searched for sits beside
+    # it, so a reader can see what the name became.
+    where = {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {"op": "same_compound", "path": "smiles", "compound": "pyridine"},
+    }
+    client = _stub({"where": where}, "One reaction used pyridine.")
+    answer = nl.ask("reactions using pyridine", corpus, client=client)
+    assert _predicate(answer.query).where.compound == "pyridine"
+    assert answer.resolved == {"pyridine": "c1ccncc1"}
+    assert answer.table.num_rows == 1
 
 
 def test_ask_passes_the_timeout_through(corpus, monkeypatch):
@@ -716,6 +734,44 @@ def test_a_declined_question_is_priced_even_though_it_built_nothing(corpus):
     assert event["usage"]["input"] == 1
 
 
+def test_a_record_says_what_each_compound_resolved_to(corpus):
+    # The record keeps the query as the model wrote it, naming the compound, and a
+    # resolver can answer differently later; the structure searched is what reproduces
+    # the answer.
+    sink = _CollectingSink()
+    where = {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {"op": "same_compound", "path": "smiles", "compound": "pyridine"},
+    }
+    client = _stub({"where": where}, "One reaction used pyridine.")
+    nl.ask("reactions using pyridine", corpus, client=client, sink=sink)
+    nl.ask(
+        "solvent reactions",
+        corpus,
+        client=_stub({"where": _SOLVENT}, "Two."),
+        sink=sink,
+    )
+    named, unnamed = sink.events
+    assert json.loads(named["resolved"]) == {"pyridine": "c1ccncc1"}
+    assert unnamed["resolved"] == "{}"
+
+
+def test_a_search_whose_description_failed_still_records_its_names(corpus):
+    sink = _CollectingSink()
+    where = {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {"op": "same_compound", "path": "smiles", "compound": "pyridine"},
+    }
+    client = _stub({"where": where}, _status_error(429))
+    with pytest.raises(nl.ModelRateLimitedError):
+        nl.ask("reactions using pyridine", corpus, client=client, sink=sink)
+    (event,) = sink.events
+    assert event["row_count"] == 1
+    assert json.loads(event["resolved"]) == {"pyridine": "c1ccncc1"}
+
+
 def test_a_question_that_matched_nothing_is_recorded_as_empty(corpus):
     sink = _CollectingSink()
     where = {"op": "eq", "path": "reaction_id", "value": {"literal": "ord-nope"}}
@@ -737,6 +793,7 @@ def test_a_failed_ask_is_still_recorded(corpus):
     assert event["outcome"] == nl_log.Outcome.MALFORMED
     assert len(json.loads(event["attempts"])) == 2
     assert event["row_count"] is None
+    assert event["resolved"] is None
 
 
 def test_a_declined_question_records_whether_a_query_came_first(corpus):

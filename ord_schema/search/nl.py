@@ -287,6 +287,9 @@ class Answer:
         record_id: What this question was logged as. A caller hands it to the reader so
             a thumb has something to reference; without it the log records feedback
             nobody can attach to a question.
+        resolved: Each compound name the query gives, mapped to the canonical SMILES
+            the search matched it as. The query keeps the name, so this is where a
+            reader sees the structure; empty for a query naming no compound.
     """
 
     question: str
@@ -294,6 +297,7 @@ class Answer:
     table: pa.Table
     text: str
     record_id: str = ""
+    resolved: dict[str, str] = dataclasses.field(default_factory=dict)
 
 
 def get_client() -> anthropic.Anthropic:
@@ -814,8 +818,9 @@ def ask(
             a rephrasing readable as a correction of the question before it.
 
     Returns:
-        The query that ran, the reactions it found, a description of them, and the
-        identifier the record was written under.
+        The query that ran, the reactions it found, a description of them, the
+        identifier the record was written under, and what each compound the query
+        named was searched as.
 
     Raises:
         MalformedQueryError: If translation produces nothing that compiles.
@@ -888,6 +893,7 @@ def ask(
         )
         raise
     search_ms = (time.monotonic() - started) * 1000
+    resolved = execute.resolutions(table)
     try:
         described = answer(question, table, client=client, model=model, effort=effort)
     except NLQueryError as error:
@@ -896,6 +902,7 @@ def ask(
             attempts=translated.attempts,
             turns=translated.turns,
             row_count=table.num_rows,
+            resolved=resolved,
             error=str(error),
             usage=translated.usage + error.usage,
             translate_ms=translated.elapsed_ms,
@@ -907,6 +914,7 @@ def ask(
         attempts=translated.attempts,
         turns=translated.turns,
         row_count=table.num_rows,
+        resolved=resolved,
         answer_text=described.text,
         usage=translated.usage + described.usage,
         translate_ms=translated.elapsed_ms,
@@ -919,4 +927,5 @@ def ask(
         table=table,
         text=described.text,
         record_id=record_id,
+        resolved=resolved,
     )

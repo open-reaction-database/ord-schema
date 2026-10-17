@@ -1097,7 +1097,7 @@ def test_a_resolved_racemate_keeps_its_stereo_group(chiral_root):
 def test_a_name_resolving_to_nonsense_is_an_error(corpus_dir):
     # Canonicalizing cannot fix an unparseable answer, and swallowing it here would
     # hide a resolver fault behind an empty result.
-    assert execute._canonical("not a molecule") == "not a molecule"
+    assert execute._canonical("not a molecule") is None
     where = {"op": "same_compound", "path": "smiles", "compound": "nonsense"}
     resolver = {"nonsense": "not a molecule"}
     with (
@@ -1105,6 +1105,97 @@ def test_a_name_resolving_to_nonsense_is_an_error(corpus_dir):
         pytest.raises(ValueError, match="unreadable SMILES 'not a molecule'"),
     ):
         _search(corpus, _exists(where))
+
+
+def _same_compound(name):
+    return _exists({"op": "same_compound", "path": "smiles", "compound": name})
+
+
+def test_a_name_is_resolved_once_per_corpus(corpus_dir):
+    # A resolver is an external service, and what a name means does not change between
+    # one question and the next.
+    asked = []
+
+    def resolver(name):
+        asked.append(name)
+        return {"pyridine": "c1ccncc1"}[name]
+
+    with _open(corpus_dir, resolver=resolver) as corpus:
+        first = _search(corpus, _same_compound("pyridine"))
+        second = _search(corpus, _same_compound("pyridine"))
+    assert first == second == {"ord-aa01", "ord-aa02"}
+    assert asked == ["pyridine"]
+
+
+def test_the_resolution_cache_drops_the_name_unused_longest(corpus_dir, monkeypatch):
+    monkeypatch.setattr(execute, "_CACHED_RESOLUTIONS", 2)
+    asked = []
+    answers = {"pyridine": "c1ccncc1", "ethanol": "CCO", "benzene": "c1ccccc1"}
+
+    def resolver(name):
+        asked.append(name)
+        return answers[name]
+
+    # Pyridine is asked again before benzene arrives, so ethanol is what goes, and the
+    # resolver is called for it again.
+    order = ("pyridine", "ethanol", "pyridine", "benzene", "pyridine", "ethanol")
+    with _open(corpus_dir, resolver=resolver) as corpus:
+        for name in order:
+            _search(corpus, _same_compound(name))
+    assert asked == ["pyridine", "ethanol", "benzene", "ethanol"]
+
+
+def test_a_failed_resolution_is_asked_again(corpus_dir):
+    # A service that is down for one question must not answer every later one.
+    answers = iter([ValueError("the service is down"), "c1ccncc1"])
+
+    def resolver(name):
+        answer = next(answers)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    with _open(corpus_dir, resolver=resolver) as corpus:
+        with pytest.raises(ValueError, match="the service is down"):
+            _search(corpus, _same_compound("pyridine"))
+        assert _search(corpus, _same_compound("pyridine")) == {"ord-aa01", "ord-aa02"}
+
+
+def test_a_name_resolving_to_nonsense_is_asked_again(corpus_dir):
+    asked = []
+
+    def resolver(name):
+        asked.append(name)
+        return "not a molecule"
+
+    with _open(corpus_dir, resolver=resolver) as corpus:
+        for _ in range(2):
+            with pytest.raises(ValueError, match="unreadable SMILES 'not a molecule'"):
+                _search(corpus, _same_compound("nonsense"))
+    assert asked == ["nonsense", "nonsense"]
+
+
+def test_a_search_says_what_each_name_resolved_to(corpus_dir):
+    # The query names a compound, and the structure it searched for is what a reader
+    # needs to judge the answer. It is stated as the corpus spells it, not as the
+    # service answered.
+    resolver = {"pyridine": "C1=CC=NC=C1", "ethanol": "OCC"}.__getitem__
+    where = {
+        "op": "or",
+        "clauses": [_same_compound(n) for n in ("pyridine", "ethanol")],
+    }
+    with _open(corpus_dir, resolver=resolver) as corpus:
+        answer = corpus.search(query.Query.model_validate({"where": where}))
+    assert execute.resolutions(answer) == {"pyridine": "c1ccncc1", "ethanol": "CCO"}
+
+
+def test_a_search_naming_no_compound_carries_no_resolutions(corpus_dir):
+    where = _exists({"op": "same_compound", "path": "smiles", "smiles": "c1ccncc1"})
+    with _open(corpus_dir, resolver={}.__getitem__) as corpus:
+        answer = corpus.search(query.Query.model_validate({"where": where}))
+    assert answer.num_rows == 2
+    assert execute.RESOLVED.encode() not in (answer.schema.metadata or {})
+    assert execute.resolutions(answer) == {}
 
 
 def _copy_corpus(corpus_dir, tmp_path) -> pathlib.Path:
@@ -2111,10 +2202,11 @@ def test_concurrent_first_searches_build_one_library(corpus_dir, monkeypatch):
 
     def resolver(name):
         # Every thread is inside search and about to want the library; releasing them
-        # together is what makes the race reachable at all. This assumes each search
-        # resolves the name itself -- were that cache ever hoisted to the corpus, the
-        # threads that skipped it would leave this barrier one short, so it times out
-        # rather than parking the suite.
+        # together is what makes the race reachable at all. The corpus keeps what a name
+        # resolved to, but no thread can store an answer before all of them arrive, so
+        # each misses and calls this. Were concurrent misses ever made to wait on one
+        # call, the threads that skipped it would leave this barrier one short, so it
+        # times out rather than parking the suite.
         ready.wait(timeout=_WAIT)
         return {"pyridine": "c1ccncc1"}[name]
 
