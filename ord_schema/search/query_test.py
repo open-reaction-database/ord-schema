@@ -368,8 +368,8 @@ def test_an_aggregate_groups_and_measures():
     )
     assert compiled.sql == (
         'SELECT conditions.stirring.type AS "conditions.stirring.type", '
-        "avg(conditions.temperature.setpoint_kelvin) AS mean_k, count(*) AS n "
-        "FROM reactions GROUP BY 1 ORDER BY mean_k DESC LIMIT 5"
+        'avg(conditions.temperature.setpoint_kelvin) AS "mean_k", count(*) AS "n" '
+        'FROM reactions GROUP BY 1 ORDER BY "mean_k" DESC LIMIT 5'
     )
     assert _run(compiled) == []
 
@@ -392,7 +392,7 @@ def test_a_group_by_column_is_named_by_its_whole_path():
     assert compiled.sql == (
         "SELECT conditions.temperature.control.type AS "
         '"conditions.temperature.control.type", '
-        'conditions.stirring.type AS "conditions.stirring.type", count(*) AS n '
+        'conditions.stirring.type AS "conditions.stirring.type", count(*) AS "n" '
         "FROM reactions GROUP BY 1, 2 ORDER BY conditions.stirring.type DESC"
     )
     sql.validate(compiled.sql, parameters=compiled.literals)
@@ -489,8 +489,58 @@ def test_a_measure_may_share_a_group_by_path_s_last_segment():
             "order_by": [{"key": "type", "descending": True}],
         }
     )
-    assert compiled.sql.endswith("ORDER BY type DESC")
+    assert compiled.sql.endswith('ORDER BY "type" DESC')
     assert _run(compiled) == []
+
+
+@pytest.mark.parametrize(
+    "name", ["at", "order", "group", "select", "from", "desc", "null", "true", "Order"]
+)
+def test_a_measure_named_by_a_keyword_is_still_a_name(name):
+    # Bare in an ORDER BY, DuckDB reads these as keywords: most fail to parse or bind,
+    # and ``true`` orders by the constant rather than by the measure.
+    compiled = _compile(
+        {
+            "aggregate": {
+                "group_by": ["dataset_id"],
+                "measures": [{"fn": "count", "name": name}],
+            },
+            "order_by": [{"key": name, "descending": True}],
+        }
+    )
+    assert f'count(*) AS "{name}"' in compiled.sql
+    assert compiled.sql.endswith(f'ORDER BY "{name}" DESC')
+    sql.validate(compiled.sql, parameters=compiled.literals)
+    assert _run(compiled) == []
+
+
+@pytest.mark.parametrize("descending", [False, True])
+def test_a_measure_named_true_orders_by_the_measure(descending):
+    # Bare, ORDER BY true sorts by the constant, which parses, runs, and returns the
+    # groups in whatever order the aggregate left them. Enough groups, inserted out of
+    # order, that the order they come back in is not the sorted one by chance.
+    sizes = [3, 1, 6, 4, 2, 5]
+    rows = [
+        {"reaction_id": f"r{size}-{index}", "dataset_id": f"d{size}"}
+        for size in sizes
+        for index in range(size)
+    ]
+    compiled = _compile(
+        {
+            "aggregate": {
+                "group_by": ["dataset_id"],
+                "measures": [{"fn": "count", "name": "true"}],
+            },
+            "order_by": [{"key": "true", "descending": descending}],
+        }
+    )
+    connection = duckdb.connect()
+    connection.register(query.TABLE, pa.Table.from_pylist(rows, schema=query.SCHEMA))
+    try:
+        counts = [row[1] for row in connection.execute(compiled.sql).fetchall()]
+    finally:
+        connection.close()
+    assert counts == sorted(sizes, reverse=descending)
 
 
 # Refusals
@@ -2173,7 +2223,7 @@ def test_an_aggregate_over_a_level_reads_the_pivot_rather_than_the_reactions():
     sql = _over(_SOLVENT_COUNTS)
     assert "FROM pivot_inputs_components AS x0" in sql
     assert "x0.element.smiles" in sql
-    assert "count(DISTINCT x0.reaction_id) AS n" in sql
+    assert 'count(DISTINCT x0.reaction_id) AS "n"' in sql
     assert "FROM reactions" not in sql
 
 

@@ -135,8 +135,9 @@ is a compile error rather than a wrong answer:
 - A `{"literal": ...}` value is **bound as a parameter**, typed: a string compared against a
   date or timestamp column binds as the instant it names. No literal reaches the SQL as text.
   What the model writes that does is the `limit`, validated as a positive integer, measure
-  names, held to an identifier shape, and each `group_by` path, quoted as its column's name
-  once it has resolved against the schema.
+  names, held to an identifier shape and quoted wherever they appear, so a measure named
+  `order` or `true` is a name rather than a keyword, and each `group_by` path, quoted as its
+  column's name once it has resolved against the schema.
 - A `substructure` respects the stereocenters its pattern draws, as RDKit does: a
   pattern drawn as one enantiomer matches that enantiomer, not its mirror image or the
   same molecule recorded without stereo. `chirality: false` ignores them, for a question

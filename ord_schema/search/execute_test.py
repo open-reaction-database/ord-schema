@@ -275,6 +275,29 @@ def test_an_aggregate_over_reactions_orders_by_its_group_key(corpus):
     ]
 
 
+@pytest.mark.parametrize("name", ["true", "order", "at"])
+@pytest.mark.parametrize("descending", [False, True])
+def test_a_measure_named_by_a_keyword_orders_by_the_measure(corpus, name, descending):
+    # An ORDER BY naming order or at bare fails to parse. aa holds two reactions and bb
+    # one, so each direction puts a different dataset first.
+    table = corpus.search(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "group_by": ["dataset_id"],
+                    "measures": [{"fn": "count", "name": name}],
+                },
+                "order_by": [{"key": name, "descending": descending}],
+            }
+        )
+    )
+    assert table.column_names == ["dataset_id", name]
+    expected = [("ord_dataset-bb", 1), ("ord_dataset-aa", 2)]
+    if descending:
+        expected.reverse()
+    assert [(row["dataset_id"], row[name]) for row in table.to_pylist()] == expected
+
+
 def test_an_aggregate_over_a_level_breaks_count_ties_by_its_group_key(corpus):
     table = corpus.search(
         query.Query.model_validate(
