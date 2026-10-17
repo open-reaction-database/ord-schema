@@ -182,11 +182,11 @@ _DATASETS_SCHEMA = pa.schema(
 
 
 # What the process holds beside DuckDB's own accounting while the occurrence index
-# builds: the interpreter, RDKit, and the paired footers before it starts, and the
-# build's own allocations during it. A cgroup cap leaving less than this above the
-# memory_limit is one the kernel ends at, and a kill arrives as neither an exception nor
-# a log line. Sized from a container build over the full corpus; the search README has
-# the measurements.
+# builds: the interpreter, RDKit, and the parsed footers before it starts -- DuckDB
+# books only part of its own footer cache -- and the build's own allocations during it.
+# A cgroup cap leaving less than this above the memory_limit is one the kernel ends at,
+# and a kill arrives as neither an exception nor a log line. Sized from a container
+# build over the full corpus; the search README has the measurements.
 _PROCESS_HEADROOM_BYTES = 4 * 1024**3
 
 # Where a container states its memory cap, cgroup v2 first. Read at open rather than
@@ -865,11 +865,13 @@ def _cache_footers(connection: duckdb.DuckDBPyConnection) -> None:
     is charged again on every query however little column data the query goes on to
     read; the search README has the measurements.
 
-    The footers are small beside a materialized pivot and bounded by the files rather
-    than by what is asked of them, which is what makes them worth holding
-    unconditionally where a pivot's cost is weighed against a budget. DuckDB re-reads a
-    file that has been rewritten, so an artifact replaced under an open corpus is read
-    as it stands.
+    The footers are bounded by the files rather than by what is asked of them, which is
+    what makes them worth holding unconditionally where a pivot's cost is weighed
+    against a budget. The corpus parses every projection footer at open, counting the
+    reactions view to check its pairing, and DuckDB's own accounting books only part of
+    what they hold, so most of it sits outside ``memory_limit``. DuckDB re-reads a file
+    that has been rewritten, so an artifact replaced under an open corpus is read as it
+    stands.
 
     Set globally rather than on this connection: a search runs on its own cursor, which
     is its own session, and a session-scoped setting would leave every search paying the
@@ -1298,11 +1300,11 @@ class Corpus:
             memory_limit: What DuckDB may hold, spelled as it spells sizes: ``6500MiB``,
                 ``8GB``. Left unset, DuckDB takes about 80% of the machine, or of the
                 container's cap, which it does read. That default suits a process that
-                is mostly DuckDB, and this one is not: RDKit, the interpreter, and the
-                index build's own allocations sit outside that accounting. Exceeding a
-                cap is a kill rather than an exception, so a container wants this set
-                low enough to leave room for them; the search README has a measured
-                configuration.
+                is mostly DuckDB, and this one is not: RDKit, the interpreter, most of
+                what DuckDB's own cache of parsed footers holds, and the index build's
+                own allocations sit outside that accounting. Exceeding a cap is a kill
+                rather than an exception, so a container wants this set low enough to
+                leave room for them; the search README has measured configurations.
             warm: Build at open what a structure query would otherwise build on the
                 query itself, on by default: the occurrence index, then the substructure
                 library. An ``occurrences_dir`` covering every indexed path leaves the
