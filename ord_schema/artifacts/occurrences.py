@@ -34,13 +34,13 @@ open, keyed by the source dataset every artifact names; see
 :mod:`ord_schema.search.execute`.
 
 That rule is what lets this be an artifact at all rather than a relation assembled at
-open. Assembled, over ORD it is 18,847,978 rows holding 1.35 GiB read from pivots, or
-1.1 GiB unnested from the projections, which wants 5 GB of DuckDB memory and 15-35 GiB
-of temporary files to get there, before the first query can be answered. The same rows
-derived here are 163 MB of Parquet, and a corpus given a directory covering every
-indexed path reads them as a view instead of building anything: 0.18 s and 0.40 GiB
-resident against 3.1 s and 1.49 GiB for the table read from pivots, measured over the
-full corpus. See :class:`ord_schema.search.execute.Corpus` and its ``occurrences_dir``.
+open. Assembled, it is a table held in memory for the life of the corpus, and unnesting
+it from the projections has a memory floor and spills heavily to get there, before the
+first query can be answered. The same rows derived here are a small fraction of that as
+Parquet, and a corpus given a directory covering every indexed path reads them as a
+view instead of building anything, which is faster to open and holds far less than the
+table. See :class:`ord_schema.search.execute.Corpus` and its ``occurrences_dir``, and
+the search README for the measurements.
 
 Derived from the **pivot** over the level an indexed path ranges within, which already
 holds one row per element: this artifact is that projected down to two columns, so the

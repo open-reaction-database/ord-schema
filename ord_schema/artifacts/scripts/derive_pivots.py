@@ -17,8 +17,8 @@ r"""Derives pivot artifacts from projections, one per repeated level.
 A quantifier over a repeated level is answered by a semi-join against a pivot -- one row
 per element, carrying the ordinals that say which element it was and the element's own
 fields with the repeated ones removed; see ``ord_schema.artifacts.pivot`` for the shape
-and why. Building one unnests the projection, which is minutes per level over ORD, so it
-belongs here rather than in whichever query asks first.
+and why. Building one unnests the projection, a pass over every reaction per level, so
+it belongs here rather than in whichever query asks first.
 
 Each level gets its own subdirectory, and each projection its own file within it::
 
@@ -139,9 +139,8 @@ def _counts(
 
     Cached because derive_tree drives one level at a time: the levels share ancestors,
     so counting them together reads the projection once where a count per level reads
-    it once per level -- measured at 15x deriving every level of a two-shard tree of
-    projections that record them all. The margin grows with the bytes each level
-    carries, since that is what the count reads and what the extra reads repeat.
+    it once per level. The margin grows with the bytes each level carries, since that
+    is what the count reads and what the extra reads repeat.
 
     Asked for every level being derived rather than only the one at hand, which is the
     trade: a run rebuilding one stale level of a projection reads the columns of all of

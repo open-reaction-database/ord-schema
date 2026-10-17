@@ -16,9 +16,9 @@ r"""Derives occurrence artifacts from pivots, one per structure-bearing path.
 
 A structure query finds the reactions holding a match by semi-joining a relation of one
 row per structure occurrence; see ``ord_schema.artifacts.occurrences`` for the shape and
-why it holds dataset-local IDs. Built in process that relation holds 1.1-1.35 GiB over
-ORD, and unnesting it from the projections takes a minute and 5 GB of DuckDB memory, so
-it belongs here.
+why it holds dataset-local IDs. Built in process that relation is a table held in
+memory, and unnesting it from the projections is a long pass with a memory floor, so it
+belongs here.
 
 Each indexed path gets its own subdirectory, mirroring the pivots it descends from::
 

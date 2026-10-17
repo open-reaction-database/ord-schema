@@ -2025,9 +2025,9 @@ def test_concurrent_searches_return_their_own_answers(corpus_dir):
 
 
 def test_concurrent_first_searches_build_one_library(corpus_dir, monkeypatch):
-    # The library is about 1.5 GB at corpus scale. First searches arriving together must
-    # not each build their own copy, so the build is serialized and whoever waits takes
-    # the finished one.
+    # The library is large at corpus scale. First searches arriving together must not
+    # each build their own copy, so the build is serialized and whoever waits takes the
+    # finished one.
     threads_count = 4
     builds = 0
     counting = threading.Lock()
@@ -2233,8 +2233,8 @@ _ROUTABLE = {
         }
     },
     # The shape the index answers half of: over the corpus, what the other half costs
-    # is set by whether its column was materialized -- 0.43s against 3.34s for the same
-    # question, which is why the budget is what it is.
+    # is set by whether its column was materialized, which is why the budget is what it
+    # is.
     "a clause the projection has to answer beside it": {
         "where": {
             "op": "and",
@@ -4003,9 +4003,9 @@ def test_the_artifact_fingerprint_is_the_one_the_library_screens_with():
 def _wide_reactions() -> list[reaction_pb2.Reaction]:
     """Reactions exercising the element shapes the ORD corpus barely holds.
 
-    Measured over the whole corpus, no reaction records a NULL or empty ``outcomes``
-    and only 119 record a NULL ``products`` under one, so corpus agreement is weak
-    evidence about levels that are absent, empty, or carry a NULL leaf. These say it
+    Over the whole corpus, no reaction records a NULL or empty ``outcomes`` and few
+    record a NULL ``products`` under one, so corpus agreement is weak evidence about
+    levels that are absent, empty, or carry a NULL leaf. These say it
     outright. Two outcomes on one reaction matter most: ORD is effectively
     single-outcome, which is exactly why a correlation that dropped the outcome
     ordinal answered identically and looked correct.
@@ -4065,8 +4065,8 @@ def _wide_reactions() -> list[reaction_pb2.Reaction]:
     reactions.append(sibling)
 
     # A percentage that is not a yield, beside one that is. Selectivity, purity, and
-    # area are recorded as percentages too -- 42,909 measurements across the corpus --
-    # so a reduction over the bare path answers a broader question than "yield" asks.
+    # area are recorded as percentages too, so a reduction over the bare path answers a
+    # broader question than "yield" asks.
     mixed = reaction_pb2.Reaction(reaction_id="ord-wd08")
     only = mixed.outcomes.add().products.add(is_desired_product=True)
     only.measurements.add(type="YIELD").percentage.value = 40
@@ -4792,7 +4792,7 @@ def test_a_path_whose_level_has_no_pivot_is_still_unnested(
 
 def test_requiring_pivots_refuses_a_level_with_no_artifacts(wide_root):
     # The silent case: a missing level is otherwise unnested in process on the query
-    # that first wants it, minutes charged to whoever asked with no error anywhere.
+    # that first wants it, an unnest charged to whoever asked with no error anywhere.
     pivots = _write_pivots(wide_root, ("outcomes.products",))
     with pytest.raises(execute.PairingError, match="holds no pivot artifacts"):
         execute.Corpus(
@@ -4951,7 +4951,8 @@ def test_a_derived_pivot_is_read_by_the_next_corpus_over_the_directory(
 
 def test_a_level_already_derived_is_not_derived_again(wide_root, tmp_path, caplog):
     # The second query wants the same level, and re-globbing is what tells it there is
-    # nothing left to write. A derivation per query would be minutes per query at scale.
+    # nothing left to write. A derivation per query would unnest the projection on
+    # every query.
     pivots = tmp_path / "pivots"
     with (
         caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
@@ -5553,8 +5554,8 @@ def test_one_aged_structures_artifact_is_refused_with_the_others_current(
 
 def test_a_corpus_reads_each_artifacts_stamps_once(corpus_dir, monkeypatch):
     # Pairing opens a footer per artifact to verify it, and the fingerprint is taken
-    # from those stamps. Reading them a second time costs 0.65 seconds on the real
-    # corpus for values already in hand.
+    # from those stamps. Reading them a second time costs a footer read per artifact
+    # for values already in hand.
     opened: list[str] = []
     real = base.load_stamps
 
@@ -5719,8 +5720,8 @@ def test_an_index_read_from_artifacts_keeps_a_structure_in_its_own_dataset(
 def test_a_covered_corpus_publishes_the_index_as_a_view(
     corpus_dir, occurrence_dirs, caplog
 ):
-    # The whole point of the artifact: the rows stay on disk. Over ORD the table holds
-    # 1.1-1.35 GiB, and the view holds none of it.
+    # The whole point of the artifact: the rows stay on disk, where the table holds
+    # them in memory.
     _, occurrence_dir = occurrence_dirs
     with (
         caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
@@ -6201,13 +6202,12 @@ class _LostTimer:
 def test_an_answer_that_arrives_past_the_bound_is_a_timeout(corpus, monkeypatch):
     # The interrupt is not guaranteed to land: a timer armed for a very short bound can
     # fire while the cursor is still idle, and DuckDB clears an interrupt that arrived
-    # with nothing running -- measured, a bound of a nanosecond loses it about one run
-    # in five, after which the query runs unbounded. So the answer is checked against
-    # the clock rather than trusted because no interrupt arrived.
+    # with nothing running, after which the query runs unbounded. So the answer is
+    # checked against the clock rather than trusted because no interrupt arrived.
     #
     # The lost interrupt is simulated rather than raced for: a timer that never fires
     # is what the caller sees either way, and a test that waited for the real race
-    # would pass four times in five while the bug was present.
+    # would mostly pass while the bug was present.
     monkeypatch.setattr(execute.threading, "Timer", _LostTimer)
     cursor = corpus._connection.cursor()
     try:
@@ -6224,8 +6224,8 @@ def test_an_answer_that_arrives_past_the_bound_is_a_timeout(corpus, monkeypatch)
 
 def test_a_corpus_bounds_what_it_returns_without_being_asked(corpus_dir):
     # The grammar leaves limit optional, so an unbounded default builds every matching
-    # reaction into an Arrow table in whatever process asked -- millions of them at
-    # corpus scale, from a query that reads as ordinary.
+    # reaction into an Arrow table in whatever process asked -- potentially the whole
+    # corpus, from a query that reads as ordinary.
     assert execute.DEFAULT_MAX_ROWS == 1000
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),

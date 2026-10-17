@@ -17,8 +17,8 @@
 A quantifier asks whether some element of a repeated level satisfies a body. Answering
 that from the projection means decoding the whole nested column and filtering its
 elements; answering it from a *pivot* -- one row per element -- means a semi-join
-against a flat table. Over ORD the second is milliseconds where the first is seconds,
-because the cost was never the predicate but the reconstruction of lists of structs.
+against a flat table. Over ORD the second is far faster than the first, because the
+cost was never the predicate but the reconstruction of lists of structs.
 
 A pivot row carries three things:
 
@@ -309,9 +309,9 @@ def stage(
     A step given a table of its own can run on its own, where a whole level reached in
     one query -- every unnest and the element prune in a single pipeline, which is what
     ``select`` returns -- runs largely serially. The work is the same either way; what
-    differs is how much of the machine it can occupy. Over the 1.77M-reaction ORD
-    projection the two cost about the same CPU and staging spends it some six times
-    faster in wall clock on 18 cores, so expect the margin to fall with the core count.
+    differs is how much of the machine it can occupy. Over an ORD projection the two
+    cost about the same CPU and staging spends it faster in wall clock on a many-core
+    machine, so expect the margin to fall with the core count.
 
     Every step but the last gets a table. Fusing more than one re-serializes them, so a
     single-step level is the case that must be staged rather than the case that can be
@@ -705,8 +705,7 @@ def _count_expression(level: RepeatedLevel) -> str:
     elements -- not because it reads less of the column. Reaching an element to measure
     its list pulls the whole nested payload off disk either way, and the count scales
     with the payload's width, so the margin is a property of the corpus and not of this
-    expression: it was roughly nine times on a populated level of an ORD projection
-    holding 8% of the corpus by bytes. What it buys reliably is on the levels a corpus
+    expression. What it buys reliably is on the levels a corpus
     never records, where the answer is nothing and the unnest would still walk every
     ancestor to say so.
 

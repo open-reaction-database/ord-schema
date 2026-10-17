@@ -33,8 +33,8 @@ Two things the compiler settles that SQL leaves to whoever writes it:
   A ``Reduction`` is the one reading that needs no quantifier, because it names what to
   do with the elements instead of asking which of them match.
 * **Repeated levels compile to list lambdas**, never to ``UNNEST`` in a ``FROM`` clause
-  -- measured at 27-200x the cost for identical answers, and the idiom every SQL
-  tutorial teaches. A compiler cannot reach for the wrong one.
+  -- far costlier for identical answers, and the idiom every SQL tutorial teaches. A
+  compiler cannot reach for the wrong one.
 
 Co-membership survives, which a reaction-keyed flat table cannot express:
 ``exists(components, A and B)`` is one component that is both, while
@@ -209,9 +209,9 @@ _AGGREGATES = {
 # identifier shape a quoting mistake cannot escape.
 _NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
-# Room for any one compound's name in the corpus: 99.99% of the 1.9 million distinct
-# names ORD records for its compounds fit in 305 characters, and the one name longer
-# than this is several run together.
+# Room for any one compound's name in the corpus, with margin: nearly every name ORD
+# records for its compounds fits well within it, and the one name longer than this is
+# several run together.
 _COMPOUND_NAME_LENGTH = 500
 
 
@@ -596,7 +596,7 @@ class Substructure(_Node):
             # Hydrogens that do not fold -- isotopic ([2H]), or with no heavy atom to
             # fold into ([H][H]) -- are left exactly as written. They cannot be
             # implicit in a stored molecule either, so they are real graph atoms that
-            # the query already matches and screens for; 28,297 ORD reactions have an
+            # the query already matches and screens for; many ORD reactions have an
             # [H][H] component, and rewriting or refusing those would lose them.
         return self
 
@@ -824,8 +824,8 @@ Quantifier.model_rebuild()
 
 # DuckDB's list aggregates, which ignore the nulls a list may hold. `count` filters
 # rather than taking len(), which would count them, and coalesces because the
-# projection spells an absent repeated level NULL rather than empty -- 788,334
-# reactions record no workups this way -- and len(NULL) is NULL, which would answer
+# projection spells an absent repeated level NULL rather than empty -- many reactions
+# record no workups this way -- and len(NULL) is NULL, which would answer
 # "how many does this reaction have" with "unknown" where the answer is none.
 _REDUCERS = {
     "min": "list_min({expression})",
@@ -1276,8 +1276,8 @@ def _pivoted(
     except QueryError:
         return None
     # Asked for only once the body is known to resolve, because supplying a pivot is
-    # what builds it: a level unnested over ORD is minutes, and a body reaching a
-    # repeated field would otherwise pay them and then decline anyway.
+    # what builds it: a level unnested over ORD is a pass over every reaction, and a
+    # body reaching a repeated field would otherwise pay it and then decline anyway.
     table = routing.pivot(level.path)
     if table is None:
         return None
@@ -1680,9 +1680,8 @@ def _pivoted_reduction(
     """Returns the reduction as an aggregate over a pivot, where one covers the path.
 
     Reading the elements as rows costs a scan of the narrow pivot rather than a walk of
-    the nested lists the projection holds, measured at 2.5s against 0.76s for a corpus
-    ranking -- which is the cost of reading ``reaction_id`` alone, so the reduction
-    itself becomes free.
+    the nested lists the projection holds, which over a corpus ranking is the cost of
+    reading ``reaction_id`` alone, so the reduction itself becomes free.
 
     Args:
         reduction: What to reduce, and how.
@@ -1957,8 +1956,8 @@ def _element_relation(
     Raises:
         QueryError: If the path names no repeated level, or no pivot covers it. There
             is no fallback: reaching the elements without one means ``UNNEST`` in a
-            ``FROM`` clause, measured at 27-200x for the same answer and the one
-            spelling this grammar exists to make unwritable.
+            ``FROM`` clause, far costlier for the same answer and the one spelling this
+            grammar exists to make unwritable.
     """
     if query.aggregate is None or query.aggregate.over is None:
         return None
@@ -2014,8 +2013,8 @@ def compile_query(
         max_rows: Most rows the SQL may return, applied whether or not the query asked
             for a limit and clamping one that asks for more. The grammar leaves
             ``limit`` optional, and a query without one returns every matching
-            reaction -- millions of rows at corpus scale, materialized in whatever
-            process is executing. A caller serving queries it did not write wants this
+            reaction -- potentially the whole corpus, materialized in whatever process
+            is executing. A caller serving queries it did not write wants this
             set; None leaves the query's own limit, or none, exactly as stated. It
             bounds an aggregated query's *groups*, where a truncated answer is an
             arbitrary part of a distribution rather than a sample of the matching

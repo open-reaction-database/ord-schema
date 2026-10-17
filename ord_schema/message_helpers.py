@@ -74,9 +74,9 @@ STRUCTURAL_IDENTIFIER_TYPE_NAMES = frozenset(
 #
 # The cached value is a string, never the Mol: an RDKit Mol is mutable, so
 # handing the same one to every caller would let any of them corrupt the entry.
-# Bounded because a large dataset's distinct set does not saturate (uspto grows
-# by ~1.3 new molecules per reaction); this holds strings, so the ceiling is
-# tens of MB.
+# Bounded because a large dataset's distinct set does not saturate (uspto keeps
+# adding new molecules as it grows); this holds strings, so the ceiling stays
+# small.
 #
 # Entries assume RDKit parses and writes the same way for the life of the process.
 # A caller that flips a global mid-run (Chem.SetUseLegacyStereoPerception and the

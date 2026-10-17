@@ -40,12 +40,12 @@ real trap:
   rows does not. The source records precision in the same units as the value, so it
   converts with the value and is null under the same conditions.
 * **Dates become instants.** ``DateTime`` is a bare string the depositor wrote, and the
-  corpus holds fifteen shapes of it in nine families, so comparing the text answers
-  arbitrarily: over ORD a prefix match on ``2021`` finds none of that year's 490,412
-  records while one on ``2022`` matches 1.77 million from a dataset whose stamps merely
-  begin with it. Each ``DateTime`` gains a ``timestamp`` beside the recorded string,
-  which stays: the projection adds a reading rather than replacing what the source says,
-  and a shape none of the formats cover is a visible null.
+  corpus holds many shapes of it, so comparing the text answers arbitrarily: a prefix
+  match on a year misses that year's records written in another shape, and matches a
+  dataset whose stamps merely begin with those digits. Each ``DateTime`` gains a
+  ``timestamp`` beside the recorded string, which stays: the projection adds a reading
+  rather than replacing what the source says, and a shape none of the formats cover is
+  a visible null.
 
   ``NN/NN/NNNN`` is the part that needs more than a format list, since the string never
   says which field is the month. It is settled per dataset and before any row is
@@ -97,10 +97,10 @@ reproducible from the projection alone.
 
 .. warning::
    Query repeated levels with list lambdas, not ``UNNEST`` in the ``FROM`` clause.
-   ``UNNEST`` materializes the exploded intermediate: measured in DuckDB, 27-200x slower
-   where it finishes at all, and over the full corpus 0.9 seconds against no result in
-   four minutes. It also emits one row per matching identifier rather than one per
-   reaction, so the two spellings below need the ``DISTINCT`` to count alike.
+   ``UNNEST`` materializes the exploded intermediate, which is far slower where it
+   finishes at all; the artifacts README has the measurements. It also emits one row
+   per matching identifier rather than one per reaction, so the two spellings below need
+   the ``DISTINCT`` to count alike.
 
    .. code-block:: sql
 
@@ -184,10 +184,8 @@ _TIMESTAMP_TYPES = frozenset({"DateTime"})
 TIMESTAMP_COLUMN = "timestamp"
 
 # The shapes ORD's dates are recorded in, tried in order. DateTime.value is a string the
-# depositor wrote, so there is no format to rely on: seven appear across the corpus, and
-# a reader comparing the text instead answers arbitrarily -- over ORD, a prefix match on
-# "2021" finds none of the 490,412 records from that year while one on "2022" matches
-# 1.77 million from a dataset whose stamps merely begin with it.
+# depositor wrote, so there is no format to rely on, and a reader comparing the text
+# instead answers arbitrarily; see the module docstring.
 #
 # Slash dates are listed month-first here and read day-first where the dataset says so;
 # see ``slash_orientation``.
@@ -325,11 +323,11 @@ def day_first_dates(values: Iterable[str | None]) -> bool | None:
     """Returns whether a dataset writes slash dates day first, or None if it cannot say.
 
     The convention is a property of the depositor rather than of a value, and a value
-    only reveals it where one of the two leading numbers exceeds twelve. Measured over
-    ORD no dataset carries evidence both ways, so one answer per dataset is the right
-    shape -- and thirteen carry none at all, which is what None is for: those hold one
-    bulk-import stamp repeated across every row, so a date guessed for them would be
-    guessed for tens of thousands of reactions at once.
+    only reveals it where one of the two leading numbers exceeds twelve. No ORD
+    dataset carries evidence both ways, so one answer per dataset is the right shape --
+    and some carry none at all, which is what None is for: those hold one bulk-import
+    stamp repeated across every row, so a date guessed for them would be guessed for
+    every reaction in the dataset at once.
 
     Args:
         values: Every date string the dataset records, in any order. Nones and values in
@@ -370,8 +368,7 @@ def slash_orientation(
             the dataset, since a listed verdict is checked against any witness among
             them -- but read lazily, so a dataset that produces one stops there. A
             dataset settled by something other than a witness has none to find, and that
-            scan runs to the end: ~7 seconds over the source that is 96% of ORD, against
-            the 34.6 minutes the projection itself takes.
+            scan runs to the end, which is still small beside the projection itself.
 
     Returns:
         True for day first, False for month first, and None for a source recording no
@@ -562,10 +559,10 @@ def _struct_fields(descriptor: Descriptor, stack: frozenset[str]) -> list[pa.Fie
             if descriptor.name in _TIMESTAMP_TYPES and field.name == "value":
                 # The depositor's own spelling, kept because the timestamp beside it is
                 # an interpretation and cannot be turned back into it -- and is null for
-                # the 9,656 ambiguous dates no evidence settles, which would otherwise
+                # the ambiguous dates no evidence settles, which would otherwise
                 # have no representation at all. Internal because a date question is
                 # answered by the timestamp: matching text against a date the corpus
-                # spells ten ways finds a fraction of what it asks for and reads as if
+                # spells many ways finds a fraction of what it asks for and reads as if
                 # it found all of it.
                 metadata = {
                     **(metadata or {}),
@@ -822,9 +819,9 @@ def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
 def _recorded_dates(view: parquet.DatasetView) -> Iterator[str | None]:
     """Yields the date strings a dataset records, for inferring its convention.
 
-    The three provenance positions, not all seven the schema reaches: measured over the
-    corpus, ``instrument_last_calibrated`` is unset in all 226,316 Analysis messages,
-    and the other three sit behind repeated and map fields deep in inputs, workups and
+    The three provenance positions, not all seven the schema reaches: across the
+    corpus, ``instrument_last_calibrated`` is unset in every Analysis message, and the
+    other three sit behind repeated and map fields deep in inputs, workups and
     outcomes. Walking them would cost that descent on every reaction to find evidence
     the corpus does not hold. A dataset that populates one is where to look again.
 
@@ -918,9 +915,8 @@ def write_projection(
     # The convention belongs to the depositor rather than to a value, so it cannot be
     # read off the rows as they stream past and a row group's worth of them is not the
     # dataset. Every dataset costs a pass that parses the protos without projecting
-    # them, though it stops at the first value that settles the question: measured at
-    # ~7 seconds over the source that is 96% of ORD, against the 34.6 minutes the
-    # projection itself takes.
+    # them, though it stops at the first value that settles the question, and is small
+    # beside the projection itself.
     day_first = dataset_slash_orientation(source_dataset_id, view)
     with (
         atomic_io.atomic_path(output) as temp_path,

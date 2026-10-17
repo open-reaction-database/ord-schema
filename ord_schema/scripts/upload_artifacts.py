@@ -40,9 +40,9 @@ build of only some datasets passes every other check. The tree has to be one bui
   too short for its projection's IDs or unloadable by the substructure library, a
   pivot or occurrences file carrying a structure ID its dataset does not hold,
   occurrences that miss a structure, and a file this library and RDKit would not
-  write. Run the upload under the library that derived the tree. Over ORD this took
-  43 seconds and 5.7 GiB at peak; a tree without occurrences for every path builds
-  the index from its pivots instead, which wants several GB more.
+  write. Run the upload under the library that derived the tree. A tree without
+  occurrences for every path builds the index from its pivots instead, which holds it
+  as a table and wants more memory than the view.
 
 Needs the ``search`` and ``huggingface`` extras. Authenticates the way
 ``huggingface_hub`` does: ``hf auth login`` or ``$HF_TOKEN``.
