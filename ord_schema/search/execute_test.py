@@ -16,13 +16,14 @@
 
 import contextlib
 import dataclasses
+import gc
 import logging
 import pathlib
 import re
 import shutil
 import threading
 import time
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 
 import duckdb
 import pyarrow as pa
@@ -1175,6 +1176,72 @@ def test_a_projection_without_statistics_is_refused(corpus_dir, tmp_path):
             str(root / "projections" / "*.parquet"),
             str(root / "structures" / "*.parquet"),
         )
+
+
+def _footers_alive() -> int:
+    """Returns how many parsed Parquet footers the collector can still see."""
+    return sum(isinstance(found, pq.FileMetaData) for found in gc.get_objects())
+
+
+def test_reading_the_structure_id_bound_frees_the_footer_on_return(corpus_dir):
+    # Opening a corpus reads the bound from every projection, so a footer that waits for
+    # the cyclic collector rather than going with its file is one more parsed footer per
+    # dataset held at once. The collector is held off so that it cannot free one first.
+    path = str(corpus_dir / "projections" / "ord_dataset-aa.parquet")
+    gc.collect()
+    gc.disable()
+    try:
+        before = _footers_alive()
+        assert execute._max_structure_id(path, "") is not None
+        after = _footers_alive()
+    finally:
+        gc.enable()
+    assert after == before
+
+
+def test_the_structure_id_bound_reads_every_row_group_and_nested_column(tmp_path):
+    # The columns are found in the first row group and read in every one, so the
+    # largest ID sits in the last group, and in a nested column rather than the
+    # top-level one.
+    path = tmp_path / "split.parquet"
+    pq.write_table(
+        pa.table(
+            {
+                "structure_id": [0, 1, 2],
+                "products": [[{"structure_id": 1}], [], [{"structure_id": 7}]],
+            }
+        ),
+        path,
+        row_group_size=1,
+    )
+    assert execute._max_structure_id(str(path), "") == 7
+
+
+def _field_names(fields: Iterable[pa.Field]) -> Iterator[str]:
+    """Yields the name of every field, however deeply nested, in ``fields``."""
+    for field in fields:
+        yield field.name
+        kind = field.type
+        if pa.types.is_struct(kind):
+            yield from _field_names(kind)
+        elif pa.types.is_map(kind):
+            yield from _field_names([kind.key_field, kind.item_field])
+        elif pa.types.is_list(kind) or pa.types.is_large_list(kind):
+            yield from _field_names([kind.value_field])
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        projection.SCHEMA,
+        occurrences.SCHEMA,
+        *(pivot.schema(level) for level in pivot.LEVELS.values()),
+    ],
+)
+def test_no_artifact_field_name_holds_a_dot(schema):
+    # The bound finds its columns by the last component of a dotted chunk path, which
+    # names the leaf only while no field name holds a dot itself.
+    assert [name for name in _field_names(schema) if "." in name] == []
 
 
 def _rewrite_structures(root, shard, **columns):

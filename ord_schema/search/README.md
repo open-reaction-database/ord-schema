@@ -432,18 +432,17 @@ derived artifacts spends none of it: those are views over Parquet, not tables.
 ## Sizing a deployment
 
 Budget **about 8 GiB of resident memory** for a corpus serving substructure search over
-ORD. Warm in a container, with its index read from pivot artifacts, it holds 6.6 GiB
-before any query. The open accounts for 2.7 GiB, most of it the projections' parsed
-footers; the occurrence index's 1.35 GiB table adds 0.9 GiB, partly in pages the open
-freed; and the `SubstructLibrary` adds 2.9 GiB. DuckDB's own caches come on top, and fill
-whatever `memory_limit` allows. With a covering `occurrences_dir` the same corpus holds
-5.2 GiB warm: the index becomes a view rather than a table, and the build floor below
-goes with it. An open corpus holds all three, since the two builds happen at open unless
-it was given `warm=False` — which is what makes the resident figure something to size a
-container against rather than a floor a later query raises it to. `Corpus` takes that
-limit as an argument; left unset, DuckDB claims about 80% of the machine — or of the
-container's cap, which it does read. The step-by-step breakdowns are in
-[the logbook entry][cache-entry], findings 16 and 20.
+ORD. Warm in a container, with its index read from pivot artifacts, it holds 6.5 GiB
+before any query. The open accounts for 2.3 GiB, most of it the projections' parsed
+footers; the occurrence index's 1.35 GiB table adds 1.4 GiB, and the `SubstructLibrary`
+adds 2.9 GiB. DuckDB's own caches come on top, and fill whatever `memory_limit` allows.
+With a covering `occurrences_dir` the same corpus holds 5.2 GiB warm: the index becomes
+a view rather than a table, and the build floor below goes with it. An open corpus holds
+all three, since the two builds happen at open unless it was given `warm=False` — which
+is what makes the resident figure something to size a container against rather than a
+floor a later query raises it to. `Corpus` takes that limit as an argument; left unset,
+DuckDB claims about 80% of the machine — or of the container's cap, which it does read.
+The step-by-step breakdowns are in [the logbook entry][cache-entry], findings 16 and 20.
 
 **Sources cost disk and startup.** A corpus given `sources_pattern` reads ord-data's 53
 source files, about 1.2 GiB on disk, on demand rather than holding them: nothing is
@@ -521,14 +520,16 @@ structure versioned rather than replaced.
 **Under a container cap, state the limit rather than letting DuckDB pick it.** Its default
 is sized from the cgroup and not from the host, which is the right input, but the limit
 bounds DuckDB's buffers rather than the process: unnesting the index from the projections
-holds 3.1 GiB beside them, and reaching the cap is a kill — neither an exception nor a log
-line. Most of that is resident before the build starts, since the corpus parses every
-projection footer at open and DuckDB's accounting books a fifth of what they hold. With
-swap off, as a deployment runs, an 8 GiB container on DuckDB's own 6.3 GiB default was
-killed 40s into the build, and one holding DuckDB to 5 GiB was killed in two runs of
-three; a 12 GiB container finished at both 5 GiB and `6500MiB`, peaking at 8.1 and 9.5
-GiB resident. Swap only postpones the kill. `Corpus` warns at open when a cap it can read
-leaves less than 4 GB above the limit ([logbook][cache-entry], findings 19–20).
+holds 3.1–3.4 GiB beside them, and reaching the cap is a kill — neither an exception nor a
+log line. Two thirds of that is resident before the build starts, most of it the
+projections' parsed footers, which the corpus parses at open and DuckDB's accounting
+books a fifth of. Heap the open frees is heap the build reuses, so freeing more of it at
+open does not lower the peak. With swap off, as a deployment runs, an 8 GiB container on
+DuckDB's own 6.3 GiB default was killed 40–70s into the build, and one holding DuckDB to
+5 GiB was killed in two runs of three; a 12 GiB container finished at both 5 GiB and
+`6500MiB`, peaking at 8.1–8.4 and 9.5 GiB resident. Swap only postpones the kill.
+`Corpus` warns at open when a cap it can read leaves less than 4 GB above the limit
+([logbook][cache-entry], findings 19–20).
 
 Which is survivable but should not be discovered by a user. A corpus opened with
 `warm=False` builds the index on the first query that can spend it, so a container short

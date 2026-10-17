@@ -313,6 +313,12 @@ def _max_structure_id(path: str, derive: str) -> int | None:
     Read from Parquet footer statistics, so it decodes no column data however large the
     file is. Every column named ``structure_id`` counts, however deeply it is nested.
 
+    The columns are found by the paths their chunks record rather than through
+    ``metadata.schema``. pyarrow's ``ParquetSchema`` and the ``FileMetaData`` it belongs
+    to refer to each other, so a footer whose schema was read stays parsed after the
+    file closes, until the cyclic collector runs. Reading every file of a corpus that
+    way holds many footers at once.
+
     Args:
         path: Path to a projection, or to a pivot or occurrence artifact.
         derive: The module that writes ``path``, which a refusal names.
@@ -327,15 +333,21 @@ def _max_structure_id(path: str, derive: str) -> int | None:
     """
     with pq.ParquetFile(path) as parquet_file:
         metadata = parquet_file.metadata
-        columns = [
-            index
-            for index in range(metadata.num_columns)
-            if metadata.schema.column(index).name == "structure_id"
-        ]
+        columns: list[int] = []
         largest = None
         for group in range(metadata.num_row_groups):
+            row_group = metadata.row_group(group)
+            if group == 0:
+                # Every row group holds the same leaves in the same order. A path is
+                # dotted, and no field name in an artifact schema holds a dot.
+                columns = [
+                    index
+                    for index in range(row_group.num_columns)
+                    if row_group.column(index).path_in_schema.rsplit(".", 1)[-1]
+                    == "structure_id"
+                ]
             for index in columns:
-                chunk = metadata.row_group(group).column(index)
+                chunk = row_group.column(index)
                 statistics = chunk.statistics
                 if statistics is not None and statistics.has_min_max:
                     value = statistics.max
