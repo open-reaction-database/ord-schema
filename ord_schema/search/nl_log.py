@@ -25,10 +25,12 @@ times, and folding them onto one mutable row would lose which was which on the d
 label contradicts a thumb.
 
 A record is a *typed envelope around an opaque payload*. Identifiers, outcome, usage,
-timings, and fingerprints are fields; the question and the whole ``attempts`` list are
-strings. They stay strings because a model-authored ``Query`` is recursive and
-differently shaped record to record, and because a month in which everything compiled
-carries ``"error": null`` throughout, where a month holding one rejection carries text.
+timings, and fingerprints are fields; the question, ``resolved``, and the whole
+``attempts`` list are strings. They stay strings because a model-authored ``Query`` is
+recursive and differently shaped record to record, because ``resolved`` is keyed by
+whatever compounds a month's questions named, and because a month in which everything
+compiled carries ``"error": null`` throughout, where a month holding one rejection
+carries text.
 Either way, compacting into Parquet would leave DuckDB to infer a struct from whichever
 shapes a month happened to hold, and whether two such months then read back together
 depends on what it can coerce: measured cases lose a field silently -- the rows still
@@ -36,9 +38,9 @@ count in every aggregate while the part worth recording is unreachable -- or ref
 read outright. As strings the months reconcile by construction, and no inference is
 involved. The measurements are in the ord-logbook entry "Where the question log lives".
 
-Results are not recorded. A translation and a corpus fingerprint reproduce them, and a
-question that returned a hundred thousand reactions should not cost a hundred thousand
-rows of log.
+Results are not recorded. A translation, the SMILES its compound names resolved to, and
+a corpus fingerprint reproduce them, and a question that returned a hundred thousand
+reactions should not cost a hundred thousand rows of log.
 """
 
 import contextlib
