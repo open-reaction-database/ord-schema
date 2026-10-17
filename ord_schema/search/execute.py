@@ -1253,9 +1253,9 @@ class Corpus:
             resolver: Maps a compound name to SMILES. Defaults to
                 ``ord_schema.resolvers``, which calls external services; inject
                 something local for tests or offline use. An answer RDKit can read is
-                kept for later searches, up to ``_CACHED_RESOLUTIONS`` names, so a name
-                costs one call per corpus rather than one per search. A failure is not
-                kept, and the next search naming that compound asks again.
+                kept for later searches, for the ``_CACHED_RESOLUTIONS`` names used most
+                recently. A failure is not kept, so the next search naming that compound
+                asks again.
             threads: Threads RDKit uses to match a substructure query; -1 means one
                 per core. These are real threads with the GIL released, so concurrent
                 searches overlap instead of serializing. The count is per search, not
@@ -3229,9 +3229,9 @@ class Corpus:
             indexing = indexing or condition is not None
             return condition
 
-        # Held for this search beside the corpus's cache, which another search can evict
-        # from meanwhile: a compound named in two structure predicates is one molecule,
-        # and what the result says each name was searched as is what this search used.
+        # Kept per search as well as on the corpus, whose cache another search can evict
+        # from meanwhile: a compound named in two structure predicates stays one
+        # molecule, and the result's RESOLVED stamp states what this search used.
         resolved: dict[str, str] = {}
 
         def resolve(name: str) -> str:

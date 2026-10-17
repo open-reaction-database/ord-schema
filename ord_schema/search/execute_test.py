@@ -1135,11 +1135,13 @@ def test_the_resolution_cache_drops_the_name_unused_longest(corpus_dir, monkeypa
         asked.append(name)
         return answers[name]
 
+    # Pyridine is asked again before benzene arrives, so ethanol is what goes, and the
+    # resolver is called for it again.
+    order = ("pyridine", "ethanol", "pyridine", "benzene", "pyridine", "ethanol")
     with _open(corpus_dir, resolver=resolver) as corpus:
-        # Pyridine is asked again before benzene arrives, so ethanol is what goes.
-        for name in ("pyridine", "ethanol", "pyridine", "benzene", "pyridine"):
+        for name in order:
             _search(corpus, _same_compound(name))
-    assert asked == ["pyridine", "ethanol", "benzene"]
+    assert asked == ["pyridine", "ethanol", "benzene", "ethanol"]
 
 
 def test_a_failed_resolution_is_asked_again(corpus_dir):
