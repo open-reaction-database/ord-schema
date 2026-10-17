@@ -1223,7 +1223,7 @@ def _field_names(fields: Iterable[pa.Field]) -> Iterator[str]:
         yield field.name
         kind = field.type
         if pa.types.is_struct(kind):
-            yield from _field_names(kind.fields)
+            yield from _field_names(kind)
         elif pa.types.is_map(kind):
             yield from _field_names([kind.key_field, kind.item_field])
         elif pa.types.is_list(kind) or pa.types.is_large_list(kind):
