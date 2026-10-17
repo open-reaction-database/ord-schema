@@ -41,7 +41,6 @@ dependencies = [
     "pandas>=1.0.4",
     "protobuf>=4.22.3,<6",
     "pyarrow>=14",
-    "python-dateutil>=1.10.0",
     # 2025.03.1 introduced Chem.ValenceType and deprecated Atom.GetExplicitValence,
     # which set_dative_bonds calls the replacement for; 2025.03.4 is the first release
     # with CPython 3.14 wheels, and this package claims to support 3.14, so a floor
@@ -111,6 +110,8 @@ huggingface = [
 orm = [
     "inflection>=0.5.1",
     "psycopg[binary,pool]>=3",
+    # ord_schema.orm.database parses free-text provenance times with it.
+    "python-dateutil>=1.10.0",
     "sqlalchemy>=2",
     # UUIDv7 surrogate primary keys: time-sortable (index locality) and client-generatable
     # (no server round-trip / sequence reservation for bulk COPY loads). Backports uuid7()

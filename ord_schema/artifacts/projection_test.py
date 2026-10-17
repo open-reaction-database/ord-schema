@@ -25,7 +25,7 @@ import pytest
 from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from rdkit import Chem
 
-from ord_schema import parquet
+from ord_schema import parquet, validations
 from ord_schema.artifacts import base, projection
 from ord_schema.proto import reaction_pb2
 
@@ -705,6 +705,32 @@ def test_structure_ids_span_source_row_groups(tmp_path):
 )
 def test_every_recorded_date_shape_parses(value, expected):
     assert projection.parse_timestamp(value) == (expected if value else None)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("2024-07-06T23:25:41Z", datetime(2024, 7, 6, 23, 25, 41)),
+        ("2024-07-06T23:25:41+00:00", datetime(2024, 7, 6, 23, 25, 41)),
+        # The UTC instant can fall on another date than the one written.
+        ("2024-01-02T00:30:00+09:00", datetime(2024, 1, 1, 15, 30)),
+        ("2024-07-06T23:25:41.780701-05:00", datetime(2024, 7, 7, 4, 25, 41, 780701)),
+        ("2024-07-06T23:25:41.5+05:30", datetime(2024, 7, 6, 17, 55, 41, 500000)),
+    ],
+)
+def test_a_time_with_an_offset_projects_its_utc_instant(value, expected):
+    # A slash-date convention has nothing to decide for an ISO value.
+    for day_first in (None, True, False):
+        assert projection.parse_timestamp(value, day_first=day_first) == expected
+
+
+@pytest.mark.parametrize(
+    "value", ["2024-07-06", "2024-07-06T23:25:41Z", "2024-07-06T23:25:41.5-05:00"]
+)
+def test_every_value_validation_accepts_has_a_timestamp(value):
+    message = reaction_pb2.DateTime(value=value)
+    assert not validations.validate_message(message, raise_on_error=False).errors
+    assert projection.parse_timestamp(value) is not None
 
 
 def test_an_unambiguous_slash_date_needs_no_convention():

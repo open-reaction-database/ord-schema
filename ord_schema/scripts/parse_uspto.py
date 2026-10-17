@@ -534,9 +534,9 @@ def run(
             raise ValueError(ET.dump(reaction_cml)) from error
         event = reaction_pb2.RecordEvent(
             time={
-                "value": datetime.datetime.now()
-                .astimezone()
-                .strftime("%Y-%m-%d %H:%M:%S.%f")
+                "value": datetime.datetime.now(datetime.UTC).isoformat(
+                    timespec="seconds"
+                )
             },
             person={
                 "username": "skearnes",

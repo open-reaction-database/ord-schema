@@ -1048,8 +1048,8 @@ def _check_operand(node: Comparison, resolved: _Resolved) -> None:
                 "not an ISO 8601 date or timestamp"
             )
         if instant.tzinfo is not None:
-            # The column holds no zone, because no shape the projection reads carries
-            # one: a value that does is left unparsed rather than read as a wall clock.
+            # The column holds no zone: the projection stores a time written with an
+            # offset as its UTC instant, and the older shapes it reads record none.
             # DuckDB drops the offset from a TIMESTAMP literal rather than shifting by
             # it, so accepting one here would compare the caller's wall clock while
             # reading as though it compared their instant.
