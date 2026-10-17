@@ -1306,6 +1306,107 @@ def test_provenance_unparseable_datetime_direct():
     assert any("Failed to parse" in finding for finding in findings)
 
 
+def _provenance_with_times(created, modified=None, experiment_start=None):
+    """Builds a ReactionProvenance with the given record and experiment times."""
+    person = {"username": "u", "email": "a@b.com"}
+    message = reaction_pb2.ReactionProvenance(
+        record_created={"time": {"value": created}, "person": person}
+    )
+    if modified is not None:
+        message.record_modified.add(time={"value": modified}, person=person)
+    if experiment_start is not None:
+        message.experiment_start.value = experiment_start
+    return message
+
+
+@pytest.mark.parametrize(
+    ("value", "other", "expected"),
+    [
+        # Naive against naive compares wall-clock times exactly.
+        ("2024-01-01T00:00:00", "2024-01-01T00:00:01", True),
+        ("2024-01-01T23:00:00", "2024-01-01T01:00:00", False),
+        # Aware against aware compares instants: 12:00+09:00 is 03:00Z.
+        ("2024-01-01T12:00:00+09:00", "2024-01-01T04:00:00Z", True),
+        ("2024-01-01T04:00:00Z", "2024-01-01T12:00:00+09:00", False),
+        # A naive value spans 14 hours before to 12 hours after itself read as UTC,
+        # and an aware value inside that span cannot be ordered against it.
+        ("2024-01-01T00:00:00", "2024-01-01T12:00:01Z", True),
+        ("2024-01-01T00:00:00", "2024-01-01T21:00:01+09:00", True),
+        ("2024-01-01T00:00:00", "2024-01-01T12:00:00Z", None),
+        ("2024-01-01T00:00:00", "2023-12-31T10:00:01Z", None),
+        ("2024-01-01T00:00:00", "2023-12-31T10:00:00Z", False),
+        ("2023-12-31T09:59:59Z", "2024-01-01T00:00:00", True),
+        ("2023-12-31T10:00:00Z", "2024-01-01T00:00:00", None),
+        ("2024-01-01T11:59:59Z", "2024-01-01T00:00:00", None),
+        ("2024-01-01T12:00:00Z", "2024-01-01T00:00:00", False),
+        ("2024-01-01T21:00:00+09:00", "2024-01-01T00:00:00", False),
+        # The span around a naive value may reach past the range datetime can hold.
+        ("0001-01-01T00:00:00", "0001-01-01T00:00:00Z", None),
+        ("9999-12-31T23:59:59Z", "9999-12-31T23:59:59", None),
+    ],
+)
+def test_is_before(value, other, expected):
+    parsed_value = validations._parse_date_time(value)
+    parsed_other = validations._parse_date_time(other)
+    assert parsed_value is not None
+    assert parsed_other is not None
+    assert validations._is_before(parsed_value, parsed_other) is expected
+
+
+@pytest.mark.parametrize(
+    ("created", "modified", "error", "warning"),
+    [
+        # Naive and naive.
+        ("2024-01-01T00:00:00", "2024-01-02T00:00:00", None, None),
+        ("2024-01-02T00:00:00", "Mon Jan  1 00:00:00 2024", "after creation", None),
+        # Aware and aware, ordered by instant rather than wall-clock time.
+        ("2024-01-01T12:00:00+09:00", "2024-01-01T04:00:00Z", None, None),
+        ("2024-01-01T04:00:00Z", "2024-01-01T12:00:00+09:00", "after creation", None),
+        # Naive created, aware modified.
+        ("2024-01-01T00:00:00", "2026-10-17T00:00:00+00:00", None, None),
+        ("2024-01-02T00:00:00", "2024-01-01T00:00:00Z", "after creation", None),
+        ("2024-01-01T09:00:00", "2024-01-01T01:00:00Z", None, "Could not check"),
+        # Aware created, naive modified.
+        ("2024-01-01T00:00:00Z", "Fri Jan  5 12:00:00 2024", None, None),
+        ("2024-01-02T00:00:00+00:00", "2024-01-01T00:00:00", "after creation", None),
+        ("2024-01-01T12:00:00+00:00", "2024-01-01T08:00:00", None, "Could not check"),
+    ],
+)
+def test_provenance_record_modified_order(created, modified, error, warning):
+    output = _run_validation(
+        _provenance_with_times(created, modified), raise_on_error=False
+    )
+    assert len(output.errors) == (1 if error else 0)
+    if error:
+        assert error in output.errors[0]
+    assert len(output.warnings) == (1 if warning else 0)
+    if warning:
+        assert warning in output.warnings[0]
+        assert "record_modified is not before record_created" in output.warnings[0]
+
+
+@pytest.mark.parametrize(
+    ("experiment_start", "created", "error", "warning"),
+    [
+        ("2024-01-03", "2024-01-01T00:00:00Z", "after experiment", None),
+        ("2024-01-01", "2024-01-01T10:00:00Z", None, "Could not check"),
+        ("2023-12-31", "2024-01-01T10:00:00Z", None, None),
+    ],
+)
+def test_provenance_record_created_order(experiment_start, created, error, warning):
+    output = _run_validation(
+        _provenance_with_times(created, experiment_start=experiment_start),
+        raise_on_error=False,
+    )
+    assert len(output.errors) == (1 if error else 0)
+    if error:
+        assert error in output.errors[0]
+    assert len(output.warnings) == (1 if warning else 0)
+    if warning:
+        assert warning in output.warnings[0]
+        assert "record_created is not before experiment_start" in output.warnings[0]
+
+
 def test_temperature_fahrenheit_below_absolute_zero():
     message = reaction_pb2.Temperature(value=-500.0, units="FAHRENHEIT")
     with pytest.raises(validations.ValidationError, match="between"):
