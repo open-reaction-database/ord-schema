@@ -868,9 +868,9 @@ def _cache_footers(connection: duckdb.DuckDBPyConnection) -> None:
     The footers are bounded by the files rather than by what is asked of them, which is
     what makes them worth holding unconditionally where a pivot's cost is weighed
     against a budget. The corpus parses every projection footer at open, counting the
-    reactions view to check its pairing, and DuckDB's own accounting books only part of
-    what they hold, so most of it sits outside ``memory_limit``. DuckDB re-reads a file
-    that has been rewritten, so an artifact replaced under an open corpus is read as it
+    reactions view to check its pairing. DuckDB's own accounting books only part of what
+    they hold, so most of it sits outside ``memory_limit``. DuckDB re-reads a file that
+    has been rewritten, so an artifact replaced under an open corpus is read as it
     stands.
 
     Set globally rather than on this connection: a search runs on its own cursor, which

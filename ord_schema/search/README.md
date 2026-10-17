@@ -433,9 +433,9 @@ derived artifacts spends none of it: those are views over Parquet, not tables.
 
 Budget **about 8 GiB of resident memory** for a corpus serving substructure search over
 ORD. Warm in a container, with its index read from pivot artifacts, it holds 6.6 GiB
-before any query: 2.7 GiB once open, most of it the projections' parsed footers, then
-0.9 GiB more for the occurrence index's 1.35 GiB table, some of it in pages the open had
-freed, and 2.9 GiB for the `SubstructLibrary`. DuckDB's own caches come on top, and fill
+before any query. The open accounts for 2.7 GiB, most of it the projections' parsed
+footers; the occurrence index's 1.35 GiB table adds 0.9 GiB, partly in pages the open
+freed; and the `SubstructLibrary` adds 2.9 GiB. DuckDB's own caches come on top, and fill
 whatever `memory_limit` allows. With a covering `occurrences_dir` the same corpus holds
 5.2 GiB warm: the index becomes a view rather than a table, and the build floor below
 goes with it. An open corpus holds all three, since the two builds happen at open unless
