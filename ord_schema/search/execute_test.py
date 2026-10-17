@@ -4867,18 +4867,21 @@ def modified_corpus(request, modified_root) -> Iterator[execute.Corpus]:
 
 
 @pytest.mark.parametrize(
-    ("fn", "expected"),
+    ("fn", "reduce", "expected"),
     [
-        ("min", {"ord_dataset-bb": datetime.datetime(2023, 1, 15, 9, 30)}),
-        ("max", {"ord_dataset-aa": datetime.datetime(2024, 6, 1)}),
+        ("min", "min", {"ord_dataset-bb": datetime.datetime(2023, 1, 15, 9, 30)}),
+        ("max", "max", {"ord_dataset-aa": datetime.datetime(2024, 6, 1)}),
+        ("max", "min", {"ord_dataset-bb": datetime.datetime(2023, 1, 15, 10)}),
+        ("min", "max", {"ord_dataset-bb": datetime.datetime(2023, 1, 15, 10)}),
     ],
 )
 def test_datasets_rank_by_an_instant_reduced_from_their_reactions(
-    modified_corpus, fn, expected
+    modified_corpus, fn, reduce, expected
 ):
     # min of each reaction's min is when the dataset was first recorded, and max of
     # each reaction's max is when it was last edited; aa is the newest by one and not
-    # the other. cc records no instant, so its NULL sorts after both.
+    # the other. The mixed pairs answer differently from both, so neither the measure
+    # nor the reduction can be ignored. cc records no instant, so its NULL sorts last.
     table = modified_corpus.search(
         query.Query.model_validate(
             {
@@ -4887,7 +4890,7 @@ def test_datasets_rank_by_an_instant_reduced_from_their_reactions(
                     "measures": [
                         {
                             "fn": fn,
-                            "path": {"reduce": fn, "path": _MODIFIED},
+                            "path": {"reduce": reduce, "path": _MODIFIED},
                             "name": "modified",
                         }
                     ],

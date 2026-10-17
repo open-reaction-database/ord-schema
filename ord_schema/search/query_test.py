@@ -2290,6 +2290,35 @@ def test_arithmetic_over_reaction_id_across_a_level_is_refused(fn):
         _over(body)
 
 
+@pytest.mark.parametrize("fn", ["min", "max"])
+def test_the_extreme_instant_over_a_level_reads_the_element(fn):
+    # Over a level the measure's path is relative to the element, so the timestamp is
+    # checked against the element's type rather than the reaction's.
+    sql = _over(
+        {
+            "aggregate": {
+                "over": "provenance.record_modified",
+                "measures": [{"fn": fn, "path": "time.timestamp", "name": "edited"}],
+            }
+        }
+    )
+    assert f"{fn}(x0.element.time.timestamp) AS edited" in sql
+
+
+@pytest.mark.parametrize("fn", ["sum", "avg"])
+def test_adding_instants_over_a_level_is_refused(fn):
+    body = {
+        "aggregate": {
+            "over": "provenance.record_modified",
+            "measures": [{"fn": fn, "path": "time.timestamp", "name": "edited"}],
+        }
+    }
+    with pytest.raises(
+        query.QueryError, match=rf"time\.timestamp: {fn} needs a numeric column"
+    ):
+        _over(body)
+
+
 def test_a_group_column_over_a_level_is_named_by_the_path_as_written():
     # The expression reads from the element's alias, and the column is named by the
     # path the query wrote, which is relative to the element.

@@ -170,6 +170,11 @@ _COMPARISONS = {"eq": "=", "ne": "<>", "lt": "<", "le": "<=", "gt": ">", "ge": "
 _ORDERED = frozenset({"lt", "le", "gt", "ge"})
 
 
+def _is_numeric(leaf: pa.DataType) -> bool:
+    """Returns whether ``leaf`` holds integers or floating-point numbers."""
+    return pa.types.is_integer(leaf) or pa.types.is_floating(leaf)
+
+
 def _is_temporal(leaf: pa.DataType) -> bool:
     """Returns whether ``leaf`` holds an instant or a day rather than a number."""
     return pa.types.is_timestamp(leaf) or pa.types.is_date(leaf)
@@ -844,14 +849,14 @@ _DISTINCT_COUNT = "coalesce(len(list_distinct({expression})), 0)"
 # to.
 _REDUCTION_ALIAS = "r0"
 
-# Reducers and aggregates that combine their values, which have to be of a kind they can
-# combine; see ``_check_combinable``. A sum over text is a DuckDB error rather than an
+# Reducers and aggregates whose values must be numbers, or for ``_EXTREMA`` numbers or
+# instants; see ``_check_combinable``. A sum over text is a DuckDB error rather than an
 # answer, so it is refused where the query is compiled rather than where it runs.
 _ARITHMETIC = frozenset({"min", "max", "avg", "sum"})
 
 # The ones among them that only compare their values, so an instant serves as well as a
 # number: when a dataset was first recorded is a ``min`` over its records.
-_ORDERING = frozenset({"min", "max"})
+_EXTREMA = frozenset({"min", "max"})
 
 
 class Reduction(_Node):
@@ -1028,9 +1033,7 @@ def _check_operand(node: Comparison, resolved: _Resolved) -> None:
     leaf = resolved.type
     if node.op in _TEXT and not pa.types.is_string(leaf):
         raise QueryError(f"{node.path}: {node.op} needs a text column, not {leaf}")
-    if node.op in _ORDERED and not (
-        pa.types.is_integer(leaf) or pa.types.is_floating(leaf) or _is_temporal(leaf)
-    ):
+    if node.op in _ORDERED and not (_is_numeric(leaf) or _is_temporal(leaf)):
         raise QueryError(
             f"{node.path}: {node.op} needs a numeric or temporal column, not {leaf}"
         )
@@ -1060,7 +1063,7 @@ def _check_operand(node: Comparison, resolved: _Resolved) -> None:
     if (
         isinstance(literal, int | float)
         and not isinstance(literal, bool)
-        and not (pa.types.is_integer(leaf) or pa.types.is_floating(leaf))
+        and not _is_numeric(leaf)
     ):
         raise QueryError(f"{node.path}: holds {leaf}, compared against a number")
 
@@ -1628,9 +1631,9 @@ def _check_combinable(path: str, leaf: pa.DataType, what: str) -> None:
         QueryError: If the leaf is not a number, nor for ``min`` and ``max`` a date
             or timestamp.
     """
-    if pa.types.is_integer(leaf) or pa.types.is_floating(leaf):
+    if _is_numeric(leaf):
         return
-    if what not in _ORDERING:
+    if what not in _EXTREMA:
         raise QueryError(f"{path}: {what} needs a numeric column, not {leaf}")
     if not _is_temporal(leaf):
         raise QueryError(
