@@ -763,15 +763,18 @@ mints that identifier and decides what it spans.
 holds all of them, and nothing else in a record separates a person rephrasing from a
 harness working through a case file.
 
-Results are **not** stored; `translation` plus `corpus_fingerprint` reproduce them.
+Results are **not** stored; `translation`, `resolved`, and `corpus_fingerprint`
+reproduce them. The translation names compounds as the model wrote them, and a resolver
+can answer differently later, so `resolved` keeps the SMILES each name was searched as.
 `prompt_fingerprint` names the translator that wrote a record, and moves exactly when the
 cached prefix does.
 
 A record is a typed envelope around an opaque payload: identifiers, outcome, usage, and
-timings are fields, while the question and the whole `attempts` list — not only the query
-inside it — are strings. They stay strings because a `Query` is recursive and differently
-shaped record to record, and because a month in which everything compiled writes
-`"error": null` throughout and infers that field as JSON where a month holding one
+timings are fields, while the question, `resolved`, and the whole `attempts` list — not
+only the query inside it — are strings. They stay strings because a `Query` is recursive
+and differently shaped record to record, because `resolved` is keyed by whatever
+compounds a month's questions named, and because a month in which everything compiled
+writes `"error": null` throughout and infers that field as JSON where a month holding one
 rejection infers it as text. Either way DuckDB would be inferring a struct from whichever
 shapes a month happened to hold, and whether two months read back together would depend
 on what it can coerce. As strings they reconcile by construction.

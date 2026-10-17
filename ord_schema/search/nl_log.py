@@ -175,6 +175,10 @@ class Ask:
             query -- a reply in prose, or a decline -- so it is what says a repair ran;
             None where it was not counted.
         row_count: How many reactions came back, where the search ran.
+        resolved: Each compound name the query gives, mapped to the canonical SMILES
+            the search matched it as; empty for a query naming none, and None where
+            the search did not run. The query keeps the name and a resolver can answer
+            differently later, so this is what reproduces the structures searched.
         declined_reason: What the model said the grammar lacks.
         error: The failure, where one ended the ask.
         answer_text: The prose the reader saw, which is what a thumb is a verdict on.
@@ -208,6 +212,7 @@ class Ask:
     attempts: Sequence[Attempt] = ()
     turns: int | None = None
     row_count: int | None = None
+    resolved: Mapping[str, str] | None = None
     declined_reason: str | None = None
     error: str | None = None
     answer_text: str | None = None
@@ -263,6 +268,11 @@ def event(ask: Ask) -> dict[str, Any]:
         "turns": ask.turns,
         "outcome": str(ask.outcome),
         "row_count": ask.row_count,
+        "resolved": (
+            None
+            if ask.resolved is None
+            else json.dumps(dict(ask.resolved), sort_keys=True)
+        ),
         "declined_reason": ask.declined_reason,
         "error": ask.error,
         "answer_text": ask.answer_text,
@@ -502,6 +512,7 @@ _COLUMNS = {
     "turns": "BIGINT",
     "outcome": "VARCHAR",
     "row_count": "BIGINT",
+    "resolved": "VARCHAR",
     "declined_reason": "VARCHAR",
     "error": "VARCHAR",
     "answer_text": "VARCHAR",
@@ -635,9 +646,9 @@ def read(
 
 # What ``redact`` empties: every column holding free text. A reader's thumb comment and
 # a maintainer's label note are as free-form as the question is, and a column named on
-# an ask is not the only place text arrives. The translation is deliberately not here:
-# it is what reproduces the rows the log declines to store, and it is bounded and
-# structured where free text is neither.
+# an ask is not the only place text arrives. The translation and the resolved names are
+# deliberately not here: they are what reproduce the rows the log declines to store, and
+# they are bounded and structured where free text is neither.
 _FREE_TEXT = ("question", "answer_text", "comment", "note")
 
 

@@ -893,6 +893,7 @@ def ask(
         )
         raise
     search_ms = (time.monotonic() - started) * 1000
+    resolved = execute.resolutions(table)
     try:
         described = answer(question, table, client=client, model=model, effort=effort)
     except NLQueryError as error:
@@ -901,6 +902,7 @@ def ask(
             attempts=translated.attempts,
             turns=translated.turns,
             row_count=table.num_rows,
+            resolved=resolved,
             error=str(error),
             usage=translated.usage + error.usage,
             translate_ms=translated.elapsed_ms,
@@ -912,6 +914,7 @@ def ask(
         attempts=translated.attempts,
         turns=translated.turns,
         row_count=table.num_rows,
+        resolved=resolved,
         answer_text=described.text,
         usage=translated.usage + described.usage,
         translate_ms=translated.elapsed_ms,
@@ -924,5 +927,5 @@ def ask(
         table=table,
         text=described.text,
         record_id=record_id,
-        resolved=execute.resolutions(table),
+        resolved=resolved,
     )

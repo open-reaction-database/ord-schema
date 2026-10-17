@@ -67,6 +67,16 @@ def test_every_model_authored_payload_is_written_as_a_string():
     assert json.loads(attempt["translation"]) == _QUERY
 
 
+def test_the_resolved_names_are_written_as_a_string():
+    # Each compound name is a key, so as an object the field would compact to a struct
+    # with one member per name a month happened to see.
+    event = nl_log.event(_ask(resolved={"pyridine": "c1ccncc1"}))
+    assert isinstance(event["resolved"], str)
+    assert json.loads(event["resolved"]) == {"pyridine": "c1ccncc1"}
+    assert nl_log.event(_ask(resolved={}))["resolved"] == "{}"
+    assert nl_log.event(_ask(resolved=None))["resolved"] is None
+
+
 def test_each_turn_is_priced_on_its_own_attempt():
     # Per-attempt usage is what prices the repair turn separately from the first try,
     # which is the open question about choosing a cheap model and repairing it.
@@ -596,6 +606,38 @@ def test_compaction_can_drop_the_free_text_and_keep_everything_else(tmp_path):
     # The translation stays: it is what reproduces the rows the log does not store.
     assert json.loads(translation) == _QUERY
     assert "pyridine" not in compacted.read_bytes().decode("utf-8", "replace")
+
+
+def test_resolutions_survive_compaction_beside_records_written_without_them(tmp_path):
+    # A record from before the field existed reads as NULL beside one that has it, and
+    # redaction keeps the names: like the translation, they reproduce the search.
+    sink = nl_log.JsonlSink(tmp_path / "raw" / "log.jsonl")
+    sink.write(nl_log.event(_ask(record_id="0001", resolved={"pyridine": "c1ccncc1"})))
+    sink.write(nl_log.event(_ask(record_id="0002", resolved={})))
+    older = nl_log.event(_ask(record_id="0003"))
+    del older["resolved"]
+    sink.write(older)
+    compacted = tmp_path / "2026-10.parquet"
+    nl_log.compact(str(tmp_path / "raw" / "*.jsonl"), compacted, redact=True)
+    for source in (str(tmp_path / "raw" / "*.jsonl"), str(compacted)):
+        rows = nl_log.read(
+            source, statement="SELECT record_id, resolved FROM log ORDER BY record_id"
+        ).fetchall()
+        assert rows == [
+            ("0001", '{"pyridine": "c1ccncc1"}'),
+            ("0002", "{}"),
+            ("0003", None),
+        ]
+    # A month compacted before the field existed has no such column, and a query naming
+    # it still binds.
+    (tmp_path / "old").mkdir()
+    (tmp_path / "old" / "log.jsonl").write_text(json.dumps(older) + "\n")
+    old_month = tmp_path / "2026-09.parquet"
+    nl_log.compact(str(tmp_path / "old" / "*.jsonl"), old_month)
+    rows = nl_log.read(
+        str(old_month), statement="SELECT record_id, resolved FROM log"
+    ).fetchall()
+    assert rows == [("0003", None)]
 
 
 def test_a_redacted_month_reads_beside_an_unredacted_one(tmp_path):
