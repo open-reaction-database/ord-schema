@@ -131,6 +131,10 @@ Rules that keep a query answerable:
   "recently" cannot be written; decline it rather than hardcoding a year. When a
   reaction was recorded is `provenance.record_created.time.timestamp`; when it was
   carried out is `provenance.experiment_start.timestamp`.
+- `min` and `max` take a `TIMESTAMP` column as well as a number, as a measure or as a
+  reduction, and answer the earliest or latest instant; `sum` and `avg` take numbers
+  only. A record's edits are a repeated level, so the last time a reaction was modified
+  is `{"reduce": "max", "path": "provenance.record_modified.time.timestamp"}`.
 - "The most common X", "how many of each X", and anything else that groups by something
   under a repeated level needs `aggregate.over`, which makes the rows the elements of
   that level rather than reactions. `group_by` and measure paths are then relative to
