@@ -1008,5 +1008,277 @@
     "question": "reactions with more than ten workup steps",
     "why": "a reduction can be ranked or aggregated but never filtered on: a where compares a column with a literal, so a count of steps has nowhere to go",
     "compiles": false
+  },
+  {
+    "question": "which reactions use @A as a solvent?",
+    "why": "a compound SMILES placeholder named on its own, which is same_compound",
+    "structures": {
+      "@A": {
+        "format": "compound_smiles",
+        "text": "c1ccncc1"
+      }
+    },
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "and",
+          "clauses": [
+            {
+              "op": "eq",
+              "path": "reaction_role",
+              "value": {
+                "literal": "SOLVENT"
+              }
+            },
+            {
+              "op": "same_compound",
+              "path": "smiles",
+              "smiles": "c1ccncc1"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions using an input with Tanimoto similarity at least 0.6 to @A",
+    "why": "a compound SMILES placeholder searched by similarity",
+    "structures": {
+      "@A": {
+        "format": "compound_smiles",
+        "text": "Nc1ccccc1"
+      }
+    },
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "similarity",
+          "path": "smiles",
+          "smiles": "Nc1ccccc1",
+          "threshold": 0.6
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions with a reactant containing @A, ignoring its stereochemistry",
+    "why": "a compound SMILES placeholder read as a substructure, its drawn stereocenter ignored",
+    "structures": {
+      "@A": {
+        "format": "compound_smiles",
+        "text": "OC(=O)[C@@H]1CCCN1"
+      }
+    },
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "and",
+          "clauses": [
+            {
+              "op": "eq",
+              "path": "reaction_role",
+              "value": {
+                "literal": "REACTANT"
+              }
+            },
+            {
+              "op": "substructure",
+              "path": "smiles",
+              "smarts": "OC(=O)[C@@H]1CCCN1",
+              "chirality": false
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions with an input matching @A",
+    "why": "a compound SMARTS placeholder, which only a substructure takes",
+    "structures": {
+      "@A": {
+        "format": "compound_smarts",
+        "text": "[$([N+](=O)[O-]),$(N(=O)=O)]"
+      }
+    },
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "substructure",
+          "path": "smiles",
+          "smarts": "[$([N+](=O)[O-]),$(N(=O)=O)]"
+        }
+      }
+    }
+  },
+  {
+    "question": "which reactions match @A?",
+    "why": "a reaction SMARTS placeholder, which only reaction_smarts takes",
+    "structures": {
+      "@A": {
+        "format": "reaction_smarts",
+        "text": "cB(O)O.c[Br,I]>>c-c"
+      }
+    },
+    "reference": {
+      "where": {
+        "op": "reaction_smarts",
+        "smarts": "cB(O)O.c[Br,I]>>c-c"
+      }
+    }
+  },
+  {
+    "question": "which reactions use @A as a solvent and have a desired product with a yield above 50%?",
+    "why": "a placeholder beside a condition on another repeated level, which a wrong translation folds into one quantifier",
+    "structures": {
+      "@A": {
+        "format": "compound_smiles",
+        "text": "CN(C)C=O"
+      }
+    },
+    "reference": {
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "exists",
+            "path": "inputs.components",
+            "where": {
+              "op": "and",
+              "clauses": [
+                {
+                  "op": "eq",
+                  "path": "reaction_role",
+                  "value": {
+                    "literal": "SOLVENT"
+                  }
+                },
+                {
+                  "op": "same_compound",
+                  "path": "smiles",
+                  "smiles": "CN(C)C=O"
+                }
+              ]
+            }
+          },
+          {
+            "op": "exists",
+            "path": "outcomes.products",
+            "where": {
+              "op": "and",
+              "clauses": [
+                {
+                  "op": "eq",
+                  "path": "is_desired_product",
+                  "value": {
+                    "literal": true
+                  }
+                },
+                {
+                  "op": "exists",
+                  "path": "measurements",
+                  "where": {
+                    "op": "and",
+                    "clauses": [
+                      {
+                        "op": "eq",
+                        "path": "type",
+                        "value": {
+                          "literal": "YIELD"
+                        }
+                      },
+                      {
+                        "op": "gt",
+                        "path": "percentage.value",
+                        "value": {
+                          "literal": 50
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "reactions using an input similar to @A with Tanimoto similarity at least 0.6",
+    "why": "similarity needs a compound SMILES and @A is a compound SMARTS; the layer declines rather than running a substructure search instead",
+    "structures": {
+      "@A": {
+        "format": "compound_smarts",
+        "text": "c[Br,I]"
+      }
+    },
+    "compiles": false
+  },
+  {
+    "question": "reactions that use @A as a reactant",
+    "why": "a reaction SMARTS describes a whole reaction, not a molecule a reaction uses",
+    "structures": {
+      "@A": {
+        "format": "reaction_smarts",
+        "text": "cB(O)O.c[Br,I]>>c-c"
+      }
+    },
+    "compiles": false
+  },
+  {
+    "question": "reactions using benzene as an input with yield greater than 70%",
+    "why": "the name-only example on the /ask instructions page, beside its placeholder examples",
+    "reference": {
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "exists",
+            "path": "inputs.components",
+            "where": {
+              "op": "same_compound",
+              "path": "smiles",
+              "smiles": "c1ccccc1"
+            }
+          },
+          {
+            "op": "exists",
+            "path": "outcomes.products",
+            "where": {
+              "op": "exists",
+              "path": "measurements",
+              "where": {
+                "op": "and",
+                "clauses": [
+                  {
+                    "op": "eq",
+                    "path": "type",
+                    "value": {
+                      "literal": "YIELD"
+                    }
+                  },
+                  {
+                    "op": "gt",
+                    "path": "percentage.value",
+                    "value": {
+                      "literal": 70
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
   }
 ]

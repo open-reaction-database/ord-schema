@@ -48,7 +48,7 @@ from pandas.testing import assert_frame_equal
 from pydantic import BaseModel, model_validator
 
 from ord_schema.logging import get_logger
-from ord_schema.search import execute, nl, nl_log, query
+from ord_schema.search import execute, nl, nl_log, placeholders, query
 
 logger = get_logger(__name__)
 
@@ -76,12 +76,20 @@ class EvalCase(BaseModel):
         compiles: Whether the question should translate at all. False marks one the
             grammar cannot express, which the layer must refuse rather than fudge, and
             which therefore has no reference.
+        structures: Each placeholder the question writes, mapped to the structure
+            it stands for, as a person's interface would send them.
     """
 
     question: str
     why: str
     reference: dict[str, Any] | None = None
     compiles: bool = True
+    structures: dict[str, placeholders.Placeholder] = {}
+
+    @model_validator(mode="after")
+    def _placeholders_fit_the_question(self) -> "EvalCase":
+        placeholders.check(self.question, self.structures)
+        return self
 
     @model_validator(mode="after")
     def _expressible_cases_have_a_reference(self) -> "EvalCase":
@@ -362,6 +370,7 @@ def run_case(
                 outcome=outcome,
                 source=SOURCE,
                 session_id=session_id,
+                structures=placeholders.dump(case.structures),
                 **fields,
             ),
         )
@@ -371,7 +380,12 @@ def run_case(
     # went wrong.
     try:
         translated = nl.translate(
-            case.question, client=client, model=model, effort=effort, repair=repair
+            case.question,
+            structures=case.structures,
+            client=client,
+            model=model,
+            effort=effort,
+            repair=repair,
         )
     except nl.UnanswerableError as error:
         record(
