@@ -177,7 +177,7 @@ class Ask:
         row_count: How many reactions came back, where the search ran.
         resolved: Each compound name the query gives, mapped to the canonical SMILES
             the search matched it as; empty for a query naming none, and None where
-            the search did not run. The query keeps the name and a resolver can answer
+            no search returned. The query keeps the name and a resolver can answer
             differently later, so this is what reproduces the structures searched.
         declined_reason: What the model said the grammar lacks.
         error: The failure, where one ended the ask.
