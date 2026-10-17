@@ -1388,9 +1388,14 @@ def test_provenance_record_modified_order(created, modified, error, warning):
 @pytest.mark.parametrize(
     ("experiment_start", "created", "error", "warning"),
     [
+        # Naive experiment_start, aware record_created.
         ("2024-01-03", "2024-01-01T00:00:00Z", "after experiment", None),
         ("2024-01-01", "2024-01-01T10:00:00Z", None, "Could not check"),
         ("2023-12-31", "2024-01-01T10:00:00Z", None, None),
+        # Aware experiment_start, naive record_created.
+        ("2024-01-03T00:00:00Z", "2024-01-01", "after experiment", None),
+        ("2024-01-01T10:00:00Z", "2024-01-01", None, "Could not check"),
+        ("2023-12-31T00:00:00Z", "2024-01-01", None, None),
     ],
 )
 def test_provenance_record_created_order(experiment_start, created, error, warning):
