@@ -1028,7 +1028,7 @@ def test_datasets_rank_by_their_earliest_modification():
         }
     )
     assert "min(list_min(" in compiled.sql
-    assert compiled.sql.endswith("ORDER BY submitted DESC LIMIT 1")
+    assert compiled.sql.endswith('ORDER BY "submitted" DESC LIMIT 1')
     assert _run(compiled) == []
 
 
@@ -2352,7 +2352,7 @@ def test_the_extreme_instant_over_a_level_reads_the_element(fn):
             }
         }
     )
-    assert f"{fn}(x0.element.time.timestamp) AS edited" in sql
+    assert f'{fn}(x0.element.time.timestamp) AS "edited"' in sql
 
 
 @pytest.mark.parametrize("fn", ["sum", "avg"])
