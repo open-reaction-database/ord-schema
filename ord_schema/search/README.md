@@ -245,7 +245,7 @@ fingerprint **screen** — complete but not exact — over every distinct molecu
 corpus, then exact subgraph **verification** of the survivors. It runs on RDKit's own
 threads with the GIL released, so one `Corpus` serves concurrent requests without
 forking; the library is built at open, which `Corpus(warm=False)` defers to the first
-substructure query, and costs seconds and about 1.5 GB for the full corpus.
+substructure query, and costs seconds and 2.6–2.9 GiB resident for the full corpus.
 Each search takes its own DuckDB cursor, since a connection holds the pending result of
 its last `execute` and concurrent searches sharing one would read each other's rows.
 `threads` is per search rather than per corpus, so a server expecting several at once
@@ -393,18 +393,19 @@ refuse it half-derived and warming reads the levels the occurrence index covers.
 ## What a projection query costs
 
 Queries the index declines read the projection, and most of what that costs is not the
-reading. A scan re-parses the footer of every file it touches, and a 442-leaf projection
-over 53 files has large footers; the parse is charged again on every query however few
-leaves the query goes on to read. DuckDB will **hold the parsed footers** between
-queries, which the corpus turns on at open. Over ORD that parse is most of what a
-projection query costs — **8–27×** across a range of scalar queries
-([logbook][cache-entry], finding 10).
+reading. A scan re-parses the footer of every file it touches, and a 453-leaf projection
+over 93 files has large footers — 2,484 row groups in all, 169 MiB serialized; the parse
+is charged again on every query however few leaves the query goes on to read. DuckDB
+will **hold the parsed footers** between queries, which the corpus turns on at open.
+Over ORD that parse is most of what a projection query costs — **8–27×** across a range
+of scalar queries ([logbook][cache-entry], finding 10).
 
-The footers cost about **200 MB** over the whole corpus, once, and are bounded by the
+The footers cost about **1.2 GiB** over the whole corpus, once, and are bounded by the
 files rather than by what is asked of them — which is why they are held unconditionally
-where the gigabytes a pivot costs are weighed against a budget. With them held, a scalar
-query over the projection lands in hundredths of a second, which leaves a cache of the
-columns themselves nothing to buy.
+where the gigabytes a pivot costs are weighed against a budget. DuckDB's own accounting
+books 0.23 GiB of that, so most of what they hold sits outside `memory_limit`. With them
+held, a scalar query over the projection lands in hundredths of a second, which leaves a
+cache of the columns themselves nothing to buy.
 
 A pivot built in process is charged against `pivot_budget_bytes` and evicted
 least-recently-used, skipping any a search is still reading; one too large to keep is not
@@ -433,17 +434,18 @@ derived artifacts spends none of it: those are views over Parquet, not tables.
 ## Sizing a deployment
 
 Budget **about 8 GiB of resident memory** for a corpus serving substructure search over
-ORD: 1.1 GiB for the relations, 2.2 GiB for the `SubstructLibrary`, 1.1–1.35 GiB for the
-occurrence index, and DuckDB's own caches on top, which fill whatever `memory_limit`
-allows. An `occurrences_dir` covering every indexed path takes about a gigabyte off that:
-the index becomes a view holding 0.40 GiB rather than a table holding 1.49 GiB, and the
-build floor below goes with it. An open corpus holds all three, since the two builds
-happen at open unless it
-was given `warm=False` — which is what makes the resident figure something to size a
-container against rather than a floor a later query raises it to. `Corpus`
-takes that limit as an argument; left unset, DuckDB claims about 80% of the machine — or
-of the container's cap, which it does read. The step-by-step breakdown is in
-[the logbook entry][cache-entry], finding 16.
+ORD. Warm in a container, with its index read from pivot artifacts, it holds 6.6 GiB
+before any query. The open accounts for 2.7 GiB, most of it the projections' parsed
+footers; the occurrence index's 1.35 GiB table adds 0.9 GiB, partly in pages the open
+freed; and the `SubstructLibrary` adds 2.9 GiB. DuckDB's own caches come on top, and fill
+whatever `memory_limit` allows. With a covering `occurrences_dir` the same corpus holds
+5.2 GiB warm: the index becomes a view rather than a table, and the build floor below
+goes with it. An open corpus holds all three, since the two builds happen at open unless
+it was given `warm=False` — which is what makes the resident figure something to size a
+container against rather than a floor a later query raises it to. `Corpus` takes that
+limit as an argument; left unset, DuckDB claims about 80% of the machine — or of the
+container's cap, which it does read. The step-by-step breakdowns are in
+[the logbook entry][cache-entry], findings 16 and 20.
 
 **Sources cost disk and startup.** A corpus given `sources_pattern` reads ord-data's 53
 source files, about 1.2 GiB on disk, on demand rather than holding them: nothing is
@@ -513,18 +515,22 @@ than it strictly must, and never less.
 
 So a deployment that must pick up new data opens a **second** `Corpus`, waits for it to
 warm, and swaps the reference. Peak memory during the swap is therefore twice the steady
-state — about 16 GiB over ORD, or 14 with a covering `occurrences_dir` — which is the
+state — about 16 GiB over ORD, or 13 with a covering `occurrences_dir` — which is the
 figure a container has to be sized against if it is ever to take an update without a
 restart. There is no in-place refresh, and adding one would mean making every ID-keyed
 structure versioned rather than replaced.
 
 **Under a container cap, state the limit rather than letting DuckDB pick it.** Its default
 is sized from the cgroup and not from the host, which is the right input, but the limit
-bounds DuckDB's buffers rather than the process: the build holds up to 2.8 GB beside them,
-and reaching the cap is a kill — neither an exception nor a log line. An 8 GiB container
-on DuckDB's own 6.3 GiB default was killed 85s in; a 12 GiB container holding DuckDB to
-`6500MiB` finished, peaking at 9.3 GB resident. `Corpus` warns at open when a cap it can
-read leaves less than 4 GB above the limit ([logbook][cache-entry], finding 19).
+bounds DuckDB's buffers rather than the process: unnesting the index from the projections
+holds 3.1 GiB beside them, and reaching the cap is a kill — neither an exception nor a log
+line. Most of that is resident before the build starts, since the corpus parses every
+projection footer at open and DuckDB's accounting books a fifth of what they hold. With
+swap off, as a deployment runs, an 8 GiB container on DuckDB's own 6.3 GiB default was
+killed 40s into the build, and one holding DuckDB to 5 GiB was killed in two runs of
+three; a 12 GiB container finished at both 5 GiB and `6500MiB`, peaking at 8.1 and 9.5
+GiB resident. Swap only postpones the kill. `Corpus` warns at open when a cap it can read
+leaves less than 4 GB above the limit ([logbook][cache-entry], findings 19–20).
 
 Which is survivable but should not be discovered by a user. A corpus opened with
 `warm=False` builds the index on the first query that can spend it, so a container short
@@ -534,8 +540,8 @@ where falling short is a failed deployment rather than a failed request;
 `Corpus.check_index()` does the same for the index alone over a cold corpus, which is
 what a deployment answering scalar and similarity queries wants — those spend the index
 but never the library. What a cold corpus buys is the memory floor above, the 1.1–1.35
-GiB the index holds, and the 2.2 GB the library holds, none of which a scalar-only corpus
-needs to spend.
+GiB the index holds, and the 2.6–2.9 GiB the library adds, none of which a scalar-only
+corpus needs to spend.
 
 Across a mixed workload pairing an indexed structure clause with one the index cannot
 carry, the index is **2–24× ahead** of the same corpus answering every quantifier from
