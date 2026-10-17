@@ -74,17 +74,21 @@ ARTIFACTS=~/ord/artifacts
    publishes. It needs `hf auth login` or `$HF_TOKEN` with write access, and logs the
    commit URL.
 
-6. **Push the dataset card** on the first publish, and whenever
-   [`dataset_card.md`](dataset_card.md) changes. It is the repository's `README.md`,
-   which `upload_artifacts` never touches. Change it here, through a PR, so the Hub's
-   README is always a copy of this file; a schema bump that changes the columns the
-   `projections` config names needs its `dataset_info` changed too. Push it once the
-   user has confirmed: it publishes too.
+6. **Push the dataset card and license** on the first publish, and whenever
+   [`dataset_card.md`](dataset_card.md) or ord-data's `LICENSE` changes. The card is the
+   repository's `README.md` and ord-data's `LICENSE` is its `LICENSE`, which the card
+   links; `upload_artifacts` touches neither. Change the card here, through a PR, so the
+   Hub's README is always a copy of this file; a schema bump that changes the columns
+   the `projections` config names needs its `dataset_info` changed too. Push them once
+   the user has confirmed: it publishes too. An unchanged file makes no commit.
 
    ```sh
    hf upload open-reaction-database/ord-artifacts \
        .claude/skills/publish-artifacts/dataset_card.md README.md --repo-type=dataset \
        --commit-message="Update the dataset card"
+   hf upload open-reaction-database/ord-artifacts \
+       $ORD_DATA/LICENSE LICENSE --repo-type=dataset \
+       --commit-message="Copy the ord-data license"
    ```
 
    Then check that the [dataset viewer](https://huggingface.co/datasets/open-reaction-database/ord-artifacts/viewer)

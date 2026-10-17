@@ -87,6 +87,10 @@ corpus = execute.Corpus(
 
 Pass `revision=` a commit to pin one, or to fetch an earlier build. Each upload's commit message names the ord-data revision it was derived from, and its description names the artifact schema version and RDKit. See the [search README](https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/search/README.md) for queries, and the [artifacts README](https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/artifacts/README.md) for how each artifact is derived and stamped.
 
+## License
+
+The artifacts are licensed under [CC-BY-SA-4.0](LICENSE), as are the [ord-data](https://huggingface.co/datasets/open-reaction-database/ord-data) datasets they are derived from.
+
 ## Citation
 
 Please cite the Open Reaction Database as given on the [ord-data card](https://huggingface.co/datasets/open-reaction-database/ord-data).
