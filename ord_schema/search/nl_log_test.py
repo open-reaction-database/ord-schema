@@ -77,6 +77,16 @@ def test_the_resolved_names_are_written_as_a_string():
     assert nl_log.event(_ask(resolved=None))["resolved"] is None
 
 
+def test_the_structures_are_written_as_a_string():
+    # Each placeholder is a key, so as an object the field would compact to a struct
+    # with one member per placeholder a month happened to see.
+    structures = {"@A": {"format": "compound_smiles", "text": "c1ccncc1"}}
+    event = nl_log.event(_ask(structures=structures))
+    assert isinstance(event["structures"], str)
+    assert json.loads(event["structures"]) == structures
+    assert nl_log.event(_ask())["structures"] is None
+
+
 def test_each_turn_is_priced_on_its_own_attempt():
     # Per-attempt usage is what prices the repair turn separately from the first try,
     # which is the open question about choosing a cheap model and repairing it.
@@ -709,3 +719,26 @@ def test_a_run_and_a_reader_are_told_apart_by_source(tmp_path):
         str(tmp_path / "*.jsonl"), statement="SELECT record_id, source FROM log"
     ).fetchall()
     assert dict(found) == {"0f3c": "web", "7b21": "eval", "c40a": None}
+
+
+def test_structures_survive_redacted_compaction_beside_records_without_them(tmp_path):
+    # Like the resolved names, the structures reproduce the search, so redaction keeps
+    # them; a record from before the field existed reads as NULL beside them.
+    structures = {"@A": {"format": "compound_smiles", "text": "c1ccncc1"}}
+    sink = nl_log.JsonlSink(tmp_path / "raw" / "log.jsonl")
+    sink.write(nl_log.event(_ask(record_id="0001", structures=structures)))
+    sink.write(nl_log.event(_ask(record_id="0002")))
+    older = nl_log.event(_ask(record_id="0003"))
+    del older["structures"]
+    sink.write(older)
+    compacted = tmp_path / "2026-10.parquet"
+    nl_log.compact(str(tmp_path / "raw" / "*.jsonl"), compacted, redact=True)
+    for source in (str(tmp_path / "raw" / "*.jsonl"), str(compacted)):
+        rows = nl_log.read(
+            source, statement="SELECT record_id, structures FROM log ORDER BY record_id"
+        ).fetchall()
+        assert rows == [
+            ("0001", '{"@A": {"format": "compound_smiles", "text": "c1ccncc1"}}'),
+            ("0002", None),
+            ("0003", None),
+        ]

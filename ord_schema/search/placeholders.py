@@ -268,6 +268,21 @@ def describe(structures: Mapping[str, Placeholder]) -> str:
     return "\n".join([PLACEHOLDERS_HEADING, *lines])
 
 
+def dump(structures: Mapping[str, Placeholder]) -> dict[str, dict[str, str]] | None:
+    """Returns a question's placeholders as JSON-ready values, for a record of it.
+
+    Args:
+        structures: Each placeholder's name, mapped to its structure.
+
+    Returns:
+        Each name mapped to its ``format`` and ``text``, or None for a question with no
+        placeholders.
+    """
+    if not structures:
+        return None
+    return {name: value.model_dump(mode="json") for name, value in structures.items()}
+
+
 def substitute(value: Any, structures: Mapping[str, Placeholder]) -> Any:
     """Returns a query with each placeholder replaced by its structure.
 

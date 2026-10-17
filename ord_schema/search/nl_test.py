@@ -896,3 +896,30 @@ def test_ask_searches_with_the_placeholder(corpus):
     )
     assert answer.table.column("reaction_id").to_pylist() == ["ord-nl01"]
     assert _predicate(answer.query).where.smiles == "c1ccncc1"
+
+
+def test_ask_records_its_structures(corpus):
+    sink = _CollectingSink()
+    client = _stub(
+        _uses({"op": "same_compound", "path": "smiles", "compound": "@A"}),
+        "One reaction uses @A.",
+    )
+    nl.ask(
+        "reactions using @A",
+        corpus,
+        structures={"@A": _PYRIDINE},
+        client=client,
+        sink=sink,
+    )
+    (event,) = sink.events
+    assert json.loads(event["structures"]) == {
+        "@A": {"format": "compound_smiles", "text": "c1ccncc1"}
+    }
+
+
+def test_ask_without_placeholders_records_no_structures(corpus):
+    sink = _CollectingSink()
+    client = _stub({"where": _SOLVENT}, "Two reactions.")
+    nl.ask("solvent reactions", corpus, client=client, sink=sink)
+    (event,) = sink.events
+    assert event["structures"] is None

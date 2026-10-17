@@ -874,6 +874,7 @@ def ask(
                 session_id=session_id,
                 record_id=record_id,
                 timestamp=timestamp,
+                structures=placeholders.dump(structures or {}),
                 **fields,
             ),
         )
