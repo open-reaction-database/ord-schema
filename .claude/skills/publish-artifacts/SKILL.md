@@ -76,11 +76,12 @@ ARTIFACTS=~/ord/artifacts
 
 6. **Push the dataset card and license** on the first publish, and whenever
    [`dataset_card.md`](dataset_card.md) or ord-data's `LICENSE` changes. The card is the
-   repository's `README.md` and ord-data's `LICENSE` is its `LICENSE`, which the card
-   links; `upload_artifacts` touches neither. Change the card here, through a PR, so the
-   Hub's README is always a copy of this file; a schema bump that changes the columns
-   the `projections` config names needs its `dataset_info` changed too. Push them once
-   the user has confirmed: it publishes too. An unchanged file makes no commit.
+   repository's `README.md` and ord-data's `LICENSE` its `LICENSE`; `upload_artifacts`
+   touches neither. Change the card here, through a PR, so the Hub's README is always a
+   copy of this file. A schema bump that changes the columns the `projections` config
+   names needs its `dataset_info` changed too, and a change to ord-data's license needs
+   the card's `license` and License section changed with it. Push both once the user
+   has confirmed: pushing publishes too, and an unchanged file makes no commit.
 
    ```sh
    hf upload open-reaction-database/ord-artifacts \

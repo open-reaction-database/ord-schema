@@ -89,7 +89,7 @@ Pass `revision=` a commit to pin one, or to fetch an earlier build. Each upload'
 
 ## License
 
-The artifacts are licensed under [CC-BY-SA-4.0](LICENSE), as are the [ord-data](https://huggingface.co/datasets/open-reaction-database/ord-data) datasets they are derived from.
+The artifacts are licensed under [CC-BY-SA-4.0](https://huggingface.co/datasets/open-reaction-database/ord-artifacts/blob/main/LICENSE), as are the [ord-data](https://huggingface.co/datasets/open-reaction-database/ord-data) datasets they are derived from.
 
 ## Citation
 
