@@ -206,8 +206,8 @@ _AGGREGATES = {
 
 # Measure names are the only model-supplied strings that reach the SQL as text, rather
 # than as parameters, without first resolving against the schema, so they are held to an
-# identifier shape a quoting mistake cannot escape. They are quoted all the same, so a
-# name DuckDB spells as a keyword, such as order or true, is a name.
+# identifier shape a quoting mistake cannot escape. They are quoted all the same, so one
+# DuckDB would read as a keyword, such as order or true, stays a name.
 _NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # Room for any one compound's name in the corpus, with margin: nearly every name ORD
