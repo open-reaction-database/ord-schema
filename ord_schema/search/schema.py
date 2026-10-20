@@ -52,6 +52,7 @@ _SCALARS: dict[pa.DataType, str] = {
     pa.bool_(): "BOOLEAN",
     pa.float32(): "FLOAT",
     pa.float64(): "DOUBLE",
+    pa.int16(): "SMALLINT",
     pa.int32(): "INTEGER",
     pa.int64(): "BIGINT",
     pa.uint32(): "UINTEGER",

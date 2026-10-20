@@ -39,13 +39,20 @@ real trap:
   stays expressible while the mixed-unit comparison that would quietly return the wrong
   rows does not. The source records precision in the same units as the value, so it
   converts with the value and is null under the same conditions.
-* **Dates become instants.** ``DateTime`` is a bare string the depositor wrote, and the
-  corpus holds many shapes of it, so comparing the text answers arbitrarily: a prefix
-  match on a year misses that year's records written in another shape, and matches a
-  dataset whose stamps merely begin with those digits. Each ``DateTime`` gains a
-  ``timestamp`` beside the recorded string, which stays: the projection adds a reading
-  rather than replacing what the source says, and a shape none of the formats cover is
-  a visible null.
+* **Dates become typed values.** ``DateTime`` is a bare string the depositor wrote, and
+  the corpus holds many shapes of it, so comparing the text answers arbitrarily: a
+  prefix match on a year misses that year's records written in another shape, and
+  matches a dataset whose stamps merely begin with those digits. Each ``DateTime`` gains
+  a ``timestamp`` and a ``utc_offset_minutes`` beside the recorded string, which stays:
+  the projection adds a reading rather than replacing what the source says, and a shape
+  none of the formats cover is a visible null.
+
+  Every time keeps the wall clock it was written with, in ``timestamp``, and the UTC
+  offset it was written under, in ``utc_offset_minutes``: minutes east of UTC, named
+  for its unit as the converted quantities are, and null where the record names none.
+  Together they hold everything the string says. A zone-aware column could not: it
+  stores one instant per value under one zone for the whole column, so it would drop
+  each value's own offset and read a time with none as UTC.
 
   ``NN/NN/NNNN`` is the part that needs more than a format list, since the string never
   says which field is the month. It is settled per dataset and before any row is
@@ -130,7 +137,7 @@ from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import Message
 
 import ord_schema
-from ord_schema import atomic_io, message_helpers, parquet, units
+from ord_schema import atomic_io, message_helpers, parquet, units, validations
 from ord_schema.artifacts import base
 from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
@@ -179,9 +186,10 @@ _STRUCTURAL_TYPES: dict[str, frozenset[int]] = {
 # reaction-level structure search is a different operation and no ID is assigned there.
 _STRUCTURE_ID_TYPES = frozenset({"Compound", "ProductCompound"})
 
-# Messages whose free-text date gains a parsed ``timestamp`` beside it.
+# Messages whose free-text date gains a parsed ``timestamp`` and its UTC offset.
 _TIMESTAMP_TYPES = frozenset({"DateTime"})
 TIMESTAMP_COLUMN = "timestamp"
+UTC_OFFSET_COLUMN = "utc_offset_minutes"
 
 # The shapes ORD's dates are recorded in, tried in order. DateTime.value is a string the
 # depositor wrote, so there is no format to rely on, and a reader comparing the text
@@ -398,7 +406,7 @@ def slash_orientation(
 
 
 def parse_timestamp(value: str, *, day_first: bool | None = None) -> datetime | None:
-    """Returns the instant a recorded date names, or None where none of the shapes fit.
+    """Returns the time a recorded date names, as written, or None where no shape fits.
 
     Args:
         value: The string a depositor wrote.
@@ -408,9 +416,13 @@ def parse_timestamp(value: str, *, day_first: bool | None = None) -> datetime | 
             see and a date that is silently the wrong month.
 
     Returns:
-        The parsed instant, or None where no format matched or the value is ambiguous
-        and the dataset does not say which way to read it.
+        The parsed time as written, without the UTC offset ``parse_utc_offset`` reads;
+        None where no format matched or the value is ambiguous and the dataset does not
+        say which way to read it.
     """
+    valid = validations.parse_date_time(value)
+    if isinstance(valid, datetime):
+        return valid.replace(tzinfo=None)
     matched = _SLASH_DATE.match(value)
     if matched is not None:
         first, second = int(matched.group(1)), int(matched.group(2))
@@ -427,13 +439,35 @@ def parse_timestamp(value: str, *, day_first: bool | None = None) -> datetime | 
         formats = _DATE_FORMATS
     for shape in formats:
         try:
-            # DTZ007: naive on purpose. None of the recorded shapes carries an offset,
-            # so the zone is not in the data; attaching one would state a fact the
-            # source never recorded, and shift every instant by it.
+            # DTZ007: naive on purpose. None of these shapes carries an offset, so the
+            # zone is not in the data; attaching one would state a fact the source
+            # never recorded, and shift every instant by it.
             return datetime.strptime(value, shape)  # noqa: DTZ007
         except ValueError:
             continue
     return None
+
+
+def parse_utc_offset(value: str) -> int | None:
+    """Returns the UTC offset a recorded time was written under, in minutes east of UTC.
+
+    Together with ``parse_timestamp``, which keeps the time as written, this holds
+    everything such a value says, so the instant stays recoverable where the record
+    names one.
+
+    Args:
+        value: The string a depositor wrote.
+
+    Returns:
+        The offset in minutes, negative west of UTC as in ISO 8601 (``-05:00`` is
+        -300), or None where the value states none: a date, a time written without one,
+        or a shape validation does not accept.
+    """
+    valid = validations.parse_date_time(value)
+    if not isinstance(valid, datetime):
+        return None
+    offset = valid.utcoffset()
+    return None if offset is None else int(offset.total_seconds()) // 60
 
 
 def _canonical_unit(field: FieldDescriptor) -> tuple[str, str] | None:
@@ -541,10 +575,13 @@ def _struct_fields(descriptor: Descriptor, stack: frozenset[str]) -> list[pa.Fie
     if descriptor.name in _STRUCTURAL_TYPES:
         fields.append(pa.field("smiles", pa.string()))
     if descriptor.name in _TIMESTAMP_TYPES:
-        # Microseconds, because the source records them: 1.77M values in the corpus
-        # are str(datetime) output carrying a fractional part, and a second-resolution
-        # column would drop it while still reading as the instant the source wrote.
+        # Microseconds, because the source records them: much of the corpus is
+        # str(datetime) output carrying a fractional part, and a second-resolution
+        # column would drop it while still reading as the time the source wrote.
         fields.append(pa.field(TIMESTAMP_COLUMN, pa.timestamp("us")))
+        # Signed minutes east of UTC, as ISO 8601 signs an offset: -05:00 is -300.
+        # Offsets are whole minutes and under a day, which an int16 holds.
+        fields.append(pa.field(UTC_OFFSET_COLUMN, pa.int16()))
     if descriptor.name in _STRUCTURE_ID_TYPES:
         fields.append(
             pa.field(
@@ -689,6 +726,7 @@ def message_row(
         row[TIMESTAMP_COLUMN] = (
             parse_timestamp(recorded, day_first=day_first) if recorded else None
         )
+        row[UTC_OFFSET_COLUMN] = parse_utc_offset(recorded) if recorded else None
     if descriptor.name in _STRUCTURE_ID_TYPES:
         if row["smiles"] is not None and structure_ids is not None:
             row["structure_id"] = structure_ids.setdefault(

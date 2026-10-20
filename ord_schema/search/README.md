@@ -124,9 +124,10 @@ is a compile error rather than a wrong answer:
   of a timestamp is refused. `min` and `max` take a date or timestamp column too, and answer
   the earliest or latest day. `count` takes any. Arithmetic over text is refused where
   the query is compiled rather than left to fail where it runs.
-- A timestamp compares **by day**. Each one is the wall clock its source wrote, with no zone
-  beside it, and sources write in many zones, so comparing them finer than a day would order
-  times that were never on one clock. The compiler casts every timestamp to its `DATE`
+- A timestamp compares **by day**. Each one is the wall clock its source wrote, in whatever
+  zone it wrote it: `utc_offset_minutes` beside it names that zone only where the record did,
+  and sources write in many zones, so comparing them finer than a day would order times that
+  were never on one clock. The compiler casts every timestamp to its `DATE`
   wherever it enters the SQL — a comparison, a reduction, a measure, a `group_by`, an
   ordering — so `eq` matches every time on the day and a group is a day; the schema the
   model sees names these columns `DATE`. A literal compared against one is `YYYY-MM-DD` and

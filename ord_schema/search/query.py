@@ -177,7 +177,8 @@ def _is_numeric(leaf: pa.DataType) -> bool:
 def queried_type(leaf: pa.DataType) -> pa.DataType:
     """Returns the type a query reads a leaf as: its day for a timestamp, else itself.
 
-    Each timestamp is the wall clock its source wrote, with no zone beside it, and
+    Each timestamp is the wall clock its source wrote, in whatever zone it wrote it:
+    ``utc_offset_minutes`` beside it names that zone only where the record did, and
     sources write in many zones, so comparing them finer than a day would order times
     that were never on one clock. ``resolve`` casts to this type, and
     :func:`ord_schema.search.schema.describe` names it, so a model is told the type its

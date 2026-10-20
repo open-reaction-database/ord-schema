@@ -1984,7 +1984,6 @@ dependencies = [
     { name = "pandas" },
     { name = "protobuf" },
     { name = "pyarrow" },
-    { name = "python-dateutil" },
     { name = "rdkit" },
     { name = "tqdm" },
 ]
@@ -2017,6 +2016,7 @@ nl = [
 orm = [
     { name = "inflection" },
     { name = "psycopg", extra = ["binary", "pool"] },
+    { name = "python-dateutil" },
     { name = "sqlalchemy" },
     { name = "uuid6" },
 ]
@@ -2039,6 +2039,7 @@ tests = [
     { name = "pytest-cov" },
     { name = "pytest-timeout" },
     { name = "pytest-xdist" },
+    { name = "python-dateutil" },
     { name = "ruff" },
     { name = "sqlalchemy" },
     { name = "testing-postgresql" },
@@ -2074,7 +2075,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'tests'", specifier = ">=3.0.0" },
     { name = "pytest-timeout", marker = "extra == 'tests'", specifier = ">=2.4.0" },
     { name = "pytest-xdist", marker = "extra == 'tests'", specifier = ">=3.0.2" },
-    { name = "python-dateutil", specifier = ">=1.10.0" },
+    { name = "python-dateutil", marker = "extra == 'orm'", specifier = ">=1.10.0" },
     { name = "rdkit", specifier = ">=2025.3.4" },
     { name = "ruff", marker = "extra == 'tests'", specifier = ">=0.9.9" },
     { name = "scikit-learn", marker = "extra == 'examples'", specifier = ">=0.24.1" },
