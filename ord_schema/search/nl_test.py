@@ -32,7 +32,7 @@ from anthropic.types import TextBlock, ThinkingBlock, ToolUseBlock
 from ord_schema import parquet
 from ord_schema.artifacts import projection, structures
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.search import execute, nl, nl_log
+from ord_schema.search import execute, nl, nl_log, placeholders
 
 
 @pytest.fixture(scope="module")
@@ -806,3 +806,188 @@ def test_a_declined_question_records_whether_a_query_came_first(corpus):
     assert event["declined_reason"] == "values are literals, never other columns"
     # No attempt: the model read the question rather than backing off after a refusal.
     assert json.loads(event["attempts"]) == []
+
+
+# Placeholders
+
+_PYRIDINE = placeholders.Placeholder(
+    format=placeholders.StructureFormat.COMPOUND_SMILES, text="c1ccncc1"
+)
+
+
+def _uses(slot: dict) -> dict:
+    """Returns a query for reactions with an input matching a structure predicate."""
+    return {"where": {"op": "exists", "path": "inputs.components", "where": slot}}
+
+
+def test_placeholders_follow_the_question():
+    client = _stub(_uses({"op": "same_compound", "path": "smiles", "compound": "@A"}))
+    nl.translate("reactions using @A", structures={"@A": _PYRIDINE}, client=client)
+    assert client.requests[0]["messages"][0]["content"] == (
+        "reactions using @A\n\nPlaceholders in this question:\n@A is a compound SMILES."
+    )
+
+
+def test_a_question_without_placeholders_is_sent_alone():
+    client = _stub({"where": _SOLVENT})
+    nl.translate("reactions run in a solvent", client=client)
+    assert client.requests[0]["messages"][0]["content"] == "reactions run in a solvent"
+
+
+def test_a_placeholder_is_substituted_and_the_attempt_keeps_it():
+    # The query names the structure outright, so it runs again as it stands; the
+    # attempt keeps what the model wrote, which is what prompt work reads.
+    client = _stub(_uses({"op": "same_compound", "path": "smiles", "compound": "@A"}))
+    translated = nl.translate(
+        "reactions using @A", structures={"@A": _PYRIDINE}, client=client
+    )
+    clause = _where(translated).where
+    assert (clause.smiles, clause.compound) == ("c1ccncc1", None)
+    assert translated.attempts[0].translation["where"]["where"]["compound"] == "@A"
+
+
+def test_a_format_the_predicate_refuses_is_handed_back():
+    pattern = placeholders.Placeholder(
+        format=placeholders.StructureFormat.COMPOUND_SMARTS, text="c[Br,I]"
+    )
+    client = _stub(
+        _uses(
+            {"op": "similarity", "path": "smiles", "compound": "@B", "threshold": 0.6}
+        ),
+        _uses({"op": "substructure", "path": "smiles", "compound": "@B"}),
+    )
+    translated = nl.translate(
+        "inputs like @B", structures={"@B": pattern}, client=client
+    )
+    error = translated.attempts[0].error
+    assert error is not None
+    assert "@B is a compound SMARTS, which similarity does not take" in error
+    assert translated.turns == 2
+
+
+def test_an_unbound_placeholder_never_reaches_the_resolver(corpus):
+    # The corpus's resolver knows only pyridine, so a placeholder looked up as a name
+    # would fail differently: as an unresolved compound, after the search began.
+    unbound = _uses({"op": "same_compound", "path": "smiles", "compound": "@D"})
+    client = _stub(unbound, unbound)
+    with pytest.raises(nl.MalformedQueryError, match="@D is not a placeholder"):
+        nl.ask(
+            "reactions using @A", corpus, structures={"@A": _PYRIDINE}, client=client
+        )
+
+
+def test_a_question_that_fails_the_check_makes_no_call():
+    client = _stub()
+    with pytest.raises(
+        placeholders.PlaceholderError,
+        match="@A is in the question but has no structure",
+    ):
+        nl.translate("reactions using @A", client=client)
+    assert client.requests == []
+
+
+def test_ask_searches_with_the_placeholder(corpus):
+    client = _stub(
+        _uses({"op": "same_compound", "path": "smiles", "compound": "@A"}),
+        "One reaction uses @A.",
+    )
+    answer = nl.ask(
+        "reactions using @A", corpus, structures={"@A": _PYRIDINE}, client=client
+    )
+    assert answer.table.column("reaction_id").to_pylist() == ["ord-nl01"]
+    assert _predicate(answer.query).where.smiles == "c1ccncc1"
+
+
+def test_ask_records_its_structures(corpus):
+    sink = _CollectingSink()
+    client = _stub(
+        _uses({"op": "same_compound", "path": "smiles", "compound": "@A"}),
+        "One reaction uses @A.",
+    )
+    nl.ask(
+        "reactions using @A",
+        corpus,
+        structures={"@A": _PYRIDINE},
+        client=client,
+        sink=sink,
+    )
+    (event,) = sink.events
+    assert json.loads(event["structures"]) == {
+        "@A": {"format": "compound_smiles", "text": "c1ccncc1"}
+    }
+
+
+def test_ask_without_placeholders_records_no_structures(corpus):
+    sink = _CollectingSink()
+    client = _stub({"where": _SOLVENT}, "Two reactions.")
+    nl.ask("solvent reactions", corpus, client=client, sink=sink)
+    (event,) = sink.events
+    assert event["structures"] is None
+
+
+def test_a_reply_with_an_unhashable_op_is_handed_back():
+    # Substitution walks the reply before the grammar sees it, so a shape the grammar
+    # would refuse has to reach the repair turn rather than raise from the walk.
+    client = _stub({"where": {"op": ["same_compound"]}}, {"where": _SOLVENT})
+    translated = nl.translate("solvent reactions", client=client)
+    assert translated.turns == 2
+    assert _where(translated).op == "exists"
+
+
+def test_a_rejection_never_shows_a_placeholder_s_text():
+    # The grammar's report quotes the node it refused, which holds the substituted
+    # text; the repair turn shows the placeholder instead.
+    aspirin = placeholders.Placeholder(
+        format=placeholders.StructureFormat.COMPOUND_SMILES,
+        text="CC(=O)Oc1ccccc1C(=O)O",
+    )
+    client = _stub(
+        {"where": {"op": "same_compound", "compound": "@A"}},
+        _uses({"op": "same_compound", "path": "smiles", "compound": "@A"}),
+    )
+    translated = nl.translate(
+        "reactions using @A", structures={"@A": aspirin}, client=client
+    )
+    error = translated.attempts[0].error
+    assert error is not None
+    assert "path" in error
+    repair = json.dumps(client.requests[1]["messages"][-1])
+    assert "Oc1ccccc1" not in repair
+    assert "Oc1ccccc1" not in error
+
+
+def test_a_compiler_rejection_with_placeholders_keeps_its_suggestion():
+    # The compiler's suggestion is what makes a repair worth paying for, and a question
+    # with placeholders keeps it.
+    placeholder_clause = {"op": "same_compound", "path": "smiles", "compound": "@A"}
+    client = _stub(
+        {
+            "where": {
+                "op": "and",
+                "clauses": [_BAD_PATH, _uses(placeholder_clause)["where"]],
+            }
+        },
+        _uses(placeholder_clause),
+    )
+    translated = nl.translate(
+        "reactions using @A", structures={"@A": _PYRIDINE}, client=client
+    )
+    sent = client.requests[1]["messages"][-1]["content"][0]
+    assert "did you mean" in sent["content"]
+    assert "c1ccncc1" not in sent["content"]
+    assert translated.turns == 2
+
+
+def test_a_rejection_with_placeholders_counts_every_error():
+    client = _stub(
+        {"where": {"op": "similarity", "compound": "@A"}},
+        _uses({"op": "same_compound", "path": "smiles", "compound": "@A"}),
+    )
+    translated = nl.translate(
+        "reactions similar to @A", structures={"@A": _PYRIDINE}, client=client
+    )
+    error = translated.attempts[0].error
+    assert error is not None
+    assert error.startswith("2 validation errors for Query\n")
+    assert "where.similarity.path" in error
+    assert "where.similarity.threshold" in error
