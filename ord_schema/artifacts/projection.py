@@ -419,6 +419,9 @@ def parse_timestamp(value: str, *, day_first: bool | None = None) -> datetime | 
     """
     valid = validations.parse_date_time(value)
     if isinstance(valid, datetime):
+        if valid.utcoffset() is None:
+            # astimezone would read a naive time as the machine's own zone.
+            return valid
         return valid.astimezone(UTC).replace(tzinfo=None)
     matched = _SLASH_DATE.match(value)
     if matched is not None:

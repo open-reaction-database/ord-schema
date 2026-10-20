@@ -38,13 +38,16 @@ logger = get_logger(__name__)
 # Record timestamps repeat across a dataset's reactions, but the distinct set is
 # small next to the identifier caches in message_helpers, so this stays modest.
 _DATETIME_CACHE_SIZE = 10_000
-# The two shapes a DateTime may take: a date, or a time with the UTC offset it was
-# written under. A time without one could be in any zone, so it is not accepted.
+# The two shapes a DateTime may take: a date, or a time, with the UTC offset it was
+# written under where that is known. A time without one names no instant, so it is
+# ordered against other values by its date alone.
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _TIME = re.compile(
-    # fromisoformat reads an offset of "+00:60" as one hour, so the minutes are bounded
-    # here; it rejects out-of-range hours itself.
-    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:[0-5]\d)"
+    # fromisoformat reads an offset of "+00:60" as one hour, and from Python 3.14 a
+    # time of "24:00:00" as the next midnight, so both are bounded here; it rejects the
+    # other out-of-range fields itself.
+    r"\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):\d{2}:\d{2}(?:\.\d{1,6})?"
+    r"(?:Z|[+-]\d{2}:[0-5]\d)?"
 )
 
 
@@ -1252,7 +1255,7 @@ def _validate_mass_spec_measurement_type(
 
 @functools.lru_cache(maxsize=_DATETIME_CACHE_SIZE)
 def parse_date_time(value: str) -> datetime.date | None:
-    """Parses a DateTime value: a date, or a time with its UTC offset.
+    """Parses a DateTime value: a date, or a time with or without its UTC offset.
 
     The one definition of the shapes a DateTime may take: validation accepts exactly
     the values this parses, and the artifact projection reads times through it.
@@ -1266,9 +1269,9 @@ def parse_date_time(value: str) -> datetime.date | None:
         value: The DateTime value.
 
     Returns:
-        A ``date`` for ``YYYY-MM-DD``, an aware ``datetime`` for
-        ``YYYY-MM-DDTHH:MM:SS[.ffffff]`` with ``Z`` or ``±HH:MM``, or None for anything
-        else, including a time with no offset.
+        A ``date`` for ``YYYY-MM-DD``; a ``datetime`` for
+        ``YYYY-MM-DDTHH:MM:SS[.ffffff]``, aware when ``Z`` or ``±HH:MM`` follows and
+        naive otherwise; or None for anything else.
     """
     try:
         if _DATE.fullmatch(value):
@@ -1283,11 +1286,12 @@ def parse_date_time(value: str) -> datetime.date | None:
 def _validate_date_time(
     message: reaction_pb2.DateTime, context: ValidationContext
 ) -> None:
-    """Validates that a DateTime value is a date or a time with its UTC offset."""
+    """Validates that a DateTime value is an ISO 8601 date or time."""
     if message.value and parse_date_time(message.value) is None:
         context.error(
             f"Could not parse DateTime string {message.value}: write a date "
-            "(YYYY-MM-DD) or a time with its UTC offset (YYYY-MM-DDTHH:MM:SS+00:00)"
+            "(YYYY-MM-DD) or a time (YYYY-MM-DDTHH:MM:SS), followed by its UTC offset "
+            "(+00:00) where known"
         )
 
 
@@ -1304,10 +1308,16 @@ def _as_date(value: datetime.date) -> datetime.date:
     return value.date() if isinstance(value, datetime.datetime) else value
 
 
+def _is_instant(value: datetime.date) -> bool:
+    """Returns whether a parsed DateTime is a time with its UTC offset."""
+    return isinstance(value, datetime.datetime) and value.utcoffset() is not None
+
+
 def _is_before(value: datetime.date, other: datetime.date) -> bool:
     """Returns whether one parsed DateTime is before another.
 
-    Two times compare by the instants they name. Any other pair compares by date.
+    Two times that both carry a UTC offset compare by the instants they name. Any
+    other pair compares by date, taking a time's date as written.
 
     Args:
         value: The DateTime that may come first, from :func:`parse_date_time`.
@@ -1316,7 +1326,7 @@ def _is_before(value: datetime.date, other: datetime.date) -> bool:
     Returns:
         True if ``value`` is before ``other``.
     """
-    if isinstance(value, datetime.datetime) and isinstance(other, datetime.datetime):
+    if _is_instant(value) and _is_instant(other):
         return value < other
     return _as_date(value) < _as_date(other)
 

@@ -15,6 +15,7 @@
 """Tests for ord_schema.artifacts.projection."""
 
 import pathlib
+import time
 from datetime import datetime
 from types import SimpleNamespace
 from typing import cast
@@ -724,8 +725,36 @@ def test_a_time_with_an_offset_projects_its_utc_instant(value, expected):
         assert projection.parse_timestamp(value, day_first=day_first) == expected
 
 
+@pytest.fixture
+def away_from_utc(monkeypatch):
+    """Sets the process's local zone to one where reading a time as local moves it."""
+    monkeypatch.setenv("TZ", "Asia/Tokyo")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
+@pytest.mark.usefixtures("away_from_utc")
 @pytest.mark.parametrize(
-    "value", ["2024-07-06", "2024-07-06T23:25:41Z", "2024-07-06T23:25:41.5-05:00"]
+    ("value", "expected"),
+    [
+        ("2024-07-06T23:25:41", datetime(2024, 7, 6, 23, 25, 41)),
+        ("2024-07-06T23:25:41.5", datetime(2024, 7, 6, 23, 25, 41, 500000)),
+    ],
+)
+def test_a_time_without_an_offset_projects_as_written(value, expected):
+    assert projection.parse_timestamp(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2024-07-06",
+        "2024-07-06T23:25:41",
+        "2024-07-06T23:25:41Z",
+        "2024-07-06T23:25:41.5-05:00",
+    ],
 )
 def test_every_value_validation_accepts_has_a_timestamp(value):
     message = reaction_pb2.DateTime(value=value)

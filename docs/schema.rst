@@ -371,10 +371,11 @@ DatasetExample
 DateTime
 ========
 
-* ``value`` must be a date, ``YYYY-MM-DD``, or a time with the UTC offset it was
-  written under, ``YYYY-MM-DDTHH:MM:SS`` with an optional fraction of one to six
-  digits, followed by ``Z`` or ``±HH:MM``.
-  A time without an offset is rejected: write the date alone if the zone is unknown.
+* ``value`` must be a date, ``YYYY-MM-DD``, or a time, ``YYYY-MM-DDTHH:MM:SS`` with
+  an optional fraction of one to six digits.
+  A time should be followed by the UTC offset it was written under, ``Z`` or
+  ``±HH:MM``, wherever that is known. One without an offset names no instant, so it
+  is ordered by its date alone.
 
 ElectrochemistryCell
 ====================
@@ -526,8 +527,9 @@ ReactionProvenance
 * ``record_created`` must not be before ``experiment_start``.
 * ``record_modified`` must not be before ``record_created``. The last
   ``record_modified`` is the one compared.
-* Two times are ordered by the instant they name. Any other pair is ordered by date,
-  taking a time's date as written, not as converted to UTC.
+* Two times that both carry a UTC offset are ordered by the instant they name. Any
+  other pair is ordered by date, taking a time's date as written, not as converted to
+  UTC.
 
 ReactionSetup
 =============

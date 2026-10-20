@@ -1238,9 +1238,9 @@ def test_bad_datetime():
 @pytest.mark.parametrize(
     "value",
     [
-        # Times without an offset, whatever their shape.
-        "2024-07-06T23:25:41",
+        # Times in any other shape.
         "2022-12-02 17:42:01.780701",
+        "2022-12-02 17:42:01+00:00",
         "2024-07-06 17:42:01 UTC",
         "Fri Oct 22 22:19:55 2021",
         "10/19/2021, 12:16:25 PM",
@@ -1258,11 +1258,18 @@ def test_bad_datetime():
         "2024-07-06t23:25:41z",
         "2024-07-06T23:25:41+25:00",
         "2024-07-06T23:25:41+00:60",
+        "2024-07-06T23:25:41+05",
+        "2024-07-06T23:25:41+0530",
         "2024-07-06T23:25:41.1234567Z",
+        "2024-07-06T23:25:41.1234567",
+        "2024-07-06T23:25",
+        "2024-07-06T24:00:00",
+        "2024-07-06T24:00:00Z",
         " 2024-07-06",
+        "2024-07-06T23:25:41 ",
     ],
 )
-def test_datetime_must_be_a_date_or_a_time_with_an_offset(value):
+def test_datetime_must_be_an_iso_date_or_time(value):
     message = reaction_pb2.DateTime(value=value)
     with pytest.raises(
         validations.ValidationError,
@@ -1279,9 +1286,12 @@ def test_datetime_must_be_a_date_or_a_time_with_an_offset(value):
         "2024-07-06T23:25:41+00:00",
         "2024-07-06T23:25:41.780701-05:00",
         "2024-07-06T23:25:41.5+05:30",
+        # A time whose zone was never recorded keeps its time.
+        "2024-07-06T23:25:41",
+        "2024-07-06T23:25:41.780701",
     ],
 )
-def test_datetime_date_or_time_with_an_offset(value):
+def test_datetime_iso_date_or_time(value):
     output = _run_validation(reaction_pb2.DateTime(value=value))
     assert not output.errors
     assert not output.warnings
@@ -1346,7 +1356,7 @@ def _provenance_with_times(created, modified=None, experiment_start=None):
         ("2024-01-01", "2024-01-02", True),
         ("2024-01-02", "2024-01-01", False),
         ("2024-01-01", "2024-01-01", False),
-        # Two times compare by instant: 12:00+09:00 is 03:00Z.
+        # Two times with offsets compare by instant: 12:00+09:00 is 03:00Z.
         ("2024-01-01T12:00:00+09:00", "2024-01-01T04:00:00Z", True),
         ("2024-01-01T04:00:00Z", "2024-01-01T12:00:00+09:00", False),
         ("2024-01-01T04:00:00Z", "2024-01-01T13:00:00+09:00", False),
@@ -1356,6 +1366,16 @@ def _provenance_with_times(created, modified=None, experiment_start=None):
         ("2024-01-01", "2024-01-01T23:59:59-05:00", False),
         ("2024-01-01T23:59:59Z", "2024-01-02", True),
         ("2024-01-02T00:30:00+09:00", "2024-01-02", False),
+        ("2024-01-01", "2024-01-02T00:00:00", True),
+        ("2024-01-01T12:00:00", "2024-01-01", False),
+        # A time without an offset names no instant, so it compares by date even
+        # against another time: read as UTC, 04:00 would follow 12:00+09:00.
+        ("2024-01-01T12:00:00+09:00", "2024-01-01T04:00:00", False),
+        ("2024-01-01T04:00:00", "2024-01-01T12:00:00+09:00", False),
+        ("2024-01-01T01:00:00", "2024-01-01T23:00:00", False),
+        ("2024-01-01T23:00:00", "2024-01-02T01:00:00", True),
+        ("2024-01-01T23:00:00Z", "2024-01-02T00:30:00", True),
+        ("2024-01-02T00:30:00", "2024-01-01T23:00:00Z", False),
     ],
 )
 def test_is_before(value, other, expected):
@@ -1378,6 +1398,12 @@ def test_is_before(value, other, expected):
         ("2024-01-01T12:00:00+00:00", "2024-01-01", None),
         ("2024-01-02", "2024-01-01T23:59:59Z", "after creation"),
         ("2024-01-03T12:00:00Z", "2024-01-01", "after creation"),
+        # A time without an offset is ordered by its date, against any value.
+        ("2021-10-22T22:19:55", "2026-10-20T02:33:38+00:00", None),
+        ("2024-01-01T12:00:00Z", "2024-01-01T08:00:00", None),
+        ("2024-01-01T23:00:00", "2024-01-01T01:00:00", None),
+        ("2024-01-02T00:00:00", "2024-01-01T23:00:00Z", "after creation"),
+        ("2024-01-02T00:00:00", "2024-01-01T23:00:00", "after creation"),
     ],
 )
 def test_provenance_record_modified_order(created, modified, error):
