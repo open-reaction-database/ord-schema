@@ -191,3 +191,14 @@ def test_substitute_refuses(clause, message):
     }
     with pytest.raises(placeholders.PlaceholderError, match=re.escape(message)):
         placeholders.substitute({"where": clause}, structures)
+
+
+def test_conceal_writes_quoted_text_as_the_placeholder_name():
+    structures = {
+        "@A": placeholders.Placeholder(format=_COMPOUND_SMILES, text="C"),
+        "@B": placeholders.Placeholder(format=_COMPOUND_SMARTS, text="c[Br,I]"),
+    }
+    message = "Cannot use 'C' beside 'c[Br,I]'; 'CC' is unchanged"
+    assert placeholders.conceal(message, structures) == (
+        "Cannot use '@A' beside '@B'; 'CC' is unchanged"
+    )

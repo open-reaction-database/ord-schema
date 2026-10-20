@@ -923,3 +923,34 @@ def test_ask_without_placeholders_records_no_structures(corpus):
     nl.ask("solvent reactions", corpus, client=client, sink=sink)
     (event,) = sink.events
     assert event["structures"] is None
+
+
+def test_a_reply_with_an_unhashable_op_is_handed_back():
+    # Substitution walks the reply before the grammar sees it, so a shape the grammar
+    # would refuse has to reach the repair turn rather than raise from the walk.
+    client = _stub({"where": {"op": ["same_compound"]}}, {"where": _SOLVENT})
+    translated = nl.translate("solvent reactions", client=client)
+    assert translated.turns == 2
+    assert _where(translated).op == "exists"
+
+
+def test_a_rejection_never_shows_a_placeholder_s_text():
+    # The grammar's report quotes the node it refused, which holds the substituted
+    # text; the repair turn shows the placeholder instead.
+    aspirin = placeholders.Placeholder(
+        format=placeholders.StructureFormat.COMPOUND_SMILES,
+        text="CC(=O)Oc1ccccc1C(=O)O",
+    )
+    client = _stub(
+        {"where": {"op": "same_compound", "compound": "@A"}},
+        _uses({"op": "same_compound", "path": "smiles", "compound": "@A"}),
+    )
+    translated = nl.translate(
+        "reactions using @A", structures={"@A": aspirin}, client=client
+    )
+    error = translated.attempts[0].error
+    assert error is not None
+    assert "path" in error
+    repair = json.dumps(client.requests[1]["messages"][-1])
+    assert "Oc1ccccc1" not in repair
+    assert "Oc1ccccc1" not in error

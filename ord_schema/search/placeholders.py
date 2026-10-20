@@ -279,6 +279,22 @@ def dump(structures: Mapping[str, Placeholder]) -> dict[str, dict[str, str]] | N
     return {name: value.model_dump(mode="json") for name, value in structures.items()}
 
 
+def conceal(message: str, structures: Mapping[str, Placeholder]) -> str:
+    """Returns a message with each placeholder's quoted text written as its name.
+
+    Args:
+        message: An error about a query that had placeholders substituted into it.
+        structures: Each placeholder's name, mapped to its structure.
+
+    Returns:
+        The message, with every ``repr`` of a placeholder's text replaced by the
+        ``repr`` of its name.
+    """
+    for name, placeholder in structures.items():
+        message = message.replace(repr(placeholder.text), repr(name))
+    return message
+
+
 def substitute(value: Any, structures: Mapping[str, Placeholder]) -> Any:
     """Returns a query with each placeholder replaced by its structure.
 
@@ -335,7 +351,7 @@ def _substitute(
     op = value.get("op")
     result: dict[str, Any] = {}
     for key, item in value.items():
-        if op in _FIELDS and key in _SLOTS and is_name(item):
+        if isinstance(op, str) and op in _FIELDS and key in _SLOTS and is_name(item):
             field, text = _structure(op, item, structures)
             if field in result or (field != key and field in value):
                 raise PlaceholderError(f"{op} names {item} beside another structure")

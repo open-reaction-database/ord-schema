@@ -54,6 +54,7 @@ from anthropic.types import (
     ToolParam,
     ToolUseBlock,
 )
+from pydantic import ValidationError
 
 from ord_schema.artifacts import pivot as pivot_levels
 from ord_schema.logging import get_logger
@@ -406,6 +407,41 @@ def _validated(coerced: Any) -> query.Query:
     return parsed
 
 
+def _rejection(
+    error: ValueError | query.QueryError,
+    structures: Mapping[str, placeholders.Placeholder],
+) -> str:
+    """Returns why a query was refused, in words that show no placeholder's text.
+
+    The rejection goes back to the model, which is never shown a placeholder's text.
+    Pydantic's report quotes the input it refused, which after substitution holds that
+    text, and cuts a long one short, so no replacement can find all of it. A refused
+    query that had placeholders is therefore reported from its errors without their
+    inputs, and any text a message still quotes is written as its placeholder's name.
+
+    Args:
+        error: Why the query was refused.
+        structures: Each placeholder the question writes, mapped to its structure.
+
+    Returns:
+        The error as text: ``str(error)`` for a question with no placeholders.
+    """
+    if not structures:
+        return str(error)
+    if isinstance(error, ValidationError):
+        count = error.error_count()
+        lines = [
+            f"{count} validation error{'' if count == 1 else 's'} for {error.title}"
+        ]
+        for detail in error.errors(include_url=False, include_input=False):
+            lines.append(".".join(str(part) for part in detail["loc"]))
+            lines.append(f"  {detail['msg']} [type={detail['type']}]")
+        message = "\n".join(lines)
+    else:
+        message = str(error)
+    return placeholders.conceal(message, structures)
+
+
 def _spent(response: Any) -> nl_log.Usage:
     """Returns what one response cost.
 
@@ -638,8 +674,9 @@ def translate(
         try:
             parsed = _validated(placeholders.substitute(coerced, structures))
         except (ValueError, query.QueryError) as error:
-            attempts.append(nl_log.Attempt(coerced, str(error), turn.usage))
-            return None, str(error)
+            rejection = _rejection(error, structures)
+            attempts.append(nl_log.Attempt(coerced, rejection, turn.usage))
+            return None, rejection
         attempts.append(nl_log.Attempt(coerced, None, turn.usage))
         return parsed, ""
 
