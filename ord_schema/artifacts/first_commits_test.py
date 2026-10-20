@@ -339,6 +339,21 @@ class TestWalk:
         ):
             first_commits.walk(repository)
 
+    def test_refuses_an_lfs_pointer_naming_no_object(self, tmp_path):
+        repository = tmp_path / "ord-data"
+        _init(repository)
+        target = repository / "data" / "aa" / "ord_dataset-aa.pb"
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b"version https://git-lfs.github.com/spec/v1\nsize 12\n")
+        _commit(repository, "add aa", "2026-06-01 10:00:00 +0100")
+        with pytest.raises(ValueError, match="names no sha256 object"):
+            first_commits.walk(repository)
+
+    def test_refuses_without_git(self, history, monkeypatch):
+        monkeypatch.setattr(first_commits.shutil, "which", lambda name: None)
+        with pytest.raises(ValueError, match="needs git on PATH"):
+            first_commits.walk(history["repository"])
+
     def test_one_dataset_in_two_formats_at_once_is_one_arrival(self, tmp_path):
         repository = tmp_path / "ord-data"
         _init(repository)

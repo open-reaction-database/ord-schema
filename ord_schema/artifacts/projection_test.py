@@ -513,6 +513,15 @@ def test_reaction_row_carries_the_first_commit_it_is_given():
     assert projection.reaction_row(_reaction(), "ord-0001")["first_commit"] is None
 
 
+def test_first_commit_s_time_reads_like_every_projected_time():
+    # The struct is declared in first_commits, which the projection imports, so the
+    # names and types a DateTime projects to are typed twice; this holds them together.
+    provenance = projection.SCHEMA.field("provenance").type
+    date_time = provenance.field("record_created").type.field("time").type
+    for name in (projection.TIMESTAMP_COLUMN, projection.UTC_OFFSET_COLUMN):
+        assert first_commits.TYPE.field(name).type == date_time.field(name).type
+
+
 def test_build_schema_refuses_a_reaction_field_named_like_first_commit(monkeypatch):
     monkeypatch.setattr(projection, "FIRST_COMMIT_COLUMN", "reaction_id")
     with pytest.raises(ValueError, match="Reaction has a field named 'reaction_id'"):
