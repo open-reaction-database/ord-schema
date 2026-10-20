@@ -23,7 +23,6 @@ from collections.abc import Callable, Mapping
 from enum import IntEnum
 from typing import Any
 
-from dateutil import parser
 from rdkit import (
     # (RDKIT_VERSION reads better than rdkit_version)
     __version__ as RDKIT_VERSION,  # noqa: N812
@@ -39,10 +38,17 @@ logger = get_logger(__name__)
 # Record timestamps repeat across a dataset's reactions, but the distinct set is
 # small next to the identifier caches in message_helpers, so this stays modest.
 _DATETIME_CACHE_SIZE = 10_000
-# Fills the fields a partial DateTime leaves out. Fixed rather than the current date
-# so parsing is a pure function of the string and safe to memoize; a leap year so
-# "Feb 29" still parses, and naive to match what a full value produces.
-_DATETIME_DEFAULT = datetime.datetime(2000, 1, 1)  # noqa: DTZ001
+# The two shapes a DateTime may take: a date, or a time, with the UTC offset it was
+# written under where that is known. A time without one names no instant, so it is
+# ordered against other values by its date alone.
+_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_TIME = re.compile(
+    # fromisoformat reads an offset of "+00:60" as one hour, and from Python 3.14 a
+    # time of "24:00:00" as the next midnight, so both are bounded here; it rejects the
+    # other out-of-range fields itself.
+    r"\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):\d{2}:\d{2}(?:\.\d{1,6})?"
+    r"(?:Z|[+-]\d{2}:[0-5]\d)?"
+)
 
 
 @dataclasses.dataclass
@@ -1248,58 +1254,51 @@ def _validate_mass_spec_measurement_type(
 
 
 @functools.lru_cache(maxsize=_DATETIME_CACHE_SIZE)
-def _parse_date_time(value: str) -> datetime.datetime | None:
-    """Parses a DateTime value, returning None if it is unparseable.
+def parse_date_time(value: str) -> datetime.date | None:
+    """Parses a DateTime value: a date, or a time with or without its UTC offset.
+
+    The one definition of the shapes a DateTime may take: validation accepts exactly
+    the values this parses, and the artifact projection reads times through it.
 
     Memoized: a DateTime string is parsed once by this module's per-message walk
     and again by :func:`_validate_reaction_provenance` to order the timestamps,
     and record timestamps repeat across the reactions of a dataset. Caching is
-    safe here because ``datetime`` is immutable.
-
-    A partial value names only some fields ("10:30" carries no date); the rest
-    come from ``_DATETIME_DEFAULT`` rather than today, which is what makes this
-    safe to memoize. The filled-in date is arbitrary, and provenance compares
-    timestamps only against each other.
+    safe here because ``date`` and ``datetime`` are immutable.
 
     Args:
         value: The DateTime value.
 
     Returns:
-        The parsed datetime, or None if ``value`` could not be parsed.
+        A ``date`` for ``YYYY-MM-DD``; a ``datetime`` for
+        ``YYYY-MM-DDTHH:MM:SS[.ffffff]``, aware when ``Z`` or ``±HH:MM`` follows and
+        naive otherwise; or None for anything else, including a time whose UTC instant
+        falls outside the years ``datetime`` holds.
     """
     try:
-        return parser.parse(value, default=_DATETIME_DEFAULT)
-    except parser.ParserError:
-        return None
-
-
-def _parse_date_time_or_raise(value: str) -> datetime.datetime:
-    """Parses a DateTime value through the cache, raising as ``parser.parse`` does.
-
-    Lets callers that short-circuit a sequence of parses on the first bad value
-    keep doing so while still going through the cache.
-
-    Args:
-        value: The DateTime value.
-
-    Returns:
-        The parsed datetime.
-
-    Raises:
-        parser.ParserError: If ``value`` could not be parsed.
-    """
-    parsed = _parse_date_time(value)
-    if parsed is None:
-        raise parser.ParserError("Unknown string format: %s", value)
-    return parsed
+        if _DATE.fullmatch(value):
+            return datetime.date.fromisoformat(value)
+        if _TIME.fullmatch(value):
+            parsed = datetime.datetime.fromisoformat(value)
+            if parsed.utcoffset() is not None:
+                # Raises OverflowError for 0001-01-01T00:00:00+01:00, which every
+                # reader of the instant would otherwise meet instead.
+                parsed.astimezone(datetime.UTC)
+            return parsed
+    except (ValueError, OverflowError):
+        pass
+    return None
 
 
 def _validate_date_time(
     message: reaction_pb2.DateTime, context: ValidationContext
 ) -> None:
-    """Validates that a DateTime value is parseable."""
-    if message.value and _parse_date_time(message.value) is None:
-        context.error(f"Could not parse DateTime string {message.value}")
+    """Validates that a DateTime value is an ISO 8601 date or time."""
+    if message.value and parse_date_time(message.value) is None:
+        context.error(
+            f"Could not parse DateTime string {message.value}: write a date "
+            "(YYYY-MM-DD) or a time (YYYY-MM-DDTHH:MM:SS) with its UTC offset (+00:00) "
+            "where known"
+        )
 
 
 def _validate_analysis(
@@ -1310,35 +1309,67 @@ def _validate_analysis(
     _check_type_and_details(message, context)
 
 
+def _as_date(value: datetime.date) -> datetime.date:
+    """Returns a parsed DateTime's date, taking a time's date as written."""
+    return value.date() if isinstance(value, datetime.datetime) else value
+
+
+def _is_instant(value: datetime.date) -> bool:
+    """Returns whether a parsed DateTime is a time with its UTC offset."""
+    return isinstance(value, datetime.datetime) and value.utcoffset() is not None
+
+
+def _is_before(value: datetime.date, other: datetime.date) -> bool:
+    """Returns whether one parsed DateTime is before another.
+
+    Two times that both carry a UTC offset compare by the instants they name. Any
+    other pair compares by date, taking a time's date as written.
+
+    Args:
+        value: The DateTime that may come first, from :func:`parse_date_time`.
+        other: The DateTime to compare it against.
+
+    Returns:
+        True if ``value`` is before ``other``.
+    """
+    if _is_instant(value) and _is_instant(other):
+        return value < other
+    return _as_date(value) < _as_date(other)
+
+
 def _validate_reaction_provenance(
     message: reaction_pb2.ReactionProvenance, context: ValidationContext
 ) -> None:
     """Validates ReactionProvenance timestamps, emails, DOI, and URL."""
-    # Prepare datetimes
     if not message.HasField("record_created"):
         context.error("Reactions must have record_created defined")
-    experiment_start = None
-    record_created = None
-    record_modified = None
-    try:
-        if message.experiment_start.value:
-            experiment_start = _parse_date_time_or_raise(message.experiment_start.value)
-        if message.record_created.time.value:
-            record_created = _parse_date_time_or_raise(
-                message.record_created.time.value
-            )
-        for record in message.record_modified:
-            # Use the last record as the most recent modification time.
-            record_modified = _parse_date_time_or_raise(record.time.value)
-    except parser.ParserError:
+    values = [message.experiment_start.value, message.record_created.time.value]
+    if any(value and parse_date_time(value) is None for value in values) or any(
+        parse_date_time(record.time.value) is None for record in message.record_modified
+    ):
         context.warn("Failed to parse DateTime string(s)")
-    # Check signs of time differences
-    if experiment_start and record_created:
-        if (record_created - experiment_start).total_seconds() < 0:
-            context.error("Record creation time should be after experiment")
-    if record_modified and record_created:
-        if (record_modified - record_created).total_seconds() < 0:
-            context.error("Record modified time should be after creation")
+    experiment_start = parse_date_time(message.experiment_start.value)
+    record_created = parse_date_time(message.record_created.time.value)
+    # The last record is the most recent modification.
+    record_modified = (
+        parse_date_time(message.record_modified[-1].time.value)
+        if message.record_modified
+        else None
+    )
+    for earlier, later, error in (
+        (
+            experiment_start,
+            record_created,
+            "Record creation time should be after experiment",
+        ),
+        (
+            record_created,
+            record_modified,
+            "Record modified time should be after creation",
+        ),
+    ):
+        if earlier is not None and later is not None and _is_before(later, earlier):
+            context.error(error)
     if not message.record_created.person.email:
         context.error("User email is required for record_created")
     for record in message.record_modified:
