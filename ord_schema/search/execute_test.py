@@ -4869,7 +4869,7 @@ def modified_root(tmp_path_factory) -> pathlib.Path:
         root,
         "bb",
         [
-            _modified_reaction("ord-md03", "2023-01-15 09:30:00", "2023-02-01"),
+            _modified_reaction("ord-md03", "2023-01-14 09:30:00", "2023-02-01"),
             _modified_reaction("ord-md04", "2023-01-15 10:00:00"),
         ],
     )
@@ -4892,19 +4892,20 @@ def modified_corpus(request, modified_root) -> Iterator[execute.Corpus]:
 @pytest.mark.parametrize(
     ("fn", "reduce", "expected"),
     [
-        ("min", "min", {"ord_dataset-bb": datetime.datetime(2023, 1, 15, 9, 30)}),
-        ("max", "max", {"ord_dataset-aa": datetime.datetime(2024, 6, 1)}),
-        ("max", "min", {"ord_dataset-bb": datetime.datetime(2023, 1, 15, 10)}),
-        ("min", "max", {"ord_dataset-bb": datetime.datetime(2023, 1, 15, 10)}),
+        ("min", "min", {"ord_dataset-bb": datetime.date(2023, 1, 14)}),
+        ("max", "max", {"ord_dataset-aa": datetime.date(2024, 6, 1)}),
+        ("max", "min", {"ord_dataset-bb": datetime.date(2023, 1, 15)}),
+        ("min", "max", {"ord_dataset-bb": datetime.date(2023, 1, 15)}),
     ],
 )
-def test_datasets_rank_by_an_instant_reduced_from_their_reactions(
+def test_datasets_rank_by_a_day_reduced_from_their_reactions(
     modified_corpus, fn, reduce, expected
 ):
     # min of each reaction's min is when the dataset was first recorded, and max of
     # each reaction's max is when it was last edited; aa is the newest by one and not
     # the other. The mixed pairs answer differently from both, so neither the measure
-    # nor the reduction can be ignored. cc records no instant, so its NULL sorts last.
+    # nor the reduction can be ignored. cc records no day, so its NULL sorts last. Each
+    # answer is the day alone, whatever time of it the record wrote.
     table = modified_corpus.search(
         query.Query.model_validate(
             {
@@ -4923,7 +4924,7 @@ def test_datasets_rank_by_an_instant_reduced_from_their_reactions(
             }
         )
     )
-    assert table.schema.field("modified").type == pa.timestamp("us")
+    assert table.schema.field("modified").type == pa.date32()
     assert {row["dataset_id"]: row["modified"] for row in table.to_pylist()} == expected
 
 
@@ -4946,6 +4947,140 @@ def test_reactions_order_by_their_latest_modification(modified_corpus):
         "ord-md04",
         "ord-md02",
         "ord-md05",
+    ]
+
+
+def test_an_edit_on_a_day_matches_whatever_time_it_was_made(modified_corpus):
+    # md04 was edited at 10:00 that day, so only a comparison by day finds it; an
+    # instant compared against the day's midnight would find nothing. Read through the
+    # pivot and the lists alike.
+    where = {
+        "op": "exists",
+        "path": "provenance.record_modified",
+        "where": {
+            "op": "eq",
+            "path": "time.timestamp",
+            "value": {"literal": "2023-01-15"},
+        },
+    }
+    assert _search(modified_corpus, where) == {"ord-md04"}
+
+
+_CREATED = "provenance.record_created.time.timestamp"
+
+
+def _created_reaction(reaction_id, stamp) -> reaction_pb2.Reaction:
+    """A reaction whose record was created at ``stamp``."""
+    reaction = _reaction(reaction_id, components=[("CCO", _ROLE.REACTANT)])
+    reaction.provenance.record_created.time.value = stamp
+    return reaction
+
+
+@pytest.fixture(scope="module")
+def created_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
+    """Reactions on three days: three on March 1 and one a second either side.
+
+    A comparison finer than a day tells dy02, dy03, and dy04 apart; one by day cannot.
+    """
+    root = tmp_path_factory.mktemp("created")
+    _derive(
+        root,
+        "aa",
+        [
+            _created_reaction("ord-dy01", "2024-02-29 23:59:59"),
+            _created_reaction("ord-dy02", "2024-03-01 00:00:00"),
+            _created_reaction("ord-dy03", "2024-03-01 12:30:00"),
+            _created_reaction("ord-dy04", "2024-03-01T23:59:59"),
+            _created_reaction("ord-dy05", "2024-03-02 00:00:00"),
+        ],
+    )
+    with execute.Corpus(
+        str(root / "projections" / "*.parquet"),
+        str(root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        yield value
+
+
+@pytest.mark.parametrize(
+    ("op", "expected"),
+    [
+        ("eq", {"ord-dy02", "ord-dy03", "ord-dy04"}),
+        ("ne", {"ord-dy01", "ord-dy05"}),
+        ("lt", {"ord-dy01"}),
+        ("le", {"ord-dy01", "ord-dy02", "ord-dy03", "ord-dy04"}),
+        ("gt", {"ord-dy05"}),
+        ("ge", {"ord-dy02", "ord-dy03", "ord-dy04", "ord-dy05"}),
+    ],
+)
+def test_a_timestamp_compares_by_day(created_corpus, op, expected):
+    # eq takes every time on the day, le takes the whole day in, and gt leaves it all
+    # out. Compared as instants against the day's midnight, eq would find dy02 alone and
+    # le would stop there, with gt taking in the rest of the day.
+    where = {"op": op, "path": _CREATED, "value": {"literal": "2024-03-01"}}
+    assert _search(created_corpus, where) == expected
+
+
+def test_a_search_refuses_a_literal_carrying_a_time(created_corpus):
+    where = {"op": "le", "path": _CREATED, "value": {"literal": "2024-03-01T12:00:00"}}
+    with pytest.raises(query.QueryError, match="timestamps compare by day"):
+        _search(created_corpus, where)
+
+
+def test_reactions_group_by_the_day_they_were_created(created_corpus):
+    table = created_corpus.search(
+        query.Query.model_validate(
+            {
+                "aggregate": {
+                    "group_by": [_CREATED],
+                    "measures": [{"fn": "count", "name": "reactions"}],
+                }
+            }
+        )
+    )
+    assert table.schema.field(_CREATED).type == pa.date32()
+    assert {row[_CREATED]: row["reactions"] for row in table.to_pylist()} == {
+        datetime.date(2024, 2, 29): 1,
+        datetime.date(2024, 3, 1): 3,
+        datetime.date(2024, 3, 2): 1,
+    }
+
+
+@pytest.mark.parametrize(
+    ("fn", "expected"),
+    [
+        ("min", datetime.date(2024, 2, 29)),
+        ("max", datetime.date(2024, 3, 2)),
+        ("count_distinct", 3),
+    ],
+)
+def test_measures_over_a_timestamp_read_its_day(created_corpus, fn, expected):
+    # Five instants, three days: a distinct count counts the days.
+    table = _measured(created_corpus, {"fn": fn, "path": _CREATED})
+    if fn != "count_distinct":
+        assert table.schema.field("measured").type == pa.date32()
+    assert table.column("measured").to_pylist() == [expected]
+
+
+def test_reactions_order_by_the_day_they_were_created(created_corpus):
+    # Ties within a day fall to the second key, which an ordering by instant would never
+    # reach: by instant, descending, dy04 would lead March 1 rather than trail it.
+    table = created_corpus.search(
+        query.Query.model_validate(
+            {
+                "order_by": [
+                    {"key": _CREATED, "descending": True},
+                    {"key": "reaction_id"},
+                ]
+            }
+        )
+    )
+    assert table.column("reaction_id").to_pylist() == [
+        "ord-dy05",
+        "ord-dy02",
+        "ord-dy03",
+        "ord-dy04",
+        "ord-dy01",
     ]
 
 

@@ -30,6 +30,16 @@ def test_scalars():
     assert rendered == "reaction_id: VARCHAR\nn: BIGINT"
 
 
+def test_a_timestamp_is_described_as_the_date_a_query_reads():
+    # The compiler reads every timestamp as its day, so a model told TIMESTAMP would
+    # write times the compiler refuses.
+    rendered = schema.describe(pa.schema([pa.field("when", pa.timestamp("us"))]))
+    assert rendered == "when: DATE"
+    assert query.resolve(
+        "when", schema=pa.schema([("when", pa.timestamp("us"))])
+    ).type == (pa.date32())
+
+
 def test_struct_children_are_indented():
     rendered = schema.describe(
         pa.schema(

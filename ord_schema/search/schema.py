@@ -43,7 +43,9 @@ from ord_schema.search import query
 
 # Arrow leaf types the projection can hold, in DuckDB's names. Deliberately not a
 # fallback to ``str(dtype)``: a type the projection gains later should surface here as a
-# KeyError rather than reach a prompt as an Arrow spelling no DuckDB query can use.
+# KeyError rather than reach a prompt as an Arrow spelling no DuckDB query can use. A
+# timestamp is named DATE because that is what a query reads it as: ``query.resolve``
+# casts it to its day, and a literal carrying a time is refused.
 _SCALARS: dict[pa.DataType, str] = {
     pa.string(): "VARCHAR",
     pa.binary(): "BLOB",
@@ -54,7 +56,7 @@ _SCALARS: dict[pa.DataType, str] = {
     pa.int64(): "BIGINT",
     pa.uint32(): "UINTEGER",
     pa.uint64(): "UBIGINT",
-    pa.timestamp("us"): "TIMESTAMP",
+    pa.timestamp("us"): "DATE",
 }
 
 _INDENT = "  "

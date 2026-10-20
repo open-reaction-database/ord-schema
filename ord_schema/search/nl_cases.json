@@ -1001,7 +1001,7 @@
   },
   {
     "question": "how many reactions were recorded in each year?",
-    "why": "a group_by names a column and nothing truncates a timestamp to its year, so grouping by the raw timestamp returns one group per instant rather than per year",
+    "why": "a group_by names a column and nothing truncates a timestamp to its year, so grouping by the raw timestamp returns one group per day rather than per year",
     "compiles": false
   },
   {

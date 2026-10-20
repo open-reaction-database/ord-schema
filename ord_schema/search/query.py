@@ -102,9 +102,8 @@ DATASET_ID = "dataset_id"
 # and compile_query() resolve paths against, and what schema.describe() tells a model.
 SCHEMA = projection.SCHEMA.append(pa.field(DATASET_ID, pa.string()))
 
-# A literal as the caller binds it: one of the grammar's scalars, or the instant a
-# string names where it is compared against a date or timestamp column. ``datetime`` is
-# a ``date``, so both kinds of instant are covered.
+# A literal as the caller binds it: one of the grammar's scalars, or the day a string
+# names where it is compared against a date or timestamp column.
 BoundValue = bool | int | float | str | datetime.date
 
 
@@ -176,25 +175,29 @@ def _is_numeric(leaf: pa.DataType) -> bool:
 
 
 def _is_temporal(leaf: pa.DataType) -> bool:
-    """Returns whether ``leaf`` holds an instant or a day rather than a number."""
-    return pa.types.is_timestamp(leaf) or pa.types.is_date(leaf)
+    """Returns whether ``leaf`` holds a day rather than a number.
+
+    A timestamp does not count: ``resolve`` reads each one as its day, so one reaching
+    a check here skipped that cast, and is refused rather than compared finer than a
+    day.
+    """
+    return pa.types.is_date(leaf)
 
 
-def _parsed_instant(literal: str) -> datetime.datetime | None:
-    """Returns the instant an ISO literal names, or None where it is not one.
+def _parsed_day(literal: str) -> datetime.date | None:
+    """Returns the day a ``YYYY-MM-DD`` literal names, or None where it names none.
 
     Args:
         literal: The string the query compares a temporal column against.
 
     Returns:
-        The parsed value, with a bare date reading as that day's midnight so a query
-        for a day compares against the first instant of it. Aware where the literal
-        carries an offset, which the caller refuses rather than compares against a
-        column holding no zone. None where the string is not ISO 8601, refused the same
-        way.
+        The day. None for any other spelling, a time of day or an offset after the
+        date included, since a temporal column compares by day.
     """
+    if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", literal):
+        return None
     try:
-        return datetime.datetime.fromisoformat(literal)
+        return datetime.date.fromisoformat(literal)
     except ValueError:
         return None
 
@@ -312,8 +315,8 @@ class Compiled:
     against ``Query.limit`` learns whether the answer was cut short.
 
     ``literals`` maps a parameter name to the value the caller binds under it, already
-    typed: an instant compared against a date or timestamp column is a ``date`` or a
-    ``datetime`` rather than its spelling. No literal reaches ``sql`` as text.
+    typed: a day compared against a date or timestamp column is a ``date`` rather than
+    its spelling. No literal reaches ``sql`` as text.
     """
 
     sql: str
@@ -409,6 +412,12 @@ def resolve(
     elements beneath it, so the caller can tell a scalar it may compare from a level it
     must quantify over.
 
+    A timestamp resolves to its day, cast to ``DATE`` and typed as one, so every clause
+    reading it -- a comparison, a reduction, a measure, a group, an ordering -- works
+    by day. Each timestamp is the wall clock its source wrote, with no zone beside it,
+    and sources write in many zones, so comparing them finer than a day would order
+    times that were never on one clock.
+
     Args:
         path: Dotted column path, e.g. ``conditions.temperature.setpoint_kelvin``.
         schema: Schema or struct type to resolve within.
@@ -417,7 +426,8 @@ def resolve(
             ``structure_id`` this way; a model-supplied path never sets it.
 
     Returns:
-        The DuckDB expression, whether it evaluates to a list, and the type it reaches.
+        The DuckDB expression, whether it evaluates to a list, and the type it reaches:
+        ``date32`` where that is a timestamp.
 
     Raises:
         QueryError: If the path is empty or names a field the schema does not hold.
@@ -447,6 +457,9 @@ def resolve(
             repeated, current = True, inner.value_type
         else:
             current = inner
+    if pa.types.is_timestamp(current):
+        expression = f"CAST({expression} AS {'DATE[]' if repeated else 'DATE'})"
+        current = pa.date32()
     return _Resolved(expression or "", repeated, current)
 
 
@@ -851,11 +864,11 @@ _DISTINCT_COUNT = "coalesce(len(list_distinct({expression})), 0)"
 _REDUCTION_ALIAS = "r0"
 
 # Reducers and aggregates whose values must be numbers, or for ``_EXTREMA`` numbers or
-# instants; see ``_check_combinable``. A sum over text is a DuckDB error rather than an
+# days; see ``_check_combinable``. A sum over text is a DuckDB error rather than an
 # answer, so it is refused where the query is compiled rather than where it runs.
 _ARITHMETIC = frozenset({"min", "max", "avg", "sum"})
 
-# The ones among them that only compare their values, so an instant serves as well as a
+# The ones among them that only compare their values, so a day serves as well as a
 # number: when a dataset was first recorded is a ``min`` over its records.
 _EXTREMA = frozenset({"min", "max"})
 
@@ -1007,17 +1020,16 @@ def _literal(
         The SQL operand: a ``$``-parameter, never the value itself.
 
     Raises:
-        QueryError: If a string compared against a temporal column names no instant.
+        QueryError: If a string compared against a temporal column names no day.
     """
     bound: BoundValue = value.literal
     if isinstance(bound, str) and leaf is not None and _is_temporal(leaf):
-        # Bound as an instant rather than as its spelling, so the comparison is between
-        # instants. A string beside a TIMESTAMP casts in DuckDB, but the same string
-        # beside a DATE compares as text and answers by spelling.
-        instant = _parsed_instant(bound)
-        if instant is None:
-            raise QueryError(f"{bound!r} is not an ISO 8601 date or timestamp")
-        bound = instant.date() if pa.types.is_date(leaf) else instant
+        # Bound as a day rather than as its spelling: a string beside a DATE compares
+        # as text in DuckDB and answers by spelling.
+        day = _parsed_day(bound)
+        if day is None:
+            raise QueryError(f"{bound!r} is not an ISO 8601 date, YYYY-MM-DD")
+        bound = day
     return f"${parameters.bind(bound)}"
 
 
@@ -1041,21 +1053,17 @@ def _check_operand(node: Comparison, resolved: _Resolved) -> None:
     literal = node.value.literal
     if isinstance(literal, str) and _is_temporal(leaf):
         # Parsed here rather than left to _literal, so the path is in the message.
-        instant = _parsed_instant(literal)
-        if instant is None:
+        if _parsed_day(literal) is None:
+            if _parsed_day(literal[:10]) is not None and literal[10:11] in ("T", " "):
+                # Refused rather than read as its day, which would answer a question
+                # about a moment with every reaction that day.
+                raise QueryError(
+                    f"{node.path}: timestamps compare by day, and {literal!r} carries "
+                    "a time; write the date alone, as YYYY-MM-DD"
+                )
             raise QueryError(
                 f"{node.path}: holds {leaf}, compared against {literal!r}, which is "
-                "not an ISO 8601 date or timestamp"
-            )
-        if instant.tzinfo is not None:
-            # The column holds no zone, because no shape the projection reads carries
-            # one: a value that does is left unparsed rather than read as a wall clock.
-            # DuckDB drops the offset from a TIMESTAMP literal rather than shifting by
-            # it, so accepting one here would compare the caller's wall clock while
-            # reading as though it compared their instant.
-            raise QueryError(
-                f"{node.path}: holds {leaf}, which records no time zone, and "
-                f"{literal!r} carries an offset; give the instant without one"
+                "not an ISO 8601 date, YYYY-MM-DD"
             )
     elif isinstance(literal, str) and not pa.types.is_string(leaf):
         raise QueryError(f"{node.path}: holds {leaf}, compared against a string")
@@ -1620,7 +1628,7 @@ def _scalar(
 def _check_combinable(path: str, leaf: pa.DataType, what: str) -> None:
     """Raises unless a leaf holds values the reducer or aggregate can combine.
 
-    ``min`` and ``max`` take numbers and instants; ``sum`` and ``avg`` are arithmetic,
+    ``min`` and ``max`` take numbers and days; ``sum`` and ``avg`` are arithmetic,
     which the grammar keeps to numbers.
 
     Args:
@@ -1629,8 +1637,8 @@ def _check_combinable(path: str, leaf: pa.DataType, what: str) -> None:
         what: The reducer or aggregate asking, named in the message.
 
     Raises:
-        QueryError: If the leaf is not a number, nor for ``min`` and ``max`` a date
-            or timestamp.
+        QueryError: If the leaf is not a number, nor for ``min`` and ``max`` a date,
+            which is what a timestamp resolves to.
     """
     if _is_numeric(leaf):
         return
@@ -1687,6 +1695,26 @@ def _reduced_element(reduction: Reduction) -> tuple[Any, tuple[str, ...], Any]:
     return level, remainder, level.element_type
 
 
+def _descended(element: str, element_type: Any, remainder: tuple[str, ...]) -> str:
+    """Returns the expression reaching a reduced value from the element bound to it.
+
+    Resolved as any other path is, so a timestamp it reaches is read as its day here
+    too.
+
+    Args:
+        element: The bound element, or the expression reading it.
+        element_type: That element's type.
+        remainder: The segments from the element down to the value; none where the
+            value is the element itself.
+
+    Returns:
+        The DuckDB expression.
+    """
+    if not remainder:
+        return element
+    return resolve(".".join(remainder), schema=element_type, root=element).expression
+
+
 def _pivoted_reduction(
     reduction: Reduction,
     table: str,
@@ -1721,7 +1749,9 @@ def _pivoted_reduction(
     relation = routing.pivot(level.path)
     if relation is None:
         return None
-    column = ".".join([_REDUCTION_ALIAS, pivot_levels.ELEMENT, *remainder])
+    column = _descended(
+        f"{_REDUCTION_ALIAS}.{pivot_levels.ELEMENT}", level.element_type, remainder
+    )
     condition = (
         f"{_REDUCTION_ALIAS}.{pivot_levels.REACTION_ID} = "
         f"{table}.{pivot_levels.REACTION_ID}"
@@ -1770,9 +1800,11 @@ def _filtered_elements(
         routing,
     )
     expression = f"list_filter({elements.expression}, {_REDUCTION_ALIAS} -> {body})"
-    for segment in remainder:
-        expression = f"list_transform({expression}, x -> x.{segment})"
-    return expression
+    if not remainder:
+        return expression
+    return (
+        f"list_transform({expression}, x -> {_descended('x', element_type, remainder)})"
+    )
 
 
 def _reduced(
@@ -1849,8 +1881,8 @@ def _reduced_type(reduction: Reduction, schema: pa.Schema) -> pa.DataType:
     Returns:
         An integer for a ``count``, whatever it counts, and for a ``sum`` of integers;
         a double for an ``avg`` and for a ``sum`` of floating-point values; and the
-        leaf's own type for a ``min`` or ``max``, which is an instant where the leaf
-        is one.
+        leaf's resolved type for a ``min`` or ``max``, which is a date where the leaf
+        is a date or a timestamp.
     """
     if reduction.reduce == "count":
         return pa.int64()
@@ -1905,7 +1937,7 @@ def _measure(
         )
         reduced = _reduced_type(measure.path, schema)
         if measure.fn in _ARITHMETIC:
-            # A min of instants is an instant, which a sum over reactions cannot add.
+            # A min of days is a day, which a sum over reactions cannot add.
             _check_combinable(measure.path.path, reduced, measure.fn)
         integers = pa.types.is_integer(reduced)
     elif element is not None and measure.path == pivot_levels.REACTION_ID:

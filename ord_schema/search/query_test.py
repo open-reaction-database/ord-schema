@@ -282,8 +282,8 @@ _DATES = pa.schema([pa.field("reaction_id", pa.string()), pa.field("day", pa.dat
         ("conditions.conditions_are_dynamic", True, True, projection.SCHEMA),
         (
             "provenance.record_created.time.timestamp",
-            "2025-01-01T12:30:00",
-            datetime.datetime(2025, 1, 1, 12, 30),
+            "2025-01-01",
+            datetime.date(2025, 1, 1),
             projection.SCHEMA,
         ),
         ("day", "2025-01-01", datetime.date(2025, 1, 1), _DATES),
@@ -292,7 +292,7 @@ _DATES = pa.schema([pa.field("reaction_id", pa.string()), pa.field("day", pa.dat
 def test_every_literal_is_bound_as_a_value_of_its_own_type(
     path, literal, bound, schema
 ):
-    # A number, a boolean, or an instant spelled into the SQL is one more place the
+    # A number, a boolean, or a day spelled into the SQL is one more place the
     # model's input becomes the statement's text; bound, it never is.
     compiled = query.compile_query(
         query.Query.model_validate(
@@ -956,25 +956,25 @@ _MODIFIED = "provenance.record_modified.time.timestamp"
         {"fn": "max", "path": {"reduce": "min", "path": _MODIFIED}},
     ],
 )
-def test_the_least_or_greatest_instant_comes_back_as_a_timestamp(measure):
-    assert _measured_type(measure) == pa.timestamp("us")
+def test_the_least_or_greatest_timestamp_comes_back_as_a_date(measure):
+    assert _measured_type(measure) == pa.date32()
 
 
 @pytest.mark.parametrize("fn", ["sum", "avg"])
 @pytest.mark.parametrize(
     "path", [_CREATED, {"reduce": "min", "path": _MODIFIED}], ids=["scalar", "reduced"]
 )
-def test_adding_instants_in_a_measure_is_refused(fn, path):
-    # min and max only compare their values, which instants support; sum and avg are
+def test_adding_days_in_a_measure_is_refused(fn, path):
+    # min and max only compare their values, which days support; sum and avg are
     # arithmetic, which the grammar keeps to numbers.
-    with pytest.raises(query.QueryError, match="needs a numeric column, not timestamp"):
+    with pytest.raises(query.QueryError, match="needs a numeric column, not date32"):
         _compile(
             {"aggregate": {"measures": [{"fn": fn, "path": path, "name": "measured"}]}}
         )
 
 
 @pytest.mark.parametrize("reducer", ["sum", "avg"])
-def test_adding_instants_in_a_reduction_is_refused(reducer):
+def test_adding_days_in_a_reduction_is_refused(reducer):
     with pytest.raises(
         query.QueryError, match=f"{_MODIFIED}: {reducer} needs a numeric column"
     ):
@@ -982,7 +982,7 @@ def test_adding_instants_in_a_reduction_is_refused(reducer):
 
 
 @pytest.mark.parametrize("reducer", ["min", "max"])
-def test_ordering_by_a_reduced_instant_runs(reducer):
+def test_ordering_by_a_reduced_timestamp_runs(reducer):
     compiled = _compile(
         {
             "order_by": [
@@ -995,13 +995,13 @@ def test_ordering_by_a_reduced_instant_runs(reducer):
 
 
 @pytest.mark.parametrize("reducer", ["min", "max"])
-def test_a_reduced_instant_reads_the_pivot_where_one_covers_its_level(reducer):
+def test_a_reduced_timestamp_reads_the_pivot_where_one_covers_its_level(reducer):
     sql = _pivot_sql(
         {"order_by": [{"key": {"reduce": reducer, "path": _MODIFIED}}]},
         pivot=_every_level,
     )
     assert f"list_{reducer}(" not in sql
-    assert f"(SELECT {reducer}(r0.element.time.timestamp) " in sql
+    assert f"(SELECT {reducer}(CAST(r0.element.time.timestamp AS DATE)) " in sql
     assert (
         "FROM pivot_provenance_record_modified AS r0 "
         "WHERE r0.reaction_id = reactions.reaction_id)"
@@ -1159,36 +1159,41 @@ def test_a_recorded_date_is_answered_by_its_timestamp_not_its_spelling(path):
     # of what it asks for and reads as if it found all of it.
     with pytest.raises(query.QueryError, match="internal"):
         query.resolve(path)
-    assert query.resolve(path.replace(".value", ".timestamp")).type == pa.timestamp(
-        "us"
-    )
+    assert query.resolve(path.replace(".value", ".timestamp")).type == pa.date32()
 
 
 _WHEN = "provenance.record_created.time.timestamp"
+_DAY_OF = f"CAST({_WHEN} AS DATE)"
 
 
 @pytest.mark.parametrize(
     ("op", "literal", "expected"),
     [
-        ("ge", "2025-01-01", datetime.datetime(2025, 1, 1)),
-        ("lt", "2026-01-01", datetime.datetime(2026, 1, 1)),
-        ("ge", "2025-01-01 12:30:00", datetime.datetime(2025, 1, 1, 12, 30)),
-        ("eq", "2025-01-01T12:30:00", datetime.datetime(2025, 1, 1, 12, 30)),
+        ("ge", "2025-01-01", datetime.date(2025, 1, 1)),
+        ("lt", "2026-01-01", datetime.date(2026, 1, 1)),
+        ("eq", "2025-01-01", datetime.date(2025, 1, 1)),
     ],
 )
-def test_a_timestamp_compares_against_an_iso_literal(op, literal, expected):
-    # Bound as an instant rather than as its spelling: a bare date reads as that day's
-    # midnight, so asking for a year is a pair of comparisons rather than a text match.
+def test_a_timestamp_compares_by_day_against_a_date_literal(op, literal, expected):
+    # Both sides are days: the column is cast to its date and the literal binds as one,
+    # so asking for a day matches every time on it.
     compiled = _compile(
         {"where": {"op": op, "path": _WHEN, "value": {"literal": literal}}}
     )
     assert compiled.literals == {"literal_0": expected}
+    assert f"{_DAY_OF} {query._COMPARISONS[op]} $literal_0" in compiled.sql
+    assert _run(compiled) == []
+
+
+def test_a_null_check_on_a_timestamp_runs():
+    compiled = _compile({"where": {"op": "is_null", "path": _WHEN}})
+    assert f"{_DAY_OF} IS NULL" in compiled.sql
     assert _run(compiled) == []
 
 
 def test_a_date_column_compares_as_a_date_not_as_text():
-    # A string beside a TIMESTAMP casts in DuckDB, but beside a DATE it compares as
-    # text and answers by spelling, so the literal binds as a date either way.
+    # A string beside a DATE compares as text in DuckDB and answers by spelling, so the
+    # literal binds as a date.
     compiled = query.compile_query(
         query.Query.model_validate(
             {"where": {"op": "ge", "path": "day", "value": {"literal": "2025-01-01"}}}
@@ -1216,22 +1221,143 @@ def test_a_date_column_compares_as_a_date_not_as_text():
 
 
 @pytest.mark.parametrize(
-    "literal", ["2025-01-01T12:30:00+05:00", "2025-01-01T12:30:00Z"]
+    "literal",
+    [
+        "2025-01-01T12:30:00",
+        "2025-01-01 12:30:00",
+        "2025-01-01T00:00:00",
+        "2025-01-01T12:30:00.250000",
+        "2025-01-01T12:30:00+05:00",
+        "2025-01-01T12:30:00Z",
+    ],
 )
-def test_a_literal_carrying_an_offset_is_refused(literal):
-    # The column records no zone, because no shape the projection reads carries one --
-    # a value that does is left unparsed rather than read as a wall clock. DuckDB drops
-    # the offset from a TIMESTAMP literal rather than shifting by it, so accepting one
-    # would compare the caller's wall clock while reading as though it compared their
-    # instant.
-    with pytest.raises(query.QueryError, match="records no time zone"):
-        _compile({"where": {"op": "ge", "path": _WHEN, "value": {"literal": literal}}})
+@pytest.mark.parametrize(
+    ("path", "schema"),
+    [(_WHEN, query.SCHEMA), ("day", _DATES)],
+    ids=["timestamp", "date"],
+)
+def test_a_literal_carrying_a_time_is_refused(literal, path, schema):
+    # Read as its day, a time would answer for every reaction on that day while reading
+    # as an answer about the moment it names; midnight is refused as well, since the
+    # literal still says more than the column can compare.
+    with pytest.raises(
+        query.QueryError,
+        match=rf"{path}: timestamps compare by day, .* carries a time; write the date",
+    ):
+        query.compile_query(
+            query.Query.model_validate(
+                {"where": {"op": "ge", "path": path, "value": {"literal": literal}}}
+            ),
+            schema=schema,
+        )
 
 
-@pytest.mark.parametrize("literal", ["last tuesday", "2025-13-45", ""])
+@pytest.mark.parametrize(
+    "literal",
+    [
+        "last tuesday",
+        "2025-13-45",
+        "",
+        "20250101",
+        "2025-W01-3",
+        "2025-001",
+        "2025-1-1",
+    ],
+)
 def test_a_literal_that_is_not_a_date_is_refused_where_it_compiles(literal):
-    with pytest.raises(query.QueryError, match="not an ISO 8601 date or timestamp"):
+    # Python reads the compact and week spellings as ISO dates too; only YYYY-MM-DD is
+    # accepted, the one spelling the prompt teaches.
+    with pytest.raises(query.QueryError, match="not an ISO 8601 date, YYYY-MM-DD"):
         _compile({"where": {"op": "ge", "path": _WHEN, "value": {"literal": literal}}})
+
+
+@pytest.mark.parametrize("pivoted", [False, True], ids=["lists", "pivot"])
+def test_a_timestamp_inside_a_quantifier_compares_by_day(pivoted):
+    compiled = _compile(
+        {
+            "where": {
+                "op": "exists",
+                "path": "provenance.record_modified",
+                "where": {
+                    "op": "eq",
+                    "path": "time.timestamp",
+                    "value": {"literal": "2023-01-15"},
+                },
+            }
+        },
+        pivot=_every_level if pivoted else None,
+    )
+    variable = "x0.element" if pivoted else "e0"
+    assert f"CAST({variable}.time.timestamp AS DATE) = $literal_0" in compiled.sql
+    assert compiled.literals == {"literal_0": datetime.date(2023, 1, 15)}
+
+
+def test_grouping_by_a_timestamp_groups_by_day():
+    compiled = _compile(
+        {
+            "aggregate": {
+                "group_by": [_WHEN],
+                "measures": [{"fn": "count", "name": "reactions"}],
+            }
+        }
+    )
+    assert f'SELECT {_DAY_OF} AS "{_WHEN}"' in compiled.sql
+    connection = duckdb.connect()
+    connection.register(query.TABLE, query.SCHEMA.empty_table())
+    try:
+        table = connection.execute(compiled.sql).to_arrow_table()
+    finally:
+        connection.close()
+    assert table.schema.field(_WHEN).type == pa.date32()
+
+
+@pytest.mark.parametrize("grouped", [False, True])
+def test_ordering_by_a_timestamp_orders_by_day(grouped):
+    body: dict = {"order_by": [{"key": _WHEN, "descending": True}]}
+    if grouped:
+        body["aggregate"] = {
+            "group_by": [_WHEN],
+            "measures": [{"fn": "count", "name": "reactions"}],
+        }
+    compiled = _compile(body)
+    assert compiled.sql.endswith(f"ORDER BY {_DAY_OF} DESC")
+    assert _run(compiled) == []
+
+
+def test_counting_distinct_timestamps_counts_days():
+    compiled = _compile(
+        {
+            "aggregate": {
+                "measures": [{"fn": "count_distinct", "path": _WHEN, "name": "days"}]
+            }
+        }
+    )
+    assert f"count(DISTINCT {_DAY_OF})" in compiled.sql
+
+
+def test_a_reduced_timestamp_reads_each_element_as_its_day():
+    compiled = _compile({"order_by": [{"key": {"reduce": "max", "path": _MODIFIED}}]})
+    assert "ORDER BY list_max(CAST(list_transform(" in compiled.sql
+    assert compiled.sql.endswith("x -> x.timestamp) AS DATE[]))")
+    assert _run(compiled) == []
+
+
+_EDITED_FOR_A_FIX = {
+    "reduce": "max",
+    "path": _MODIFIED,
+    "where": {"op": "contains", "path": "details", "value": {"literal": "fix"}},
+}
+
+
+def test_a_filtered_reduction_over_the_lists_reads_each_timestamp_as_its_day():
+    compiled = _compile({"order_by": [{"key": _EDITED_FOR_A_FIX}]})
+    assert "x -> CAST(x.time.timestamp AS DATE)))" in compiled.sql
+    assert _run(compiled) == []
+
+
+def test_a_filtered_reduction_over_a_pivot_reads_each_timestamp_as_its_day():
+    sql = _pivot_sql({"order_by": [{"key": _EDITED_FOR_A_FIX}]}, pivot=_every_level)
+    assert "(SELECT max(CAST(r0.element.time.timestamp AS DATE)) " in sql
 
 
 def test_an_ordered_comparison_still_refuses_text():
@@ -2341,7 +2467,7 @@ def test_arithmetic_over_reaction_id_across_a_level_is_refused(fn):
 
 
 @pytest.mark.parametrize("fn", ["min", "max"])
-def test_the_extreme_instant_over_a_level_reads_the_element(fn):
+def test_the_extreme_day_over_a_level_reads_the_element(fn):
     # Over a level the measure's path is relative to the element, so the timestamp is
     # checked against the element's type rather than the reaction's.
     sql = _over(
@@ -2352,11 +2478,11 @@ def test_the_extreme_instant_over_a_level_reads_the_element(fn):
             }
         }
     )
-    assert f'{fn}(x0.element.time.timestamp) AS "edited"' in sql
+    assert f'{fn}(CAST(x0.element.time.timestamp AS DATE)) AS "edited"' in sql
 
 
 @pytest.mark.parametrize("fn", ["sum", "avg"])
-def test_adding_instants_over_a_level_is_refused(fn):
+def test_adding_days_over_a_level_is_refused(fn):
     body = {
         "aggregate": {
             "over": "provenance.record_modified",
