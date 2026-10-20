@@ -122,8 +122,17 @@ is a compile error rather than a wrong answer:
 - `avg` and `sum` need a numeric column, whether they reduce a repeated path or aggregate a
   scalar one, and so does a measure reading a reduction: a `sum` over each reaction's `min`
   of a timestamp is refused. `min` and `max` take a date or timestamp column too, and answer
-  the earliest or latest instant. `count` takes any. Arithmetic over text is refused where
+  the earliest or latest day. `count` takes any. Arithmetic over text is refused where
   the query is compiled rather than left to fail where it runs.
+- A timestamp compares **by day**. Each one is the wall clock its source wrote, in whatever
+  zone it wrote it: `utc_offset_minutes` beside it names that zone only where the record did,
+  and sources write in many zones, so comparing them finer than a day would order times that
+  were never on one clock. The compiler casts every timestamp to its `DATE` wherever it
+  enters the SQL — a comparison, a reduction, a measure, a `group_by`, an ordering — so `eq`
+  matches every time on the day and a group is a day; the schema the model sees names these
+  columns `DATE`. A literal compared against one is `YYYY-MM-DD` and nothing else. One
+  carrying a time, or an offset after it, is refused rather than read as its day, which
+  would answer a question about a moment with every reaction that day.
 - A structure predicate's `compound` is resolved through
   [`ord_schema.resolvers`](../resolvers.py) when the query runs, so the model names compounds
   and never spells structures. The name goes to the resolver and never reaches the SQL, so it
@@ -136,7 +145,7 @@ is a compile error rather than a wrong answer:
   tautomer or protonation state and need not agree across RDKit releases. A
   `{"compound": ...}` value is refused with a message pointing to `same_compound`.
 - A `{"literal": ...}` value is **bound as a parameter**, typed: a string compared against a
-  date or timestamp column binds as the instant it names. No literal reaches the SQL as text.
+  date or timestamp column binds as the day it names. No literal reaches the SQL as text.
   What the model writes that does is the `limit`, validated as a positive integer, measure
   names, held to an identifier shape and quoted so that `order` or `true` is a name rather
   than a keyword, and each `group_by` path, quoted as its column's name once it has resolved
