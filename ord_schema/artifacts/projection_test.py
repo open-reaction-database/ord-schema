@@ -756,12 +756,23 @@ def test_a_time_without_an_offset_projects_as_written(value, expected):
         "2024-07-06T23:25:41",
         "2024-07-06T23:25:41Z",
         "2024-07-06T23:25:41.5-05:00",
+        # The ends of the range datetime holds in UTC.
+        "0001-01-01T01:00:00+01:00",
+        "9999-12-31T18:59:59.999999-05:00",
     ],
 )
 def test_every_value_validation_accepts_has_a_timestamp(value):
     message = reaction_pb2.DateTime(value=value)
     assert not validations.validate_message(message, raise_on_error=False).errors
     assert projection.parse_timestamp(value) is not None
+
+
+@pytest.mark.parametrize(
+    "value", ["0001-01-01T00:00:00+01:00", "9999-12-31T23:00:00-05:00"]
+)
+def test_an_instant_outside_the_utc_range_is_null(value):
+    # Rather than an OverflowError that would stop the dataset's projection.
+    assert projection.parse_timestamp(value) is None
 
 
 def test_an_unambiguous_slash_date_needs_no_convention():

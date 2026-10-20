@@ -1267,6 +1267,9 @@ def test_bad_datetime():
         "2024-07-06T24:00:00Z",
         " 2024-07-06",
         "2024-07-06T23:25:41 ",
+        # Instants outside the years datetime holds once read in UTC.
+        "0001-01-01T00:00:00+01:00",
+        "9999-12-31T23:00:00-05:00",
     ],
 )
 def test_datetime_must_be_an_iso_date_or_time(value):
@@ -1286,9 +1289,13 @@ def test_datetime_must_be_an_iso_date_or_time(value):
         "2024-07-06T23:25:41+00:00",
         "2024-07-06T23:25:41.780701-05:00",
         "2024-07-06T23:25:41.5+05:30",
+        # The first and last instants datetime holds in UTC.
+        "0001-01-01T01:00:00+01:00",
+        "9999-12-31T18:59:59.999999-05:00",
         # Times whose zone was never recorded.
         "2024-07-06T23:25:41",
         "2024-07-06T23:25:41.780701",
+        "0001-01-01T00:00:00",
     ],
 )
 def test_datetime_iso_date_or_time(value):

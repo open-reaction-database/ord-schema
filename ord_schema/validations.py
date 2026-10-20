@@ -1271,14 +1271,20 @@ def parse_date_time(value: str) -> datetime.date | None:
     Returns:
         A ``date`` for ``YYYY-MM-DD``; a ``datetime`` for
         ``YYYY-MM-DDTHH:MM:SS[.ffffff]``, aware when ``Z`` or ``±HH:MM`` follows and
-        naive otherwise; or None for anything else.
+        naive otherwise; or None for anything else, including a time whose UTC instant
+        falls outside the years ``datetime`` holds.
     """
     try:
         if _DATE.fullmatch(value):
             return datetime.date.fromisoformat(value)
         if _TIME.fullmatch(value):
-            return datetime.datetime.fromisoformat(value)
-    except ValueError:
+            parsed = datetime.datetime.fromisoformat(value)
+            if parsed.utcoffset() is not None:
+                # Raises OverflowError for 0001-01-01T00:00:00+01:00, which every
+                # reader of the instant would otherwise meet instead.
+                parsed.astimezone(datetime.UTC)
+            return parsed
+    except (ValueError, OverflowError):
         pass
     return None
 

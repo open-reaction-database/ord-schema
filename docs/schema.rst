@@ -375,7 +375,8 @@ DateTime
   an optional fraction of one to six digits.
   A time should be followed by the UTC offset it was written under, ``Z`` or
   ``±HH:MM``, wherever that is known. One without an offset names no instant, so it
-  is ordered by its date alone.
+  is ordered by its date alone. One with an offset must fall within years 1 to 9999
+  once read in UTC.
 
 ElectrochemistryCell
 ====================
