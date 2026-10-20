@@ -1290,8 +1290,8 @@ def _validate_date_time(
     if message.value and parse_date_time(message.value) is None:
         context.error(
             f"Could not parse DateTime string {message.value}: write a date "
-            "(YYYY-MM-DD) or a time (YYYY-MM-DDTHH:MM:SS), followed by its UTC offset "
-            "(+00:00) where known"
+            "(YYYY-MM-DD) or a time (YYYY-MM-DDTHH:MM:SS) with its UTC offset (+00:00) "
+            "where known"
         )
 
 
