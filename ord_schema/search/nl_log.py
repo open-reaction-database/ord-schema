@@ -25,12 +25,12 @@ times, and folding them onto one mutable row would lose which was which on the d
 label contradicts a thumb.
 
 A record is a *typed envelope around an opaque payload*. Identifiers, outcome, usage,
-timings, and fingerprints are fields; the question, ``resolved``, and the whole
-``attempts`` list are strings. They stay strings because a model-authored ``Query`` is
-recursive and differently shaped record to record, because ``resolved`` is keyed by
-whatever compounds a month's questions named, and because a month in which everything
-compiled carries ``"error": null`` throughout, where a month holding one rejection
-carries text.
+timings, and fingerprints are fields; the question, ``resolved``, ``structures``, and
+the whole ``attempts`` list are strings. They stay strings because a model-authored
+``Query`` is recursive and differently shaped record to record, because ``resolved``
+and ``structures`` are keyed by whatever compounds and placeholders a month's
+questions named, and because a month in which everything compiled carries
+``"error": null`` throughout, where a month holding one rejection carries text.
 Either way, compacting into Parquet would leave DuckDB to infer a struct from whichever
 shapes a month happened to hold, and whether two such months then read back together
 depends on what it can coerce: measured cases lose a field silently -- the rows still
@@ -38,9 +38,10 @@ count in every aggregate while the part worth recording is unreachable -- or ref
 read outright. As strings the months reconcile by construction, and no inference is
 involved. The measurements are in the ord-logbook entry "Where the question log lives".
 
-Results are not recorded. A translation, the SMILES its compound names resolved to, and
-a corpus fingerprint reproduce them, and a question that returned a hundred thousand
-reactions should not cost a hundred thousand rows of log.
+Results are not recorded. A translation, the SMILES its compound names resolved to, the
+structures its placeholders stood for, and a corpus fingerprint reproduce them, and a
+question that returned a hundred thousand reactions should not cost a hundred thousand
+rows of log.
 """
 
 import contextlib
@@ -181,6 +182,10 @@ class Ask:
             the search matched it as; empty for a query naming none, and None where
             no search returned. The query keeps the name and a resolver can answer
             differently later, so this is what reproduces the structures searched.
+        structures: Each placeholder the question wrote, mapped to its ``format``
+            and ``text``; None where the question carried none. The attempts keep
+            the placeholders the model wrote, so this is what reproduces the
+            structures those stood for.
         declined_reason: What the model said the grammar lacks.
         error: The failure, where one ended the ask.
         answer_text: The prose the reader saw, which is what a thumb is a verdict on.
@@ -215,6 +220,7 @@ class Ask:
     turns: int | None = None
     row_count: int | None = None
     resolved: Mapping[str, str] | None = None
+    structures: Mapping[str, Mapping[str, str]] | None = None
     declined_reason: str | None = None
     error: str | None = None
     answer_text: str | None = None
@@ -274,6 +280,14 @@ def event(ask: Ask) -> dict[str, Any]:
             None
             if ask.resolved is None
             else json.dumps(dict(ask.resolved), sort_keys=True)
+        ),
+        "structures": (
+            None
+            if ask.structures is None
+            else json.dumps(
+                {name: dict(value) for name, value in ask.structures.items()},
+                sort_keys=True,
+            )
         ),
         "declined_reason": ask.declined_reason,
         "error": ask.error,
@@ -515,6 +529,7 @@ _COLUMNS = {
     "outcome": "VARCHAR",
     "row_count": "BIGINT",
     "resolved": "VARCHAR",
+    "structures": "VARCHAR",
     "declined_reason": "VARCHAR",
     "error": "VARCHAR",
     "answer_text": "VARCHAR",
@@ -648,9 +663,9 @@ def read(
 
 # What ``redact`` empties: every column holding free text. A reader's thumb comment and
 # a maintainer's label note are as free-form as the question is, and a column named on
-# an ask is not the only place text arrives. The translation and the resolved names are
-# deliberately not here: they are what reproduce the rows the log declines to store, and
-# they are bounded and structured where free text is neither.
+# an ask is not the only place text arrives. The translation, the resolved names, and
+# the structures are deliberately not here: they are what reproduce the rows the log
+# declines to store, and they are bounded and structured where free text is neither.
 _FREE_TEXT = ("question", "answer_text", "comment", "note")
 
 
