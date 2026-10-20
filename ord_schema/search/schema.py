@@ -43,9 +43,9 @@ from ord_schema.search import query
 
 # Arrow leaf types the projection can hold, in DuckDB's names. Deliberately not a
 # fallback to ``str(dtype)``: a type the projection gains later should surface here as a
-# KeyError rather than reach a prompt as an Arrow spelling no DuckDB query can use. A
-# timestamp is named DATE because that is what a query reads it as: ``query.resolve``
-# casts it to its day, and a literal carrying a time is refused.
+# KeyError rather than reach a prompt as an Arrow spelling no DuckDB query can use.
+# Keyed by ``query.queried_type``, the type a query reads each leaf as, so a timestamp
+# is named DATE: the compiler compares it by day and refuses a literal carrying a time.
 _SCALARS: dict[pa.DataType, str] = {
     pa.string(): "VARCHAR",
     pa.binary(): "BLOB",
@@ -56,25 +56,25 @@ _SCALARS: dict[pa.DataType, str] = {
     pa.int64(): "BIGINT",
     pa.uint32(): "UINTEGER",
     pa.uint64(): "UBIGINT",
-    pa.timestamp("us"): "DATE",
+    pa.date32(): "DATE",
 }
 
 _INDENT = "  "
 
 
 def _scalar_name(dtype: pa.DataType) -> str:
-    """Returns the DuckDB name for a leaf type.
+    """Returns the DuckDB name for a leaf type, as a query reads it.
 
     Args:
         dtype: Arrow type of a leaf column.
 
     Returns:
-        The DuckDB type name.
+        The DuckDB name of ``query.queried_type(dtype)``: DATE for a timestamp.
 
     Raises:
         KeyError: If the projection holds a leaf type this module does not name.
     """
-    return _SCALARS[dtype]
+    return _SCALARS[query.queried_type(dtype)]
 
 
 def _render(field: pa.Field, depth: int, lines: list[str]) -> None:

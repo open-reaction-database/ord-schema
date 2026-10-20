@@ -174,6 +174,24 @@ def _is_numeric(leaf: pa.DataType) -> bool:
     return pa.types.is_integer(leaf) or pa.types.is_floating(leaf)
 
 
+def queried_type(leaf: pa.DataType) -> pa.DataType:
+    """Returns the type a query reads a leaf as: its day for a timestamp, else itself.
+
+    Each timestamp is the wall clock its source wrote, with no zone beside it, and
+    sources write in many zones, so comparing them finer than a day would order times
+    that were never on one clock. ``resolve`` casts to this type, and
+    :func:`ord_schema.search.schema.describe` names it, so a model is told the type its
+    query compares.
+
+    Args:
+        leaf: The type a path reaches in the schema.
+
+    Returns:
+        ``date32`` for a timestamp; ``leaf`` unchanged for anything else.
+    """
+    return pa.date32() if pa.types.is_timestamp(leaf) else leaf
+
+
 def _is_temporal(leaf: pa.DataType) -> bool:
     """Returns whether ``leaf`` holds a day rather than a number.
 
@@ -412,11 +430,9 @@ def resolve(
     elements beneath it, so the caller can tell a scalar it may compare from a level it
     must quantify over.
 
-    A timestamp resolves to its day, cast to ``DATE`` and typed as one, so every clause
-    reading it -- a comparison, a reduction, a measure, a group, an ordering -- works
-    by day. Each timestamp is the wall clock its source wrote, with no zone beside it,
-    and sources write in many zones, so comparing them finer than a day would order
-    times that were never on one clock.
+    A leaf resolves to its ``queried_type``, cast where that differs: a timestamp to its
+    ``DATE``, so every clause reading one -- a comparison, a reduction, a measure, a
+    group, an ordering -- works by day.
 
     Args:
         path: Dotted column path, e.g. ``conditions.temperature.setpoint_kelvin``.
@@ -426,8 +442,8 @@ def resolve(
             ``structure_id`` this way; a model-supplied path never sets it.
 
     Returns:
-        The DuckDB expression, whether it evaluates to a list, and the type it reaches:
-        ``date32`` where that is a timestamp.
+        The DuckDB expression, whether it evaluates to a list, and the type it reaches
+        as ``queried_type`` reads it.
 
     Raises:
         QueryError: If the path is empty or names a field the schema does not hold.
@@ -457,10 +473,10 @@ def resolve(
             repeated, current = True, inner.value_type
         else:
             current = inner
-    if pa.types.is_timestamp(current):
+    queried = queried_type(current)
+    if queried != current:
         expression = f"CAST({expression} AS {'DATE[]' if repeated else 'DATE'})"
-        current = pa.date32()
-    return _Resolved(expression or "", repeated, current)
+    return _Resolved(expression or "", repeated, queried)
 
 
 class _Node(BaseModel):
