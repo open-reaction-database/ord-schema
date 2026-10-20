@@ -127,12 +127,12 @@ is a compile error rather than a wrong answer:
 - A timestamp compares **by day**. Each one is the wall clock its source wrote, in whatever
   zone it wrote it: `utc_offset_minutes` beside it names that zone only where the record did,
   and sources write in many zones, so comparing them finer than a day would order times that
-  were never on one clock. The compiler casts every timestamp to its `DATE`
-  wherever it enters the SQL — a comparison, a reduction, a measure, a `group_by`, an
-  ordering — so `eq` matches every time on the day and a group is a day; the schema the
-  model sees names these columns `DATE`. A literal compared against one is `YYYY-MM-DD` and
-  nothing else. One carrying a time, or an offset after it, is refused rather than read as
-  its day, which would answer a question about a moment with every reaction that day.
+  were never on one clock. The compiler casts every timestamp to its `DATE` wherever it
+  enters the SQL — a comparison, a reduction, a measure, a `group_by`, an ordering — so `eq`
+  matches every time on the day and a group is a day; the schema the model sees names these
+  columns `DATE`. A literal compared against one is `YYYY-MM-DD` and nothing else. One
+  carrying a time, or an offset after it, is refused rather than read as its day, which
+  would answer a question about a moment with every reaction that day.
 - A structure predicate's `compound` is resolved through
   [`ord_schema.resolvers`](../resolvers.py) when the query runs, so the model names compounds
   and never spells structures. The name goes to the resolver and never reaches the SQL, so it
