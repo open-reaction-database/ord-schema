@@ -576,6 +576,31 @@
     }
   },
   {
+    "question": "reactions added to ORD in 2022",
+    "why": "added to ORD is when ord-data merged the reaction, which first_commit reads from that repository's history; record_created is when the depositor wrote the record, a different time",
+    "reference": {
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "ge",
+            "path": "first_commit.timestamp",
+            "value": {
+              "literal": "2022-01-01"
+            }
+          },
+          {
+            "op": "lt",
+            "path": "first_commit.timestamp",
+            "value": {
+              "literal": "2023-01-01"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
     "question": "reactions recorded between 30 June and 19 December 2025",
     "why": "a date written out is still a day, and between takes both ends whole: le the last day, or lt the day after; lt the last day drops every reaction recorded on it",
     "reference": {

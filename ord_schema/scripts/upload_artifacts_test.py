@@ -18,6 +18,7 @@ import fnmatch
 import pathlib
 import shutil
 import types
+from datetime import datetime
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -26,7 +27,14 @@ from huggingface_hub import CommitOperationDelete
 from rdkit import rdBase
 
 from ord_schema import huggingface, parquet
-from ord_schema.artifacts import base, occurrences, pivot, projection, structures
+from ord_schema.artifacts import (
+    base,
+    first_commits,
+    occurrences,
+    pivot,
+    projection,
+    structures,
+)
 from ord_schema.artifacts.scripts import derive_occurrences, derive_pivots
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import upload_artifacts
@@ -40,6 +48,23 @@ _GROUP_KEYS = {
 }
 
 
+def _history(*reaction_ids):
+    """Returns an index placing every reaction at one commit."""
+    rows = [
+        {
+            "reaction_id": reaction_id,
+            "sha": "a" * 40,
+            "timestamp": datetime(2021, 3, 3, 13, 33, 15),
+            "utc_offset_minutes": -420,
+            "dataset_id": "ord_dataset-aa",
+        }
+        for reaction_id in reaction_ids
+    ]
+    return first_commits.Index(
+        pa.Table.from_pylist(rows, schema=first_commits.INDEX_SCHEMA), ["a" * 40]
+    )
+
+
 def _write_artifact(
     path,
     artifact,
@@ -49,8 +74,13 @@ def _write_artifact(
     artifact_schema_version=None,
     rdkit_version=None,
     stamp_rdkit=True,
+    stamp_first_commits=True,
 ):
-    """Writes a one-row Parquet file carrying an artifact's footer stamps."""
+    """Writes a one-row Parquet file carrying an artifact's footer stamps.
+
+    A projection also carries the stamp of the index of first commits it was derived
+    with, unless ``stamp_first_commits`` is False.
+    """
     stamps = base.Stamps(
         artifact=artifact,
         source_dataset_id=None,
@@ -59,6 +89,8 @@ def _write_artifact(
         rdkit_version=(rdkit_version or rdBase.rdkitVersion) if stamp_rdkit else None,
     )
     metadata = base.to_metadata(stamps)
+    if artifact == projection.ARTIFACT and stamp_first_commits:
+        metadata |= _history().stamps()
     if group is not None:
         metadata[_GROUP_KEYS[artifact]] = group
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -365,6 +397,27 @@ class TestUploadArtifacts:
         with pytest.raises(ValueError, match="carries no RDKit stamp"):
             _upload(tmp_path)
 
+    def test_refuses_a_projection_derived_without_first_commits(
+        self, tmp_path, monkeypatch
+    ):
+        _write_tree(tmp_path)
+        _write_artifact(
+            tmp_path / "projections" / "bb" / "ord_dataset-bb.parquet",
+            "projection",
+            "bb",
+            stamp_first_commits=False,
+        )
+        _FakeHub(monkeypatch)
+        with pytest.raises(ValueError, match=r"bb\.parquet was not derived with a"):
+            _upload(tmp_path)
+
+    def test_refuses_a_projection_of_another_walk(self, tmp_path, monkeypatch):
+        _write_tree(tmp_path)
+        monkeypatch.setattr(first_commits, "VERSION", "2")
+        _FakeHub(monkeypatch)
+        with pytest.raises(ValueError, match="version 2 index of first commits"):
+            _upload(tmp_path)
+
     def test_refuses_a_missing_artifact(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
         shutil.rmtree(tmp_path / "occurrences")
@@ -395,7 +448,9 @@ def derived_tree(tmp_path_factory):
         )
         projected = root / "artifacts" / "projections" / shard / source.name
         projected.parent.mkdir(parents=True)
-        projection.write_projection(source, projected)
+        projection.write_projection(
+            source, projected, history=_history("ord-aa01", "ord-bb01")
+        )
         structured = root / "artifacts" / "structures" / shard / source.name
         structured.parent.mkdir(parents=True)
         structures.write_structures(projected, structured)

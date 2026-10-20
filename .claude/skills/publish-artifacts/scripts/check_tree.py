@@ -23,7 +23,10 @@ Face mirror:
   dataset's current content hash, and no projection restates anything else;
 * the checkout holds the same datasets as the mirror at ``--revision``, byte for byte
   by the SHA-256 the mirror's LFS records, so a stale checkout cannot pass for the
-  whole corpus.
+  whole corpus;
+* the index of first commits is walked to the checkout's ``HEAD``, and every
+  projection was derived with it or with an index it extends, so no reaction's
+  ``first_commit`` is null or read from another history.
 
 ``upload_artifacts`` carries the projections' dataset set to every other artifact.
 Exits non-zero on any mismatch. Hashing the checkout takes under a minute over ORD.
@@ -34,13 +37,15 @@ import collections
 import hashlib
 import pathlib
 import re
+import shutil
+import subprocess
 import sys
 
 from huggingface_hub import HfApi
 from huggingface_hub.hf_api import RepoFile
 
 from ord_schema import huggingface, parquet
-from ord_schema.artifacts import base, projection
+from ord_schema.artifacts import base, first_commits, projection
 
 _MIRROR_DATASET = re.compile(r"^data/\w{2}/(ord_dataset-\w+)\.(parquet|pb\.gz)$")
 
@@ -105,8 +110,48 @@ def _projections(root: pathlib.Path) -> dict[str, list[str]]:
     return held
 
 
-def check(root: pathlib.Path, ord_data: pathlib.Path, revision: str) -> list[str]:
-    """Returns each mismatch among the tree, the checkout, and the mirror.
+def _head(ord_data: pathlib.Path) -> str:
+    """Returns the commit the checkout has checked out."""
+    executable = shutil.which("git")
+    if executable is None:
+        raise ValueError("checking the index of first commits needs git on PATH")
+    # S603: a fixed command, with the checkout the caller named.
+    result = subprocess.run(  # noqa: S603
+        [executable, "-C", str(ord_data), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def _first_commit_problems(
+    root: pathlib.Path, ord_data: pathlib.Path, index_path: pathlib.Path
+) -> list[str]:
+    """Returns each way the index or a projection's first commits fall short."""
+    index = first_commits.read_index(index_path)
+    problems = []
+    head = _head(ord_data)
+    if index.head != head:
+        problems.append(
+            f"the index of first commits is walked to {index.head}, not the "
+            f"checkout's HEAD {head}"
+        )
+    problems.extend(
+        f"projection derived without first commits from the index's history: {path}"
+        for path in huggingface.parquet_files(root / "projections")
+        if not index.covers(path)
+    )
+    return problems
+
+
+def check(
+    root: pathlib.Path,
+    ord_data: pathlib.Path,
+    revision: str,
+    index_path: pathlib.Path,
+) -> list[str]:
+    """Returns each mismatch among the tree, the checkout, the mirror, and the index.
 
     Prints how many datasets or projections each holds.
     """
@@ -117,6 +162,7 @@ def check(root: pathlib.Path, ord_data: pathlib.Path, revision: str) -> list[str
         f"on the mirror but not in the checkout: {dataset_id}"
         for dataset_id in sorted(set(mirror) - set(checkout))
     ]
+    problems.extend(_first_commit_problems(root, ord_data, index_path))
     if not checkout:
         problems.append(f"no Parquet datasets under {ord_data / 'data'}")
     for dataset_id, (md5, sha256) in sorted(checkout.items()):
@@ -155,11 +201,17 @@ def main() -> None:
     parser.add_argument("--root", required=True, help="The local artifact tree")
     parser.add_argument("--ord_data", required=True, help="The ord-data checkout")
     parser.add_argument("--revision", default="main", help="Mirror revision to match")
+    parser.add_argument(
+        "--first_commits",
+        required=True,
+        help="The index of first commits the projections were derived with",
+    )
     args = parser.parse_args()
     problems = check(
         pathlib.Path(args.root).expanduser(),
         pathlib.Path(args.ord_data).expanduser(),
         args.revision,
+        pathlib.Path(args.first_commits).expanduser(),
     )
     for problem in problems:
         print(f"MISMATCH {problem}")

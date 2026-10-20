@@ -25,11 +25,12 @@ import pathlib
 import typing
 from datetime import datetime
 
+import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
 from ord_schema import parquet
-from ord_schema.artifacts import projection, structures
+from ord_schema.artifacts import first_commits, projection, structures
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.search import check, execute, query
 
@@ -57,6 +58,25 @@ def corpus_root(tmp_path_factory) -> pathlib.Path:
         ],
         "bb": [_reaction("ord-bb01", "CC(=O)[O-].[Na+]", _ROLE.REAGENT)],
     }
+    # Derived with an index, as a published corpus is, so the fidelity check meets a
+    # first_commit the record alone cannot reproduce.
+    history = first_commits.Index(
+        pa.Table.from_pylist(
+            [
+                {
+                    "reaction_id": reaction.reaction_id,
+                    "sha": "a" * 40,
+                    "timestamp": datetime(2022, 12, 6, 13, 51, 13),
+                    "utc_offset_minutes": -300,
+                    "dataset_id": f"ord_dataset-{shard}",
+                }
+                for shard, reactions in shards.items()
+                for reaction in reactions
+            ],
+            schema=first_commits.INDEX_SCHEMA,
+        ),
+        ["a" * 40],
+    )
     for shard, reactions in shards.items():
         source = root / "data" / f"ord_dataset-{shard}.parquet"
         source.parent.mkdir(parents=True, exist_ok=True)
@@ -71,7 +91,7 @@ def corpus_root(tmp_path_factory) -> pathlib.Path:
         )
         projected = root / "projections" / source.name
         projected.parent.mkdir(parents=True, exist_ok=True)
-        projection.write_projection(source, projected)
+        projection.write_projection(source, projected, history=history)
         structured = root / "structures" / source.name
         structured.parent.mkdir(parents=True, exist_ok=True)
         structures.write_structures(projected, structured)

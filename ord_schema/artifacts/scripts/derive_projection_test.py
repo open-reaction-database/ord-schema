@@ -14,11 +14,14 @@
 
 """Tests for ord_schema.scripts.derive_projection."""
 
+from datetime import datetime
+
+import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
 from ord_schema import parquet
-from ord_schema.artifacts import base, projection
+from ord_schema.artifacts import base, first_commits, projection
 from ord_schema.artifacts.scripts import derive_projection
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
@@ -179,3 +182,86 @@ def test_an_unmatched_pattern_is_an_error(tmp_path):
                 ]
             )
         )
+
+
+def _write_index(path, chain, *reaction_ids):
+    """Writes an index placing every reaction at the first commit of ``chain``."""
+    rows = [
+        {
+            "reaction_id": reaction_id,
+            "sha": chain[0],
+            "timestamp": datetime(2021, 7, 28, 14, 7, 53),
+            "utc_offset_minutes": -420,
+            "dataset_id": "ord_dataset-a",
+        }
+        for reaction_id in reaction_ids
+    ]
+    table = pa.Table.from_pylist(rows, schema=first_commits.INDEX_SCHEMA)
+    first_commits.write_index(first_commits.Index(table, chain), path)
+    return path
+
+
+class TestFirstCommits:
+    def _main(self, tmp_path, *extra):
+        derive_projection.main(
+            derive_projection.parse_args(
+                [
+                    f"--input_pattern={tmp_path}/data/*/*.parquet",
+                    f"--output_dir={tmp_path}/projections",
+                    *extra,
+                ]
+            )
+        )
+        return tmp_path / "projections" / "aa" / "ord_dataset-a.parquet"
+
+    def test_fills_first_commit_from_the_index(self, tmp_path):
+        _dataset(tmp_path, "aa", "ord_dataset-a")
+        index = _write_index(tmp_path / "index.parquet", ["a" * 40], "ord-aa")
+        output = self._main(tmp_path, f"--first_commits={index}")
+        [arrival] = pq.read_table(output).column("first_commit").to_pylist()
+        assert arrival["sha"] == "a" * 40
+        assert first_commits.read_stamp(output) == (first_commits.VERSION, "a" * 40)
+
+    def test_derives_again_a_projection_derived_without_an_index(self, tmp_path):
+        _dataset(tmp_path, "aa", "ord_dataset-a")
+        output = self._main(tmp_path)
+        first = output.stat().st_ino
+        index = _write_index(tmp_path / "index.parquet", ["a" * 40], "ord-aa")
+        self._main(tmp_path, f"--first_commits={index}")
+        assert output.stat().st_ino != first
+        assert first_commits.read_stamp(output) is not None
+
+    def test_skips_a_projection_an_extended_index_covers(self, tmp_path):
+        _dataset(tmp_path, "aa", "ord_dataset-a")
+        index = tmp_path / "index.parquet"
+        output = self._main(
+            tmp_path, f"--first_commits={_write_index(index, ['a' * 40], 'ord-aa')}"
+        )
+        first = output.stat().st_ino
+        _write_index(index, ["a" * 40, "b" * 40], "ord-aa")
+        self._main(tmp_path, f"--first_commits={index}")
+        assert output.stat().st_ino == first
+
+    def test_derives_again_a_projection_from_another_history(self, tmp_path):
+        _dataset(tmp_path, "aa", "ord_dataset-a")
+        index = tmp_path / "index.parquet"
+        output = self._main(
+            tmp_path, f"--first_commits={_write_index(index, ['a' * 40], 'ord-aa')}"
+        )
+        _write_index(index, ["c" * 40], "ord-aa")
+        self._main(tmp_path, f"--first_commits={index}")
+        assert first_commits.read_stamp(output) == (first_commits.VERSION, "c" * 40)
+
+    def test_without_an_index_skips_a_projection_derived_with_one(self, tmp_path):
+        _dataset(tmp_path, "aa", "ord_dataset-a")
+        index = _write_index(tmp_path / "index.parquet", ["a" * 40], "ord-aa")
+        output = self._main(tmp_path, f"--first_commits={index}")
+        first = output.stat().st_ino
+        self._main(tmp_path)
+        assert output.stat().st_ino == first
+
+    def test_refuses_a_dataset_the_index_does_not_reach(self, tmp_path):
+        _dataset(tmp_path, "aa", "ord_dataset-a")
+        index = _write_index(tmp_path / "index.parquet", ["a" * 40], "ord-zz")
+        with pytest.raises(ValueError, match=r"\['ord-aa'\]; walk ord-data"):
+            self._main(tmp_path, f"--first_commits={index}")

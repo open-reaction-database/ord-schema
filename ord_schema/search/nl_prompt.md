@@ -143,8 +143,12 @@ Rules that keep a query answerable:
   grammar has no date arithmetic and no notion of today, so a question about "the last
   five years" or "recently" cannot be written; decline it rather than hardcoding a year.
   A question about a time of day cannot be written either. When a reaction was recorded
-  is `provenance.record_created.time.timestamp`; when it was carried out is
-  `provenance.experiment_start.timestamp`.
+  is `provenance.record_created.time.timestamp`, which its depositor wrote; when it was
+  carried out is `provenance.experiment_start.timestamp`. When it entered ORD's public
+  corpus, merged into the ord-data repository, is `first_commit.timestamp`, read from
+  that repository's history rather than from the record. `first_commit.dataset_id` is
+  the dataset it first appeared in, which can differ from `dataset_id`, the one holding
+  it now.
 - `min` and `max` take a `DATE` column as well as a number, as a measure or as a
   reduction, and answer the earliest or latest day; `sum` and `avg` take numbers
   only. A record's edits are a repeated level, so the last day a reaction was modified

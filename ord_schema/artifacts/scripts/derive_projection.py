@@ -29,11 +29,19 @@ them anyway. A match that is itself a derived artifact is ignored rather than de
 from, so ``--output_dir`` may sit inside a recursive pattern's reach; an
 ``--output_dir`` that would write over any source dataset is an error, as is a run
 that derives nothing.
+
+``--first_commits`` names the index ``index_first_commits`` walks out of ord-data's
+history, which fills each reaction's ``first_commit``; a dataset holding a reaction the
+index lacks is an error. With it, a projection derived without an index, or with one
+walked along another history, is derived again rather than skipped. Without it,
+``first_commit`` is null throughout, which is right only for datasets ord-data never
+held.
 """
 
 import argparse
+import functools
 
-from ord_schema.artifacts import base, projection
+from ord_schema.artifacts import base, first_commits, projection
 from ord_schema.logging import silence_rdkit_logs
 
 
@@ -51,6 +59,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Rewrite projections that are already current",
     )
+    parser.add_argument(
+        "--first_commits",
+        help="The index of each reaction's first commit to ord-data, from "
+        "index_first_commits",
+    )
     return parser.parse_args(argv)
 
 
@@ -58,8 +71,8 @@ def main(args: argparse.Namespace) -> None:
     """Derives a projection for every dataset matching the input pattern.
 
     Args:
-        args: Parsed arguments, read for ``input_pattern``, ``output_dir``, and
-            ``force``.
+        args: Parsed arguments, read for ``input_pattern``, ``output_dir``, ``force``,
+            and ``first_commits``.
 
     Raises:
         ValueError: If the pattern matched only derived artifacts, which means it was
@@ -67,13 +80,17 @@ def main(args: argparse.Namespace) -> None:
             pipeline step downstream proceed as though the projections had been built.
     """
     silence_rdkit_logs()
+    history = None
+    if args.first_commits is not None:
+        history = first_commits.read_index(args.first_commits)
     written, skipped, ignored = base.derive_tree(
         args.input_pattern,
         args.output_dir,
         artifact=projection.ARTIFACT,
-        write=projection.write_projection,
+        write=functools.partial(projection.write_projection, history=history),
         schema=projection.SCHEMA,
         force=args.force,
+        current=None if history is None else history.covers,
     )
     if not written and not skipped:
         raise ValueError(
