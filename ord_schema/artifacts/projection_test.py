@@ -728,6 +728,8 @@ def test_a_time_with_an_offset_projects_its_utc_instant(value, expected):
 @pytest.fixture
 def away_from_utc(monkeypatch):
     """Sets the process's local zone to one where reading a time as local moves it."""
+    if not hasattr(time, "tzset"):
+        pytest.skip("time.tzset, which applies a TZ change, is Unix-only")
     monkeypatch.setenv("TZ", "Asia/Tokyo")
     time.tzset()
     yield
