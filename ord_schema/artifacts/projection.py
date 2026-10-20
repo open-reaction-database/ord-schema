@@ -43,15 +43,16 @@ real trap:
   the corpus holds many shapes of it, so comparing the text answers arbitrarily: a
   prefix match on a year misses that year's records written in another shape, and
   matches a dataset whose stamps merely begin with those digits. Each ``DateTime`` gains
-  a ``timestamp`` and a ``utc_offset`` beside the recorded string, which stays: the
-  projection adds a reading rather than replacing what the source says, and a shape none
-  of the formats cover is a visible null.
+  a ``timestamp`` and a ``utc_offset_minutes`` beside the recorded string, which stays:
+  the projection adds a reading rather than replacing what the source says, and a shape
+  none of the formats cover is a visible null.
 
   Every time keeps the wall clock it was written with, in ``timestamp``, and the UTC
-  offset it was written under, in ``utc_offset``: minutes east of UTC, null where the
-  record names none. Together they hold everything the string says. A zone-aware column
-  could not: it stores one instant per value under one zone for the whole column, so
-  it would drop each value's own offset and read a time with none as UTC.
+  offset it was written under, in ``utc_offset_minutes``: minutes east of UTC, named
+  for its unit as the converted quantities are, and null where the record names none.
+  Together they hold everything the string says. A zone-aware column could not: it
+  stores one instant per value under one zone for the whole column, so it would drop
+  each value's own offset and read a time with none as UTC.
 
   ``NN/NN/NNNN`` is the part that needs more than a format list, since the string never
   says which field is the month. It is settled per dataset and before any row is
@@ -185,10 +186,10 @@ _STRUCTURAL_TYPES: dict[str, frozenset[int]] = {
 # reaction-level structure search is a different operation and no ID is assigned there.
 _STRUCTURE_ID_TYPES = frozenset({"Compound", "ProductCompound"})
 
-# Messages whose free-text date gains a parsed ``timestamp`` and ``utc_offset``.
+# Messages whose free-text date gains a parsed ``timestamp`` and its UTC offset.
 _TIMESTAMP_TYPES = frozenset({"DateTime"})
 TIMESTAMP_COLUMN = "timestamp"
-UTC_OFFSET_COLUMN = "utc_offset"
+UTC_OFFSET_COLUMN = "utc_offset_minutes"
 
 # The shapes ORD's dates are recorded in, tried in order. DateTime.value is a string the
 # depositor wrote, so there is no format to rely on, and a reader comparing the text
