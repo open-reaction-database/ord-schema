@@ -39,13 +39,13 @@ real trap:
   stays expressible while the mixed-unit comparison that would quietly return the wrong
   rows does not. The source records precision in the same units as the value, so it
   converts with the value and is null under the same conditions.
-* **Dates become instants.** ``DateTime`` is a bare string the depositor wrote, and the
-  corpus holds many shapes of it, so comparing the text answers arbitrarily: a prefix
-  match on a year misses that year's records written in another shape, and matches a
-  dataset whose stamps merely begin with those digits. Each ``DateTime`` gains a
-  ``timestamp`` beside the recorded string, which stays: the projection adds a reading
-  rather than replacing what the source says, and a shape none of the formats cover is
-  a visible null.
+* **Dates become typed values.** ``DateTime`` is a bare string the depositor wrote, and
+  the corpus holds many shapes of it, so comparing the text answers arbitrarily: a
+  prefix match on a year misses that year's records written in another shape, and
+  matches a dataset whose stamps merely begin with those digits. Each ``DateTime`` gains
+  a ``timestamp`` and a ``utc_offset`` beside the recorded string, which stays: the
+  projection adds a reading rather than replacing what the source says, and a shape none
+  of the formats cover is a visible null.
 
   Every time keeps the wall clock it was written with, in ``timestamp``, and the UTC
   offset it was written under, in ``utc_offset``: minutes east of UTC, null where the
@@ -458,8 +458,9 @@ def parse_utc_offset(value: str) -> int | None:
         value: The string a depositor wrote.
 
     Returns:
-        The offset in minutes, or None where the value states none: a date, a time
-        written without one, or a shape validation does not accept.
+        The offset in minutes, negative west of UTC as in ISO 8601 (``-05:00`` is
+        -300), or None where the value states none: a date, a time written without one,
+        or a shape validation does not accept.
     """
     valid = validations.parse_date_time(value)
     if not isinstance(valid, datetime):
@@ -575,9 +576,10 @@ def _struct_fields(descriptor: Descriptor, stack: frozenset[str]) -> list[pa.Fie
     if descriptor.name in _TIMESTAMP_TYPES:
         # Microseconds, because the source records them: much of the corpus is
         # str(datetime) output carrying a fractional part, and a second-resolution
-        # column would drop it while still reading as the instant the source wrote.
+        # column would drop it while still reading as the time the source wrote.
         fields.append(pa.field(TIMESTAMP_COLUMN, pa.timestamp("us")))
-        # Minutes east of UTC. ISO 8601 offsets are whole minutes and under a day.
+        # Signed minutes east of UTC, as ISO 8601 signs an offset: -05:00 is -300.
+        # Offsets are whole minutes and under a day, which an int16 holds.
         fields.append(pa.field(UTC_OFFSET_COLUMN, pa.int16()))
     if descriptor.name in _STRUCTURE_ID_TYPES:
         fields.append(
