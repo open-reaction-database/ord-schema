@@ -47,11 +47,11 @@ real trap:
   rather than replacing what the source says, and a shape none of the formats cover is
   a visible null.
 
-  Every time keeps the wall clock it was written with. The column carries no zone, so
-  a time written with its UTC offset drops it here, and the offset stays in the
-  recorded string beside it. Converting to UTC instead would put instants beside wall
-  clocks whose zone was never recorded, and nothing in the column could tell them
-  apart.
+  Every time keeps the wall clock it was written with, in ``timestamp``, and the UTC
+  offset it was written under, in ``utc_offset``: minutes east of UTC, null where the
+  record names none. Together they hold everything the string says. A zone-aware column
+  could not: it stores one instant per value under one zone for the whole column, so
+  it would drop each value's own offset and read a time with none as UTC.
 
   ``NN/NN/NNNN`` is the part that needs more than a format list, since the string never
   says which field is the month. It is settled per dataset and before any row is
@@ -185,9 +185,10 @@ _STRUCTURAL_TYPES: dict[str, frozenset[int]] = {
 # reaction-level structure search is a different operation and no ID is assigned there.
 _STRUCTURE_ID_TYPES = frozenset({"Compound", "ProductCompound"})
 
-# Messages whose free-text date gains a parsed ``timestamp`` beside it.
+# Messages whose free-text date gains a parsed ``timestamp`` and ``utc_offset``.
 _TIMESTAMP_TYPES = frozenset({"DateTime"})
 TIMESTAMP_COLUMN = "timestamp"
+UTC_OFFSET_COLUMN = "utc_offset"
 
 # The shapes ORD's dates are recorded in, tried in order. DateTime.value is a string the
 # depositor wrote, so there is no format to rely on, and a reader comparing the text
@@ -414,9 +415,9 @@ def parse_timestamp(value: str, *, day_first: bool | None = None) -> datetime | 
             see and a date that is silently the wrong month.
 
     Returns:
-        The parsed time as written, any UTC offset dropped; None where no format
-        matched or the value is ambiguous and the dataset does not say which way to read
-        it.
+        The parsed time as written, without the UTC offset ``parse_utc_offset`` reads;
+        None where no format matched or the value is ambiguous and the dataset does not
+        say which way to read it.
     """
     valid = validations.parse_date_time(value)
     if isinstance(valid, datetime):
@@ -444,6 +445,27 @@ def parse_timestamp(value: str, *, day_first: bool | None = None) -> datetime | 
         except ValueError:
             continue
     return None
+
+
+def parse_utc_offset(value: str) -> int | None:
+    """Returns the UTC offset a recorded time was written under, in minutes east of UTC.
+
+    Together with ``parse_timestamp``, which keeps the time as written, this holds
+    everything such a value says, so the instant stays recoverable where the record
+    names one.
+
+    Args:
+        value: The string a depositor wrote.
+
+    Returns:
+        The offset in minutes, or None where the value states none: a date, a time
+        written without one, or a shape validation does not accept.
+    """
+    valid = validations.parse_date_time(value)
+    if not isinstance(valid, datetime):
+        return None
+    offset = valid.utcoffset()
+    return None if offset is None else int(offset.total_seconds()) // 60
 
 
 def _canonical_unit(field: FieldDescriptor) -> tuple[str, str] | None:
@@ -555,6 +577,8 @@ def _struct_fields(descriptor: Descriptor, stack: frozenset[str]) -> list[pa.Fie
         # str(datetime) output carrying a fractional part, and a second-resolution
         # column would drop it while still reading as the instant the source wrote.
         fields.append(pa.field(TIMESTAMP_COLUMN, pa.timestamp("us")))
+        # Minutes east of UTC. ISO 8601 offsets are whole minutes and under a day.
+        fields.append(pa.field(UTC_OFFSET_COLUMN, pa.int16()))
     if descriptor.name in _STRUCTURE_ID_TYPES:
         fields.append(
             pa.field(
@@ -699,6 +723,7 @@ def message_row(
         row[TIMESTAMP_COLUMN] = (
             parse_timestamp(recorded, day_first=day_first) if recorded else None
         )
+        row[UTC_OFFSET_COLUMN] = parse_utc_offset(recorded) if recorded else None
     if descriptor.name in _STRUCTURE_ID_TYPES:
         if row["smiles"] is not None and structure_ids is not None:
             row["structure_id"] = structure_ids.setdefault(

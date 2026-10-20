@@ -1049,9 +1049,10 @@ def _check_operand(node: Comparison, resolved: _Resolved) -> None:
             )
         if instant.tzinfo is not None:
             # The column holds no zone: the projection keeps each time's wall clock as
-            # written and drops any offset. DuckDB drops the offset from a TIMESTAMP
-            # literal rather than shifting by it, so accepting one here would compare
-            # the caller's wall clock while reading as though it compared their instant.
+            # written, with its offset in a column of its own. DuckDB drops the offset
+            # from a TIMESTAMP literal rather than shifting by it, so accepting one here
+            # would compare the caller's wall clock while reading as though it compared
+            # their instant.
             raise QueryError(
                 f"{node.path}: holds {leaf}, which records no time zone, and "
                 f"{literal!r} carries an offset; give the instant without one"

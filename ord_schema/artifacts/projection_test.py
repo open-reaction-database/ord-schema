@@ -362,6 +362,26 @@ def test_write_projection_round_trips(tmp_path):
     assert table.column("reaction_id").to_pylist() == ["ord-1", "ord-2"]
 
 
+def test_write_projection_keeps_each_time_s_wall_clock_and_offset(tmp_path):
+    values = ["2026-11-01T23:30:00-05:00", "2026-11-01T23:30:00", "2026-11-01"]
+    reactions = []
+    for index, value in enumerate(values):
+        reaction = _reaction(f"ord-{index}")
+        reaction.provenance.record_created.time.value = value
+        reactions.append(reaction)
+    output = tmp_path / "projection.parquet"
+    projection.write_projection(_source(tmp_path, reactions), output)
+    rows = pq.read_table(output, columns=["provenance"]).column("provenance")
+    times = [row["record_created"]["time"] for row in rows.to_pylist()]
+    assert [time["value"] for time in times] == values
+    assert [time[projection.TIMESTAMP_COLUMN] for time in times] == [
+        datetime(2026, 11, 1, 23, 30),
+        datetime(2026, 11, 1, 23, 30),
+        datetime(2026, 11, 1),
+    ]
+    assert [time[projection.UTC_OFFSET_COLUMN] for time in times] == [-300, None, None]
+
+
 def test_write_projection_reads_the_reaction_id_column(tmp_path):
     # Only a file built outside DatasetWriter can disagree, since the writer fills the
     # column from the message; the projection has to notice rather than pick one.
@@ -767,6 +787,31 @@ def test_every_value_validation_accepts_has_a_timestamp(value):
     assert projection.parse_timestamp(value) is not None
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("2024-07-06T23:25:41Z", 0),
+        ("2024-07-06T23:25:41+00:00", 0),
+        ("2024-01-02T00:30:00+09:00", 540),
+        ("2024-07-06T23:25:41.780701-05:00", -300),
+        ("2024-07-06T23:25:41.5+05:30", 330),
+        # The record names no offset, so there is none to keep.
+        ("2024-07-06T23:25:41", None),
+        ("2024-07-06", None),
+        ("Fri Oct 22 22:19:55 2021", None),
+        ("not a date", None),
+    ],
+)
+def test_the_utc_offset_is_kept_in_minutes_east(value, expected):
+    assert projection.parse_utc_offset(value) == expected
+
+
+def test_the_utc_offset_column_is_a_small_integer():
+    time = projection.SCHEMA.field("provenance").type.field("record_created")
+    datetime_type = time.type.field("time").type
+    assert datetime_type.field(projection.UTC_OFFSET_COLUMN).type == pa.int16()
+
+
 def test_an_unambiguous_slash_date_needs_no_convention():
     # A number above twelve can only be the day, so the dataset's habit decides nothing.
     for day_first in (None, True, False):
@@ -827,6 +872,17 @@ def test_a_projected_date_carries_both_the_text_and_the_instant():
     recorded = row["provenance"]["record_created"]["time"]
     assert recorded["value"] == "2025-06-30T05:22:18"
     assert recorded[projection.TIMESTAMP_COLUMN] == datetime(2025, 6, 30, 5, 22, 18)
+    assert recorded[projection.UTC_OFFSET_COLUMN] is None
+
+
+def test_a_projected_time_keeps_its_wall_clock_and_its_offset():
+    reaction = reaction_pb2.Reaction()
+    reaction.provenance.record_created.time.value = "2026-11-01T23:30:00-05:00"
+    row = projection.message_row(reaction)
+    recorded = row["provenance"]["record_created"]["time"]
+    assert recorded["value"] == "2026-11-01T23:30:00-05:00"
+    assert recorded[projection.TIMESTAMP_COLUMN] == datetime(2026, 11, 1, 23, 30)
+    assert recorded[projection.UTC_OFFSET_COLUMN] == -300
 
 
 def test_a_projected_date_the_shapes_do_not_cover_is_null():
@@ -836,6 +892,7 @@ def test_a_projected_date_the_shapes_do_not_cover_is_null():
     recorded = row["provenance"]["record_created"]["time"]
     assert recorded["value"] == "sometime last spring"
     assert recorded[projection.TIMESTAMP_COLUMN] is None
+    assert recorded[projection.UTC_OFFSET_COLUMN] is None
 
 
 def test_a_recorded_verdict_beats_what_the_values_alone_witness():
