@@ -43,7 +43,11 @@ MOST_PLACEHOLDERS = 10
 MOST_CHARACTERS = 2000
 PLACEHOLDERS_HEADING = "Placeholders in this question:"
 
-_NAME = re.compile(r"@[A-Z]+")
+# A placeholder's name, anchored so a server can declare it as the pattern of the keys
+# it accepts.
+NAME_PATTERN = r"^@[A-Z]+$"
+
+_NAME = re.compile(NAME_PATTERN)
 # A marker is a name standing alone in prose. The lookbehind keeps a SMILES chirality
 # mark, [C@@H] or C[C@H](O), and an address, user@Example.com, from reading as one.
 _MARKER = re.compile(r"(?<![\w@])@[A-Z]+(?!\w)")

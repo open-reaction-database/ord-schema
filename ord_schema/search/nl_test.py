@@ -954,3 +954,40 @@ def test_a_rejection_never_shows_a_placeholder_s_text():
     repair = json.dumps(client.requests[1]["messages"][-1])
     assert "Oc1ccccc1" not in repair
     assert "Oc1ccccc1" not in error
+
+
+def test_a_compiler_rejection_with_placeholders_keeps_its_suggestion():
+    # The compiler's suggestion is what makes a repair worth paying for, and a question
+    # with placeholders keeps it.
+    placeholder_clause = {"op": "same_compound", "path": "smiles", "compound": "@A"}
+    client = _stub(
+        {
+            "where": {
+                "op": "and",
+                "clauses": [_BAD_PATH, _uses(placeholder_clause)["where"]],
+            }
+        },
+        _uses(placeholder_clause),
+    )
+    translated = nl.translate(
+        "reactions using @A", structures={"@A": _PYRIDINE}, client=client
+    )
+    sent = client.requests[1]["messages"][-1]["content"][0]
+    assert "did you mean" in sent["content"]
+    assert "c1ccncc1" not in sent["content"]
+    assert translated.turns == 2
+
+
+def test_a_rejection_with_placeholders_counts_every_error():
+    client = _stub(
+        {"where": {"op": "similarity", "compound": "@A"}},
+        _uses({"op": "same_compound", "path": "smiles", "compound": "@A"}),
+    )
+    translated = nl.translate(
+        "reactions similar to @A", structures={"@A": _PYRIDINE}, client=client
+    )
+    error = translated.attempts[0].error
+    assert error is not None
+    assert error.startswith("2 validation errors for Query\n")
+    assert "where.similarity.path" in error
+    assert "where.similarity.threshold" in error

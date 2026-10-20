@@ -15,9 +15,10 @@
 """Tests for ord_schema.search.placeholders."""
 
 import re
+from typing import Annotated
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, StringConstraints, ValidationError
 
 from ord_schema.search import placeholders
 
@@ -202,3 +203,22 @@ def test_conceal_writes_quoted_text_as_the_placeholder_name():
     assert placeholders.conceal(message, structures) == (
         "Cannot use '@A' beside '@B'; 'CC' is unchanged"
     )
+
+
+class _Keyed(BaseModel):
+    """A mapping keyed the way a server publishing placeholders keys it."""
+
+    structures: dict[
+        Annotated[str, StringConstraints(pattern=placeholders.NAME_PATTERN)], int
+    ]
+
+
+@pytest.mark.parametrize("name", ["@A", "@AA"])
+def test_the_name_pattern_accepts_a_placeholder_name(name):
+    assert _Keyed(structures={name: 1})
+
+
+@pytest.mark.parametrize("name", ["@a", "A", "@A1", " @A", "@A "])
+def test_the_name_pattern_refuses_anything_else(name):
+    with pytest.raises(ValidationError, match="should match pattern"):
+        _Keyed(structures={name: 1})
