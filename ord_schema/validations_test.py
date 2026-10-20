@@ -1286,7 +1286,7 @@ def test_datetime_must_be_an_iso_date_or_time(value):
         "2024-07-06T23:25:41+00:00",
         "2024-07-06T23:25:41.780701-05:00",
         "2024-07-06T23:25:41.5+05:30",
-        # A time whose zone was never recorded keeps its time.
+        # Times whose zone was never recorded.
         "2024-07-06T23:25:41",
         "2024-07-06T23:25:41.780701",
     ],
