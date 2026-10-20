@@ -47,10 +47,11 @@ real trap:
   rather than replacing what the source says, and a shape none of the formats cover is
   a visible null.
 
-  A time with its UTC offset, the one shape validation accepts that names a zone, is
-  read through ``validations.parse_date_time`` and becomes its UTC instant, since the
-  column carries no zone. Every other shape, a bare date included, records no zone and
-  is read as written.
+  Every time keeps the wall clock it was written with. The column carries no zone, so
+  a time written with its UTC offset drops it here, and the offset stays in the
+  recorded string beside it. Converting to UTC instead would put instants beside wall
+  clocks whose zone was never recorded, and nothing in the column could tell them
+  apart.
 
   ``NN/NN/NNNN`` is the part that needs more than a format list, since the string never
   says which field is the month. It is settled per dataset and before any row is
@@ -126,7 +127,7 @@ reproducible from the projection alone.
 import os
 import re
 from collections.abc import Iterable, Iterator, MutableMapping
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any, cast, get_args
 
 import pyarrow as pa
@@ -403,7 +404,7 @@ def slash_orientation(
 
 
 def parse_timestamp(value: str, *, day_first: bool | None = None) -> datetime | None:
-    """Returns the instant a recorded date names, or None where none of the shapes fit.
+    """Returns the time a recorded date names, as written, or None where no shape fits.
 
     Args:
         value: The string a depositor wrote.
@@ -413,16 +414,13 @@ def parse_timestamp(value: str, *, day_first: bool | None = None) -> datetime | 
             see and a date that is silently the wrong month.
 
     Returns:
-        The parsed instant, in UTC where the value states its offset; None where no
-        format matched or the value is ambiguous and the dataset does not say which way
-        to read it.
+        The parsed time as written, any UTC offset dropped; None where no format
+        matched or the value is ambiguous and the dataset does not say which way to read
+        it.
     """
     valid = validations.parse_date_time(value)
     if isinstance(valid, datetime):
-        if valid.utcoffset() is None:
-            # astimezone would read a naive time as the machine's own zone.
-            return valid
-        return valid.astimezone(UTC).replace(tzinfo=None)
+        return valid.replace(tzinfo=None)
     matched = _SLASH_DATE.match(value)
     if matched is not None:
         first, second = int(matched.group(1)), int(matched.group(2))
