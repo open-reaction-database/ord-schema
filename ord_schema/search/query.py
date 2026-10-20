@@ -211,7 +211,8 @@ _AGGREGATES = {
 
 # Measure names are the only model-supplied strings that reach the SQL as text, rather
 # than as parameters, without first resolving against the schema, so they are held to an
-# identifier shape a quoting mistake cannot escape.
+# identifier shape a quoting mistake cannot escape. They are quoted all the same, so one
+# DuckDB would read as a keyword, such as order or true, stays a name.
 _NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # Room for any one compound's name in the corpus, with margin: nearly every name ORD
@@ -2096,7 +2097,7 @@ def compile_query(
                 parameters=parameters,
                 routing=_Routing(table, index, pivot),
             )
-            selected.append(f"{aggregate} AS {measure.name}")
+            selected.append(f"{aggregate} AS {_quoted(measure.name)}")
         names = {measure.name for measure in query.aggregate.measures}
         # Each group_by path's expression as the SELECT spells it, which over a level's
         # elements reads from the element rather than from a reaction column.
@@ -2107,9 +2108,9 @@ def compile_query(
         orderable = None
     # S608: assembling SQL is this function's purpose. Every fragment in `selected` is
     # an expression resolved against the schema, aliased by a group_by path that
-    # resolved there too, quoted, or by a measure name already held to an identifier
-    # shape; `table` is this module's constant, and every model-supplied value reached
-    # the string as a bound parameter.
+    # resolved there too or by a measure name held to an identifier shape, each quoted;
+    # `table` is this module's constant, and every model-supplied value reached the
+    # string as a bound parameter.
     source = table if element is None else f"{element[1]} AS {element[0]}"
     sql = f"SELECT {', '.join(selected)} FROM {source}"  # noqa: S608
     conditions = []
@@ -2172,7 +2173,9 @@ def compile_query(
             elif orderable is None:
                 key = _scalar(order.key, schema, "order_by").expression
             elif order.key in orderable:
-                key = order.key if order.key in names else grouped[order.key]
+                # Quoted as the SELECT aliased it: bare, DuckDB reads a measure named
+                # order as a keyword and one named true as a constant.
+                key = _quoted(order.key) if order.key in names else grouped[order.key]
             else:
                 raise QueryError(
                     f"{order.key}: an aggregated query orders by a measure name or a "
