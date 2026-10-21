@@ -62,8 +62,8 @@ element does. Either one reads the whole element, so "pyridine as the solvent" s
 condition on one element rather than an intersection of two reaction sets, which
 over-returns.
 
-An occurrence names its reaction by ID, so the index is built only over a corpus that
-states each reaction once; two files carrying one reaction would have each copy's
+An occurrence names its reaction by ID, so the index is published only over a corpus
+that states each reaction once; two files carrying one reaction would have each copy's
 structures answering for the other.
 
 Reading the projection at all costs a re-parse of every file's footer, and over a schema
