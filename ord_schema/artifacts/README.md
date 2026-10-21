@@ -198,9 +198,11 @@ derives again, in seconds for the whole corpus, and no projection is touched. A 
 holding a reaction the index lacks refuses, since a missing first commit would read as a
 reaction ord-data never held.
 
-A `Corpus` given `first_commits_pattern` pairs one artifact with every projection or
-refuses, and reads them only for a query naming `first_commit`; every other query reads
-what it would without them. The compiler turns the filters a conjunction places on
+A `Corpus` given `first_commits_pattern` refuses unless one artifact pairs with every
+projection and the artifacts name only reactions the corpus holds, with no field left
+NULL. It reads them only for a query naming `first_commit`; every other query reads what
+it would without them. A query reading nothing but `first_commit` and `reaction_id` reads
+the artifacts alone. Otherwise the compiler turns the filters a conjunction places on
 `first_commit` into one semi-join, and grouping, measuring, or ordering by it into a join
 on `reaction_id`; see [the search README](../search/README.md#first-commits).
 

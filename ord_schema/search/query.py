@@ -86,8 +86,9 @@ from ord_schema.artifacts import pivot as pivot_levels
 TABLE = "reactions"
 
 # The relation over the first_commits artifacts, which a query reads only where it names
-# ``first_commit``: a filter on it is a semi-join, and grouping, measuring, or ordering
-# by it joins it to TABLE. Kept out of TABLE because a join there runs for every query,
+# ``first_commit``: alone where the query reads nothing besides ``reaction_id``;
+# otherwise a filter on it is a semi-join, and grouping, measuring, or ordering by it
+# joins it to TABLE. Kept out of TABLE because a join there runs for every query,
 # reading it or not.
 HISTORY_TABLE = "first_commits"
 
@@ -151,8 +152,9 @@ class _Routing:
             was reached through.
         history: The relation holding each reaction's first commit, or None where the
             corpus holds none and a clause naming one is refused.
-        history_joined: Whether the query reads ``history`` joined to ``table``, which
-            puts ``first_commit`` in reach of a clause without a semi-join.
+        history_on_row: Whether the row the query reads carries ``first_commit`` --
+            ``history`` joined to ``table``, or ``history`` alone -- so a clause reads
+            it in place rather than through a semi-join.
     """
 
     table: str
@@ -160,7 +162,7 @@ class _Routing:
     pivot: PivotIndex | None = None
     enclosing: "tuple[str, pivot_levels.RepeatedLevel] | None" = None
     history: str | None = None
-    history_joined: bool = False
+    history_on_row: bool = False
 
 
 def executable_schema(schema: pa.Schema | None = None) -> pa.Schema:
@@ -1694,8 +1696,8 @@ def _history_clause(
         routing: Where the first commits are; see ``_Routing``.
 
     Returns:
-        The clauses as one condition on the row. Read in place where the query joins
-        the first commits already; otherwise a semi-join on ``reaction_id``, spelled
+        The clauses as one condition on the row. Read in place where the row carries
+        the first commit already; otherwise a semi-join on ``reaction_id``, spelled
         ``IN`` for the hash semi-join DuckDB plans for it, with ``IS NOT NULL`` in the
         subquery so that a ``not`` around it never meets the NULL that makes ``NOT IN``
         answer NULL for every row.
@@ -1713,7 +1715,7 @@ def _history_clause(
         for clause in clauses
     ]
     joined = " AND ".join(conditions)
-    if routing.history_joined:
+    if routing.history_on_row:
         return f"({joined})"
     # S608: both relation names are held to identifiers, and every condition is an
     # expression resolved against the schema with its values bound as parameters.
@@ -1724,27 +1726,81 @@ def _history_clause(
     )
 
 
+def _row_paths(query: "Query") -> list["str | Reduction"]:
+    """Returns what grouping, measuring, and ordering read, each reduction as written.
+
+    An aggregated query orders by a measure's name or a group_by path, and the group_by
+    paths are among these already, so its ordering adds none: a measure may be named
+    first_commit.
+
+    Args:
+        query: The query being compiled.
+
+    Returns:
+        The group_by paths and measures' paths of an aggregated query, or the ordering
+        keys of one that is not.
+    """
+    paths: list[str | Reduction] = []
+    if query.aggregate is not None:
+        paths.extend(query.aggregate.group_by)
+        paths.extend(
+            measure.path
+            for measure in query.aggregate.measures
+            if measure.path is not None
+        )
+    else:
+        paths.extend(order.key for order in query.order_by)
+    return paths
+
+
 def _reads_history_beyond_where(query: "Query") -> bool:
     """Returns whether grouping, measuring, or ordering reads a first commit.
 
     Each of those needs a first commit on the row itself, which a semi-join cannot put
     there, so the query reads the first commits joined to the reactions instead.
     """
-    paths: list[str] = []
-    if query.aggregate is not None:
-        paths.extend(query.aggregate.group_by)
-        paths.extend(
-            measure.path
-            for measure in query.aggregate.measures
-            if isinstance(measure.path, str)
-        )
-    else:
-        # An aggregated query orders by a measure's name or a group_by path, and the
-        # group_by paths are above: a measure may be named first_commit.
-        paths.extend(
-            order.key for order in query.order_by if isinstance(order.key, str)
-        )
-    return any(_is_history_path(path) for path in paths)
+    return any(
+        isinstance(path, str) and _is_history_path(path) for path in _row_paths(query)
+    )
+
+
+def _reads_history_alone(query: "Query") -> bool:
+    """Returns whether a query reads first commits and reaction IDs and nothing else.
+
+    The first commits hold one whole first commit per reaction, keyed by
+    ``reaction_id`` -- what ``compile_query`` requires of ``history`` -- so such a query
+    has the same answer over them as over the reactions they would be joined or
+    semi-joined to, without reading the projection.
+
+    Args:
+        query: The query being compiled.
+
+    Returns:
+        Whether at least one path names a first commit, every other path is
+        ``reaction_id``, every clause of ``where`` is a comparison or null check under
+        ``and``, ``or``, and ``not``, and nothing is reduced or grouped over a level.
+    """
+    if query.aggregate is not None and query.aggregate.over is not None:
+        return False
+    row = _row_paths(query)
+    paths = [path for path in row if isinstance(path, str)]
+    if len(paths) < len(row):
+        # A reduction crosses a repeated level, which only the projection holds.
+        return False
+    pending = [] if query.where is None else [query.where]
+    while pending:
+        node = pending.pop()
+        if isinstance(node, And | Or):
+            pending.extend(node.clauses)
+        elif isinstance(node, Not):
+            pending.append(node.clause)
+        elif isinstance(node, Comparison | NullCheck):
+            paths.append(node.path)
+        else:
+            return False
+    return any(_is_history_path(path) for path in paths) and all(
+        _is_history_path(path) or path == pivot_levels.REACTION_ID for path in paths
+    )
 
 
 def _scalar(
@@ -2204,8 +2260,12 @@ def compile_query(
             ``PivotIndex``. Consulted after ``index``, and for ``forall`` as well as
             ``exists``.
         history: Relation holding each reaction's first commit, keyed by
-            ``reaction_id``; ``HISTORY_TABLE`` by default. Read only by a query naming
-            ``first_commit``: a filter on it is a semi-join, and grouping, measuring,
+            ``reaction_id``; ``HISTORY_TABLE`` by default. It has to hold one row for
+            each reaction in ``table`` and no other, with no field of ``first_commit``
+            NULL: a ``not`` over a NULL holds of the reaction through a semi-join and
+            not on a row carrying it, so the routes would disagree. Read only by a query
+            naming ``first_commit``: one reading nothing besides ``reaction_id`` reads
+            it alone; otherwise a filter on it is a semi-join, and grouping, measuring,
             or ordering by it joins it to ``table``. None refuses such a query.
         max_rows: Most rows the SQL may return, applied whether or not the query asked
             for a limit and clamping one that asks for more. The grammar leaves
@@ -2240,16 +2300,20 @@ def compile_query(
         )
     parameters = _Parameters()
     element = _element_relation(query, table, pivot)
-    # Grouping, measuring, or ordering by a first commit reads it on the row, so the
-    # query reads the first commits joined to the reactions. A filter alone is a
-    # semi-join, and every other query reads the reactions alone.
-    joined = element is None and _reads_history_beyond_where(query)
+    # A query reading nothing but first commits and reaction IDs reads the first commits
+    # by themselves. Otherwise grouping, measuring, or ordering by a first commit needs
+    # it on the row, so the query reads the first commits joined to the reactions; a
+    # filter on one is a semi-join, and every other query reads the reactions alone.
+    alone = history is not None and _reads_history_alone(query)
+    joined = not alone and element is None and _reads_history_beyond_where(query)
     if joined and history is None:
         raise QueryError(
             "this corpus holds no first commits, so when a reaction reached ord-data "
             "cannot be asked of it"
         )
-    routing = _Routing(table, index, pivot, history=history, history_joined=joined)
+    routing = _Routing(
+        table, index, pivot, history=history, history_on_row=alone or joined
+    )
     if query.aggregate:
         alias = None if element is None else element[0]
         element_schema = schema if element is None else element[2]
@@ -2294,6 +2358,9 @@ def compile_query(
     # reached the string as a bound parameter.
     if element is not None:
         source = f"{element[1]} AS {element[0]}"
+    elif alone:
+        assert history is not None  # alone is set only where history is given.
+        source = history
     elif joined:
         source = f"{table} JOIN {history} USING ({pivot_levels.REACTION_ID})"
     else:

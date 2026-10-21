@@ -6146,3 +6146,184 @@ class TestFirstCommitsPairing:
             pytest.raises(execute.PairingError, match="stated by 2 rows"),
         ):
             _search(value, {"op": "and", "clauses": _ADDED_IN_2022})
+
+    @pytest.mark.parametrize(
+        "replacement",
+        ["ord-zz01", "ord-aa01"],
+        ids=["one the corpus lacks", "one stated twice"],
+    )
+    def test_refuses_them_naming_another_reaction(
+        self, corpus_dir, tmp_path, replacement
+    ):
+        # As many rows as the projection and stamps still current, but one names
+        # another reaction: read alone, a count would include it.
+        pattern = _write_first_commits(corpus_dir, tmp_path / "first_commits")
+        edited = tmp_path / "first_commits" / "ord_dataset-aa.parquet"
+        table = pq.read_table(edited)
+        ids = table.column("reaction_id").to_pylist()
+        ids[ids.index("ord-aa02")] = replacement
+        pq.write_table(
+            table.set_column(0, table.schema.field(0), pa.array(ids, pa.string())),
+            edited,
+        )
+        refused = "reaction ord-aa02 has no first commit"
+        with pytest.raises(execute.PairingError, match=refused):
+            _open(corpus_dir, resolver={}.__getitem__, first_commits_pattern=pattern)
+        with _open(
+            corpus_dir,
+            resolver={}.__getitem__,
+            first_commits_pattern=pattern,
+            warm=False,
+        ) as value:
+            # Cold, the check waits for a query reading them, and only those refuse.
+            assert _search(value, {"op": "not_null", "path": "reaction_id"})
+            for _ in range(2):
+                with pytest.raises(execute.PairingError, match=refused):
+                    _search(value, {"op": "and", "clauses": _ADDED_IN_2022})
+
+    @pytest.mark.parametrize(
+        "left_out",
+        [*(field.name for field in history.TYPE), None],
+        ids=[*(field.name for field in history.TYPE), "the whole commit"],
+    )
+    def test_refuses_a_first_commit_missing_a_field(
+        self, corpus_dir, tmp_path, left_out
+    ):
+        # The derivation writes every field, and a semi-join and a row carrying the
+        # field would answer a negation over a NULL one differently.
+        pattern = _write_first_commits(corpus_dir, tmp_path / "first_commits")
+        edited = tmp_path / "first_commits" / "ord_dataset-aa.parquet"
+        table = pq.read_table(edited)
+        rows = table.to_pylist()
+        for row in rows:
+            if row["reaction_id"] == "ord-aa02":
+                if left_out is None:
+                    row["first_commit"] = None
+                else:
+                    row["first_commit"][left_out] = None
+        pq.write_table(pa.Table.from_pylist(rows, schema=table.schema), edited)
+        absent = (
+            ", ".join(field.name for field in history.TYPE)
+            if left_out is None
+            else left_out
+        )
+        with pytest.raises(
+            execute.PairingError,
+            match=re.escape(
+                f"reaction ord-aa02 has a first commit without its {absent},"
+            ),
+        ):
+            _open(corpus_dir, resolver={}.__getitem__, first_commits_pattern=pattern)
+
+
+# Questions about arrivals and reaction IDs and nothing else, which the first commits
+# answer without the projection.
+_ARRIVAL_QUESTIONS = {
+    "added in 2022": {"where": {"op": "and", "clauses": _ADDED_IN_2022}},
+    "not added in 2022": {
+        "where": {"op": "not", "clause": {"op": "and", "clauses": _ADDED_IN_2022}}
+    },
+    "how many arrived in 2022": {
+        "where": {"op": "and", "clauses": _ADDED_IN_2022},
+        "aggregate": {"measures": [{"fn": "count", "name": "reactions"}]},
+    },
+    "how many first appeared in each dataset": {
+        "aggregate": {
+            "group_by": ["first_commit.dataset_id"],
+            "measures": [
+                {"fn": "count_distinct", "path": "reaction_id", "name": "reactions"}
+            ],
+        }
+    },
+    "the earliest and latest arrivals": {
+        "aggregate": {
+            "measures": [
+                {"fn": "min", "path": "first_commit.timestamp", "name": "earliest"},
+                {"fn": "max", "path": "first_commit.timestamp", "name": "latest"},
+            ]
+        }
+    },
+    "commits by how many reactions they brought": {
+        "aggregate": {
+            "group_by": ["first_commit.sha"],
+            "measures": [{"fn": "count", "name": "first_commit"}],
+        },
+        "order_by": [
+            {"key": "first_commit", "descending": True},
+            {"key": "first_commit.sha"},
+        ],
+    },
+    "the latest two arrivals": {
+        "order_by": [
+            {"key": "first_commit.timestamp", "descending": True},
+            {"key": "reaction_id"},
+        ],
+        "limit": 2,
+    },
+    "first held elsewhere, or one reaction": {
+        "where": {
+            "op": "or",
+            "clauses": [
+                {
+                    "op": "eq",
+                    "path": "first_commit.dataset_id",
+                    "value": {"literal": "ord_dataset-old"},
+                },
+                {"op": "eq", "path": "reaction_id", "value": {"literal": "ord-bb01"}},
+            ],
+        }
+    },
+    "a recorded commit": {"where": {"op": "not_null", "path": "first_commit.sha"}},
+}
+
+
+class TestFirstCommitsAlone:
+    @pytest.mark.parametrize(
+        "payload", _ARRIVAL_QUESTIONS.values(), ids=_ARRIVAL_QUESTIONS.keys()
+    )
+    def test_answers_as_the_reactions_they_join_to_do(
+        self, history_corpus, monkeypatch, caplog, payload
+    ):
+        request = query.Query.model_validate(payload)
+        with caplog.at_level(logging.INFO, logger=execute.logger.name):
+            alone = history_corpus.search(request)
+        assert "this query reads the first commits alone" in _messages(caplog)
+        monkeypatch.setattr(query, "_reads_history_alone", lambda _: False)
+        caplog.clear()
+        with caplog.at_level(logging.INFO, logger=execute.logger.name):
+            joined = history_corpus.search(request)
+        assert "this query reads the first commits" in _messages(caplog)
+        assert alone.num_rows > 0
+        assert alone.schema.remove_metadata() == joined.schema.remove_metadata()
+        if request.order_by:
+            assert alone.to_pylist() == joined.to_pylist()
+        else:
+            assert sorted(alone.to_pylist(), key=repr) == sorted(
+                joined.to_pylist(), key=repr
+            )
+
+    def test_orders_by_a_measure_named_like_them(self, history_corpus):
+        # The measure's alias shadows the first_commit column, and the ordering has to
+        # bind the alias: by the column, it would not bind at all beside a GROUP BY.
+        answer = history_corpus.search(
+            query.Query.model_validate(
+                _ARRIVAL_QUESTIONS["commits by how many reactions they brought"]
+            )
+        )
+        assert answer.to_pylist() == [
+            {"first_commit.sha": "b" * 40, "first_commit": 2},
+            {"first_commit.sha": "a" * 40, "first_commit": 1},
+        ]
+
+    def test_a_question_naming_the_projection_too_reads_it(
+        self, history_corpus, caplog
+    ):
+        hot = {
+            "op": "gt",
+            "path": "conditions.temperature.setpoint_kelvin",
+            "value": {"literal": 0},
+        }
+        with caplog.at_level(logging.INFO, logger=execute.logger.name):
+            _search(history_corpus, {"op": "and", "clauses": [hot, *_ADDED_IN_2022]})
+        assert "this query reads the first commits" in _messages(caplog)
+        assert "this query reads the first commits alone" not in _messages(caplog)
