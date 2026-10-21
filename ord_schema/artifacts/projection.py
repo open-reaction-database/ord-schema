@@ -909,13 +909,14 @@ def write_projection(
     source_md5: str | None = None,
     source_dataset_id: str | None = None,
     compression: str = "zstd",
-    row_group_size: int = 1000,
+    row_group_size: int = 10_000,
 ) -> int:
     """Projects a source Parquet dataset and writes it.
 
-    Reactions are read and written one source row group at a time, so peak memory is
-    bounded by the largest row group rather than the dataset. The output is published
-    atomically, so a failure partway leaves any existing projection untouched.
+    Reactions are read one source row group at a time and written one output row group
+    at a time, so peak memory is bounded by the larger of the two rather than by the
+    dataset. The output is published atomically, so a failure partway leaves any
+    existing projection untouched.
 
     Args:
         source: Path to the source Parquet dataset.
@@ -925,7 +926,11 @@ def write_projection(
         source_dataset_id: Source dataset ID to stamp, if the caller already read one.
             Read from the source when omitted.
         compression: Parquet compression codec.
-        row_group_size: Rows per output row group.
+        row_group_size: Rows per output row group, whatever the source's are. The
+            footer holds statistics for every leaf of every row group, and a query
+            parses it before reading any data, so the count of row groups is what the
+            footer costs; the source writer's default is sized for reading one reaction
+            at a time, which a projection is not read for.
 
     Returns:
         Number of rows written.
@@ -960,8 +965,11 @@ def write_projection(
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,
     ):
+        # Rows are carried across source row groups until a full output row group is
+        # ready, so the output's row groups are the size asked for rather than the
+        # source's.
+        batch: list[dict[str, Any]] = []
         for row_group in range(view.num_row_groups):
-            batch = []
             for reaction_id, reaction in view.iter_reactions(row_group=row_group):
                 try:
                     row = reaction_row(
@@ -971,11 +979,13 @@ def write_projection(
                     raise ValueError(f"{view.path}: {error}") from error
                 unreadable += _unreadable_structures(row)
                 batch.append(row)
+                if len(batch) == row_group_size:
+                    writer.write_table(pa.Table.from_pylist(batch, schema=schema))
+                    rows += len(batch)
+                    batch = []
+        if batch:
+            writer.write_table(pa.Table.from_pylist(batch, schema=schema))
             rows += len(batch)
-            writer.write_table(
-                pa.Table.from_pylist(batch, schema=schema),
-                row_group_size=row_group_size,
-            )
     if unreadable:
         # Per dataset rather than per row: a count is diffable between runs, so a
         # regression in structure reading shows up instead of hiding in the nulls.

@@ -918,6 +918,23 @@ def _cache_footers(connection: duckdb.DuckDBPyConnection) -> None:
     connection.execute("SET GLOBAL parquet_metadata_cache=true")
 
 
+def _free_result_order(connection: duckdb.DuckDBPyConnection) -> None:
+    """Lets rows come back in whatever order the scan's threads finish them.
+
+    A query without ``ORDER BY`` promises no order, and keeping the scan's order anyway
+    holds every row back until the row groups before it are done. Over the projection's
+    row groups that stalls a wide scan returning many rows for several times its running
+    time, where a count of the same rows is unaffected. ``ORDER BY`` is honored as it
+    was, and ``reactions`` orders its own rows.
+
+    Set globally, as ``_cache_footers`` is, so that each search's cursor is covered.
+
+    Args:
+        connection: The corpus connection, on the database every cursor shares.
+    """
+    connection.execute("SET GLOBAL preserve_insertion_order=false")
+
+
 def _confine(connection: duckdb.DuckDBPyConnection, directories: Iterable[str]) -> None:
     """Leaves the database able to reach the files under ``directories`` and no others.
 
@@ -1555,6 +1572,7 @@ class Corpus:
         )
         try:
             _cache_footers(self._connection)
+            _free_result_order(self._connection)
             _confine(
                 self._connection,
                 [

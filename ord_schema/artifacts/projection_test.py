@@ -435,6 +435,26 @@ def test_write_projection_covers_every_row_group(tmp_path):
     ]
 
 
+def test_write_projection_row_groups_are_its_own(tmp_path):
+    # The footer holds every leaf's statistics for every row group, so a projection
+    # that wrote one row group per source row group would carry the source writer's
+    # row-group count into every scan's footer parse, whatever row_group_size asked.
+    source = _source(
+        tmp_path, [_reaction(f"ord-{index}") for index in range(7)], row_group_size=2
+    )
+    assert parquet.DatasetView(source).num_row_groups == 4
+    output = tmp_path / "projection.parquet"
+    assert projection.write_projection(source, output, row_group_size=3) == 7
+    with pq.ParquetFile(output) as projected:
+        assert [
+            projected.metadata.row_group(index).num_rows
+            for index in range(projected.num_row_groups)
+        ] == [3, 3, 1]
+    assert pq.read_table(output).column("reaction_id").to_pylist() == [
+        f"ord-{index}" for index in range(7)
+    ]
+
+
 def test_write_projection_stamps_the_footer(tmp_path):
     source = _source(tmp_path, [_reaction()])
     output = tmp_path / "projection.parquet"
@@ -688,7 +708,7 @@ def test_structure_ids_span_source_row_groups(tmp_path):
         tmp_path, [_reaction(f"ord-{i:04d}") for i in range(3)], row_group_size=1
     )
     output = tmp_path / "projection.parquet"
-    projection.write_projection(source, output)
+    projection.write_projection(source, output, row_group_size=1)
     with pq.ParquetFile(output) as projected:
         assert projected.num_row_groups == 3
         for row_group in range(projected.num_row_groups):
