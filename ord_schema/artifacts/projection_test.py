@@ -455,6 +455,20 @@ def test_write_projection_row_groups_are_its_own(tmp_path):
     ]
 
 
+@pytest.mark.parametrize("row_group_size", [0, -1])
+def test_write_projection_refuses_a_row_group_size_no_row_can_fill(
+    tmp_path, row_group_size
+):
+    # A full row group is one holding at least row_group_size rows, which every row
+    # satisfies at zero or below: the writer would flush after each one, writing the
+    # one-row groups the parameter exists to avoid, with no error anywhere.
+    source = _source(tmp_path, [_reaction()])
+    output = tmp_path / "projection.parquet"
+    with pytest.raises(ValueError, match="which no row group can hold"):
+        projection.write_projection(source, output, row_group_size=row_group_size)
+    assert not output.exists()
+
+
 def test_write_projection_stamps_the_footer(tmp_path):
     source = _source(tmp_path, [_reaction()])
     output = tmp_path / "projection.parquet"

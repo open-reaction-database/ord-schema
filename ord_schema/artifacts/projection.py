@@ -935,11 +935,18 @@ def write_projection(
         Number of rows written.
 
     Raises:
-        ValueError: If ``source`` is not a source dataset, or if any row's
-            ``reaction_id`` column is missing or disagrees with its Reaction. The
-            message names the source, since a corpus-wide run has thousands of datasets
-            to choose between.
+        ValueError: If ``row_group_size`` is less than one, which no row group can
+            hold, refused before the source is read; if ``source`` is not a source
+            dataset; or if any row's ``reaction_id`` column is missing or disagrees
+            with its Reaction. The message names the source, since a corpus-wide run
+            has thousands of datasets to choose between.
     """
+    if row_group_size < 1:
+        # A size of zero or less would flush after every row, writing the one-row
+        # groups this parameter exists to avoid, with no error anywhere.
+        raise ValueError(
+            f"row_group_size is {row_group_size}, which no row group can hold"
+        )
     view = parquet.DatasetView(source)
     if source_md5 is None:
         source_md5 = view.md5()
