@@ -935,13 +935,14 @@ def write_projection(
     source_dataset_id: str | None = None,
     history: first_commits.Index | None = None,
     compression: str = "zstd",
-    row_group_size: int = 1000,
+    row_group_size: int = 10_000,
 ) -> int:
     """Projects a source Parquet dataset and writes it.
 
-    Reactions are read and written one source row group at a time, so peak memory is
-    bounded by the largest row group rather than the dataset. The output is published
-    atomically, so a failure partway leaves any existing projection untouched.
+    Reactions are read one source row group at a time and written one output row group
+    at a time, so peak memory is bounded by one of each rather than by the dataset. The
+    output is published atomically, so a failure partway leaves any existing projection
+    untouched.
 
     Args:
         source: Path to the source Parquet dataset.
@@ -954,17 +955,28 @@ def write_projection(
             projection is stamped with. None leaves ``first_commit`` null throughout,
             which is right only for a dataset ord-data never held.
         compression: Parquet compression codec.
-        row_group_size: Rows per output row group.
+        row_group_size: Rows per output row group, independent of the source's. The
+            footer holds statistics for every leaf of every row group and is parsed
+            before any data is read, so fewer, larger row groups make a projection
+            cheaper to open.
 
     Returns:
         Number of rows written.
 
     Raises:
-        ValueError: If ``source`` is not a source dataset, if any row's
-            ``reaction_id`` column is missing or disagrees with its Reaction, or if
-            ``history`` lacks a reaction the source holds. The message names the source,
-            since a corpus-wide run has thousands of datasets to choose between.
+        ValueError: If ``row_group_size`` is less than one, which no row group can
+            hold, refused before the source is read; if ``source`` is not a source
+            dataset; if any row's ``reaction_id`` column is missing or disagrees with
+            its Reaction; or if ``history`` lacks a reaction the source holds. The
+            message names the source, since a corpus-wide run has thousands of
+            datasets to choose between.
     """
+    if row_group_size < 1:
+        # A size of zero or less would flush after every row, writing the one-row
+        # groups this parameter exists to avoid, with no error anywhere.
+        raise ValueError(
+            f"row_group_size is {row_group_size}, which no row group can hold"
+        )
     view = parquet.DatasetView(source)
     if source_md5 is None:
         source_md5 = view.md5()
@@ -1007,8 +1019,10 @@ def write_projection(
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,
     ):
+        # Carried across source row groups, so the output's row groups are the size
+        # asked for rather than the source's.
+        batch: list[dict[str, Any]] = []
         for row_group in range(view.num_row_groups):
-            batch = []
             for reaction_id, reaction in view.iter_reactions(row_group=row_group):
                 try:
                     row = reaction_row(
@@ -1022,11 +1036,13 @@ def write_projection(
                     raise ValueError(f"{view.path}: {error}") from error
                 unreadable += _unreadable_structures(row)
                 batch.append(row)
+                if len(batch) >= row_group_size:
+                    writer.write_table(pa.Table.from_pylist(batch, schema=schema))
+                    rows += len(batch)
+                    batch = []
+        if batch:
+            writer.write_table(pa.Table.from_pylist(batch, schema=schema))
             rows += len(batch)
-            writer.write_table(
-                pa.Table.from_pylist(batch, schema=schema),
-                row_group_size=row_group_size,
-            )
     if unreadable:
         # Per dataset rather than per row: a count is diffable between runs, so a
         # regression in structure reading shows up instead of hiding in the nulls.
