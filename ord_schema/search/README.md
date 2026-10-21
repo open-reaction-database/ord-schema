@@ -225,7 +225,7 @@ and a pivot on the next:
 flowchart TB
     A["exists / forall over a repeated level"] --> B{"an exists whose body is one structure<br/>predicate on the element's own smiles<br/>and nothing else?"}
     B -- yes --> I["<b>occurrence index</b><br/>reaction_id IN (SELECT … FROM occurrences …)"]
-    B -- no --> P{"does the body resolve against<br/>the pivot's pruned element,<br/>and does a pivot fit?"}
+    B -- no --> P{"does the body resolve against<br/>the pivot's pruned element,<br/>and does the corpus hold its artifact?"}
     P -- yes --> V["<b>a pivot</b><br/>reaction_id IN (SELECT … FROM pivot_… AS x0 …)"]
     P -- no --> E["<b>the elements</b><br/>list_filter over the nested column"]
 ```
@@ -245,9 +245,9 @@ in what they read. Worked examples, with the route each clause takes:
 | a desired product with a yield above 50% | `exists outcomes.products`, nested `exists measurements` | both levels' pivots, joined on the ordinal prefix |
 | the ten highest-yielding reactions | `order_by` a `reduce` over `outcomes.products.measurements` | no quantifier: the level's pivot, or the projection's lists without one |
 
-Every pivot row above falls to the elements when no pivot is available — a level the
-budget refused, or one with neither an artifact nor room to build. The answer does not
-change; the query gets slower, and the log says which route it took.
+Every pivot row above falls to the elements when the corpus holds no artifact for the
+level. The answer does not change; the query gets slower, and the log says which
+relations it read.
 
 ## Structure search
 
@@ -267,16 +267,15 @@ should set it to the core count divided by that concurrency instead of leaving i
 
 Finding which reactions hold a match is a separate cost from the chemistry, and the
 larger one. An **occurrence index** — one row per structure occurrence, carrying the
-corpus-wide ID and the path — makes that a semi-join against a narrow table rather than
-a scan of every reaction. It carries nothing of the element, so a structure bound to one
-of the element's fields — pyridine *as the solvent* — is answered by the level's pivot,
-which holds the whole element. At corpus scale the index is 18,847,978 rows and **1.1
-GiB** unnested from the projections in 54s, or 1.35 GiB read from pivots in 3.1s, and
-resident for the life of the `Corpus`. A search for pyridine among the inputs returns in
-1.46s **end to end**, and a boronic acid in 0.15s — and for a common pattern nearly all
-of that is the RDKit screen and verify, which the index does not touch: pyridine's match
-alone is about 1.4s of its 1.46s. What the index cut is the reaction lookup, from roughly
-3.5s to 0.2s.
+corpus-wide ID and the path — makes that a semi-join against a narrow relation rather
+than a scan of every reaction. It carries nothing of the element, so a structure bound
+to one of the element's fields — pyridine *as the solvent* — is answered by the level's
+pivot, which holds the whole element. At corpus scale the index is 18,847,978 rows, read
+as a view over the occurrence artifacts. A search for pyridine among the inputs returns
+in 1.46s **end to end**, and a boronic acid in 0.15s — and for a common pattern nearly
+all of that is the RDKit screen and verify, which the index does not touch: pyridine's
+match alone is about 1.4s of its 1.46s. What the index cut is the reaction lookup, from
+roughly 3.5s to 0.2s.
 
 Whichever route a clause takes, aggregates, orderings, limits, negations, disjunctions,
 and a second structure predicate compose around it, and the screening and verification
@@ -285,28 +284,18 @@ authentic standards — is a level with no elements: nothing satisfies an `exist
 and nothing contradicts a `forall`, so "reactions **without** pyridine in the workup"
 includes every reaction that has no workup at all.
 
-Three ways to reach those rows, cheapest first, decided per path.
-
-`Corpus(..., occurrences_dir=...)` reads an **occurrences artifact**, which is the rows
-themselves: the read adds only the corpus-wide offset. Where the directory covers every
-indexed path the index is published as a **view over Parquet** and nothing is built —
-0.18s and 0.40 GiB resident over ORD, against 3.1s and 1.49 GiB for the table read from
-pivots, with DuckDB holding 30 MiB where it held 1.40 GiB — at about the same per-query
-cost, and less on the narrow paths, where reading one path's files beats filtering
-`path = ?` across every occurrence in the corpus. `require_occurrences=True` refuses a
-directory that does not cover every path, which is worth setting wherever the container
-was sized for the view.
-
-Failing that, a **pivot artifact** over the path's level holds one row per element, which
-is what the build would otherwise unnest the projection to produce — over ORD **3.1s
-against 54s** for the same 18,847,978 occurrences. Failing both, the projection is
-unnested.
-
-One uncovered path materializes the whole index rather than leaving a view whose branches
-unnest the projection, which would repeat that traversal on every query rather than pay it
-once. Either way the index is built at open, which `Corpus(warm=False)` defers to the
-first query that spends it — and with a covering `occurrences_dir` there is little left
-for `warm` to do but check that the index reaches every structure the corpus holds.
+The rows are the **occurrences artifact**, which `Corpus(..., occurrences_dir=...)`
+publishes as a **view over Parquet**: the read adds only the corpus-wide offset, and
+nothing is built — 0.18s and 0.40 GiB resident over ORD at open, and less per query on
+the narrow paths, where reading one path's files beats filtering `path = ?` across every
+occurrence in the corpus. The directory has to cover every indexed path, because the
+check that makes the index trustworthy — that it reaches every structure the corpus
+holds — needs every path to count. One covering some of them leaves the corpus with no
+index, said in a warning, and every structure predicate is then answered from the pivots
+or the projection; `require_occurrences=True` refuses that instead, which is worth
+setting wherever the artifacts are meant to answer. The index is published at open,
+which `Corpus(warm=False)` defers to the first query that spends it, and what publishing
+costs is the scan that checks it.
 
 ## Pivoted levels
 
@@ -371,40 +360,21 @@ Joined on the reaction alone — or on `(reaction, outcome)`, which over ORD is 
 join — the desired product pairs with its sibling's 90% and the reaction answers yes.
 Joined on the whole prefix it does not: product 1's only measurement is 10%.
 
-Over ORD a pivot answers a quantifier **6–27× faster than the elements**, and one read
-from Parquet lands within tens of milliseconds of the same pivot held in memory — which
-is the whole argument for deriving them, since the artifact costs no budget at all. The
-four levels that answer the most are **514 MB as artifacts against 9.21 GiB held**,
-published as views in 0.9s against 32 minutes to build them in process.
-
-Building one in process unnests the projection down to its level, and the two costs pull
-against each other: build cost is *depth*, an order of magnitude per further repeated
-level, while what it costs to hold is *width*, how much of its column an element still
-carries. `workups` is the cheapest to build and the worst to hold, at 4.18 GiB against a
-4 GB default that refuses it. Every figure here, and the per-level tables behind them,
-are in [the logbook entry][cache-entry], findings 12–14.
+Over ORD a pivot answers a quantifier **6–27× faster than the elements**, read as a view
+over Parquet that costs nothing to hold: the four levels that answer the most are
+**514 MB as artifacts**, published as views in 0.9s. Every figure here, and the
+per-level tables behind them, are in [the logbook entry][cache-entry], findings 12–14.
 
 That is what `scripts/derive_pivots.py` is for — one subdirectory per level, one file per
 projection within it, stamped like any other derived artifact and read by
 `Corpus(..., pivots_dir=...)`. Artifacts are refused unless they were derived from this
 corpus's own projections: a pivot names its reactions by ID, so one derived elsewhere
 answers against rows this corpus does not hold, confidently and wrongly. A level with no
-artifacts is still built in process, so a partial set is a partial speedup rather than a
-missing answer.
-
-The occurrence index reads them too, one indexed path at a time, where no occurrences
-artifact covers that path: a pivot holds one row per element of the nearest repeated
-level, which is what the build would otherwise unnest the projection to produce.
-
-`Corpus(..., pivots_dir=..., derive_pivots=True)` writes the missing ones instead of
-building them: the same pass, spent where it outlives the process and costs no budget,
-and holding a projection at a time rather than the whole level — so a level too large for
-the budget is still derivable this way. Artifacts already current are skipped, so an
-interrupted run is finished by the next rather than started again. It is off by default,
-and `check_pivots()` never triggers it: that call reaches all 39 levels, and deriving
-there would unnest the projection 39 times at startup for a deployment that asks about
-two. It needs `warm=False`, since deriving a level has to precede the read that would
-refuse it half-derived and warming reads the levels the occurrence index covers.
+artifacts is answered from the projection's lists, so a partial set is a partial speedup
+rather than a missing answer; `require_pivots=True` refuses it instead. The corpus
+builds no pivot of its own: the pass that unnests a level out of the projection belongs
+in the derivation, where it runs once and outlives the process, rather than in whichever
+query first asked.
 
 ## What a projection query costs
 
@@ -423,44 +393,18 @@ only part of what they hold, so what remains sits outside `memory_limit`. With t
 held, a scalar query over the projection lands in hundredths of a second, which leaves a
 cache of the columns themselves nothing to buy.
 
-A pivot built in process is charged against `pivot_budget_bytes` and evicted
-least-recently-used, skipping any a search is still reading; one too large to keep is not
-kept, the quantifier compiles over the elements, and that is remembered rather than
-rediscovered by building it again. Only builds wait on builds: a search over a level
-already materialized is answered while another is being built.
-
-**The budget is the cliff, and it says so.** A refused level logs a **warning** on every
-query over it, giving what it costs, what the budget is, and what changes them — so a
-query that suddenly takes seconds explains itself in the log rather than by profiling:
-
-```text
-WARNING the pivot over outcomes.products.measurements takes 1.6 GB, over this corpus's
-budget of 1.0 GB, so every query over that level unnests the projection instead. Derive
-the pivot as an artifact, or open the Corpus with a larger pivot_budget_bytes if the
-machine has the memory to spare.
-```
-
-The default is a fixed **4 GB**, which holds any single one of the pivots worth the most,
-and `Corpus(pivot_budget_bytes=...)` states otherwise on a machine with room to spare.
-Building one costs its size whether or not it is kept, so the peak is the budget plus the
-largest pivot, not the budget alone — `pivot_budget_bytes=0` is the one figure that
-avoids the build entirely, and so the one that bounds a small machine. A deployment with
-derived artifacts spends none of it: those are views over Parquet, not tables.
-
 ## Sizing a deployment
 
 Budget **about 8 GiB of resident memory** for a corpus serving substructure search over
-ORD. Warm in a container, with its index read from pivot artifacts, it holds 6.5 GiB
-before any query. The open accounts for 2.3 GiB, most of it the projections' parsed
-footers; the occurrence index's 1.35 GiB table adds 1.4 GiB, and the `SubstructLibrary`
-adds 2.9 GiB. DuckDB's own caches come on top, and fill whatever `memory_limit` allows.
-With a covering `occurrences_dir` the same corpus holds 5.2 GiB warm: the index becomes
-a view rather than a table, and the build floor below goes with it. An open corpus holds
-all three, since the two builds happen at open unless it was given `warm=False` — which
-is what makes the resident figure something to size a container against rather than a
-floor a later query raises it to. `Corpus` takes that limit as an argument; left unset,
-DuckDB claims about 80% of the machine — or of the container's cap, which it does read.
-The step-by-step breakdowns are in [the logbook entry][cache-entry], findings 16 and 20.
+ORD. Warm in a container, with a covering `occurrences_dir`, it holds 5.2 GiB before any
+query: the open accounts for 2.3 GiB, most of it the projections' parsed footers, and
+the `SubstructLibrary` adds 2.9 GiB. DuckDB's own caches come on top, and fill whatever
+`memory_limit` allows. An open corpus holds both, since the library is built at open
+unless it was given `warm=False` — which is what makes the resident figure something to
+size a container against rather than a floor a later query raises it to. `Corpus` takes
+that limit as an argument; left unset, DuckDB claims about 80% of the machine — or of
+the container's cap, which it does read. The step-by-step breakdowns are in [the logbook
+entry][cache-entry], findings 16 and 20.
 
 **Sources cost disk and startup.** A corpus given `sources_pattern` reads ord-data's 53
 source files, about 1.2 GiB on disk, on demand rather than holding them: nothing is
@@ -474,26 +418,13 @@ and costs 2.5s; the same query against the `outcomes.products.measurements` pivo
 0.76s, which is what reading `reaction_id` alone costs — the reduction itself is free, and
 the pivot's own group-by is 0.023s. Over the 19 canonical queries the slowest is 0.231s
 with the pivots held and 1.87s without them, and none is above a second. The artifact costs
-no budget, so this is latency a corpus holding pivots gets for nothing.
+nothing to hold, so this is latency a corpus holding pivots gets for nothing.
 
 None of that is optional for substructure search, since the screen and verify are RDKit in
 this process rather than SQL in an engine. Everything above it is latency: a container
-held to `pivot_budget_bytes=0` and given no artifacts answers a quantifier by unnesting
-the projection, in seconds rather than the tens of milliseconds a pivot takes. There is
-no managed service to move this to — Athena and its kin can scan the Parquet, but the
-chemistry is not SQL.
-
-**An index unnested from the projections has a floor, and it is not a soft one** — a
-corpus given a covering `occurrences_dir` builds nothing and meets none of what follows,
-and one reading every indexed level from pivot artifacts builds the index under a 1 GB
-limit. Unnesting over ORD wants **5 GB** of DuckDB memory, and at 4.5 GB it raises
-`OutOfMemoryException` rather than running slowly — a block it cannot pin is not one it
-can spill, so a `temp_directory` does not rescue it. Near the floor it also writes about
-35 GiB of temporary files, and 15 GiB even at DuckDB's default limit, which a container
-may not have room for: a Fargate task carries 20 GB of ephemeral storage by default, and
-`Corpus` sets no `temp_directory`. Three remedies were measured and none moves the floor;
-a fourth, building per projection file, lowers it but costs every unconstrained
-deployment time — measured and rejected ([logbook][cache-entry], findings 16–17).
+given no artifacts answers a quantifier from the projection's lists, in seconds rather
+than the tens of milliseconds a pivot takes. There is no managed service to move this
+to — Athena and its kin can scan the Parquet, but the chemistry is not SQL.
 
 **Nothing supports swapping a corpus in place.** A
 structure's corpus-wide ID is its dataset-local one plus an offset that is a running total
@@ -530,35 +461,29 @@ than it strictly must, and never less.
 
 So a deployment that must pick up new data opens a **second** `Corpus`, waits for it to
 warm, and swaps the reference. Peak memory during the swap is therefore twice the steady
-state — about 16 GiB over ORD, or 13 with a covering `occurrences_dir` — which is the
-figure a container has to be sized against if it is ever to take an update without a
-restart. There is no in-place refresh, and adding one would mean making every ID-keyed
-structure versioned rather than replaced.
+state — about 11 GiB over ORD, twice the 5.2 GiB above — which is the figure a container
+has to be sized against if it is ever to take an update without a restart. There is no
+in-place refresh, and adding one would mean making every ID-keyed structure versioned
+rather than replaced.
 
 **Under a container cap, state the limit rather than letting DuckDB pick it.** Its default
 is sized from the cgroup and not from the host, which is the right input, but the limit
-bounds DuckDB's buffers rather than the process: unnesting the index from the projections
-holds 3.1–3.4 GiB beside them, and reaching the cap is a kill — neither an exception nor a
-log line. Two thirds of that is resident before the build starts, most of it the
-projections' parsed footers, which the corpus parses at open and DuckDB's accounting
-books a fifth of. Heap the open frees is heap the build reuses, so freeing more of it at
-open does not lower the peak. With swap off, as a deployment runs, an 8 GiB container on
-DuckDB's own 6.3 GiB default was killed 40–70s into the build, and one holding DuckDB to
-5 GiB was killed in two runs of three; a 12 GiB container finished at both 5 GiB and
-`6500MiB`, peaking at 8.1–8.4 and 9.5 GiB resident. Swap only postpones the kill.
-`Corpus` warns at open when a cap it can read leaves less than 4 GB above the limit
+bounds DuckDB's buffers rather than the process, and reaching the cap is a kill — neither
+an exception nor a log line. What the process holds beside those buffers is the library,
+the interpreter, and the projections' parsed footers, which the corpus parses at open and
+DuckDB's accounting books a fifth of; set `memory_limit` to leave room for them
 ([logbook][cache-entry], findings 19–20).
 
 Which is survivable but should not be discovered by a user. A corpus opened with
-`warm=False` builds the index on the first query that can spend it, so a container short
-of the floor starts cleanly, passes `check_pivots()`, answers scalar queries, and then
-raises at whoever runs the first substructure search. Warming puts both builds at open,
-where falling short is a failed deployment rather than a failed request;
-`Corpus.check_index()` does the same for the index alone over a cold corpus, which is
+`warm=False` builds the library on the first substructure query, so a container short of
+its memory starts cleanly, passes `check_pivots()`, answers scalar queries, and then
+fails at whoever runs the first substructure search. Warming builds it at open, where
+falling short is a failed deployment rather than a failed request, and publishes the
+index, whose checks refuse at open a corpus the first structure query would otherwise
+refuse; `Corpus.check_index()` publishes the index alone over a cold corpus, which is
 what a deployment answering scalar and similarity queries wants — those spend the index
-but never the library. What a cold corpus buys is the memory floor above, the 1.1–1.35
-GiB the index holds, and the 2.6–2.9 GiB the library adds, none of which a scalar-only
-corpus needs to spend.
+but never the library. What a cold corpus buys is the 2.6–2.9 GiB the library adds,
+which a scalar-only corpus never needs to spend.
 
 Across a mixed workload pairing an indexed structure clause with one the index cannot
 carry, the index is **2–24× ahead** of the same corpus answering every quantifier from
@@ -1079,8 +1004,7 @@ Two things it leaves to the deployment:
 
 - **Writes inside the trees.** The list has no read-only form, so a statement could write
   under a corpus directory, and `Corpus` reads a file rewritten under it as it stands.
-  Mount the trees read-only. `derive_pivots=True` is the one setting that wants `pivots_dir`
-  writable, and it writes through a connection of its own rather than the corpus's.
+  Mount the trees read-only.
 - **What a query costs.** Confinement bounds what a statement can reach, not how long it
   runs or how much it holds; the grammar, `max_rows`, `timeout_seconds`, and `memory_limit`
   do that.
