@@ -303,7 +303,7 @@ def test_a_digest_separates_its_values():
 
 def test_an_unchanged_corpus_answers_as_recorded(corpus_root):
     projections, structures_glob, _ = _globs(corpus_root)
-    with execute.Corpus(projections, structures_glob, pivot_budget_bytes=0) as corpus:
+    with execute.Corpus(projections, structures_glob) as corpus:
         measured = check.measure(corpus, timeout_seconds=60)
     baseline = {"corpus": check.corpus_digest(projections), "queries": measured}
     assert _failures(check.check_answers(measured, baseline)) == []
@@ -311,7 +311,7 @@ def test_an_unchanged_corpus_answers_as_recorded(corpus_root):
 
 def test_an_answer_that_moved_is_named(corpus_root):
     projections, structures_glob, _ = _globs(corpus_root)
-    with execute.Corpus(projections, structures_glob, pivot_budget_bytes=0) as corpus:
+    with execute.Corpus(projections, structures_glob) as corpus:
         measured = check.measure(corpus, timeout_seconds=60)
     baseline = {"corpus": "x", "queries": json.loads(json.dumps(measured))}
     baseline["queries"]["scalar_comparison"]["digest"] = "something else"
@@ -329,7 +329,7 @@ def test_every_canonical_query_compiles_and_runs(corpus_root):
     # A query naming a path the schema lacks would otherwise fail only on the day
     # someone ran the check against a real corpus.
     projections, structures_glob, _ = _globs(corpus_root)
-    with execute.Corpus(projections, structures_glob, pivot_budget_bytes=0) as corpus:
+    with execute.Corpus(projections, structures_glob) as corpus:
         measured = check.measure(corpus, timeout_seconds=60)
     assert sorted(measured) == sorted(entry["name"] for entry in check.QUERIES)
 
@@ -341,7 +341,7 @@ def test_every_canonical_query_says_what_it_covers():
 
 def test_the_coverage_counts_never_fail(corpus_root):
     projections, structures_glob, _ = _globs(corpus_root)
-    with execute.Corpus(projections, structures_glob, pivot_budget_bytes=0) as corpus:
+    with execute.Corpus(projections, structures_glob) as corpus:
         findings = check.check_coverage(corpus, timeout_seconds=60)
     assert _failures(findings) == []
     assert any(finding.check == "reactions" for finding in findings)
@@ -444,7 +444,6 @@ def empty_corpus(corpus_root, tmp_path_factory):
     with execute.Corpus(
         str(root / "projections" / "*.parquet"),
         str(root / "structures" / "*.parquet"),
-        pivot_budget_bytes=0,
     ) as corpus:
         yield corpus
 

@@ -84,7 +84,13 @@ _REACTIONS = {
 
 @pytest.fixture(scope="module")
 def corpus_dir(tmp_path_factory) -> pathlib.Path:
-    """Builds sources, projections, and structures artifacts for both datasets."""
+    """Builds every artifact for both datasets: a whole tree, as a deployment reads.
+
+    Pivots over every level and occurrences at every indexed path sit beside the
+    projections and structures, so a corpus opened over the tree routes a quantifier
+    as a published build would; a test wanting the projection's lists opens without
+    them.
+    """
     root = tmp_path_factory.mktemp("corpus")
     for shard, reactions in _REACTIONS.items():
         source = root / "data" / f"ord_dataset-{shard}.parquet"
@@ -104,6 +110,8 @@ def corpus_dir(tmp_path_factory) -> pathlib.Path:
         structured = root / "structures" / source.name
         structured.parent.mkdir(parents=True, exist_ok=True)
         structures.write_structures(projected, structured)
+    _write_pivots(root, sorted(pivot.LEVELS))
+    _write_occurrences(root / "pivots", root / "occurrences")
     return root
 
 
@@ -149,35 +157,47 @@ def deep_root(tmp_path_factory) -> pathlib.Path:
     structured = root / "structures" / source.name
     structured.parent.mkdir(parents=True, exist_ok=True)
     structures.write_structures(projected, structured)
+    _write_pivots(root, _OCCURRENCE_LEVELS)
+    _write_occurrences(root / "pivots", root / "occurrences")
     return root
 
 
 @pytest.fixture(scope="module")
 def deep_corpus(deep_root) -> Iterator[execute.Corpus]:
-    """The corpus over ``deep_root``, holding no pivot artifacts."""
-    with execute.Corpus(
-        str(deep_root / "projections" / "*.parquet"),
-        str(deep_root / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-    ) as value:
+    """The corpus over ``deep_root``, with pivots over the indexed levels alone."""
+    with _open(deep_root, resolver={}.__getitem__) as value:
         yield value
 
 
 @pytest.fixture(scope="module")
 def corpus(corpus_dir) -> Iterator[execute.Corpus]:
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={"pyridine": "c1ccncc1", "ethanol": "CCO"}.__getitem__,
+    with _open(
+        corpus_dir, resolver={"pyridine": "c1ccncc1", "ethanol": "CCO"}.__getitem__
     ) as value:
         yield value
 
 
-def _with_sources(root, **kwargs) -> execute.Corpus:
-    """Opens the corpus under ``root`` with the sources it was derived from."""
+def _open(root, **kwargs) -> execute.Corpus:
+    """Opens the corpus under ``root``, with its pivots and occurrences unless told.
+
+    Args:
+        root: The tree, laid out as ``corpus_dir`` lays one out.
+        **kwargs: Passed to ``Corpus``. ``pivots_dir`` and ``occurrences_dir`` default
+            to the tree's own; pass None to open without them.
+    """
+    kwargs.setdefault("pivots_dir", str(root / "pivots"))
+    kwargs.setdefault("occurrences_dir", str(root / "occurrences"))
     return execute.Corpus(
         str(root / "projections" / "*.parquet"),
         str(root / "structures" / "*.parquet"),
+        **kwargs,
+    )
+
+
+def _with_sources(root, **kwargs) -> execute.Corpus:
+    """Opens the corpus under ``root`` with the sources it was derived from."""
+    return _open(
+        root,
         sources_pattern=str(root / "data" / "*.parquet"),
         resolver={"pyridine": "c1ccncc1"}.__getitem__,
         **kwargs,
@@ -602,19 +622,25 @@ def reaction_root(tmp_path_factory) -> pathlib.Path:
     structured = root / "structures" / source.name
     structured.parent.mkdir(parents=True)
     structures.write_structures(projected, structured)
+    _write_pivots(root, sorted(pivot.LEVELS))
     return root
 
 
-@pytest.fixture(scope="module", params=[None, 0], ids=["pivoted", "unpivoted"])
+@pytest.fixture(scope="module", params=["pivoted", "unpivoted"])
 def reaction_corpus(request, reaction_root) -> Iterator[execute.Corpus]:
-    """The reactions, counted through pivots built in process and through the lists."""
+    """The reactions, counted through pivot artifacts and through the lists."""
     with execute.Corpus(
         str(reaction_root / "projections" / "*.parquet"),
         str(reaction_root / "structures" / "*.parquet"),
         resolver={}.__getitem__,
-        pivot_budget_bytes=request.param,
+        pivots_dir=_pivots_for(reaction_root, request.param),
     ) as value:
         yield value
+
+
+def _pivots_for(root: pathlib.Path, route: str) -> str | None:
+    """Returns the tree's pivots directory for ``"pivoted"``, and None for the lists."""
+    return str(root / "pivots") if route == "pivoted" else None
 
 
 def test_a_reaction_smarts_needs_every_template_on_its_side(reaction_corpus):
@@ -893,47 +919,12 @@ def test_nothing_matched_is_refused(tmp_path):
         )
 
 
-def _capped(monkeypatch, tmp_path, *caps: str, relative: str = "") -> None:
-    """Builds a cgroup v2 tree this process sits at the bottom of.
-
-    Args:
-        monkeypatch: The fixture, which points the readers at the tree.
-        tmp_path: Where to build it.
-        caps: What each level states, root first, one per level of ``relative`` plus the
-            root itself. A level with no cap given states none at all.
-        relative: The cgroup this process occupies, relative to the mount.
-    """
-    root = tmp_path / "cgroup"
-    directories = [root]
-    for part in relative.split("/") if relative else []:
-        directories.append(directories[-1] / part)
-    for directory, cap in zip(directories, caps, strict=False):
-        directory.mkdir(parents=True, exist_ok=True)
-        (directory / "memory.max").write_text(cap)
-    directories[-1].mkdir(parents=True, exist_ok=True)
-
-    proc = tmp_path / "cgroup.proc"
-    proc.write_text(f"0::/{relative}\n")
-    monkeypatch.setattr(execute, "_CGROUP_V2_ROOT", root)
-    monkeypatch.setattr(execute, "_CGROUP_V1_MEMORY_ROOT", tmp_path / "absent")
-    monkeypatch.setattr(execute, "_PROC_SELF_CGROUP", proc)
-
-
-def _open(corpus_dir, **kwargs) -> execute.Corpus:
-    return execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        **kwargs,
-    )
-
-
 def test_a_memory_limit_is_given_to_duckdb(corpus_dir):
     with _open(corpus_dir, memory_limit="512MiB") as corpus:
         setting = corpus._connection.execute(
             "SELECT current_setting('memory_limit')"
         ).fetchone()
-    assert setting is not None
-    assert execute._setting_bytes(setting[0]) == 512 * 1024**2
+    assert setting == ("512.0 MiB",)
 
 
 @pytest.mark.parametrize(
@@ -977,113 +968,6 @@ def test_a_search_cursor_cannot_lift_the_confinement(corpus, statement):
             cursor.execute(statement)
     finally:
         cursor.close()
-
-
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        ("512.0 MiB", 512 * 1024**2),
-        ("6.3 GiB", int(6.3 * 1024**3)),
-        ("1024 B", 1024),
-        # What the setting says when nothing bounds it.
-        ("-1", None),
-    ],
-)
-def test_a_size_setting_reads_as_bytes(value, expected):
-    assert execute._setting_bytes(value) == expected
-
-
-@pytest.mark.parametrize("cap", ["max", str(2**63 - 4096)])
-def test_an_unbounded_cgroup_is_no_cap(monkeypatch, tmp_path, cap):
-    # Both versions spell "unlimited" as something readable, so a corpus on a machine
-    # with cgroups but no limit must not warn about the room it has.
-    _capped(monkeypatch, tmp_path, cap)
-    assert execute._container_cap_bytes() is None
-
-
-def test_a_cap_above_this_process_is_found(monkeypatch, tmp_path):
-    # A container inside a slice sits several levels below the mount, and the level
-    # holding the cap is not the one it occupies: reading only the root finds nothing
-    # here, and only the leaf finds the wrong thing.
-    _capped(
-        monkeypatch,
-        tmp_path,
-        "max",
-        str(8 * 1024**3),
-        "max",
-        relative="system.slice/docker-abc.scope",
-    )
-    assert execute._container_cap_bytes() == 8 * 1024**3
-
-
-def test_the_smallest_cap_that_applies_is_the_one_that_counts(monkeypatch, tmp_path):
-    # Every level's cap binds, so the process reaches the smallest of them first --
-    # which is not always the innermost.
-    _capped(
-        monkeypatch,
-        tmp_path,
-        str(4 * 1024**3),
-        str(12 * 1024**3),
-        relative="nested",
-    )
-    assert execute._container_cap_bytes() == 4 * 1024**3
-
-
-def test_a_cgroup_line_for_another_controller_is_not_read_as_this_one(
-    monkeypatch, tmp_path
-):
-    # A v1 line names its controllers where the v2 line names none, so matching by
-    # position rather than by name would read one hierarchy's path against the other's
-    # mount.
-    root = tmp_path / "cgroup"
-    (root / "leaf").mkdir(parents=True)
-    (root / "memory.max").write_text("max")
-    (root / "leaf" / "memory.max").write_text(str(2 * 1024**3))
-    proc = tmp_path / "cgroup.proc"
-    proc.write_text("5:memory:/other\n0::/leaf\n")
-    monkeypatch.setattr(execute, "_CGROUP_V2_ROOT", root)
-    monkeypatch.setattr(execute, "_CGROUP_V1_MEMORY_ROOT", tmp_path / "absent")
-    monkeypatch.setattr(execute, "_PROC_SELF_CGROUP", proc)
-    assert execute._container_cap_bytes() == 2 * 1024**3
-
-
-def test_a_cap_leaving_the_process_nothing_is_warned_about(
-    corpus_dir, tmp_path, monkeypatch, caplog
-):
-    _capped(monkeypatch, tmp_path, str(2 * 1024**3))
-    caplog.set_level(logging.WARNING, logger="ord_schema.search.execute")
-    caplog.clear()
-    with _open(corpus_dir, memory_limit="1GiB"):
-        pass
-    assert [
-        record for record in caplog.records if "1.0 GB for everything" in record.message
-    ]
-
-
-def test_a_cap_leaving_the_process_room_is_not_warned_about(
-    corpus_dir, tmp_path, monkeypatch, caplog
-):
-    _capped(monkeypatch, tmp_path, str(12 * 1024**3))
-    caplog.set_level(logging.WARNING, logger="ord_schema.search.execute")
-    caplog.clear()
-    with _open(corpus_dir, memory_limit="1GiB"):
-        pass
-    assert not [
-        record for record in caplog.records if "for everything" in record.message
-    ]
-
-
-def test_no_cap_to_read_is_not_warned_about(corpus_dir, tmp_path, monkeypatch, caplog):
-    monkeypatch.setattr(execute, "_CGROUP_V2_ROOT", tmp_path / "absent")
-    monkeypatch.setattr(execute, "_CGROUP_V1_MEMORY_ROOT", tmp_path / "absent")
-    monkeypatch.setattr(execute, "_PROC_SELF_CGROUP", tmp_path / "absent")
-    caplog.set_level(logging.WARNING, logger="ord_schema.search.execute")
-    caplog.clear()
-    with _open(corpus_dir, memory_limit="1GiB"):
-        pass
-    assert not [
-        record for record in caplog.records if "for everything" in record.message
-    ]
 
 
 # A Pd G3 precatalyst from the corpus, whose two dative bonds the projection writes in a
@@ -1223,11 +1107,13 @@ def test_a_search_naming_no_compound_carries_no_resolutions(corpus_dir):
 
 
 def _copy_corpus(corpus_dir, tmp_path) -> pathlib.Path:
-    """Copies the built corpus and its sources so a test can damage one in isolation."""
+    """Copies the whole tree and its sources so a test can damage one in isolation."""
     for name in ("data", "projections", "structures"):
         (tmp_path / name).mkdir()
         for source in (corpus_dir / name).glob("*.parquet"):
             (tmp_path / name / source.name).write_bytes(source.read_bytes())
+    for name in ("pivots", "occurrences"):
+        shutil.copytree(corpus_dir / name, tmp_path / name)
     return tmp_path
 
 
@@ -2072,15 +1958,13 @@ def test_a_search_runs_on_a_cursor_rather_than_the_shared_connection(corpus_dir)
     request = query.Query.model_validate(
         {"where": _exists({"op": "eq", "path": "smiles", "value": {"literal": "CCO"}})}
     )
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-    ) as value:
+    with _open(corpus_dir, resolver={}.__getitem__) as value:
+        # Publishing a view is DDL on the corpus's own connection, so the pivots are
+        # published first and what is counted is the search.
+        value.check_pivots()
         value._connection = counter = _CursorCounter(value._connection)
-        # The first search also materializes its columns, which is a cursor of its own.
         assert value.search(request).num_rows == 1
-        # Steady state, with that table already built: one search, one cursor.
+        # Steady state, with every view published: one search, one cursor.
         taken = counter.cursors
         assert value.search(request).num_rows == 1
         assert counter.cursors == taken + 1
@@ -2119,9 +2003,8 @@ def test_a_rewritten_artifact_is_not_answered_from_its_cached_footer(
 ):
     # Holding the footers means holding something the file can go on to contradict. The
     # rewrite lands in the same second as the read that cached it, which is the case a
-    # cache keyed on a coarse timestamp would answer stale. Nothing is materialized, so
-    # both searches reach the Parquet files rather than the second one reading a table
-    # the first one built.
+    # cache keyed on a coarse timestamp would answer stale. Opened without pivots, so
+    # both searches reach the projection rather than an artifact derived from it.
     root = _copy_corpus(corpus_dir, tmp_path)
     request = query.Query.model_validate(
         {
@@ -2138,7 +2021,6 @@ def test_a_rewritten_artifact_is_not_answered_from_its_cached_footer(
         str(root / "projections" / "*.parquet"),
         str(root / "structures" / "*.parquet"),
         resolver={}.__getitem__,
-        pivot_budget_bytes=0,
     ) as value:
         assert _reactions(value.search(request)) == {"ord-aa01"}
         projected = root / "projections" / "ord_dataset-aa.parquet"
@@ -2695,15 +2577,10 @@ def test_a_role_literal_cannot_close_its_quote(corpus):
     assert matched == set()
 
 
-def test_the_index_is_built_once_and_only_when_wanted(corpus_dir, caplog):
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        warm=False,
-    ) as value:
+def test_the_index_is_published_once_and_only_when_wanted(corpus_dir, caplog):
+    with _open(corpus_dir, resolver={}.__getitem__, warm=False) as value:
         # An element predicate with no structure in it cannot use the index, so it must
-        # not pay to build one.
+        # not pay to check one.
         value.search(
             query.Query.model_validate(
                 {
@@ -2713,18 +2590,18 @@ def test_the_index_is_built_once_and_only_when_wanted(corpus_dir, caplog):
                 }
             )
         )
-        assert not value._occurrences_built
+        assert value._indexed is None
         caplog.set_level(logging.INFO, logger="ord_schema.search.execute")
         request = query.Query.model_validate(_ROUTABLE["structure alone"])
         assert value.search(request).num_rows == 2
-        assert value._occurrences_built
-        # A second search reuses it rather than rebuilding, which the answer alone
-        # cannot show -- a rebuild answers identically and costs a pass per path.
+        assert value._indexed is True
+        # A second search reuses it rather than publishing again, which the answer
+        # alone cannot show -- a second publish answers identically and costs a scan.
         assert value.search(request).num_rows == 2
-    builds = [
+    published = [
         record for record in caplog.records if record.message.startswith("indexed ")
     ]
-    assert len(builds) == 1
+    assert len(published) == 1
 
 
 def test_the_indexed_paths_come_from_the_artifact():
@@ -2733,25 +2610,16 @@ def test_the_indexed_paths_come_from_the_artifact():
     assert set(execute.INDEXED_PATHS) == set(occurrences.PATHS)
 
 
-def test_a_corpus_builds_the_occurrence_index_at_open(corpus_dir):
+def test_a_corpus_publishes_the_occurrence_index_at_open(corpus_dir):
     # The default, so the first structure query answers from an index that is already
-    # there rather than paying for one -- over ORD a pass per uncovered path.
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-    ) as value:
-        assert value._occurrences_built
+    # checked rather than paying the scan that checks it.
+    with _open(corpus_dir, resolver={}.__getitem__) as value:
+        assert value._indexed is True
 
 
 def test_a_cold_corpus_leaves_the_index_to_the_first_query(corpus_dir):
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        warm=False,
-    ) as value:
-        assert not value._occurrences_built
+    with _open(corpus_dir, resolver={}.__getitem__, warm=False) as value:
+        assert value._indexed is None
 
 
 def test_max_rows_bounds_what_a_search_returns(corpus_dir, caplog):
@@ -2904,27 +2772,17 @@ def test_projections_that_do_not_join_to_their_offsets_are_refused(
         )
 
 
-def test_deriving_pivots_beside_warming_is_refused(corpus_dir, tmp_path):
-    # Warming reads the levels the index covers, and a set covering some of the
-    # projections is what that read refuses -- so the two together would make an
-    # interrupted derivation permanent, the pass that completes it sitting behind the
-    # refusal.
-    with pytest.raises(ValueError, match="derive_pivots was set beside warm"):
-        execute.Corpus(
-            str(corpus_dir / "projections" / "*.parquet"),
-            str(corpus_dir / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            pivots_dir=str(tmp_path / "pivots"),
-            derive_pivots=True,
-        )
+def _doubled_tree(root: pathlib.Path) -> pathlib.Path:
+    """Writes a whole tree whose two datasets both state the reaction ``ord-x01``.
 
+    Args:
+        root: Where to write it.
 
-def test_warming_refuses_at_open_what_the_index_would_refuse_on_a_query(tmp_path):
-    # Two datasets stating one reaction pair cleanly and only the index refuses them,
-    # so this is the refusal warming is able to move. Opening such a corpus and failing
-    # later leaves one that looks searchable and is not.
+    Returns:
+        ``root``.
+    """
     for shard, smiles in (("aa", "c1ccncc1"), ("bb", "CCO")):
-        source = tmp_path / "data" / f"ord_dataset-{shard}.parquet"
+        source = root / "data" / f"ord_dataset-{shard}.parquet"
         source.parent.mkdir(parents=True, exist_ok=True)
         parquet.save_dataset(
             dataset_pb2.Dataset(
@@ -2935,32 +2793,33 @@ def test_warming_refuses_at_open_what_the_index_would_refuse_on_a_query(tmp_path
             ),
             str(source),
         )
-        projected = tmp_path / "projections" / source.name
+        projected = root / "projections" / source.name
         projected.parent.mkdir(parents=True, exist_ok=True)
         projection.write_projection(source, projected)
-        structured = tmp_path / "structures" / source.name
+        structured = root / "structures" / source.name
         structured.parent.mkdir(parents=True, exist_ok=True)
         structures.write_structures(projected, structured)
+    _write_pivots(root, _OCCURRENCE_LEVELS)
+    _write_occurrences(root / "pivots", root / "occurrences")
+    return root
+
+
+def test_warming_refuses_at_open_what_the_index_would_refuse_on_a_query(tmp_path):
+    # Two datasets stating one reaction pair cleanly and only the index refuses them,
+    # so this is the refusal warming is able to move. Opening such a corpus and failing
+    # later leaves one that looks searchable and is not.
     with pytest.raises(execute.PairingError, match="ord-x01 is stated by 2 rows"):
-        execute.Corpus(
-            str(tmp_path / "projections" / "*.parquet"),
-            str(tmp_path / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-        )
+        _open(_doubled_tree(tmp_path), resolver={}.__getitem__)
 
 
-def test_checking_the_index_builds_it_and_counts_every_path(corpus_dir):
+def test_checking_the_index_publishes_it_and_counts_every_path(corpus_dir):
     # The point of the check is that it happens at startup rather than inside whichever
-    # query first wants the index, so it has to leave the index built. Every indexed
-    # path is reported, including the ones this corpus records nothing at: a zero is
-    # ordinary, and omitting it would read as a path the walk lost.
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-    ) as value:
+    # query first wants the index, so it has to leave the index published. Every
+    # indexed path is reported, including the ones this corpus records nothing at: a
+    # zero is ordinary, and omitting it would read as a path the walk lost.
+    with _open(corpus_dir, resolver={}.__getitem__) as value:
         counts = value.check_index()
-        assert value._occurrences_built
+        assert value._indexed is True
         assert set(counts) == set(execute.INDEXED_PATHS)
         # Four components across the three reactions, and nothing anywhere else.
         assert counts["inputs.components"] == 4
@@ -2976,12 +2835,8 @@ def test_checking_a_corpus_the_index_refuses_fails_the_check(corpus_dir, tmp_pat
     table = pq.read_table(doubled)
     pq.write_table(pa.concat_tables([table, table]), doubled)
     with (
-        execute.Corpus(
-            str(root / "projections" / "*.parquet"),
-            str(root / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            require_current=False,
-            warm=False,
+        _open(
+            root, resolver={}.__getitem__, require_current=False, warm=False
         ) as value,
         pytest.raises(execute.PairingError, match="is stated by 2 rows"),
     ):
@@ -3127,32 +2982,39 @@ def test_a_routed_query_is_bounded_by_the_timeout(corpus, monkeypatch):
         "ord-aa02",
     }
     # What reaches the query is what the earlier phases left, not the whole bound: the
-    # screen and the index build come out of the same budget.
+    # screen and the index check come out of the same budget.
     (spent,) = [timeout for _, timeout in seen]
     assert 0 < spent <= 60
     assert "FROM occurrences" in seen[0][0]
 
 
-def test_a_spent_clause_reads_the_index_and_a_declined_one_does_not(corpus_dir):
+def test_a_spent_clause_reads_the_index_and_a_declined_one_does_not(
+    corpus_dir, tmp_path
+):
     # Everything else here compares the two paths, which agree -- so a search that
-    # quietly stopped spending the index would keep passing while the index cost a
-    # build and answered nothing. A row only the index holds separates them: the
-    # semi-join filters reactions by membership, so redirecting an existing reaction
-    # through a planted occurrence row changes the indexed answer and cannot change the
-    # projection's.
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-    ) as value:
+    # quietly stopped spending the index would keep passing while the index answered
+    # nothing. A row only the index holds separates them: the semi-join filters
+    # reactions by membership, so redirecting an existing reaction through a planted
+    # occurrence row changes the indexed answer and cannot change the pivot's.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    with _open(root, resolver={}.__getitem__) as value:
         spent = query.Query.model_validate(_ROUTABLE["structure alone"])
         assert _reactions(value.search(spent)) == {"ord-aa01", "ord-aa02"}
         # Copies aa01's occurrence rows, its pyridine among them, and attributes them to
-        # bb01, which holds no pyridine at all.
-        value._connection.execute(
-            "INSERT INTO occurrences SELECT 'ord-bb01', path, global_id "
-            "FROM occurrences WHERE reaction_id = 'ord-aa01'"
+        # bb01, which holds no pyridine at all. Written into the artifact, which the
+        # index is a view over, since a view takes no INSERT.
+        artifact = (
+            root / "occurrences" / "inputs.components" / "aa" / "ord_dataset-aa.parquet"
         )
+        table = pq.read_table(artifact)
+        planted = table.filter(
+            pa.compute.equal(table.column("reaction_id"), "ord-aa01")
+        ).set_column(
+            0,
+            table.schema.field("reaction_id"),
+            pa.array(["ord-bb01"] * 2, type=pa.string()),
+        )
+        pq.write_table(pa.concat_tables([table, planted]), artifact)
         assert _reactions(value.search(spent)) == {"ord-aa01", "ord-aa02", "ord-bb01"}
         # The same structure bound to the element's role, which no occurrence row
         # carries, so the quantifier compiles over the elements and the planted row is
@@ -3163,28 +3025,25 @@ def test_a_spent_clause_reads_the_index_and_a_declined_one_does_not(corpus_dir):
         assert _reactions(value.search(declined)) == {"ord-aa01"}
 
 
-def test_concurrent_first_searches_build_one_index(corpus_dir, caplog, monkeypatch):
-    # The index is a materialized table, several passes over the projections. First
-    # searches arriving together must not each build their own; whoever waits takes the
-    # finished one. The barrier sits at the door of the build rather than in the
-    # resolver, which a search reaches only afterwards, so the race is arranged rather
-    # than hoped for -- and the build's own log line is what counts them, since
-    # concurrent CREATEs would also collide in DuckDB's catalog and raise.
+def test_concurrent_first_searches_publish_one_index(corpus_dir, caplog, monkeypatch):
+    # Publishing the index scans the artifacts to check them. First searches arriving
+    # together must not each publish their own; whoever waits takes the checked one.
+    # The barrier sits at the door of the publish rather than in the resolver, which a
+    # search reaches only afterwards, so the race is arranged rather than hoped for --
+    # and the publish's own log line is what counts them, since concurrent CREATEs
+    # would also collide in DuckDB's catalog and raise.
     caplog.set_level(logging.INFO, logger="ord_schema.search.execute")
     threads_count = 4
     ready = threading.Barrier(threads_count)
-    building = execute.Corpus._occurrences
+    publishing = execute.Corpus._occurrences
 
     def synchronized(self):
         ready.wait(timeout=_WAIT)
-        return building(self)
+        return publishing(self)
 
     monkeypatch.setattr(execute.Corpus, "_occurrences", synchronized)
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={"pyridine": "c1ccncc1"}.__getitem__,
-        warm=False,
+    with _open(
+        corpus_dir, resolver={"pyridine": "c1ccncc1"}.__getitem__, warm=False
     ) as value:
         request = query.Query.model_validate(_ROUTABLE["a compound name"])
         results: list[int] = []
@@ -3202,22 +3061,22 @@ def test_concurrent_first_searches_build_one_index(corpus_dir, caplog, monkeypat
         for thread in threads:
             thread.join(timeout=_WAIT)
         alive = [thread for thread in threads if thread.is_alive()]
-    builds = [
+    published = [
         record for record in caplog.records if record.message.startswith("indexed ")
     ]
     assert failures == []
     assert alive == []
-    assert len(builds) == 1
+    assert len(published) == 1
     assert results == [2] * threads_count
 
 
 def test_an_index_that_reaches_nothing_is_refused(corpus_dir, monkeypatch):
     # An index that reaches no structure at all answers every structure query with no
     # matches, which reads like an answer rather than like a corpus nobody can search.
-    # The fixture has no authentic standards, so indexing that path alone is a traversal
-    # that reaches nothing -- what a path binding against the wrong schema looks like.
+    # The fixture has no authentic standards, so an index over that path alone reaches
+    # nothing -- what artifacts written from the wrong schema would look like.
     path = "outcomes.products.measurements.authentic_standard"
-    monkeypatch.setattr(execute, "INDEXED_PATHS", {path: execute.INDEXED_PATHS[path]})
+    monkeypatch.setattr(execute, "INDEXED_PATHS", (path,))
     request = query.Query.model_validate(
         {
             "where": {
@@ -3227,17 +3086,12 @@ def test_an_index_that_reaches_nothing_is_refused(corpus_dir, monkeypatch):
             }
         }
     )
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        warm=False,
-    ) as value:
+    with _open(corpus_dir, resolver={}.__getitem__, warm=False) as value:
         with pytest.raises(execute.PairingError, match="reached 0 of the corpus's 5"):
             value.search(request)
-        # The table is in the catalog, holding nothing; what was not set is the flag, so
-        # nobody reads it.
-        assert not value._occurrences_built
+        # The view is in the catalog, reaching nothing; what was not set is the flag,
+        # so nobody reads it.
+        assert value._indexed is None
         value._connection = counter = _CursorCounter(value._connection)
         with pytest.raises(execute.PairingError, match="reached 0 of the corpus's 5"):
             value.search(request)
@@ -3252,75 +3106,56 @@ def test_a_reaction_two_files_both_state_is_refused(tmp_path):
     # checks is that each projection has its structures -- and each copy's structures
     # would then answer the other's queries: an original dataset globbed beside a
     # corrected re-release returns reactions whose own components hold nothing.
-    for shard, smiles in (("aa", "c1ccncc1"), ("bb", "CCO")):
-        source = tmp_path / "data" / f"ord_dataset-{shard}.parquet"
-        source.parent.mkdir(parents=True, exist_ok=True)
-        parquet.save_dataset(
-            dataset_pb2.Dataset(
-                dataset_id=f"ord_dataset-{shard}",
-                name="test",
-                description="test",
-                reactions=[_reaction("ord-x01", components=[(smiles, _ROLE.SOLVENT)])],
-            ),
-            str(source),
-        )
-        projected = tmp_path / "projections" / source.name
-        projected.parent.mkdir(parents=True, exist_ok=True)
-        projection.write_projection(source, projected)
-        structured = tmp_path / "structures" / source.name
-        structured.parent.mkdir(parents=True, exist_ok=True)
-        structures.write_structures(projected, structured)
     with (
-        execute.Corpus(
-            str(tmp_path / "projections" / "*.parquet"),
-            str(tmp_path / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            warm=False,
-        ) as value,
+        _open(_doubled_tree(tmp_path), resolver={}.__getitem__, warm=False) as value,
         pytest.raises(execute.PairingError, match="ord-x01 is stated by 2 rows"),
     ):
         value.search(query.Query.model_validate(_ROUTABLE["structure alone"]))
 
 
-@pytest.mark.parametrize(
-    ("pivoted", "source"), [(False, "the projections"), (True, "pivot artifacts")]
-)
-def test_an_index_that_misses_one_path_is_refused(
-    corpus_dir, monkeypatch, tmp_path, pivoted, source
-):
-    # The dangerous shape is not an index that reaches nothing -- it is one that reaches
-    # almost everything. A single traversal that binds and finds no element leaves the
-    # other paths carrying the total, so a count of occurrences looks healthy while
-    # every query at the dead path answers with silence. Counting the structures reached
-    # is what tells the two apart. Dropping a path is what a schema walk that fell out
-    # of step with the projection would do, whether it unnests the projection or reads
-    # a pivot.
-    pivots = (
-        _write_pivots(corpus_dir, _OCCURRENCE_LEVELS, into=tmp_path / "pivots")
-        if pivoted
-        else None
-    )
-    kept = {
-        path: expression
-        for path, expression in execute.INDEXED_PATHS.items()
-        if path != "outcomes.products"
+def test_a_reaction_two_files_both_state_is_refused_by_a_pivot(tmp_path):
+    # A pivot finds reactions by ID as the index does, so with no index at all a
+    # question narrowed to aa, about a component only bb's copy holds, would answer
+    # with aa's reaction. Refused when the first pivot is published.
+    root = _doubled_tree(tmp_path)
+    narrowed = {
+        "op": "and",
+        "clauses": [
+            {"op": "eq", "path": "dataset_id", "value": {"literal": "ord_dataset-aa"}},
+            _exists({"op": "eq", "path": "smiles", "value": {"literal": "CCO"}}),
+        ],
     }
+    with (
+        _open(root, resolver={}.__getitem__, occurrences_dir=None, warm=False) as value,
+        pytest.raises(execute.PairingError, match="ord-x01 is stated by 2 rows"),
+    ):
+        _search(value, narrowed)
+
+
+def test_warming_refuses_two_files_stating_a_reaction_without_an_index(tmp_path):
+    # Warming publishes no index here, so the check has to run on its own: the
+    # corpus a pivot would refuse on its first query is refused at open.
+    root = _doubled_tree(tmp_path)
+    with pytest.raises(execute.PairingError, match="ord-x01 is stated by 2 rows"):
+        _open(root, resolver={}.__getitem__, occurrences_dir=None)
+
+
+def test_an_index_that_misses_one_path_is_refused(corpus_dir, monkeypatch):
+    # The dangerous shape is not an index that reaches nothing -- it is one that reaches
+    # almost everything. A path whose artifact finds no element leaves the other paths
+    # carrying the total, so a count of occurrences looks healthy while every query at
+    # the dead path answers with silence. Counting the structures reached is what tells
+    # the two apart.
+    kept = tuple(path for path in execute.INDEXED_PATHS if path != "outcomes.products")
     monkeypatch.setattr(execute, "INDEXED_PATHS", kept)
     # Toluene is every reaction's product and nobody's input, so dropping the products
     # path leaves exactly its two structures unreached.
     with (
-        execute.Corpus(
-            str(corpus_dir / "projections" / "*.parquet"),
-            str(corpus_dir / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            pivots_dir=None if pivots is None else str(pivots),
-            warm=False,
-        ) as value,
+        _open(corpus_dir, resolver={}.__getitem__, warm=False) as value,
         pytest.raises(
             execute.PairingError,
-            match=r"reached 3 of the corpus's 5 structures, .*"
-            + re.escape(f"; it read {sorted(kept)} from {source}; the projections")
-            + " are not the schema this walk was built from",
+            match=r"reached 3 of the corpus's 5 structures, .*an occurrence artifact "
+            "missing rows",
         ),
     ):
         value.search(query.Query.model_validate(_ROUTABLE["structure alone"]))
@@ -3333,48 +3168,25 @@ def test_a_path_the_index_does_not_cover_is_left_to_the_projection(
     # path a structure can sit at is indexed. It becomes load-bearing the moment that
     # stops being true, and routing a query to a path the index does not carry answers
     # it with the empty set.
-    kept = {
-        path: expression
-        for path, expression in execute.INDEXED_PATHS.items()
-        if path != "outcomes.products"
-    }
+    kept = tuple(path for path in execute.INDEXED_PATHS if path != "outcomes.products")
     monkeypatch.setattr(execute, "INDEXED_PATHS", kept)
     body = _ROUTABLE["products rather than inputs"]
     assert not _index_spent(body)
     request = query.Query.model_validate(body)
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        warm=False,
-    ) as value:
-        # Answered from the projection, which needs no index and so never builds one.
+    with _open(corpus_dir, resolver={}.__getitem__, warm=False) as value:
+        # Answered without the index, which is therefore never published.
         assert _reactions(value.search(request)) == {"ord-aa01", "ord-aa02", "ord-bb01"}
-        assert not value._occurrences_built
+        assert value._indexed is None
 
 
 def test_the_indexed_paths_are_the_ones_a_structure_can_sit_at():
-    # Derived from the projection schema, so what the walk accepts and refuses is worth
-    # pinning against schemas built for the purpose: today's projection exercises only
-    # the accepting branch, and the refusals exist for the schema change that will.
+    # Derived from the projection schema, through the artifact's own walk of it.
     assert sorted(execute.INDEXED_PATHS) == [
         "inputs.components",
         "outcomes.products",
         "outcomes.products.measurements.authentic_standard",
         "workups.input.components",
     ]
-    # A structure on a level that is not repeated is one no pivot holds the elements of,
-    # so no artifact can carry it and the build would have to unnest a level that is not
-    # one. Refused by the artifact's walk, which is the walk this reads.
-    with pytest.raises(ValueError, match="no repeated level reaches it"):
-        execute._indexed_paths(
-            pa.schema(
-                [pa.field("setup", pa.struct([pa.field("structure_id", pa.uint32())]))]
-            )
-        )
-    # A schema with no structure anywhere would assemble a build with no SQL in it.
-    with pytest.raises(ValueError, match="no structure at any path"):
-        execute._indexed_paths(pa.schema([pa.field("reaction_id", pa.string())]))
 
 
 def test_one_molecule_in_two_datasets_is_matched_once_and_found_twice(corpus):
@@ -3621,35 +3433,6 @@ _WHITE_PRODUCT = _over_products(
 )
 
 
-def test_a_materialized_pivot_is_reused(corpus_dir):
-    request = query.Query.model_validate(
-        {"where": _exists({"op": "eq", "path": "smiles", "value": {"literal": "CCO"}})}
-    )
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-    ) as value:
-        value.search(request)
-        assert list(value._pivoted) == ["inputs.components"]
-        built = dict(value._pivoted)
-        value.search(request)
-        assert dict(value._pivoted) == built  # Reused, not rebuilt under a new name.
-        # A quantifier over another level is another pivot, materialized separately.
-        value.search(query.Query.model_validate({"where": _WHITE_PRODUCT}))
-        assert list(value._pivoted) == ["inputs.components", "outcomes.products"]
-
-
-def _stated_bytes(*readings):
-    """Stands in for _memory_bytes, reading the given figures in order.
-
-    Stated rather than measured so a budget test admits exactly the tables it means to,
-    whatever DuckDB's allocator does with three rows.
-    """
-    figures = iter(readings)
-    return lambda cursor: next(figures)
-
-
 def _tables(value) -> set[str]:
     """Returns the names of the tables the corpus connection holds."""
     cursor = value._connection.cursor()
@@ -3660,370 +3443,12 @@ def _tables(value) -> set[str]:
     return {row[0] for row in rows}
 
 
-def test_a_budget_no_memory_could_answer_to_is_refused(corpus_dir):
-    # Negative is not an amount of memory, and taken as one it makes every pivot too
-    # large and every eviction immediate, which reads as a corpus that cannot cache.
-    with pytest.raises(ValueError, match="not an amount of memory"):
-        execute.Corpus(
-            str(corpus_dir / "projections" / "*.parquet"),
-            str(corpus_dir / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            pivot_budget_bytes=-1,
-        )
-    # Zero is an amount of memory, and a caller asking to materialize nothing means it
-    # -- including the build that would otherwise measure a pivot before dropping it,
-    # which is the peak a machine has to have room for.
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        pivot_budget_bytes=0,
-    ) as value:
-        value.search(query.Query.model_validate({"where": _WHITE_PRODUCT}))
-        assert not value._pivoted
-        assert value._pivot_serial == 0  # No table was built to find that out.
-        assert not [name for name in _tables(value) if name.startswith("pivoted_")]
-
-
-def test_a_materialization_is_measured_in_bytes(corpus_dir):
-    # duckdb_tables reports a row *count* under a name that reads like a size, and
-    # spending it as one makes the budget a number that can never be crossed and the
-    # eviction below dead code. Three rows, and the table is tens of kilobytes.
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-    ) as value:
-        value.search(query.Query.model_validate({"where": _WHITE_PRODUCT}))
-        (entry,) = value._pivoted.values()
-        assert entry.held > 1024
-
-
-def test_the_cache_evicts_the_least_recently_used_and_drops_its_table(
-    corpus_dir, monkeypatch
-):
-    # An unevicted cache is one table per level a server is ever asked about, none of
-    # them ever freed. Sizes are stated here rather than measured so the budget admits
-    # exactly one table whatever DuckDB's allocator does with three rows.
-    budget = 150
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        pivot_budget_bytes=budget,
-    ) as value:
-        monkeypatch.setattr(
-            execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
-        )
-        with value._pivoted_table("inputs.components") as name:
-            dropped = name
-        assert dropped in _tables(value)
-        with value._pivoted_table("outcomes.products") as name:
-            kept = name
-        assert list(value._pivoted) == ["outcomes.products"]
-        assert dropped not in _tables(value)  # Dropped, not merely forgotten.
-        assert kept in _tables(value)
-
-
-def test_a_table_a_search_is_reading_is_not_evicted(corpus_dir, monkeypatch):
-    # A search takes the table's name, then resolves compounds and matches structures --
-    # seconds during which it holds nothing but a string. Evicting there would fail a
-    # query that had already been answered correctly, with a catalog error naming a
-    # table the caller has never heard of.
-    budget = 150
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        pivot_budget_bytes=budget,
-    ) as value:
-        monkeypatch.setattr(
-            execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
-        )
-        with value._pivoted_table("inputs.components") as reading:
-            with value._pivoted_table("outcomes.products"):
-                pass
-            # Over budget, and the only candidate is being read: it stays, and the
-            # cache stays over its budget until the reader is done.
-            assert reading in _tables(value)
-            assert list(value._pivoted) == ["inputs.components", "outcomes.products"]
-        # Released, so the next materialization can take it.
-        with value._pivoted_table("identifiers"):
-            pass
-        assert "inputs.components" not in value._pivoted
-        assert reading not in _tables(value)
-
-
-@contextlib.contextmanager
-def _stalled_build(value, monkeypatch) -> Iterator[threading.Event]:
-    """Runs a materialization that stops mid-build, and yields what releases it.
-
-    The stall stands in for the pass over the corpus a real build spends its seconds
-    in. Whatever the caller does while it holds is what a search does while another
-    search is materializing.
-    """
-    building = threading.Event()
-    finish = threading.Event()
-    original = execute._memory_bytes
-
-    def blocking(cursor):
-        # The reading taken after the CREATE, so the table exists and the build is
-        # holding whatever it holds while nothing else has recorded it.
-        if building.is_set():
-            return original(cursor)
-        building.set()
-        finish.wait()
-        return original(cursor)
-
-    monkeypatch.setattr(execute, "_memory_bytes", blocking)
-    stalled: list[BaseException] = []
-
-    def build() -> None:
-        try:
-            with value._pivoted_table("outcomes.products"):
-                pass
-        except BaseException as error:  # noqa: BLE001 - reported below, not handled.
-            stalled.append(error)
-
-    builder = threading.Thread(target=build)
-    builder.start()
-    try:
-        assert building.wait(timeout=30), "the build never reached its stall"
-        yield finish
-    finally:
-        finish.set()
-        builder.join(timeout=30)
-    assert not builder.is_alive()
-    assert stalled == []
-
-
 def _in_a_thread(work) -> tuple[threading.Thread, list]:
     """Runs ``work`` in a thread, and returns it with the list its result lands in."""
     done: list = []
     thread = threading.Thread(target=lambda: done.append(work()))
     thread.start()
     return thread, done
-
-
-def test_a_materialized_table_is_handed_out_while_another_is_being_built(
-    corpus_dir, monkeypatch
-):
-    # A build is a pass over the corpus, and a Corpus is shared between searches. A
-    # search over a level already materialized has nothing to wait for, and making it
-    # wait turns one slow first query into a stall for everyone. Asked from a thread
-    # rather than here, so a hit that does wait fails this test rather than hanging it.
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-    ) as value:
-        with value._pivoted_table("inputs.components"):
-            pass
-        with _stalled_build(value, monkeypatch):
-
-            def read() -> str | None:
-                with value._pivoted_table("inputs.components") as name:
-                    return name
-
-            reader, answered = _in_a_thread(read)
-            reader.join(timeout=10)
-            assert answered, "a cache hit waited on an unrelated build"
-            assert answered[0] is not None
-        assert not reader.is_alive()
-
-
-def test_one_pivot_is_built_once_however_many_searches_want_it(corpus_dir, monkeypatch):
-    # Two searches over the same level arrive together on a cold cache. Building twice
-    # costs two passes over the corpus and leaves two tables of one level, of which only
-    # the last is remembered -- the other is memory nothing will free.
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-    ) as value:
-        with _stalled_build(value, monkeypatch):
-
-            def read() -> str | None:
-                # The stalled build is materializing this very level.
-                with value._pivoted_table("outcomes.products") as name:
-                    return name
-
-            second, answered = _in_a_thread(read)
-            second.join(timeout=1)
-            assert not answered, "the second ask did not wait for the build in flight"
-        second.join(timeout=30)
-        assert answered, "the second ask never got its table"
-        assert answered[0] is not None
-        assert value._pivot_serial == 1  # One name taken, so one table built.
-        assert [name for name in _tables(value) if name.startswith("pivoted_")] == [
-            answered[0]
-        ]
-
-
-def test_a_table_a_second_search_took_from_the_cache_is_not_evicted(
-    corpus_dir, monkeypatch
-):
-    # A hit hands back a name the search will read seconds later, exactly as a build
-    # does, so it has to take the read the same way. Held at zero readers, the table is
-    # the first thing eviction takes, and the search fails on a name that no longer
-    # resolves after it had already been answered correctly.
-    budget = 150
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        pivot_budget_bytes=budget,
-    ) as value:
-        monkeypatch.setattr(
-            execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
-        )
-        with value._pivoted_table("inputs.components") as built:
-            pass
-        # Taken from the cache this time, and read while the budget forces an eviction.
-        with value._pivoted_table("inputs.components") as reading:
-            assert reading == built
-            with value._pivoted_table("outcomes.products"):
-                pass
-            assert reading in _tables(value)
-
-
-def test_a_failed_materialization_leaves_nothing_behind(corpus_dir, monkeypatch):
-    # A table nobody tracks is memory nobody frees, and under a name a later attempt
-    # would collide with. The failure is raised after the CREATE, which is the window.
-    request = query.Query.model_validate({"where": _WHITE_PRODUCT})
-    failing = True
-    original = execute._memory_bytes
-    reads = 0
-
-    def sometimes(cursor):
-        # The second reading is the one taken after the CREATE, so failing there is the
-        # window where a table exists and nothing has recorded it.
-        nonlocal reads
-        reads += 1
-        if failing and reads == 2:
-            raise duckdb.Error("no memory accounting today")
-        return original(cursor)
-
-    monkeypatch.setattr(execute, "_memory_bytes", sometimes)
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-    ) as value:
-        with pytest.raises(duckdb.Error, match="no memory accounting"):
-            value.search(request)
-        assert not value._pivoted
-        assert not [name for name in _tables(value) if name.startswith("pivoted_")]
-        failing = False
-        # The level is still materializable, under a name of its own.
-        value.search(request)
-        assert len(value._pivoted) == 1
-
-
-def test_a_pivot_too_large_to_keep_is_not_kept(corpus_dir, monkeypatch):
-    # Materializing is only worth it if the table survives to answer the next query.
-    budget = 1
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        pivot_budget_bytes=budget,
-    ) as value:
-        matched = value.search(
-            query.Query.model_validate(
-                {
-                    "where": _exists(
-                        {"op": "eq", "path": "smiles", "value": {"literal": "CCO"}}
-                    )
-                }
-            )
-        )
-        # Answered anyway, straight from the projection.
-        assert matched.column("reaction_id").to_pylist() == ["ord-bb01"]
-        assert not value._pivoted
-
-
-def test_a_pivot_too_large_to_keep_says_so_and_says_what_to_change(corpus_dir, caplog):
-    # The slowest thing a corpus does is unnest the projection because a pivot did not
-    # fit, and nothing about the answer says that is what happened. Whoever is asking
-    # why a query takes seconds is reading the log, so the log has to name the level,
-    # the two figures, and what changes it.
-    caplog.set_level(logging.INFO, logger="ord_schema.search.execute")
-    request = query.Query.model_validate({"where": _WHITE_PRODUCT})
-
-    def warnings() -> list[str]:
-        return [
-            record.getMessage()
-            for record in caplog.records
-            if record.levelno >= logging.WARNING
-            and record.name == "ord_schema.search.execute"
-        ]
-
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        pivot_budget_bytes=1,
-    ) as value:
-        value.search(request)
-        assert len(warnings()) == 1
-        said = warnings()[0]
-        assert "outcomes.products" in said
-        assert "pivot_budget_bytes" in said
-        assert execute._format_bytes(value._pivot_budget) in said
-        # Both figures have to be figures. Stated in gigabytes, a fixture costing
-        # kilobytes against a budget of one byte reads "0.0 GB over 0.0 GB", which
-        # names the problem in units that hide it.
-        assert "1 B" in said
-        assert re.search(r"takes \d+(\.\d+)? (kB|MB|GB)", said), said
-        # Said again for the next query, since that query is slow for the same reason
-        # and its asker was not necessarily watching when the corpus first found out.
-        value.search(request)
-        assert len(warnings()) == 2
-
-
-def test_two_searches_wanting_one_refused_pivot_build_it_once(corpus_dir, monkeypatch):
-    # The refusal is settled under the build lock as well as before it, so a search
-    # that waited out another's build finds the answer rather than repeating a pass
-    # over the corpus to reach the same refusal.
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        pivot_budget_bytes=1,
-    ) as value:
-        with _stalled_build(value, monkeypatch):
-
-            def read() -> str | None:
-                with value._pivoted_table("outcomes.products") as name:
-                    return name
-
-            second, answered = _in_a_thread(read)
-            second.join(timeout=1)
-            assert not answered, "the second ask did not wait for the build in flight"
-        second.join(timeout=30)
-        assert answered == [None]  # Refused, and told so rather than building again.
-        assert value._pivot_serial == 1
-
-
-def test_a_pivot_too_large_to_keep_is_not_built_twice(corpus_dir, monkeypatch):
-    # What the refusal costs is a pass over the corpus, and the projection it reads
-    # does not change while the corpus is open. Asking again is the common case -- a
-    # notebook loop, a server serving one shape of question -- and rebuilding a table
-    # only to drop it again holds the build lock against every other search each time.
-    budget = 1
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        pivot_budget_bytes=budget,
-    ) as value:
-        with value._pivoted_table("inputs.components") as name:
-            assert name is None
-        built = value._pivot_serial
-        with value._pivoted_table("inputs.components") as name:
-            assert name is None
-        assert value._pivot_serial == built  # No second CREATE to name.
 
 
 def test_a_library_that_lost_a_molecule_is_refused(corpus_dir, monkeypatch):
@@ -4294,8 +3719,12 @@ def wide_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
     structured = root / "structures" / source.name
     structured.parent.mkdir(parents=True, exist_ok=True)
     structures.write_structures(projected, structured)
+    pivots = _write_pivots(root, sorted(pivot.LEVELS))
     with execute.Corpus(
-        str(projected), str(structured), resolver={}.__getitem__
+        str(projected),
+        str(structured),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots),
     ) as value:
         yield value
 
@@ -4411,17 +3840,14 @@ def test_a_pivot_answers_what_the_level_answers(wide_corpus, monkeypatch, where)
     # NULL level the other way, or correlated on the wrong prefix shows up here as a
     # set that differs -- which is how the 942-reaction over-match was found.
     pivoted = _search(wide_corpus, where)
-    monkeypatch.setattr(
-        execute.Corpus, "_pivoted_table", _no_pivoted_table, raising=True
-    )
+    monkeypatch.setattr(execute.Corpus, "_pivot_view", _no_pivot_view, raising=True)
     assert _search(wide_corpus, where) == pivoted
 
 
-@contextlib.contextmanager
-def _no_pivoted_table(self, path: str) -> Iterator[str | None]:
-    """Stands in for _pivoted_table so a quantifier compiles over the elements."""
+def _no_pivot_view(self, path: str) -> str | None:
+    """Stands in for _pivot_view so a quantifier compiles over the elements."""
     del self, path  # Unused.
-    yield None
+    return None
 
 
 def test_the_differential_cases_are_not_all_the_same_answer(wide_corpus):
@@ -4441,14 +3867,14 @@ def test_a_pivot_row_says_which_element_it_was(wide_corpus):
     # them; they are what a correlation across levels will need, and a pivot that
     # numbered its elements wrongly would look correct until then. ord-wd01 carries two
     # outcomes of one product each, and ord-wd06 one outcome of three.
-    with wide_corpus._pivoted_table("outcomes.products") as name:
-        assert name is not None
-        rows = wide_corpus._connection.execute(
-            f"SELECT reaction_id, outcome_index, product_index, "  # noqa: S608
-            f"element.isolated_color FROM {name} "
-            "WHERE reaction_id IN ('ord-wd01', 'ord-wd06') "
-            "ORDER BY reaction_id, outcome_index, product_index"
-        ).fetchall()
+    name = wide_corpus._pivot_view("outcomes.products")
+    assert name is not None
+    rows = wide_corpus._connection.execute(
+        f"SELECT reaction_id, outcome_index, product_index, "  # noqa: S608
+        f"element.isolated_color FROM {name} "
+        "WHERE reaction_id IN ('ord-wd01', 'ord-wd06') "
+        "ORDER BY reaction_id, outcome_index, product_index"
+    ).fetchall()
     assert rows == [
         ("ord-wd01", 1, 1, "white"),
         ("ord-wd01", 2, 1, "yellow"),
@@ -4461,18 +3887,18 @@ def test_a_pivot_row_says_which_element_it_was(wide_corpus):
 def test_a_pivot_holds_every_element_including_an_empty_one(wide_corpus):
     # Completeness is what lets a pivot answer forall, so an element whose fields are
     # all NULL still gets a row: ord-wd05 records a product with no isolated_color.
-    with wide_corpus._pivoted_table("outcomes.products") as name:
-        assert name is not None
-        blank = wide_corpus._connection.execute(
-            f"SELECT count(*) FROM {name} WHERE reaction_id = 'ord-wd05'"  # noqa: S608
-        ).fetchone()
-        # A level that is present but empty contributes no rows, and one the source
-        # never recorded contributes none either -- which is what makes forall
-        # vacuously true of both.
-        absent = wide_corpus._connection.execute(
-            f"SELECT count(*) FROM {name} "  # noqa: S608
-            "WHERE reaction_id IN ('ord-wd03', 'ord-wd04')"
-        ).fetchone()
+    name = wide_corpus._pivot_view("outcomes.products")
+    assert name is not None
+    blank = wide_corpus._connection.execute(
+        f"SELECT count(*) FROM {name} WHERE reaction_id = 'ord-wd05'"  # noqa: S608
+    ).fetchone()
+    # A level that is present but empty contributes no rows, and one the source never
+    # recorded contributes none either -- which is what makes forall vacuously true of
+    # both.
+    absent = wide_corpus._connection.execute(
+        f"SELECT count(*) FROM {name} "  # noqa: S608
+        "WHERE reaction_id IN ('ord-wd03', 'ord-wd04')"
+    ).fetchone()
     assert blank == (1,)
     assert absent == (0,)
 
@@ -4595,11 +4021,7 @@ def test_a_pivoted_reduction_answers_what_the_projection_answers(
     )
     projected = str(wide_root / "projections" / "*.parquet")
     structured = str(wide_root / "structures" / "*.parquet")
-    # Budgeted to nothing, because a corpus left to its default builds the pivot in
-    # memory and routes through it -- which would compare the pivot against itself.
-    with execute.Corpus(
-        projected, structured, resolver={}.__getitem__, pivot_budget_bytes=0
-    ) as lists:
+    with execute.Corpus(projected, structured, resolver={}.__getitem__) as lists:
         expected = _reduced_per_reaction(lists, reducer)
     with execute.Corpus(
         projected, structured, resolver={}.__getitem__, pivots_dir=str(pivots)
@@ -4619,16 +4041,10 @@ def test_a_filtered_reduction_answers_the_same_on_either_route(
     projected = str(wide_root / "projections" / "*.parquet")
     structured = str(wide_root / "structures" / "*.parquet")
     where = {"op": "eq", "path": "type", "value": {"literal": "YIELD"}}
-    with execute.Corpus(
-        projected, structured, resolver={}.__getitem__, pivot_budget_bytes=0
-    ) as lists:
+    with execute.Corpus(projected, structured, resolver={}.__getitem__) as lists:
         expected = _reduced_per_reaction(lists, reducer, where)
     with execute.Corpus(
-        projected,
-        structured,
-        resolver={}.__getitem__,
-        pivots_dir=str(pivots),
-        pivot_budget_bytes=0,
+        projected, structured, resolver={}.__getitem__, pivots_dir=str(pivots)
     ) as pivoted:
         assert _reduced_per_reaction(pivoted, reducer, where) == expected
 
@@ -4667,7 +4083,6 @@ def test_a_reduction_filter_may_screen_structures(deep_root, tmp_path):
             str(deep_root / "structures" / "*.parquet"),
             resolver={}.__getitem__,
             pivots_dir=pivots_dir,
-            pivot_budget_bytes=0,
         ) as corpus:
             for smarts in ("[OX2H]", "[n]"):
                 counted["aggregate"]["measures"][0]["path"]["where"]["smarts"] = smarts
@@ -4698,7 +4113,6 @@ def test_a_filter_changes_which_elements_are_reduced(wide_root, tmp_path, pivote
         str(wide_root / "structures" / "*.parquet"),
         resolver={}.__getitem__,
         pivots_dir=str(pivots) if pivoted else None,
-        pivot_budget_bytes=0,
     ) as corpus:
         assert _reduced_per_reaction(corpus, "count")["ord-wd08"] == 2
         assert _reduced_per_reaction(corpus, "count", yields)["ord-wd08"] == 1
@@ -4719,10 +4133,6 @@ def test_counting_a_level_a_reaction_lacks_is_zero(wide_root, tmp_path, pivoted)
         str(wide_root / "structures" / "*.parquet"),
         resolver={}.__getitem__,
         pivots_dir=str(pivots) if pivoted else None,
-        # Without a budget of zero the unpivoted case builds the level in memory and
-        # takes the pivoted route anyway, leaving the list spelling untested. The
-        # pivoted case reads the artifact, so it needs no budget either.
-        pivot_budget_bytes=0,
     ) as corpus:
         counted = _reduced_per_reaction(corpus, "count")
     assert counted["ord-wd04"] == 0
@@ -4779,17 +4189,18 @@ def integral_root(tmp_path_factory) -> pathlib.Path:
     structured = root / "structures" / source.name
     structured.parent.mkdir(parents=True)
     structures.write_structures(projected, structured)
+    _write_pivots(root, sorted(pivot.LEVELS))
     return root
 
 
-@pytest.fixture(scope="module", params=[None, 0], ids=["pivoted", "unpivoted"])
+@pytest.fixture(scope="module", params=["pivoted", "unpivoted"])
 def integral_corpus(request, integral_root) -> Iterator[execute.Corpus]:
-    """The integral reactions, reduced through pivots built in process and the lists."""
+    """The integral reactions, reduced through pivot artifacts and through the lists."""
     with execute.Corpus(
         str(integral_root / "projections" / "*.parquet"),
         str(integral_root / "structures" / "*.parquet"),
         resolver={}.__getitem__,
-        pivot_budget_bytes=request.param,
+        pivots_dir=_pivots_for(integral_root, request.param),
     ) as value:
         yield value
 
@@ -4888,17 +4299,18 @@ def modified_root(tmp_path_factory) -> pathlib.Path:
         ],
     )
     _derive(root, "cc", [_modified_reaction("ord-md05")])
+    _write_pivots(root, sorted(pivot.LEVELS))
     return root
 
 
-@pytest.fixture(scope="module", params=[None, 0], ids=["pivoted", "unpivoted"])
+@pytest.fixture(scope="module", params=["pivoted", "unpivoted"])
 def modified_corpus(request, modified_root) -> Iterator[execute.Corpus]:
-    """The modified reactions, reduced through pivots built in process and the lists."""
+    """The modified reactions, reduced through pivot artifacts and through the lists."""
     with execute.Corpus(
         str(modified_root / "projections" / "*.parquet"),
         str(modified_root / "structures" / "*.parquet"),
         resolver={}.__getitem__,
-        pivot_budget_bytes=request.param,
+        pivots_dir=_pivots_for(modified_root, request.param),
     ) as value:
         yield value
 
@@ -5119,43 +4531,6 @@ def _indexed_corpus(root, pivots, **kwargs) -> execute.Corpus:
     )
 
 
-@pytest.mark.parametrize(
-    "smarts",
-    ["c1ccncc1", "[OX2H]", "c1ccccc1", "[#6]"],
-)
-def test_an_index_read_from_pivots_answers_what_unnesting_answers(
-    tmp_path, corpus_dir, smarts
-):
-    # The index is the same occurrences by another route, so the routes cannot disagree.
-    # Run over both datasets, because an occurrence's ID is its element's plus its
-    # dataset's offset and only a corpus with a second dataset has a nonzero one: a
-    # build that dropped the offset answers identically on the first dataset alone.
-    pivots = _write_pivots(corpus_dir, _OCCURRENCE_LEVELS, into=tmp_path / "pivots")
-    where = _exists({"op": "substructure", "path": "smiles", "smarts": smarts})
-    with _indexed_corpus(corpus_dir, None) as unnested:
-        expected = _search(unnested, where)
-    # Every pattern here matches something, so neither route is compared against the
-    # empty set it would also return had the build produced no rows at all.
-    assert expected
-    with _indexed_corpus(corpus_dir, pivots) as read:
-        assert _search(read, where) == expected
-
-
-def test_an_index_read_from_pivots_keeps_a_structure_in_its_own_dataset(
-    tmp_path, corpus_dir
-):
-    # The hydroxyl is only in bb, whose IDs are only correct through its offset. An
-    # offset dropped or taken from the wrong dataset still lands inside the corpus's
-    # structures, so it returns a reaction rather than raising -- the wrong one.
-    pivots = _write_pivots(corpus_dir, _OCCURRENCE_LEVELS, into=tmp_path / "pivots")
-    with _indexed_corpus(corpus_dir, pivots) as corpus:
-        matched = _search(
-            corpus,
-            _exists({"op": "substructure", "path": "smiles", "smarts": "[OX2H]"}),
-        )
-    assert matched == {"ord-bb01"}
-
-
 def test_a_role_beside_the_structure_is_answered_by_the_pivot(tmp_path, corpus_dir):
     # The role binds a query to one element: aa01 holds benzene as a reactant and
     # pyridine as its solvent. No occurrence row carries it, so the pivot answers, and
@@ -5169,7 +4544,7 @@ def test_a_role_beside_the_structure_is_answered_by_the_pivot(tmp_path, corpus_d
         }
         assert _search(corpus, _role_and_structure("c1ccccc1", "SOLVENT")) == set()
         assert "inputs.components" in corpus._pivot_views
-        assert not corpus._occurrences_built
+        assert corpus._indexed is None
 
 
 # One structure per indexed path, with the reactions holding it. The two deepest paths
@@ -5185,57 +4560,9 @@ _INDEXED_OCCURRENCES = (
 )
 
 
-@pytest.mark.parametrize(("path", "smarts", "expected"), _INDEXED_OCCURRENCES)
-def test_an_index_read_from_pivots_answers_at_every_indexed_path(
-    tmp_path, deep_root, path, smarts, expected
-):
-    pivots = _write_pivots(deep_root, _OCCURRENCE_LEVELS, into=tmp_path / "pivots")
-    where = _exists_at(path, {"op": "substructure", "path": "smiles", "smarts": smarts})
-    with _indexed_corpus(deep_root, None) as unnested:
-        assert _search(unnested, where) == expected
-    with _indexed_corpus(deep_root, pivots) as read:
-        assert _search(read, where) == expected
-
-
-def test_an_index_reads_the_pivots_rather_than_unnesting_the_projection(
-    tmp_path, corpus_dir, caplog
-):
-    pivots = _write_pivots(corpus_dir, _OCCURRENCE_LEVELS, into=tmp_path / "pivots")
-    with (
-        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
-        _indexed_corpus(corpus_dir, pivots) as corpus,
-    ):
-        _search(
-            corpus, _exists({"op": "substructure", "path": "smiles", "smarts": "[Pt]"})
-        )
-    assert any(
-        f"and {len(execute.INDEXED_PATHS)} from pivot artifacts" in record.message
-        for record in caplog.records
-    )
-
-
-def test_a_path_whose_level_has_no_pivot_is_still_unnested(
-    tmp_path, corpus_dir, caplog
-):
-    # A directory holding some levels and not others is a partial speedup rather than a
-    # missing index, so the answer has to be the whole answer either way.
-    pivots = _write_pivots(corpus_dir, ("inputs.components",), into=tmp_path / "pivots")
-    where = _exists({"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"})
-    with _indexed_corpus(corpus_dir, None) as unnested:
-        expected = _search(unnested, where)
-    with (
-        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
-        _indexed_corpus(corpus_dir, pivots) as corpus,
-    ):
-        assert _search(corpus, where) == expected
-    assert any(
-        "and 1 from pivot artifacts" in record.message for record in caplog.records
-    )
-
-
 def test_requiring_pivots_refuses_a_level_with_no_artifacts(wide_root):
-    # The silent case: a missing level is otherwise unnested in process on the query
-    # that first wants it, an unnest charged to whoever asked with no error anywhere.
+    # The silent case: a missing level is otherwise answered from the projection's
+    # lists on every query over it, slower and with no error anywhere.
     pivots = _write_pivots(wide_root, ("outcomes.products",))
     with pytest.raises(execute.PairingError, match="holds no pivot artifacts"):
         execute.Corpus(
@@ -5257,22 +4584,6 @@ def test_requiring_pivots_without_a_directory_says_so(wide_root):
         )
 
 
-def test_requiring_pivots_and_budgeting_for_one_is_refused(wide_root, tmp_path):
-    # Requiring every level leaves nothing to build, so a budget beside it is money set
-    # aside for something that cannot happen -- more likely a misunderstanding of one
-    # of the two than a deliberate pairing.
-    pivots = _write_pivots(wide_root, ("outcomes.products",), into=tmp_path / "pivots")
-    with pytest.raises(ValueError, match="pass one or the other"):
-        execute.Corpus(
-            str(wide_root / "projections" / "*.parquet"),
-            str(wide_root / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            pivots_dir=str(pivots),
-            require_pivots=True,
-            pivot_budget_bytes=0,
-        )
-
-
 def test_requiring_pivots_opens_a_corpus_holding_every_level(wide_root, tmp_path):
     # Its own directory: this is the one tree holding every level, and the tests below
     # are about what happens when a level is missing from the shared one.
@@ -5287,8 +4598,9 @@ def test_requiring_pivots_opens_a_corpus_holding_every_level(wide_root, tmp_path
         assert _search(corpus, _white("exists"))
 
 
-def test_a_level_without_artifacts_is_still_built(wide_root, caplog):
-    # A partial set of artifacts is a partial speedup, not a missing answer.
+def test_a_level_without_artifacts_is_answered_from_the_projection(wide_root, caplog):
+    # A partial set of artifacts is a partial speedup, not a missing answer: the level
+    # with no artifact is read from the projection's lists, and the log says so.
     pivots = _write_pivots(wide_root, ("outcomes.products",))
     with (
         caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
@@ -5311,11 +4623,43 @@ def test_a_level_without_artifacts_is_still_built(wide_root, caplog):
                 },
             },
         )
+        assert "outcomes.products.measurements" not in corpus._pivot_views
     assert found == {"ord-wd01", "ord-wd02", "ord-wd07", "ord-wd08"}
-    assert any(
-        "building the pivot over outcomes.products.measurements" in record.message
-        for record in caplog.records
-    )
+    assert "this query reads the projection alone" in _messages(caplog)
+
+
+@pytest.mark.parametrize(
+    ("levels", "logged"),
+    [
+        # The inner level's pivot is looked up before the outer level declines, and the
+        # whole quantifier is then answered from the lists.
+        (("outcomes.products.measurements",), "the projection alone"),
+        (
+            ("outcomes.products", "outcomes.products.measurements"),
+            "the pivots over ['outcomes.products', 'outcomes.products.measurements']",
+        ),
+    ],
+)
+def test_the_log_names_the_pivots_the_query_reads(
+    wide_root, tmp_path, caplog, levels, logged
+):
+    # Someone asking why a query was slow reads this line, so a pivot named there and
+    # absent from the SQL sends them to the wrong relation.
+    pivots = _write_pivots(wide_root, levels, into=tmp_path / "pivots")
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+        ) as corpus,
+    ):
+        found = _search(
+            corpus, _DIFFERENTIAL["a desired product with a yield above 50%"]
+        )
+    assert found
+    assert f"this query reads {logged}" in _messages(caplog)
 
 
 def _messages(caplog) -> list[str]:
@@ -5325,180 +4669,6 @@ def _messages(caplog) -> list[str]:
         for record in caplog.records
         if record.name == "ord_schema.search.execute"
     ]
-
-
-def test_a_level_with_no_artifacts_is_derived_rather_than_built(
-    wide_root, tmp_path, caplog
-):
-    # The pass costs what building in memory costs, and the difference is what survives
-    # it: a file the next process reads, against a table that dies with this one.
-    pivots = tmp_path / "pivots"
-    # The answer the level itself gives, so a derivation that lost rows shows up below.
-    with execute.Corpus(
-        str(wide_root / "projections" / "*.parquet"),
-        str(wide_root / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-    ) as built:
-        expected = _search(built, _white("exists"))
-    caplog.clear()
-    with (
-        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
-        execute.Corpus(
-            str(wide_root / "projections" / "*.parquet"),
-            str(wide_root / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            pivots_dir=str(pivots),
-            derive_pivots=True,
-            warm=False,
-        ) as corpus,
-    ):
-        assert _search(corpus, _white("exists")) == expected
-    assert sorted(path.name for path in pivots.glob("outcomes.products/*.parquet")) == [
-        "ord_dataset-wd.parquet"
-    ]
-    said = _messages(caplog)
-    assert any("deriving the pivot artifacts for outcomes.products" in m for m in said)
-    assert not any("building the pivot" in m for m in said)
-
-
-def test_a_derived_pivot_is_read_by_the_next_corpus_over_the_directory(
-    wide_root, tmp_path, caplog
-):
-    # Deriving into a directory is only worth more than building in memory if what it
-    # wrote is what a later process finds there -- including one that derives nothing.
-    pivots = tmp_path / "pivots"
-    with execute.Corpus(
-        str(wide_root / "projections" / "*.parquet"),
-        str(wide_root / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        pivots_dir=str(pivots),
-        derive_pivots=True,
-        warm=False,
-    ) as deriving:
-        expected = _search(deriving, _white("exists"))
-    caplog.clear()
-    with (
-        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
-        execute.Corpus(
-            str(wide_root / "projections" / "*.parquet"),
-            str(wide_root / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            pivots_dir=str(pivots),
-        ) as reading,
-    ):
-        assert _search(reading, _white("exists")) == expected
-    said = _messages(caplog)
-    assert any("read 1 pivot artifacts" in m for m in said)
-    assert not any("deriving" in m or "building the pivot" in m for m in said)
-
-
-def test_a_level_already_derived_is_not_derived_again(wide_root, tmp_path, caplog):
-    # The second query wants the same level, and re-globbing is what tells it there is
-    # nothing left to write. A derivation per query would unnest the projection on
-    # every query.
-    pivots = tmp_path / "pivots"
-    with (
-        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
-        execute.Corpus(
-            str(wide_root / "projections" / "*.parquet"),
-            str(wide_root / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            pivots_dir=str(pivots),
-            derive_pivots=True,
-            warm=False,
-        ) as corpus,
-    ):
-        _search(corpus, _white("exists"))
-        _search(corpus, _white("exists"))
-    said = _messages(caplog)
-    assert sum("deriving the pivot artifacts" in m for m in said) == 1
-
-
-def test_a_derivation_interrupted_partway_is_finished_by_the_next(
-    corpus_dir, tmp_path, caplog
-):
-    # A set covering some of the projections is exactly what the pairing check refuses,
-    # so reading the level before deriving it would make an interrupted run permanent:
-    # the pass that would complete the set is the one behind the refusal.
-    pivots = tmp_path / "pivots" / "inputs.components"
-    pivots.mkdir(parents=True)
-    projections = sorted((corpus_dir / "projections").glob("*.parquet"))
-    assert len(projections) > 1, "one projection cannot be a partial set"
-    pivot.write_pivot(
-        projections[0], pivots / projections[0].name, level_path="inputs.components"
-    )
-    with (
-        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
-        execute.Corpus(
-            str(corpus_dir / "projections" / "*.parquet"),
-            str(corpus_dir / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            pivots_dir=str(tmp_path / "pivots"),
-            derive_pivots=True,
-            warm=False,
-        ) as corpus,
-    ):
-        found = _search(
-            corpus, _exists({"op": "eq", "path": "smiles", "value": {"literal": "CCO"}})
-        )
-    assert found == {"ord-bb01"}
-    assert len(list(pivots.glob("*.parquet"))) == len(projections)
-    # The one already there was left alone rather than written again.
-    assert any("1 already current" in m for m in _messages(caplog))
-
-
-def test_a_stranger_s_pivots_are_still_refused_when_deriving(
-    wide_root, corpus_dir, tmp_path
-):
-    # Deriving before reading must not turn the pairing check into a formality: a pass
-    # over this corpus's projections adds its own artifacts beside the stranger's rather
-    # than displacing them, and answering from the union would be wrong twice over.
-    stranger = tmp_path / "pivots" / "outcomes.products"
-    stranger.mkdir(parents=True)
-    for projected in sorted((corpus_dir / "projections").glob("*.parquet")):
-        pivot.write_pivot(
-            projected, stranger / projected.name, level_path="outcomes.products"
-        )
-    with (
-        execute.Corpus(
-            str(wide_root / "projections" / "*.parquet"),
-            str(wide_root / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            pivots_dir=str(tmp_path / "pivots"),
-            derive_pivots=True,
-            warm=False,
-        ) as corpus,
-        pytest.raises(execute.PairingError, match="another corpus"),
-    ):
-        _search(corpus, _white("exists"))
-
-
-def test_checking_the_pivots_derives_none_of_them(wide_root, tmp_path):
-    # check_pivots reaches every level the schema has, and deriving there would be
-    # 39 unnests of the projection at startup for a deployment that asked about two.
-    pivots = tmp_path / "pivots"
-    with execute.Corpus(
-        str(wide_root / "projections" / "*.parquet"),
-        str(wide_root / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        pivots_dir=str(pivots),
-        derive_pivots=True,
-        warm=False,
-    ) as corpus:
-        assert corpus.check_pivots() == {}
-    assert not pivots.exists()
-
-
-def test_deriving_with_nowhere_to_derive_into_is_refused(wide_root):
-    # Silently building in memory instead would answer every query the slow way for a
-    # deployment that believed it had asked for artifacts.
-    with pytest.raises(ValueError, match="without a pivots_dir"):
-        execute.Corpus(
-            str(wide_root / "projections" / "*.parquet"),
-            str(wide_root / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            derive_pivots=True,
-        )
 
 
 def test_a_pivot_from_another_corpus_is_refused(wide_root, corpus_dir, tmp_path):
@@ -5553,21 +4723,21 @@ def test_a_pivot_row_naming_no_reaction_does_not_empty_a_negated_exists(
         }
 
 
-def test_a_stranger_s_pivot_over_an_indexed_level_is_refused_at_open(
-    wide_root, corpus_dir
-):
-    # Warming reads the levels the index covers, so a pivots_dir belonging to another
-    # corpus fails the deployment rather than whichever query first quantified over one
-    # of those levels. Filed at an indexed level for that reason: the levels the index
-    # does not cover are still found by the query that wants them.
+def test_a_stranger_s_pivot_is_refused_by_the_check(wide_root, corpus_dir):
+    # check_pivots publishes every level at startup, so a pivots_dir belonging to
+    # another corpus fails the deployment there rather than whichever query first
+    # quantified over the level.
     stranger = _write_pivots(corpus_dir, ("inputs.components",))
-    with pytest.raises(execute.PairingError, match="another corpus"):
+    with (
         execute.Corpus(
             str(wide_root / "projections" / "*.parquet"),
             str(wide_root / "structures" / "*.parquet"),
             resolver={}.__getitem__,
             pivots_dir=str(stranger),
-        )
+        ) as corpus,
+        pytest.raises(execute.PairingError, match="another corpus"),
+    ):
+        corpus.check_pivots()
 
 
 def test_two_pivots_of_one_dataset_under_a_level_are_refused(corpus_dir, tmp_path):
@@ -5579,20 +4749,17 @@ def test_two_pivots_of_one_dataset_under_a_level_are_refused(corpus_dir, tmp_pat
     stray.mkdir(parents=True)
     for artifact in sorted((pivots / "inputs.components").rglob("*.parquet")):
         shutil.copy(artifact, stray / artifact.name)
-    with pytest.raises(execute.PairingError, match="the same source dataset"):
-        execute.Corpus(
-            str(corpus_dir / "projections" / "*.parquet"),
-            str(corpus_dir / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            pivots_dir=str(pivots),
-        )
+    with (
+        _open(corpus_dir, resolver={}.__getitem__, pivots_dir=str(pivots)) as corpus,
+        pytest.raises(execute.PairingError, match="the same source dataset"),
+    ):
+        corpus.check_pivots()
 
 
 def test_a_stale_pivot_is_refused(corpus_dir, tmp_path):
-    # Warming reads the levels the index covers, so what a stale artifact fails is the
-    # deployment. The stamps are the only thing saying an artifact was written by the
-    # library reading it; a pivot derived by an older one can hold columns this schema
-    # walk does not find.
+    # The stamps are the only thing saying an artifact was written by the library
+    # reading it; a pivot derived by an older one can hold columns this schema walk
+    # does not find.
     pivots = _write_pivots(corpus_dir, ("inputs.components",), into=tmp_path / "pivots")
     target = next((pivots / "inputs.components").rglob("*.parquet"))
     with pq.ParquetFile(target) as artifact:
@@ -5601,13 +4768,11 @@ def test_a_stale_pivot_is_refused(corpus_dir, tmp_path):
     metadata = dict(schema.metadata)
     metadata[b"ord.rdkit_version"] = b"0000.00.0"
     pq.write_table(table.cast(schema.with_metadata(metadata)), target)
-    with pytest.raises(execute.PairingError, match="is a stale"):
-        execute.Corpus(
-            str(corpus_dir / "projections" / "*.parquet"),
-            str(corpus_dir / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            pivots_dir=str(pivots),
-        )
+    with (
+        _open(corpus_dir, resolver={}.__getitem__, pivots_dir=str(pivots)) as corpus,
+        pytest.raises(execute.PairingError, match="is a stale"),
+    ):
+        corpus.check_pivots()
 
 
 def test_a_pivot_missing_a_column_the_schema_declares_is_refused(corpus_dir, tmp_path):
@@ -5627,19 +4792,17 @@ def test_a_pivot_missing_a_column_the_schema_declares_is_refused(corpus_dir, tmp
         pa.StructArray.from_arrays([dropped], fields=[element.type.field(0)]),
     )
     pq.write_table(table.replace_schema_metadata(metadata), target)
-    with pytest.raises(execute.PairingError, match="without"):
-        execute.Corpus(
-            str(corpus_dir / "projections" / "*.parquet"),
-            str(corpus_dir / "structures" / "*.parquet"),
-            resolver={}.__getitem__,
-            pivots_dir=str(pivots),
-        )
+    with (
+        _open(corpus_dir, resolver={}.__getitem__, pivots_dir=str(pivots)) as corpus,
+        pytest.raises(execute.PairingError, match="without"),
+    ):
+        corpus.check_pivots()
 
 
 def test_a_pivot_past_its_dataset_s_structures_is_refused(corpus_dir, tmp_path):
-    # The occurrence artifacts' blind spot, one derivation earlier: an index read from
-    # a pivot is counted by distinct IDs too, and a quantifier answered from one tests
-    # the bit at the element's ID plus its reaction's offset.
+    # The occurrence artifacts' blind spot, one derivation earlier: a quantifier
+    # answered from a pivot tests the bit at the element's ID plus its reaction's
+    # offset, and an ID past the dataset lands in the next one's range.
     pivots = _write_pivots(corpus_dir, _OCCURRENCE_LEVELS, into=tmp_path / "pivots")
     target = pivot.artifact_paths(pivots, "outcomes.products")[0]
     _shift_structure_ids(target, 100)
@@ -5654,7 +4817,7 @@ def test_a_pivot_past_its_dataset_s_structures_is_refused(corpus_dir, tmp_path):
         ),
         _indexed_corpus(corpus_dir, pivots, warm=False) as read,
     ):
-        read.check_index()
+        read.check_pivots()
 
 
 def test_a_pivot_filed_under_the_wrong_level_is_refused(wide_root, tmp_path):
@@ -5698,7 +4861,7 @@ def test_a_structure_predicate_inside_a_pivoted_quantifier_agrees(corpus, monkey
         },
     }
     pivoted = _search(corpus, where)
-    monkeypatch.setattr(execute.Corpus, "_pivoted_table", _no_pivoted_table)
+    monkeypatch.setattr(execute.Corpus, "_pivot_view", _no_pivot_view)
     assert _search(corpus, where) == pivoted
     # And the answer is the pyridine-bearing reactions, not everything or nothing.
     assert pivoted == {"ord-aa01", "ord-aa02"}
@@ -5775,10 +4938,12 @@ def test_check_pivots_reports_the_levels_held_as_artifacts(corpus_dir, tmp_path)
         assert corpus.check_pivots() == {"outcomes.products": 2}
 
 
-def test_check_pivots_is_empty_without_a_directory(wide_corpus):
-    # Not an error: every level is built in process, which is the phase the executor
-    # started in and still supports.
-    assert wide_corpus.check_pivots() == {}
+def test_check_pivots_is_empty_without_a_directory(corpus_dir):
+    # Not an error: every level is then answered from the projection's lists.
+    with _open(
+        corpus_dir, resolver={}.__getitem__, pivots_dir=None, occurrences_dir=None
+    ) as value:
+        assert value.check_pivots() == {}
 
 
 def test_check_pivots_refuses_a_stranger_at_startup(wide_root, corpus_dir):
@@ -5840,7 +5005,7 @@ def test_a_singular_struct_under_a_level_is_answered_by_that_level_s_pivot(
     }
     pivoted = _search(deep_corpus, where)
     assert pivoted == {"ord-cc01"}
-    monkeypatch.setattr(execute.Corpus, "_pivoted_table", _no_pivoted_table)
+    monkeypatch.setattr(execute.Corpus, "_pivot_view", _no_pivot_view)
     assert _search(deep_corpus, where) == pivoted
 
 
@@ -6163,17 +5328,17 @@ def test_an_occurrences_artifact_missing_a_column_is_refused(
 
 
 @pytest.mark.parametrize("smarts", ["c1ccncc1", "[OX2H]", "c1ccccc1", "[#6]"])
-def test_an_index_read_from_artifacts_answers_what_unnesting_answers(
+def test_an_index_read_from_artifacts_answers_what_the_pivots_answer(
     corpus_dir, occurrence_dirs, smarts
 ):
-    # The artifact is the same occurrences by a third route, so it cannot answer
-    # differently from either of the two that build them. Over both datasets, because
+    # The artifact is the same occurrences by another route, so it cannot answer
+    # differently from the pivots they were derived from. Over both datasets, because
     # an occurrence's ID is its element's plus its own dataset's offset and a corpus of
     # one dataset has an offset of zero to get wrong.
-    _, occurrence_dir = occurrence_dirs
+    pivots, occurrence_dir = occurrence_dirs
     where = _exists({"op": "substructure", "path": "smiles", "smarts": smarts})
-    with _indexed_corpus(corpus_dir, None) as unnested:
-        expected = _search(unnested, where)
+    with _indexed_corpus(corpus_dir, pivots) as pivoted:
+        expected = _search(pivoted, where)
     assert expected
     with _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read:
         assert _search(read, where) == expected
@@ -6184,13 +5349,13 @@ def test_an_index_read_from_artifacts_keeps_a_structure_in_its_own_dataset(
 ):
     # An offset dropped or taken from the wrong dataset still lands inside the corpus's
     # structures, so it returns a reaction rather than raising -- the wrong one.
-    _, occurrence_dir = occurrence_dirs
+    pivots, occurrence_dir = occurrence_dirs
     with (
-        _indexed_corpus(corpus_dir, None) as unnested,
+        _indexed_corpus(corpus_dir, pivots) as pivoted,
         _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read,
     ):
         where = _exists({"op": "substructure", "path": "smiles", "smarts": "[OX2H]"})
-        expected = _search(unnested, where)
+        expected = _search(pivoted, where)
         assert expected
         assert _search(read, where) == expected
 
@@ -6198,54 +5363,54 @@ def test_an_index_read_from_artifacts_keeps_a_structure_in_its_own_dataset(
 def test_a_covered_corpus_publishes_the_index_as_a_view(
     corpus_dir, occurrence_dirs, caplog
 ):
-    # The whole point of the artifact: the rows stay on disk, where the table holds
-    # them in memory.
+    # The rows stay on disk: the corpus holds a view over them and nothing else.
     _, occurrence_dir = occurrence_dirs
     with (
         caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
         _indexed_corpus(corpus_dir, None, occurrences_dir=str(occurrence_dir)) as read,
     ):
-        read.check_index()
-    assert any("as a view" in record.message for record in caplog.records)
+        assert sum(read.check_index().values()) > 0
+        assert read._indexed is True
     assert any(
-        f"{len(execute.INDEXED_PATHS)} of {len(execute.INDEXED_PATHS)} paths read "
-        "from occurrence artifacts" in record.message
+        f"as a view over {occurrence_dir}" in record.message
         for record in caplog.records
     )
 
 
-def test_one_uncovered_path_materializes_the_whole_index(
+def test_one_uncovered_path_leaves_the_corpus_without_an_index(
     corpus_dir, occurrence_dirs, caplog
 ):
-    # A view whose branches unnest the projection would repeat that traversal on every
-    # query rather than pay it once, so partial coverage is a table.
+    # The check that makes the index trustworthy counts the structures every path
+    # reaches, so an index over some paths is no index at all, and a warning says which
+    # paths are missing.
     pivots, _ = occurrence_dirs
     partial = _write_occurrences(
         pivots, pathlib.Path(str(pivots) + "-partial"), ("outcomes.products",)
     )
     with (
-        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
+        caplog.at_level(logging.WARNING, logger="ord_schema.search.execute"),
         _indexed_corpus(corpus_dir, None, occurrences_dir=str(partial)) as read,
     ):
-        read.check_index()
-    assert any("as a table" in record.message for record in caplog.records)
+        assert read.check_index() == {}
+        assert read._indexed is False
+    missing = sorted(set(execute.INDEXED_PATHS) - {"outcomes.products"})
     assert any(
-        f"1 of {len(execute.INDEXED_PATHS)} paths read from occurrence artifacts"
-        in record.message
-        for record in caplog.records
+        f"holds no occurrences artifacts for {missing}" in message
+        for message in _messages(caplog)
     )
 
 
 def test_an_uncovered_path_still_answers(corpus_dir, occurrence_dirs):
-    # Partial coverage is a partial speedup, never a missing answer: the paths with no
-    # artifact are read the way they were before there were any.
+    # Partial coverage is a missing index, never a missing answer: every structure
+    # predicate is read from the pivots or the projection, as a corpus without any
+    # artifacts reads it.
     pivots, _ = occurrence_dirs
     partial = _write_occurrences(
         pivots, pathlib.Path(str(pivots) + "-one"), ("outcomes.products",)
     )
     where = _exists({"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"})
-    with _indexed_corpus(corpus_dir, None) as unnested:
-        expected = _search(unnested, where)
+    with _indexed_corpus(corpus_dir, pivots) as pivoted:
+        expected = _search(pivoted, where)
     assert expected
     with _indexed_corpus(corpus_dir, None, occurrences_dir=str(partial)) as read:
         assert _search(read, where) == expected
@@ -6253,11 +5418,12 @@ def test_an_uncovered_path_still_answers(corpus_dir, occurrence_dirs):
 
 def test_a_directory_with_no_artifacts_is_not_an_error(corpus_dir, tmp_path):
     # Naming an empty directory reads as a corpus that has not derived them yet, which
-    # is the state every corpus starts in.
+    # is the state every corpus starts in: no index, and every answer still given.
     empty = tmp_path / "none"
     empty.mkdir()
     with _indexed_corpus(corpus_dir, None, occurrences_dir=str(empty)) as read:
-        assert sum(read.check_index().values()) > 0
+        assert read.check_index() == {}
+        assert _search(read, _exists(_SUBSTRUCTURE)) == {"ord-aa01", "ord-aa02"}
 
 
 # What the reader refuses
@@ -6361,48 +5527,21 @@ def test_an_occurrence_artifact_short_of_rows_is_named_as_the_cause(
     # reader to the one input that is fine.
     _, occurrence_dir = occurrence_dirs
     _empty_products(occurrence_dir)
-    every = sorted(execute.INDEXED_PATHS)
     with (
         pytest.raises(
             execute.PairingError,
             match=(
-                r"reached 4 of the corpus's 5 structures.*"
-                + re.escape(f"it read {every} from occurrence artifacts;")
-                + r".*re-derive .* with ord_schema\.artifacts\.scripts\."
+                r"reached 4 of the corpus's 5 structures.*an occurrence artifact "
+                r"missing rows.*re-derive .* with ord_schema\.artifacts\.scripts\."
                 r"derive_occurrences --force"
             ),
-        ) as raised,
+        ),
         _indexed_corpus(
             corpus_dir,
             None,
             occurrences_dir=str(occurrence_dir),
             require_occurrences=True,
         ) as read,
-    ):
-        read.check_index()
-    assert "not the schema" not in str(raised.value)
-
-
-def test_a_short_artifact_beside_walked_paths_names_both_causes(
-    corpus_dir, occurrence_dirs, tmp_path
-):
-    # Where some paths were walked, a walk that fell out of step with the projections
-    # reaches the same shortfall, so the message gives that diagnosis after the first.
-    pivots, _ = occurrence_dirs
-    partial = _write_occurrences(pivots, tmp_path / "partial", ("outcomes.products",))
-    _empty_products(partial)
-    walked = sorted(set(execute.INDEXED_PATHS) - {"outcomes.products"})
-    with (
-        pytest.raises(
-            execute.PairingError,
-            match=re.escape(
-                "it read ['outcomes.products'] from occurrence artifacts, "
-                f"{walked} from the projections;"
-            )
-            + r".*derive_occurrences --force.*; failing that, the projections are not "
-            "the schema this walk was built from",
-        ),
-        _indexed_corpus(corpus_dir, None, occurrences_dir=str(partial)) as read,
     ):
         read.check_index()
 

@@ -511,16 +511,6 @@ def main(argv: Sequence[str] | None = None) -> None:
         help="Directory of derived occurrence index artifacts, read rather than built",
     )
     parser.add_argument(
-        "--pivot-budget-bytes",
-        type=int,
-        default=0,
-        help=(
-            "What pivots built in process may hold. Zero by default: a run is a "
-            "handful of queries, and building a pivot over the whole corpus costs "
-            "far more than it saves"
-        ),
-    )
-    parser.add_argument(
         "--timeout-seconds",
         type=float,
         default=DEFAULT_TIMEOUT_SECONDS,
@@ -551,7 +541,6 @@ def main(argv: Sequence[str] | None = None) -> None:
         require_current=args.require_current,
         pivots_dir=args.pivots_dir,
         occurrences_dir=args.occurrences_dir,
-        pivot_budget_bytes=args.pivot_budget_bytes,
         # Unbounded: a case is scored by comparing the reactions a translation returns
         # against the reference's. Bounded, both sides are arbitrary pages of their
         # match sets -- SQL leaves an unordered LIMIT free to pick any rows -- so two

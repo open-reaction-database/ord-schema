@@ -28,7 +28,7 @@ flowchart LR
 | [`projection`](projection.py) | source dataset | every field of every message reachable from `Reaction`, as `STRUCT` / `LIST` / `MAP` | any query engine; the compiler in [`ord_schema.search`](../search/) |
 | [`structures`](structures.py) | projection | one row per distinct structure: `pattern_fp`, `morgan_fp`, `morgan_popcount`, `mol_binary`, keyed by `structure_id` | the screen and verify steps of substructure search |
 | [`pivot`](pivot.py) | projection × repeated level | one row per element, carrying `reaction_id`, the ordinal of every enclosing level, and the element's own non-repeated fields | `exists` and `forall` over the level, nested ones joined on the ordinals, rather than a filter over the projection's lists; per-reaction reductions such as a ranking by yield; `aggregate.over`, which reads nothing else; and the occurrences derivation |
-| [`occurrences`](occurrences.py) | pivot × indexed path | one row per structure occurrence: `reaction_id`, `structure_id` | the semi-join a structure query with no other element condition is routed to, as a view rather than a table the corpus builds |
+| [`occurrences`](occurrences.py) | pivot × indexed path | one row per structure occurrence: `reaction_id`, `structure_id` | the semi-join a structure query with no other element condition is routed to, as a view over the artifacts |
 
 The projection leaves **no field out** — a field left out is a question nobody can ask.
 Its schema is generated from the proto descriptors, so a field added upstream appears
@@ -285,11 +285,9 @@ dataset every artifact names. That rule is what lets the occurrence index be an 
 at all rather than a relation rebuilt at every startup: given an `occurrences_dir`
 covering every indexed path, [`Corpus`](../search/execute.py) publishes it as a view over
 those files and builds nothing. Measured over the full corpus that is 0.18 s and 0.40 GiB
-resident against 3.1 s and 1.49 GiB for the table read from pivots, and DuckDB holds
-30 MiB where it held 1.40 GiB. A path with no artifact is read from a pivot or unnested
-from the projection as before, and one uncovered path materializes the whole index — a
-view whose branches unnest the projection would repeat that traversal on every query
-rather than pay it once.
+resident at open. A directory covering some paths and not others leaves the corpus with
+no index, since the check that makes one trustworthy counts the structures every path
+reaches; the structure predicates are then answered from the pivots or the projection.
 
 ## Querying a projection
 
