@@ -6052,6 +6052,32 @@ class TestFirstCommits:
     def test_their_stamps_reach_the_fingerprint(self, history_corpus, corpus):
         assert history_corpus.fingerprint != corpus.fingerprint
 
+    def test_the_history_they_read_reaches_the_fingerprint(self, corpus_dir, tmp_path):
+        # Rebuilt from a rewritten history, the artifacts can answer differently while
+        # every stamp the other artifacts carry stays the same.
+        fingerprints = []
+        for head in ("c" * 40, "d" * 40):
+            output = tmp_path / head[0]
+            rows = [
+                {"reaction_id": reaction_id, **row}
+                for reaction_id, row in _ARRIVALS.items()
+            ]
+            index = history.Index(
+                pa.Table.from_pylist(rows, schema=history.INDEX_SCHEMA), [head]
+            )
+            output.mkdir()
+            for projected in sorted((corpus_dir / "projections").glob("*.parquet")):
+                first_commits.write_first_commits(
+                    projected, output / projected.name, index=index
+                )
+            with _open(
+                corpus_dir,
+                resolver={}.__getitem__,
+                first_commits_pattern=str(output / "*.parquet"),
+            ) as value:
+                fingerprints.append(value.fingerprint)
+        assert fingerprints[0] != fingerprints[1]
+
 
 class TestFirstCommitsPairing:
     def test_refuses_a_dataset_without_them(self, corpus_dir, tmp_path):
@@ -6061,6 +6087,27 @@ class TestFirstCommitsPairing:
             execute.PairingError, match="projections and first_commits artifacts do not"
         ):
             _open(corpus_dir, resolver={}.__getitem__, first_commits_pattern=pattern)
+
+    def test_refuses_them_from_another_walk_when_current_is_required(
+        self, corpus_dir, arrivals_pattern, monkeypatch
+    ):
+        monkeypatch.setattr(history, "VERSION", "2")
+        with pytest.raises(
+            execute.PairingError, match="not derived from a version 2 walk"
+        ):
+            _open(
+                corpus_dir,
+                resolver={}.__getitem__,
+                first_commits_pattern=arrivals_pattern,
+            )
+        with _open(
+            corpus_dir,
+            resolver={}.__getitem__,
+            first_commits_pattern=arrivals_pattern,
+            require_current=False,
+            warm=False,
+        ) as value:
+            assert _search(value, {"op": "and", "clauses": _ADDED_IN_2022})
 
     def test_refuses_a_pattern_matching_nothing(self, corpus_dir, tmp_path):
         with pytest.raises(

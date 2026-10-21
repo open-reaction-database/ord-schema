@@ -112,6 +112,7 @@ from ord_schema import parquet, resolvers
 from ord_schema.artifacts import (
     base,
     first_commits,
+    history,
     occurrences,
     pivot,
     projection,
@@ -476,15 +477,17 @@ def _index(
     return index
 
 
-def _fingerprint(stamps: Iterable[base.Stamps]) -> str:
+def _fingerprint(records: Iterable[tuple[Any, ...]]) -> str:
     """Returns a short digest naming the artifacts a corpus opened.
 
     Args:
-        stamps: The stamps of every artifact in the corpus, in any order. Each one
-            paired with a projection belongs here: the structures artifact answers every
-            structure predicate and the first_commits artifact every question about
-            when a reaction arrived, and each is derived separately, so a corpus whose
-            partners were rebuilt can answer differently with its projections untouched.
+        records: One per artifact in the corpus, in any order: its stamps as a tuple,
+            and for a first_commits artifact the walk of ord-data's history it read as
+            well. Each artifact paired with a projection belongs here: the structures
+            artifact answers every structure predicate and the first_commits artifact
+            every question about when a reaction arrived, and each is derived
+            separately, so a corpus whose partners were rebuilt can answer differently
+            with its projections untouched.
 
     Returns:
         Sixteen hex characters, sorted so the same corpus opened through a different
@@ -495,7 +498,7 @@ def _fingerprint(stamps: Iterable[base.Stamps]) -> str:
     digest = hashlib.sha256()
     # Sorted as text rather than as tuples: a stamp field is optional, and comparing
     # None against a string to order two artifacts raises.
-    for value in sorted(repr(dataclasses.astuple(one)) for one in stamps):
+    for value in sorted(repr(record) for record in records):
         digest.update(value.encode())
     return digest.hexdigest()[:16]
 
@@ -528,7 +531,9 @@ def _pair(
             reads, or if any side states a dataset another does not, since a
             projection's IDs index its own partner's molecules and nobody else's, and a
             first commit asked of a dataset missing one would read as never having
-            arrived. Given ``first_commits_pattern``, also if it matches nothing.
+            arrived. Given ``first_commits_pattern``, also if it matches nothing, or
+            under ``require_current`` if an artifact was derived from another walk of
+            ord-data's history.
     """
     projections = _index(
         projection_pattern, projection.ARTIFACT, projection.SCHEMA, require_current
@@ -566,6 +571,21 @@ def _pair(
                 "projections and first_commits artifacts do not pair up; these have no "
                 f"counterpart derived from the same source dataset: {orphans}"
             )
+    # The walk of ord-data's history each first_commits artifact read, which its other
+    # stamps do not record: rebuilt from another, it answers differently under them.
+    walks = {key: history.read_stamp(path) for key, (path, _) in arrivals.items()}
+    if require_current:
+        stale = sorted(
+            arrivals[key][0]
+            for key, walk in walks.items()
+            if walk is None or walk[0] != history.VERSION
+        )
+        if stale:
+            raise PairingError(
+                "these first_commits artifacts were not derived from a version "
+                f"{history.VERSION} walk of ord-data's history; derive them again "
+                f"first: {stale}"
+            )
     pairs = [
         (
             projections[key][0],
@@ -576,9 +596,17 @@ def _pair(
         for key in sorted(projections)
     ]
     fingerprint = _fingerprint(
-        stamps
-        for index in (projections, structure_files, arrivals)
-        for _, stamps in index.values()
+        [
+            *(
+                dataclasses.astuple(stamps)
+                for index in (projections, structure_files)
+                for _, stamps in index.values()
+            ),
+            *(
+                (*dataclasses.astuple(stamps), walks[key])
+                for key, (_, stamps) in arrivals.items()
+            ),
+        ]
     )
     return pairs, fingerprint, {key: path for key, (path, _) in arrivals.items()}
 

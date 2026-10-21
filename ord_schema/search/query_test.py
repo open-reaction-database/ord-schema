@@ -2796,6 +2796,18 @@ class TestFirstCommitRouting:
         with pytest.raises(query.QueryError, match="holds no first commits"):
             _compile(payload, history=None)
 
+    def test_a_measure_named_like_it_is_not_a_path_to_it(self):
+        # An aggregated query orders by a measure name or a group_by path, so a key
+        # spelled first_commit names the measure and reads no first commit.
+        compiled = _compile(
+            {
+                "aggregate": {"measures": [{"fn": "count", "name": "first_commit"}]},
+                "order_by": [{"key": "first_commit"}],
+            },
+            history=None,
+        )
+        assert query.HISTORY_TABLE not in compiled.sql
+
     def test_the_relation_has_to_be_an_identifier(self):
         with pytest.raises(query.QueryError, match="history is not an identifier"):
             _compile({"where": _YEAR[0]}, history="first_commits, range(10)")

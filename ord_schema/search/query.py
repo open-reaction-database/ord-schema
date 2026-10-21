@@ -1738,7 +1738,12 @@ def _reads_history_beyond_where(query: "Query") -> bool:
             for measure in query.aggregate.measures
             if isinstance(measure.path, str)
         )
-    paths.extend(order.key for order in query.order_by if isinstance(order.key, str))
+    else:
+        # An aggregated query orders by a measure's name or a group_by path, and the
+        # group_by paths are above: a measure may be named first_commit.
+        paths.extend(
+            order.key for order in query.order_by if isinstance(order.key, str)
+        )
     return any(_is_history_path(path) for path in paths)
 
 
