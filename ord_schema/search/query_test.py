@@ -1822,11 +1822,14 @@ def test_exists_over_a_pivoted_level_becomes_a_semi_join():
         },
         pivot=_every_level,
     )
-    assert "EXISTS (SELECT 1 FROM pivot_workups AS x0" in sql
-    # Qualified on both sides. A pivot carries a reaction_id of its own, so an
-    # unqualified outer reference binds to the inner one and the correlation compares a
-    # column to itself -- true of every reaction that has any element at all.
-    assert "x0.reaction_id = reactions.reaction_id" in sql
+    # Spelled as IN at the row, which DuckDB plans as a plain hash semi-join, and
+    # qualified on both sides: a pivot carries a reaction_id of its own, so an
+    # unqualified outer reference would bind to the inner one.
+    assert (
+        "reactions.reaction_id IN (SELECT x0.reaction_id FROM pivot_workups AS x0 "
+        "WHERE x0.reaction_id IS NOT NULL AND " in sql
+    )
+    assert "EXISTS" not in sql
     assert "x0.element.type" in sql
     assert "list_filter" not in sql
 
@@ -2004,7 +2007,9 @@ def test_a_structure_predicate_routes_through_the_pivot_with_the_outer_offset():
         ),
         pivot=_every_level,
     )
-    assert "EXISTS (SELECT 1 FROM pivot_inputs_components AS x0" in compiled.sql
+    assert (
+        "IN (SELECT x0.reaction_id FROM pivot_inputs_components AS x0" in compiled.sql
+    )
     assert "x0.element.structure_id" in compiled.sql
     # Unqualified, so it is the enclosing relation's column rather than one of the
     # pivot's; the pivot has none.
@@ -2546,7 +2551,7 @@ def test_a_quantifier_in_the_reaction_filter_does_not_take_the_grouped_alias():
             }
         }
     )
-    assert "AS x1 WHERE x1.reaction_id = reactions.reaction_id" in sql
+    assert "reactions.reaction_id IN (SELECT x1.reaction_id FROM" in sql
     assert "AS x0" in sql
 
 

@@ -226,7 +226,7 @@ flowchart TB
     A["exists / forall over a repeated level"] --> B{"an exists whose body is one structure<br/>predicate on the element's own smiles<br/>and nothing else?"}
     B -- yes --> I["<b>occurrence index</b><br/>reaction_id IN (SELECT … FROM occurrences …)"]
     B -- no --> P{"does the body resolve against<br/>the pivot's pruned element,<br/>and does the corpus hold its artifact?"}
-    P -- yes --> V["<b>a pivot</b><br/>EXISTS (SELECT 1 FROM pivot_… AS x0 …)"]
+    P -- yes --> V["<b>a pivot</b><br/>reaction_id IN (SELECT … FROM pivot_… AS x0 …)"]
     P -- no --> E["<b>the elements</b><br/>list_filter over the nested column"]
 ```
 
@@ -302,9 +302,12 @@ costs is the scan that checks it.
 The occurrence index answers a quantifier about a *structure* alone. A **pivot** answers
 one about anything else: one row per element of a repeated level, carrying `reaction_id`,
 the ordinal of every repeated level from the root down to that one, and the element's
-own fields with the repeated ones removed recursively. A quantifier over a covered level
-becomes `EXISTS (SELECT 1 FROM <pivot> AS x WHERE x.reaction_id = reactions.reaction_id
-AND …)`, and a `forall` the same with `NOT EXISTS` and the body negated.
+own fields with the repeated ones removed recursively. An `exists` over a covered level
+becomes `reaction_id IN (SELECT x.reaction_id FROM <pivot> AS x WHERE …)`, which DuckDB
+plans as a plain hash semi-join, and a `forall` becomes `NOT EXISTS (SELECT 1 FROM
+<pivot> AS x WHERE x.reaction_id = reactions.reaction_id AND NOT (…))`. The `IN`
+subquery leaves out rows naming no reaction, so a `not` around an `exists` never meets
+the NULL that would make `NOT IN` answer NULL for every reaction.
 
 Two properties do the work. The pivot is **complete** — every element gets a row,
 including one whose fields are all NULL — which is what lets it answer `forall`, where
@@ -375,18 +378,18 @@ query first asked.
 
 ## What a projection query costs
 
-Queries the index declines read the projection, and most of what that costs is not the
+Queries the index declines read the projection, and much of what that costs is not the
 reading. A scan re-parses the footer of every file it touches, and a 453-leaf projection
-over 93 files has large footers — 2,484 row groups in all, 169 MiB serialized; the parse
-is charged again on every query however few leaves the query goes on to read. DuckDB
-will **hold the parsed footers** between queries, which the corpus turns on at open.
-Over ORD that parse is most of what a projection query costs — **8–27×** across a range
-of scalar queries ([logbook][cache-entry], finding 10).
-
-The footers cost about **1.2 GiB** over the whole corpus, once, and are bounded by the
-files rather than by what is asked of them — which is why they are held unconditionally
-where the gigabytes a pivot costs are weighed against a budget. DuckDB's own accounting
-books 0.23 GiB of that, so most of what they hold sits outside `memory_limit`. With them
+has a large one: statistics for every leaf of every row group, charged on every query
+however few leaves the query goes on to read. Two things keep that small.
+`write_projection` sizes its own row groups rather than inheriting the source datasets'
+thousand-row ones, which are sized for reading one reaction at a time, so the footer is
+a few hundred row groups over the corpus rather than a few thousand. And DuckDB **holds
+the parsed footers** between queries, which the corpus turns on at open: over the
+inherited row groups the parse was most of what a projection query cost, **8–27×**
+across a range of scalar queries ([logbook][cache-entry], finding 10). The footers are
+bounded by the files rather than by what is asked of them, and DuckDB's accounting books
+only part of what they hold, so what remains sits outside `memory_limit`. With them
 held, a scalar query over the projection lands in hundredths of a second, which leaves a
 cache of the columns themselves nothing to buy.
 

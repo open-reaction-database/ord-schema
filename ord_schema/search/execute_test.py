@@ -1984,6 +1984,20 @@ def test_the_footer_cache_reaches_the_cursor_a_search_runs_on(corpus):
     assert setting == (True,)
 
 
+def test_a_search_does_not_wait_on_the_scan_order(corpus):
+    # Set globally for the reason the footer cache is: a search runs on its own cursor,
+    # which a session-scoped setting would leave holding rows back until every earlier
+    # row group had finished.
+    cursor = corpus._connection.cursor()
+    try:
+        setting = cursor.execute(
+            "SELECT current_setting('preserve_insertion_order')"
+        ).fetchone()
+    finally:
+        cursor.close()
+    assert setting == (False,)
+
+
 def test_a_rewritten_artifact_is_not_answered_from_its_cached_footer(
     corpus_dir, tmp_path
 ):
@@ -4611,6 +4625,41 @@ def test_a_pivot_from_another_corpus_is_refused(wide_root, corpus_dir, tmp_path)
         pytest.raises(execute.PairingError, match="another corpus"),
     ):
         _search(corpus, _white("exists"))
+
+
+def test_a_pivot_row_naming_no_reaction_does_not_empty_a_negated_exists(
+    corpus_dir, tmp_path
+):
+    # An exists over a pivot is spelled IN, and NOT IN against a subquery holding a
+    # NULL answers NULL for every reaction, returning nothing. The subquery leaves such
+    # rows out, so the negation still answers every reaction without a solvent.
+    pivots = _write_pivots(corpus_dir, ("inputs.components",), into=tmp_path / "pivots")
+    # The aa shard, which holds the one solvent.
+    target = pivots / "inputs.components" / "aa" / "ord_dataset-aa.parquet"
+    table = pq.read_table(target)
+    roles = pa.compute.struct_field(table.column("element"), "reaction_role")
+    solvent = table.filter(pa.compute.equal(roles, "SOLVENT")).slice(0, 1)
+    assert solvent.num_rows == 1
+    unnamed = solvent.set_column(
+        0, table.schema.field("reaction_id"), pa.array([None], type=pa.string())
+    )
+    pq.write_table(
+        pa.concat_tables([table, unnamed]).replace_schema_metadata(
+            table.schema.metadata
+        ),
+        target,
+    )
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots),
+        warm=False,
+    ) as corpus:
+        assert _search(corpus, {"op": "not", "clause": _exists(_SOLVENT)}) == {
+            "ord-aa02",
+            "ord-bb01",
+        }
 
 
 def test_a_stranger_s_pivot_is_refused_by_the_check(wide_root, corpus_dir):
