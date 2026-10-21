@@ -16,6 +16,8 @@
 
 import gzip
 import os
+import pathlib
+import shutil
 import subprocess
 from datetime import datetime
 
@@ -292,6 +294,57 @@ class TestWalk:
         )
         extended = first_commits.walk(repository, previous=previous)
         assert extended.lookup(["ord-r5"])["ord-r5"]["dataset_id"] == "ord_dataset-zz"
+
+    def test_refuses_a_shallow_clone(self, history, tmp_path):
+        # A shallow clone presents its oldest commit as a root, so every reaction it
+        # holds would read as arriving there.
+        shallow = tmp_path / "shallow"
+        _git(
+            tmp_path,
+            "clone",
+            "-q",
+            "--depth=2",
+            f"file://{history['repository']}",
+            str(shallow),
+        )
+        # Every LFS object fetched, as `git lfs pull` leaves a checkout, so nothing but
+        # the depth stands between this clone and a walk.
+        objects = pathlib.Path(".git", "lfs", "objects")
+        shutil.copytree(history["repository"] / objects, shallow / objects)
+        with pytest.raises(
+            ValueError, match=r"shallow clone.* git -C .* fetch --unshallow"
+        ):
+            first_commits.walk(shallow)
+
+    def _clone(self, history, destination):
+        """Clones the history with every LFS object, as `git lfs pull` leaves one."""
+        _git(
+            destination.parent,
+            "clone",
+            "-q",
+            f"file://{history['repository']}",
+            str(destination),
+        )
+        objects = pathlib.Path(".git", "lfs", "objects")
+        shutil.copytree(history["repository"] / objects, destination / objects)
+        return destination
+
+    def test_refuses_a_grafted_history(self, history, tmp_path):
+        clone = self._clone(history, tmp_path / "grafted")
+        (clone / ".git" / "info").mkdir(exist_ok=True)
+        (clone / ".git" / "info" / "grafts").write_text(
+            history["commits"]["merge"] + "\n"
+        )
+        with pytest.raises(ValueError, match="has a grafts file"):
+            first_commits.walk(clone)
+
+    def test_ignores_replace_refs(self, history, tmp_path):
+        clone = self._clone(history, tmp_path / "replaced")
+        # Makes the merge read as a root, as a shallow boundary would.
+        _git(clone, "replace", "--graft", history["commits"]["merge"])
+        assert first_commits.walk(clone).table.equals(
+            first_commits.walk(history["repository"]).table
+        )
 
     def test_refuses_an_index_walked_along_another_chain(self, history):
         commits = history["commits"]

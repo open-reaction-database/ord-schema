@@ -55,6 +55,11 @@ rather than today's ``Dataset``: a version written under an older schema need no
 under today's, and a full parse decodes every field of every reaction to reach one.
 Neither ID has changed its field number or name since before ord-data held a dataset.
 
+The walk needs the whole history as it was committed. A shallow clone presents its
+oldest commit as a root, and a grafts file gives a commit whatever parents it names, so
+either would place every reaction such a commit holds at that commit; both refuse the
+walk. Replace refs, which do the same, are ignored.
+
 Dataset files live in git LFS, and the walk reads only objects already fetched. One
 that is not refuses the walk before any dataset file is read, naming the command that
 fetches it, rather than fetching from whichever store the checkout points at.
@@ -364,7 +369,9 @@ def _git(repository: str | os.PathLike[str], *args: str, stdin: bytes = b"") -> 
     # S603: the arguments are this module's own, plus a revision the caller names after
     # --end-of-options, passed as an argument list rather than through a shell.
     result = subprocess.run(  # noqa: S603
-        [executable, "-C", os.fspath(repository), *args],
+        # Replace refs rewrite the history git reports; the walk reads what was
+        # committed.
+        [executable, "--no-replace-objects", "-C", os.fspath(repository), *args],
         input=stdin,
         capture_output=True,
         check=False,
@@ -375,6 +382,33 @@ def _git(repository: str | os.PathLike[str], *args: str, stdin: bytes = b"") -> 
             f"{result.stderr.decode(errors='replace').strip()}"
         )
     return result.stdout
+
+
+def _require_whole_history(repository: str | os.PathLike[str]) -> None:
+    """Refuses a checkout that reports less history, or other history, than it holds.
+
+    Args:
+        repository: The ord-data checkout.
+
+    Raises:
+        ValueError: If the checkout is a shallow clone, whose oldest commit reads as a
+            root, or holds a grafts file, which gives commits the parents it names.
+            Either would date every reaction such a commit holds to that commit.
+    """
+    if _git(repository, "rev-parse", "--is-shallow-repository").strip() == b"true":
+        raise ValueError(
+            f"{repository} is a shallow clone, so its oldest commit would read as "
+            "where every reaction it holds first arrived; fetch the whole history with "
+            f"git -C {repository} fetch --unshallow"
+        )
+    relative = _git(repository, "rev-parse", "--git-path", "info/grafts").decode()
+    grafts = pathlib.Path(repository) / relative.strip()
+    if grafts.exists():
+        raise ValueError(
+            f"{repository} has a grafts file, {grafts}, which rewrites the parents git "
+            "reports; convert it with git replace --convert-graft-file, whose replace "
+            "refs the walk ignores"
+        )
 
 
 def commit_time(seconds: int, offset: str) -> tuple[datetime, int]:
@@ -628,11 +662,13 @@ def walk(
         first commit that held it, walked to ``revision``.
 
     Raises:
-        ValueError: If ``previous`` was walked along a chain that is not the start of
-            this one, if an LFS object is missing, if a file records no dataset ID, or
+        ValueError: If the checkout's history is shallow or grafted, if ``previous``
+            was walked along a chain that is not the start of this one, if an LFS object
+            is missing, if a file records no dataset ID, or
             if a reaction first appears in two datasets in one commit, which would
             leave its first dataset unknowable.
     """
+    _require_whole_history(repository)
     chain = _first_parent_chain(repository, revision)
     start = 0
     seen: set[str] = set()

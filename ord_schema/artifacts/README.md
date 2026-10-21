@@ -172,7 +172,9 @@ Each version is read for its reaction and dataset IDs alone, through a two-field
 that parses any version of a `Dataset`, so text written under a retired schema still
 reads.
 
-The walk reads only LFS objects already fetched. The Hugging Face mirror ord-data's
+The walk needs the whole history as committed: it refuses a shallow clone, whose oldest
+commit would read as where every reaction it holds arrived, and a grafts file, and it
+ignores replace refs. It reads only LFS objects already fetched. The Hugging Face mirror ord-data's
 `.lfsconfig` points at holds no object older than October 2024, nor every one since, while
 GitHub's LFS store holds them all, so the first walk on a machine fetches from there once:
 
