@@ -978,12 +978,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="What one query may take before it fails",
     )
     parser.add_argument(
-        "--pivot-budget-bytes",
-        type=int,
-        default=0,
-        help="What pivots built in process may hold; zero builds none",
-    )
-    parser.add_argument(
         "--pivots",
         default=None,
         help=(
@@ -997,8 +991,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help=(
             "Directory holding occurrence artifacts, which must cover every indexed "
-            "path. Without it the occurrence index is built from the pivots or the "
-            "projections, which answers the same but leaves the artifacts unread"
+            "path. Without it the corpus has no occurrence index and answers a "
+            "structure predicate from the pivots or the projection, which answers "
+            "the same but leaves the artifacts unread"
         ),
     )
     args = parser.parse_args(argv)
@@ -1020,7 +1015,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.projections,
         args.structures,
         require_current=True,
-        pivot_budget_bytes=args.pivot_budget_bytes,
         pivots_dir=args.pivots,
         occurrences_dir=args.occurrences,
         # A path the directory left out would be read from a pivot or the projection
