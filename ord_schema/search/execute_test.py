@@ -5292,7 +5292,8 @@ def test_one_uncovered_path_leaves_the_corpus_without_an_index(
 
 def test_an_uncovered_path_still_answers(corpus_dir, occurrence_dirs):
     # Partial coverage is a missing index, never a missing answer: every structure
-    # predicate is read from the pivots or the projection, as before there were any.
+    # predicate is read from the pivots or the projection, as a corpus without any
+    # artifacts reads it.
     pivots, _ = occurrence_dirs
     partial = _write_occurrences(
         pivots, pathlib.Path(str(pivots) + "-one"), ("outcomes.products",)
