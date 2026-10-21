@@ -487,6 +487,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--projections", required=True, help="Glob for projections")
     parser.add_argument("--structures", required=True, help="Glob for structures")
+    parser.add_argument(
+        "--first-commits",
+        default=None,
+        help="Glob for first_commits artifacts; without it first_commit is refused",
+    )
     parser.add_argument("--model", default=nl.DEFAULT_MODEL, help="Model to translate")
     parser.add_argument(
         "--effort",
@@ -541,6 +546,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         require_current=args.require_current,
         pivots_dir=args.pivots_dir,
         occurrences_dir=args.occurrences_dir,
+        first_commits_pattern=args.first_commits,
         # Unbounded: a case is scored by comparing the reactions a translation returns
         # against the reference's. Bounded, both sides are arbitrary pages of their
         # match sets -- SQL leaves an unordered LIMIT free to pick any rows -- so two

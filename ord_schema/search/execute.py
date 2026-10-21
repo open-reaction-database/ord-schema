@@ -111,6 +111,7 @@ from rdkit.Chem import rdSubstructLibrary
 from ord_schema import parquet, resolvers
 from ord_schema.artifacts import (
     base,
+    first_commits,
     occurrences,
     pivot,
     projection,
@@ -479,10 +480,11 @@ def _fingerprint(stamps: Iterable[base.Stamps]) -> str:
     """Returns a short digest naming the artifacts a corpus opened.
 
     Args:
-        stamps: The stamps of every artifact in the corpus, in any order. Both halves
-            of each pair belong here: the structures artifact answers every structure
-            predicate and is derived separately, so a corpus whose structures were
-            rebuilt can answer differently with its projections untouched.
+        stamps: The stamps of every artifact in the corpus, in any order. Each one
+            paired with a projection belongs here: the structures artifact answers every
+            structure predicate and the first_commits artifact every question about
+            when a reaction arrived, and each is derived separately, so a corpus whose
+            partners were rebuilt can answer differently with its projections untouched.
 
     Returns:
         Sixteen hex characters, sorted so the same corpus opened through a different
@@ -499,26 +501,34 @@ def _fingerprint(stamps: Iterable[base.Stamps]) -> str:
 
 
 def _pair(
-    projection_pattern: str, structures_pattern: str, require_current: bool
-) -> tuple[list[tuple[str, str, str, str | None]], str]:
+    projection_pattern: str,
+    structures_pattern: str,
+    require_current: bool,
+    first_commits_pattern: str | None = None,
+) -> tuple[list[tuple[str, str, str, str | None]], str, dict[str, str]]:
     """Returns (projection, structures, source, dataset ID) tuples, verified by stamps.
 
     Args:
         projection_pattern: Glob matching the projection base.
         structures_pattern: Glob matching the structures base.
         require_current: Refuse artifacts not written by the current versions.
+        first_commits_pattern: Glob matching the first_commits artifacts, or None for
+            a corpus that holds none.
 
     Returns:
         One tuple per source dataset, ordered by the source hash, carrying that hash
         beside the paths -- every artifact derived from the dataset names it, so it is
         what pairs a pivot with the offset this corpus gave its projection -- and the
         dataset ID the projection's stamps record, or None where its source recorded
-        none. Also the fingerprint over the stamps this already read to verify them.
+        none. Also the fingerprint over the stamps this already read to verify them,
+        and each source's first_commits artifact, empty where the corpus holds none.
 
     Raises:
-        PairingError: If no projection matches, if either side lacks a column this
-            library reads, or if either side states a dataset the other does not, since
-            a projection's IDs index its own partner's molecules and nobody else's.
+        PairingError: If no projection matches, if any side lacks a column this library
+            reads, or if any side states a dataset another does not, since a
+            projection's IDs index its own partner's molecules and nobody else's, and a
+            first commit asked of a dataset missing one would read as never having
+            arrived. Given ``first_commits_pattern``, also if it matches nothing.
     """
     projections = _index(
         projection_pattern, projection.ARTIFACT, projection.SCHEMA, require_current
@@ -535,6 +545,27 @@ def _pair(
             "projections and structures artifacts do not pair up; these have no "
             f"counterpart derived from the same source dataset: {orphans}"
         )
+    arrivals: dict[str, tuple[str, base.Stamps]] = {}
+    if first_commits_pattern is not None:
+        arrivals = _index(
+            first_commits_pattern,
+            first_commits.ARTIFACT,
+            first_commits.SCHEMA,
+            require_current,
+        )
+        if not arrivals:
+            raise PairingError(
+                f"no first_commits artifacts matched: {first_commits_pattern}"
+            )
+        unpaired = projections.keys() ^ arrivals.keys()
+        if unpaired:
+            # Every dataset or none: a semi-join on a dataset with no first commits
+            # answers a negated question as though its reactions matched.
+            orphans = sorted((projections | arrivals)[key][0] for key in unpaired)
+            raise PairingError(
+                "projections and first_commits artifacts do not pair up; these have no "
+                f"counterpart derived from the same source dataset: {orphans}"
+            )
     pairs = [
         (
             projections[key][0],
@@ -546,10 +577,10 @@ def _pair(
     ]
     fingerprint = _fingerprint(
         stamps
-        for index in (projections, structure_files)
+        for index in (projections, structure_files, arrivals)
         for _, stamps in index.values()
     )
-    return pairs, fingerprint
+    return pairs, fingerprint, {key: path for key, (path, _) in arrivals.items()}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -757,12 +788,14 @@ def _relations_read(sql: str, looked_up: dict[str, str]) -> str:
         looked_up: The view each pivot lookup returned, keyed by level.
 
     Returns:
-        The occurrence index, the pivots over the levels the SQL names, or the
-        projection alone.
+        The occurrence index, the pivots over the levels the SQL names, the first
+        commits, or the projection alone.
     """
     reads = []
     if _INDEX_RELATION in sql:
         reads.append("the occurrence index")
+    if _reads_history(sql):
+        reads.append("the first commits")
     # Matched as whole words, since one level's view name can begin another's:
     # pivot_outcomes_products is a prefix of pivot_outcomes_products_measurements.
     pivoted = sorted(
@@ -773,6 +806,11 @@ def _relations_read(sql: str, looked_up: dict[str, str]) -> str:
     if pivoted:
         reads.append(f"the pivots over {pivoted}")
     return " and ".join(reads) or "the projection alone"
+
+
+def _reads_history(sql: str) -> bool:
+    """Returns whether compiled SQL reads the first commits, matched as a whole word."""
+    return re.search(rf"\b{query.HISTORY_TABLE}\b", sql) is not None
 
 
 def _group(entry_of: array.array, count: int) -> tuple[array.array, array.array]:
@@ -1027,6 +1065,7 @@ class Corpus:
         require_pivots: bool = False,
         occurrences_dir: str | None = None,
         require_occurrences: bool = False,
+        first_commits_pattern: str | None = None,
         memory_limit: str | None = None,
         warm: bool = True,
         max_rows: int | None = DEFAULT_MAX_ROWS,
@@ -1077,6 +1116,11 @@ class Corpus:
                 cover every indexed path, rather than running without an index. Needs
                 an ``occurrences_dir``. What it costs is a footer read per artifact at
                 startup.
+            first_commits_pattern: Glob matching the first_commits artifacts, which hold
+                when each reaction first reached ord-data. Given one, every projection
+                has to pair with one, and a query naming ``first_commit`` reads them;
+                no other query does. Without one, such a query is refused. Derived by
+                ``ord_schema.artifacts.scripts.derive_first_commits``.
             memory_limit: What DuckDB may hold, spelled as it spells sizes: ``6500MiB``,
                 ``8GB``. Left unset, DuckDB takes about 80% of the machine, or of the
                 container's cap, which it does read. That default suits a process that
@@ -1113,8 +1157,10 @@ class Corpus:
                 which reads every source once, and is read on demand rather than held.
 
         Raises:
-            PairingError: If either pattern matches nothing, a file on one side has no
-                partner on the other, a pair's stamps disagree about the source dataset,
+            PairingError: If any pattern matches nothing, a file on one side has no
+                partner on another, a pair's stamps disagree about the source dataset,
+                a first_commits artifact holds a different count of reactions from its
+                projection,
                 a projection carries a structure ID its structures artifact does not
                 hold or records no statistics bounding them, or -- with
                 ``require_current`` -- any artifact is stale. Given
@@ -1183,9 +1229,13 @@ class Corpus:
                 "require_occurrences was set without an occurrences_dir, so there is "
                 "nowhere to look for what it would require"
             )
-        pairs, self._fingerprint = _pair(
-            projection_pattern, structures_pattern, require_current
+        pairs, self._fingerprint, arrivals = _pair(
+            projection_pattern,
+            structures_pattern,
+            require_current,
+            first_commits_pattern,
         )
+        self._history = bool(arrivals)
         # The fingerprint digests only the artifacts' stamps, which name the sources
         # too: a source pairs only with the projection whose stamps record its hash.
         self._sources = (
@@ -1231,6 +1281,7 @@ class Corpus:
                         str(pathlib.Path(source.path).parent)
                         for source in self._sources or ()
                     ),
+                    *(str(pathlib.Path(path).parent) for path in arrivals.values()),
                     *(
                         directory
                         for directory in (pivots_dir, occurrences_dir)
@@ -1239,6 +1290,8 @@ class Corpus:
                 ],
             )
             self._total, self._searchable = self._prepare(pairs)
+            if arrivals:
+                self._prepare_history(pairs, arrivals)
             if self._sources is not None:
                 self._prepare_sources(self._sources)
             if require_pivots:
@@ -1271,8 +1324,9 @@ class Corpus:
     def _require_unique_reactions(self) -> None:
         """Refuses a corpus stating a reaction more than once, checked once.
 
-        A pivot and the occurrence index both find reactions by ID: a semi-join on
-        ``reaction_id`` answers for every row carrying that ID. Two files stating the
+        A pivot, the occurrence index, and the first commits all find reactions by ID:
+        a semi-join on ``reaction_id`` answers for every row carrying that ID, and a
+        join repeats each row once per copy. Two files stating the
         same reaction pair cleanly -- what pairing checks is that each projection has
         its structures, not that the corpus states a reaction once -- and each copy's
         elements would then answer the other's queries, so a question narrowed to one
@@ -1302,8 +1356,8 @@ class Corpus:
             if duplicated is not None:
                 self._duplicated = (
                     f"reaction {duplicated[0]} is stated by {duplicated[1]} rows of "
-                    "the corpus, and the pivots and the occurrence index find "
-                    "reactions by ID, so one copy's elements would answer for the "
+                    "the corpus, and the pivots, the occurrence index, and the first "
+                    "commits find reactions by ID, so one copy would answer for the "
                     "other; glob one artifact per reaction"
                 )
                 raise PairingError(self._duplicated)
@@ -1415,6 +1469,57 @@ class Corpus:
                 "joined to their offsets; a path did not survive read_parquet"
             )
         return total, searchable
+
+    def _prepare_history(
+        self, pairs: list[tuple[str, str, str, str | None]], arrivals: dict[str, str]
+    ) -> None:
+        """Publishes ``query.HISTORY_TABLE``: each reaction's first commit to ord-data.
+
+        A view over the artifacts rather than a table, so the corpus holds none of it,
+        and nothing reads it but a query naming ``first_commit``.
+
+        Args:
+            pairs: The corpus's projections, paired by source.
+            arrivals: Each source's first_commits artifact.
+
+        Raises:
+            PairingError: If an artifact holds a different count of reactions from its
+                projection, or the view loses rows to a path read_parquet re-resolved.
+        """
+        stated = 0
+        for projected, _, source, _ in pairs:
+            # Both counts are footer reads. Pairing by source hash cannot see an
+            # artifact edited after it was written, which keeps its stamps, and one
+            # short of its projection leaves reactions with no first commit.
+            with pq.ParquetFile(projected) as artifact:
+                expected = artifact.metadata.num_rows
+            with pq.ParquetFile(arrivals[source]) as artifact:
+                count = artifact.metadata.num_rows
+            if count != expected:
+                raise PairingError(
+                    f"{arrivals[source]} holds {count} first commits but {projected} "
+                    f"holds {expected} reactions; derive it from this projection again"
+                )
+            stated += count
+        files = _sql_paths(arrivals[pair[2]] for pair in pairs)
+        # S608: the relation name is this module's constant and the paths this
+        # process's own glob results, quoted with their single quotes escaped.
+        self._connection.execute(
+            f"""
+            CREATE VIEW {query.HISTORY_TABLE} AS
+            SELECT reaction_id, {first_commits.COLUMN}
+            FROM read_parquet({files})
+            """  # noqa: S608
+        )
+        held = self._connection.execute(
+            f"SELECT count(*) FROM {query.HISTORY_TABLE}"  # noqa: S608
+        ).fetchone()
+        assert held is not None  # An aggregate over any relation returns one row.
+        if held[0] != stated:
+            raise PairingError(
+                f"the first_commits artifacts hold {stated} rows but only {held[0]} "
+                "were read; a path did not survive read_parquet"
+            )
 
     def _prepare_sources(self, sources: list[_Source]) -> None:
         """Publishes ``corpus_sources``: every source's records beside its dataset ID.
@@ -2544,7 +2649,11 @@ class Corpus:
 
         deadline = _Deadline(timeout_seconds)
         compiled = query.compile_query(
-            request, index=index, pivot=pivot_view, max_rows=self._max_rows
+            request,
+            index=index,
+            pivot=pivot_view,
+            history=query.HISTORY_TABLE if self._history else None,
+            max_rows=self._max_rows,
         )
         # Compiling publishes the views it routes to on their first use, which reads
         # a footer per artifact and, for the index, scans the artifacts once.
@@ -2552,6 +2661,9 @@ class Corpus:
         if compiled.limit != request.limit:
             logger.info("the corpus bounds this query at %d rows", compiled.limit)
         logger.info("this query reads %s", _relations_read(compiled.sql, looked_up))
+        if _reads_history(compiled.sql):
+            # The first commits are found by reaction ID, as a pivot's elements are.
+            self._require_unique_reactions()
         cursor = self._connection.cursor()
         try:
             parameters: dict[str, Any] = dict(compiled.literals)

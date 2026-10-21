@@ -25,8 +25,8 @@ Face mirror:
   by the SHA-256 the mirror's LFS records, so a stale checkout cannot pass for the
   whole corpus;
 * the index of first commits is walked to the checkout's ``HEAD``, and every
-  projection was derived with it or with an index it extends, so no reaction's
-  ``first_commit`` is null or read from another history.
+  first_commits artifact was derived with it or with an index it extends, so none
+  holds first commits read from another history.
 
 ``upload_artifacts`` carries the projections' dataset set to every other artifact.
 Exits non-zero on any mismatch. Hashing the checkout takes under a minute over ORD.
@@ -45,7 +45,7 @@ from huggingface_hub import HfApi
 from huggingface_hub.hf_api import RepoFile
 
 from ord_schema import huggingface, parquet
-from ord_schema.artifacts import base, first_commits, projection
+from ord_schema.artifacts import base, history, projection
 
 _MIRROR_DATASET = re.compile(r"^data/\w{2}/(ord_dataset-\w+)\.(parquet|pb\.gz)$")
 
@@ -128,8 +128,8 @@ def _head(ord_data: pathlib.Path) -> str:
 def _first_commit_problems(
     root: pathlib.Path, ord_data: pathlib.Path, index_path: pathlib.Path
 ) -> list[str]:
-    """Returns each way the index or a projection's first commits fall short."""
-    index = first_commits.read_index(index_path)
+    """Returns each way the index or a first_commits artifact falls short."""
+    index = history.read_index(index_path)
     problems = []
     head = _head(ord_data)
     if index.head != head:
@@ -138,8 +138,10 @@ def _first_commit_problems(
             f"checkout's HEAD {head}"
         )
     problems.extend(
-        f"projection derived without first commits from the index's history: {path}"
-        for path in huggingface.parquet_files(root / "projections")
+        f"first_commits artifact derived from another history: {path}"
+        for path in huggingface.parquet_files(
+            root / huggingface.ARTIFACT_DIRECTORIES["first_commits"]
+        )
         if not index.covers(path)
     )
     return problems
@@ -202,16 +204,16 @@ def main() -> None:
     parser.add_argument("--ord_data", required=True, help="The ord-data checkout")
     parser.add_argument("--revision", default="main", help="Mirror revision to match")
     parser.add_argument(
-        "--first_commits",
+        "--index",
         required=True,
-        help="The index of first commits the projections were derived with",
+        help="The index of first commits the first_commits artifacts were derived with",
     )
     args = parser.parse_args()
     problems = check(
         pathlib.Path(args.root).expanduser(),
         pathlib.Path(args.ord_data).expanduser(),
         args.revision,
-        pathlib.Path(args.first_commits).expanduser(),
+        pathlib.Path(args.index).expanduser(),
     )
     for problem in problems:
         print(f"MISMATCH {problem}")

@@ -79,12 +79,17 @@ from rdkit.Chem import rdChemReactions
 
 # Aliased because ``pivot`` is the parameter name a caller passes an index under, and a
 # module shadowed inside the function that needs it is a bug waiting for an edit.
+from ord_schema.artifacts import first_commits, history, projection
 from ord_schema.artifacts import pivot as pivot_levels
-from ord_schema.artifacts import projection
 
-# The relation a compiled query reads. The only one in scope, so nothing else is
-# nameable and a join has nothing to join to.
+# The relation a compiled query reads: one row per reaction.
 TABLE = "reactions"
+
+# The relation over the first_commits artifacts, which a query reads only where it names
+# ``first_commit``: a filter on it is a semi-join, and grouping, measuring, or ordering
+# by it joins it to TABLE. Kept out of TABLE because a join there runs for every query,
+# reading it or not.
+HISTORY_TABLE = "first_commits"
 
 # The per-row column mapping a dataset-local structure_id into the corpus-wide ID
 # space a bitmap parameter is indexed by. Supplied by the executor's relation and
@@ -98,9 +103,13 @@ STRUCTURE_OFFSET = "structure_offset"
 # it. NULL for a projection whose source recorded no dataset ID.
 DATASET_ID = "dataset_id"
 
-# The relation a query reads: the projection's columns and DATASET_ID. What resolve()
-# and compile_query() resolve paths against, and what schema.describe() tells a model.
-SCHEMA = projection.SCHEMA.append(pa.field(DATASET_ID, pa.string()))
+# The columns TABLE holds: the projection's and DATASET_ID.
+TABLE_SCHEMA = projection.SCHEMA.append(pa.field(DATASET_ID, pa.string()))
+
+# What a query may name: TABLE's columns and each reaction's first commit, which
+# HISTORY_TABLE holds. What resolve() and compile_query() resolve paths against, and
+# what schema.describe() tells a model.
+SCHEMA = TABLE_SCHEMA.append(pa.field(first_commits.COLUMN, history.TYPE))
 
 # A literal as the caller binds it: one of the grammar's scalars, or the day a string
 # names where it is compared against a date or timestamp column.
@@ -140,28 +149,34 @@ class _Routing:
             to the row: its level's ordinals extend the enclosing level's, and joining
             on the whole prefix is what keeps a measurement bound to the product it
             was reached through.
+        history: The relation holding each reaction's first commit, or None where the
+            corpus holds none and a clause naming one is refused.
+        history_joined: Whether the query reads ``history`` joined to ``table``, which
+            puts ``first_commit`` in reach of a clause without a semi-join.
     """
 
     table: str
     index: ElementIndex | None = None
     pivot: PivotIndex | None = None
     enclosing: "tuple[str, pivot_levels.RepeatedLevel] | None" = None
+    history: str | None = None
+    history_joined: bool = False
 
 
 def executable_schema(schema: pa.Schema | None = None) -> pa.Schema:
     """Returns the schema of the relation a compiled query runs against.
 
-    The executor's relation is ``SCHEMA`` plus ``STRUCTURE_OFFSET``, so validating
+    The executor's relation is ``TABLE_SCHEMA`` plus ``STRUCTURE_OFFSET``, so validating
     compiled SQL (:func:`ord_schema.search.sql.validate`) needs this schema whenever the
-    query carries a structure predicate; ``SCHEMA`` alone cannot bind it.
+    query carries a structure predicate; ``TABLE_SCHEMA`` alone cannot bind it.
 
     Args:
-        schema: Base schema; ``SCHEMA`` by default.
+        schema: Base schema; ``TABLE_SCHEMA`` by default.
 
     Returns:
         The base schema with the offset column appended.
     """
-    base = schema if schema is not None else SCHEMA
+    base = schema if schema is not None else TABLE_SCHEMA
     return base.append(pa.field(STRUCTURE_OFFSET, pa.int64()))
 
 
@@ -1618,14 +1633,20 @@ def _predicate(
         return "(" + " AND ".join(conditions) + ")"
     if isinstance(node, And | Or):
         keyword = " AND " if isinstance(node, And) else " OR "
-        return (
-            "("
-            + keyword.join(
-                _predicate(clause, scope, schema, parameters, depth, routing)
-                for clause in node.clauses
-            )
-            + ")"
+        clauses = list(node.clauses)
+        compiled = []
+        if isinstance(node, And) and scope is None:
+            # Every first_commit clause of a conjunction in one semi-join, since one
+            # per clause makes DuckDB build and probe a hash table for each.
+            arrivals = [clause for clause in clauses if _names_history(clause)]
+            if arrivals:
+                compiled.append(_history_clause(arrivals, schema, parameters, routing))
+                clauses = [clause for clause in clauses if not _names_history(clause)]
+        compiled.extend(
+            _predicate(clause, scope, schema, parameters, depth, routing)
+            for clause in clauses
         )
+        return "(" + keyword.join(compiled) + ")"
     if isinstance(node, Not):
         inner = _predicate(node.clause, scope, schema, parameters, depth, routing)
         return f"(NOT {inner})"
@@ -1633,13 +1654,92 @@ def _predicate(
         return _quantifier(node, scope, schema, parameters, depth, routing)
     if isinstance(node, StructurePredicate):
         return _structure(node, scope, schema, parameters.structures)
-    resolved = resolve(node.path, schema=schema, root=scope)
-    if resolved.repeated:
+    if scope is None and _names_history(node):
+        condition = _history_clause([node], schema, parameters, routing)
+    else:
+        resolved = resolve(node.path, schema=schema, root=scope)
+        if resolved.repeated:
+            raise QueryError(
+                f"{node.path}: crosses a repeated level, so whether it means any or "
+                "every element is unstated; wrap it in an exists or forall"
+            )
+        condition = _leaf(node, resolved, parameters)
+    return condition
+
+
+def _is_history_path(path: str) -> bool:
+    """Returns whether ``path`` names a reaction's first commit."""
+    return path.split(".", 1)[0] == first_commits.COLUMN
+
+
+def _names_history(node: Any) -> bool:
+    """Returns whether ``node`` is a leaf clause on a reaction's first commit.
+
+    Only a comparison or a null check names one: their path is the only column they
+    read, compared against a literal, so the clause reads the first_commits artifact and
+    nothing else.
+    """
+    return isinstance(node, Comparison | NullCheck) and _is_history_path(node.path)
+
+
+def _history_clause(
+    clauses: list[Any], schema: Any, parameters: _Parameters, routing: _Routing
+) -> str:
+    """Compiles clauses on a reaction's first commit, which all have to hold.
+
+    Args:
+        clauses: Comparisons and null checks on ``first_commit`` paths.
+        schema: The schema the paths resolve within, holding ``first_commit``.
+        parameters: What the compilation binds so far, appended to.
+        routing: Where the first commits are; see ``_Routing``.
+
+    Returns:
+        The clauses as one condition on the row. Read in place where the query joins
+        the first commits already; otherwise a semi-join on ``reaction_id``, spelled
+        ``IN`` for the hash semi-join DuckDB plans for it, with ``IS NOT NULL`` in the
+        subquery so that a ``not`` around it never meets the NULL that makes ``NOT IN``
+        answer NULL for every row.
+
+    Raises:
+        QueryError: If the corpus holds no first commits, or a path does not resolve.
+    """
+    if routing.history is None:
         raise QueryError(
-            f"{node.path}: crosses a repeated level, so whether it means any or every "
-            "element is unstated; wrap it in an exists or forall"
+            f"{clauses[0].path}: this corpus holds no first commits, so when a "
+            "reaction reached ord-data cannot be asked of it"
         )
-    return _leaf(node, resolved, parameters)
+    conditions = [
+        _leaf(clause, resolve(clause.path, schema=schema), parameters)
+        for clause in clauses
+    ]
+    joined = " AND ".join(conditions)
+    if routing.history_joined:
+        return f"({joined})"
+    # S608: both relation names are held to identifiers, and every condition is an
+    # expression resolved against the schema with its values bound as parameters.
+    return (
+        f"{routing.table}.{pivot_levels.REACTION_ID} IN ("  # noqa: S608
+        f"SELECT {pivot_levels.REACTION_ID} FROM {routing.history} "
+        f"WHERE {pivot_levels.REACTION_ID} IS NOT NULL AND {joined})"
+    )
+
+
+def _reads_history_beyond_where(query: "Query") -> bool:
+    """Returns whether grouping, measuring, or ordering reads a first commit.
+
+    Each of those needs a first commit on the row itself, which a semi-join cannot put
+    there, so the query reads the first commits joined to the reactions instead.
+    """
+    paths: list[str] = []
+    if query.aggregate is not None:
+        paths.extend(query.aggregate.group_by)
+        paths.extend(
+            measure.path
+            for measure in query.aggregate.measures
+            if isinstance(measure.path, str)
+        )
+    paths.extend(order.key for order in query.order_by if isinstance(order.key, str))
+    return any(_is_history_path(path) for path in paths)
 
 
 def _scalar(
@@ -2080,6 +2180,7 @@ def compile_query(
     table: str = TABLE,
     index: ElementIndex | None = None,
     pivot: PivotIndex | None = None,
+    history: str | None = HISTORY_TABLE,
     max_rows: int | None = None,
 ) -> Compiled:
     """Compiles a query to DuckDB SQL over the projection.
@@ -2097,6 +2198,10 @@ def compile_query(
         pivot: Pivoted levels to spend where they can answer a quantifier; see
             ``PivotIndex``. Consulted after ``index``, and for ``forall`` as well as
             ``exists``.
+        history: Relation holding each reaction's first commit, keyed by
+            ``reaction_id``; ``HISTORY_TABLE`` by default. Read only by a query naming
+            ``first_commit``: a filter on it is a semi-join, and grouping, measuring,
+            or ordering by it joins it to ``table``. None refuses such a query.
         max_rows: Most rows the SQL may return, applied whether or not the query asked
             for a limit and clamping one that asks for more. The grammar leaves
             ``limit`` optional, and a query without one returns every matching
@@ -2119,6 +2224,8 @@ def compile_query(
     """
     if not _NAME.match(table):
         raise QueryError(f"table is not an identifier: {table!r}")
+    if history is not None and not _NAME.match(history):
+        raise QueryError(f"history is not an identifier: {history!r}")
     if max_rows is not None and max_rows < 1:
         # Zero compiles to a LIMIT no query can satisfy and a negative one to SQL
         # DuckDB refuses at execution, both of them far from whoever passed it.
@@ -2128,6 +2235,16 @@ def compile_query(
         )
     parameters = _Parameters()
     element = _element_relation(query, table, pivot)
+    # Grouping, measuring, or ordering by a first commit reads it on the row, so the
+    # query reads the first commits joined to the reactions. A filter alone is a
+    # semi-join, and every other query reads the reactions alone.
+    joined = element is None and _reads_history_beyond_where(query)
+    if joined and history is None:
+        raise QueryError(
+            "this corpus holds no first commits, so when a reaction reached ord-data "
+            "cannot be asked of it"
+        )
+    routing = _Routing(table, index, pivot, history=history, history_joined=joined)
     if query.aggregate:
         alias = None if element is None else element[0]
         element_schema = schema if element is None else element[2]
@@ -2154,7 +2271,7 @@ def compile_query(
                 element_schema,
                 alias,
                 parameters=parameters,
-                routing=_Routing(table, index, pivot),
+                routing=routing,
             )
             selected.append(f"{aggregate} AS {_quoted(measure.name)}")
         names = {measure.name for measure in query.aggregate.measures}
@@ -2168,9 +2285,14 @@ def compile_query(
     # S608: assembling SQL is this function's purpose. Every fragment in `selected` is
     # an expression resolved against the schema, aliased by a group_by path that
     # resolved there too or by a measure name held to an identifier shape, each quoted;
-    # `table` is this module's constant, and every model-supplied value reached the
-    # string as a bound parameter.
-    source = table if element is None else f"{element[1]} AS {element[0]}"
+    # `table` and `history` are held to identifiers, and every model-supplied value
+    # reached the string as a bound parameter.
+    if element is not None:
+        source = f"{element[1]} AS {element[0]}"
+    elif joined:
+        source = f"{table} JOIN {history} USING ({pivot_levels.REACTION_ID})"
+    else:
+        source = table
     sql = f"SELECT {', '.join(selected)} FROM {source}"  # noqa: S608
     conditions = []
     if element is not None and query.aggregate is not None:
@@ -2183,7 +2305,7 @@ def compile_query(
                     element[2],
                     parameters,
                     1,
-                    _Routing(table, index, pivot),
+                    routing,
                 )
             )
     if query.where is not None:
@@ -2195,7 +2317,7 @@ def compile_query(
             # Past the alias this aggregate's own relation took, so a quantifier inside
             # does not bind its variable to the elements being grouped.
             0 if element is None else 1,
-            _Routing(table, index, pivot),
+            routing,
         )
         if element is not None:
             # ``where`` selects reactions whatever the rows are, so over a relation of
@@ -2227,7 +2349,7 @@ def compile_query(
                     order.key,
                     schema,
                     parameters=parameters,
-                    routing=_Routing(table, index, pivot),
+                    routing=routing,
                 )
             elif orderable is None:
                 key = _scalar(order.key, schema, "order_by").expression

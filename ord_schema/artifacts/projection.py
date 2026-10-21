@@ -97,15 +97,6 @@ table, but they can test one integer against a bitmap parameter. The IDs are mea
 only alongside the projection that assigned them, so the column is marked internal and
 stays out of what a model is told it may query.
 
-One column comes from outside the record: ``first_commit``, the first commit on
-ord-data's ``main`` whose dataset files held the reaction, with that commit's time and
-the dataset whose file it was. A record says when its depositor created it, not when
-the corpus gained it, so the answer is read from the index
-:mod:`ord_schema.artifacts.first_commits` walks out of ord-data's history. A projection
-derived without an index, such as one of a dataset outside ord-data, holds null there
-for every reaction. One derived with an index refuses a reaction the index lacks,
-since its null would read as a reaction ord-data never held.
-
 Anything else -- the original units, the identifier types that were collapsed -- remains
 in the source ``reaction`` column, which stays authoritative for byte-exact
 round-tripping. The projection promises that every field is *readable*, not that it is
@@ -136,7 +127,7 @@ reproducible from the projection alone.
 
 import os
 import re
-from collections.abc import Iterable, Iterator, Mapping, MutableMapping
+from collections.abc import Iterable, Iterator, MutableMapping
 from datetime import datetime
 from typing import Any, cast, get_args
 
@@ -147,7 +138,7 @@ from google.protobuf.message import Message
 
 import ord_schema
 from ord_schema import atomic_io, message_helpers, parquet, units, validations
-from ord_schema.artifacts import base, first_commits
+from ord_schema.artifacts import base
 from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
 
@@ -199,9 +190,6 @@ _STRUCTURE_ID_TYPES = frozenset({"Compound", "ProductCompound"})
 _TIMESTAMP_TYPES = frozenset({"DateTime"})
 TIMESTAMP_COLUMN = "timestamp"
 UTC_OFFSET_COLUMN = "utc_offset_minutes"
-
-# The reaction-level column read from ord-data's history rather than from the record.
-FIRST_COMMIT_COLUMN = "first_commit"
 
 # The shapes ORD's dates are recorded in, tried in order. DateTime.value is a string the
 # depositor wrote, so there is no format to rely on, and a reader comparing the text
@@ -642,23 +630,15 @@ def build_schema() -> pa.Schema:
     """Returns the Arrow schema projected from the Reaction descriptor.
 
     Returns:
-        One top-level field per Reaction field, plus the collapsed ``smiles`` and the
-        ``first_commit`` read from ord-data's history.
+        One top-level field per Reaction field, plus the collapsed ``smiles``.
 
     Raises:
         ValueError: If the message graph contains a cycle, which a total projection
-            cannot represent, or if Reaction gains a field named like
-            ``first_commit``, which would make one path name two columns.
+            cannot represent.
     """
     # The protobuf stubs type DESCRIPTOR as optional; on a generated class it never is.
     descriptor = cast(Descriptor, reaction_pb2.Reaction.DESCRIPTOR)
-    fields = _struct_fields(descriptor, frozenset())
-    if any(field.name == FIRST_COMMIT_COLUMN for field in fields):
-        raise ValueError(
-            f"Reaction has a field named {FIRST_COMMIT_COLUMN!r}, which the projection "
-            "reserves for the reaction's first commit to ord-data"
-        )
-    return pa.schema([*fields, pa.field(FIRST_COMMIT_COLUMN, first_commits.TYPE)])
+    return pa.schema(_struct_fields(descriptor, frozenset()))
 
 
 SCHEMA = build_schema()
@@ -826,7 +806,6 @@ def reaction_row(
     structure_ids: MutableMapping[str, int] | None = None,
     *,
     day_first: bool | None = None,
-    first_commit: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Projects one row of a source dataset to a dict matching ``SCHEMA``.
 
@@ -849,8 +828,6 @@ def reaction_row(
         day_first: Whether this dataset writes slash dates day first, from
             ``dataset_slash_orientation``. None leaves an ambiguous one unparsed; see
             ``parse_timestamp``.
-        first_commit: Where and when the reaction first reached ord-data, as
-            ``first_commits.Index.lookup`` gives it; None leaves the column null.
 
     Returns:
         A dict keyed by projected column name.
@@ -869,9 +846,7 @@ def reaction_row(
             f"reaction_id column {reaction_id!r} disagrees with the reaction's own "
             f"{reaction.reaction_id!r}"
         )
-    row = message_row(reaction, structure_ids, day_first=day_first)
-    row[FIRST_COMMIT_COLUMN] = first_commit
-    return row
+    return message_row(reaction, structure_ids, day_first=day_first)
 
 
 def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
@@ -933,7 +908,6 @@ def write_projection(
     *,
     source_md5: str | None = None,
     source_dataset_id: str | None = None,
-    history: first_commits.Index | None = None,
     compression: str = "zstd",
     row_group_size: int = 10_000,
 ) -> int:
@@ -951,9 +925,6 @@ def write_projection(
             here when omitted, which costs a full pass over the source.
         source_dataset_id: Source dataset ID to stamp, if the caller already read one.
             Read from the source when omitted.
-        history: The index of each reaction's first commit to ord-data, which the
-            projection is stamped with. None leaves ``first_commit`` null throughout,
-            which is right only for a dataset ord-data never held.
         compression: Parquet compression codec.
         row_group_size: Rows per output row group, independent of the source's. The
             footer holds statistics for every leaf of every row group and is parsed
@@ -966,10 +937,9 @@ def write_projection(
     Raises:
         ValueError: If ``row_group_size`` is less than one, which no row group can
             hold, refused before the source is read; if ``source`` is not a source
-            dataset; if any row's ``reaction_id`` column is missing or disagrees with
-            its Reaction; or if ``history`` lacks a reaction the source holds. The
-            message names the source, since a corpus-wide run has thousands of
-            datasets to choose between.
+            dataset; or if any row's ``reaction_id`` column is missing or disagrees
+            with its Reaction. The message names the source, since a corpus-wide run
+            has thousands of datasets to choose between.
     """
     if row_group_size < 1:
         # A size of zero or less would flush after every row, writing the one-row
@@ -983,25 +953,7 @@ def write_projection(
     if source_dataset_id is None:
         source_dataset_id = view.dataset_id or None
     stamps = base.current_stamps(ARTIFACT, source_dataset_id, source_md5)
-    metadata = base.to_metadata(stamps)
-    arrivals: dict[str, dict[str, Any]] = {}
-    if history is not None:
-        # Looked up before any row is written, so a dataset the index does not reach is
-        # refused whole: a null would say ord-data never held a reaction the index is
-        # merely short of. An empty ID is refused with its row below, which names it.
-        reaction_ids = {
-            reaction_id for reaction_id in view.iter_reaction_ids() if reaction_id
-        }
-        arrivals = history.lookup(reaction_ids)
-        unknown = sorted(reaction_ids - arrivals.keys())
-        if unknown:
-            raise ValueError(
-                f"{view.path}: {len(unknown)} reactions are not in the first-commits "
-                f"index walked to {history.head}, among them {unknown[:3]}; walk "
-                "ord-data to the commit this dataset was read from"
-            )
-        metadata |= history.stamps()
-    schema = SCHEMA.with_metadata(metadata)
+    schema = SCHEMA.with_metadata(base.to_metadata(stamps))
     rows = 0
     unreadable = 0
     # One ID space per dataset, in first-seen order, shared with the structures
@@ -1026,11 +978,7 @@ def write_projection(
             for reaction_id, reaction in view.iter_reactions(row_group=row_group):
                 try:
                     row = reaction_row(
-                        reaction,
-                        reaction_id,
-                        structure_ids,
-                        day_first=day_first,
-                        first_commit=arrivals.get(reaction_id) if reaction_id else None,
+                        reaction, reaction_id, structure_ids, day_first=day_first
                     )
                 except ValueError as error:
                     raise ValueError(f"{view.path}: {error}") from error

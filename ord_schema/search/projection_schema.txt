@@ -542,9 +542,9 @@ provenance: STRUCT
     format: VARCHAR
   is_mined: BOOLEAN
 reaction_id: VARCHAR
+dataset_id: VARCHAR
 first_commit: STRUCT
   sha: VARCHAR
   timestamp: DATE
   utc_offset_minutes: SMALLINT
   dataset_id: VARCHAR
-dataset_id: VARCHAR

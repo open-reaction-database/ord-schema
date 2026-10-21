@@ -14,10 +14,10 @@
 
 """Walks ord-data's history into the index of each reaction's first commit.
 
-The index is what ``derive_projection --first_commits`` reads; see
-``ord_schema.artifacts.first_commits`` for what a first commit is::
+The index is what ``derive_first_commits --index`` reads; see
+``ord_schema.artifacts.history`` for what a first commit is::
 
-    index_first_commits.py --ord_data=ord-data --output=first_commits.parquet
+    index_first_commits.py --ord_data=ord-data --output=first_commits_index.parquet
 
 An existing index at ``--output`` is extended from its head, so only the commits since
 are read; ``--rebuild`` walks from the root instead, which an index walked under an
@@ -28,7 +28,7 @@ object the walk reads has to be fetched first.
 import argparse
 import pathlib
 
-from ord_schema.artifacts import first_commits
+from ord_schema.artifacts import history
 from ord_schema.logging import get_logger
 
 logger = get_logger(__name__)
@@ -59,9 +59,9 @@ def main(args: argparse.Namespace) -> None:
     """
     previous = None
     if pathlib.Path(args.output).exists() and not args.rebuild:
-        previous = first_commits.read_index(args.output)
-    index = first_commits.walk(args.ord_data, revision=args.revision, previous=previous)
-    first_commits.write_index(index, args.output)
+        previous = history.read_index(args.output)
+    index = history.walk(args.ord_data, revision=args.revision, previous=previous)
+    history.write_index(index, args.output)
     logger.info(
         "%d reaction IDs across %d commits, walked to %s",
         index.table.num_rows,

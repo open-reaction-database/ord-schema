@@ -614,14 +614,7 @@ def _check_round_trip(
                 # stores. That is the check finding something, not the check breaking.
                 differing.append(f"{dataset_id}[{position}] does not project: {error}")
                 continue
-            # first_commit comes from ord-data's history rather than the record, so the
-            # record alone cannot reproduce it.
-            expected.pop(projection.FIRST_COMMIT_COLUMN)
-            stored_row = dict(row)
-            stored_row.pop(projection.FIRST_COMMIT_COLUMN, None)
-            if not _same(
-                _without_structure_ids(expected), _without_structure_ids(stored_row)
-            ):
+            if not _same(_without_structure_ids(expected), _without_structure_ids(row)):
                 differing.append(f"{dataset_id}[{position}] {row['reaction_id']}")
     return Finding(
         "sampled reactions re-project to what is stored",
@@ -953,6 +946,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--projections", required=True, help="Glob for projections")
     parser.add_argument("--structures", required=True, help="Glob for structures")
     parser.add_argument(
+        "--first_commits",
+        default=None,
+        help=(
+            "Glob for the first_commits artifacts. Without it a query naming "
+            "first_commit is refused"
+        ),
+    )
+    parser.add_argument(
         "--sources",
         default=None,
         help="Glob for the source datasets. Without it the fidelity checks are skipped",
@@ -1024,6 +1025,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         require_current=True,
         pivots_dir=args.pivots,
         occurrences_dir=args.occurrences,
+        first_commits_pattern=args.first_commits,
         # A path the directory left out would be read from a pivot or the projection
         # instead, and the check would pass a tree it never read.
         require_occurrences=args.occurrences is not None,

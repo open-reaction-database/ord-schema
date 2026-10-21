@@ -23,13 +23,13 @@ it. Without them a model has the column and no way to learn the spelling it must
 against, which is a guess it will sometimes get wrong silently. They are read from the
 field's own metadata, so this stays a rendering of the schema and nothing else.
 
-The rendering is generated from ``query.SCHEMA`` -- the projection's columns plus the
-``dataset_id`` the executor supplies -- rather than written by hand, because the
-projection schema is itself generated from the proto descriptors: a field added upstream
-becomes a column with nobody deciding it should, and a hand-written description would
-silently fall behind it. ``ord_schema.search.sql`` validates against the same schema
-object, so the columns a model is told about and the columns its query is checked
-against cannot disagree.
+The rendering is generated from ``query.SCHEMA`` -- the projection's columns, the
+``dataset_id`` the executor supplies, and the ``first_commit`` the first_commits
+artifacts hold -- rather than written by hand, because the projection schema is itself
+generated from the proto descriptors: a field added upstream becomes a column with
+nobody deciding it should, and a hand-written description would silently fall behind
+it. ``ord_schema.search.sql`` validates against the same definitions, so the columns a
+model is told about and the columns its query is checked against cannot disagree.
 
 Types are named in DuckDB's vocabulary rather than Arrow's, since DuckDB is the dialect
 the model writes. Units are already in the column names -- ``setpoint_kelvin``,

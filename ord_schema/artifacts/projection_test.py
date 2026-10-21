@@ -27,7 +27,7 @@ from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from rdkit import Chem
 
 from ord_schema import parquet, validations
-from ord_schema.artifacts import base, first_commits, projection
+from ord_schema.artifacts import base, projection
 from ord_schema.proto import reaction_pb2
 
 
@@ -477,89 +477,6 @@ def test_write_projection_stamps_the_footer(tmp_path):
     assert stamps.artifact == projection.ARTIFACT
     assert stamps.artifact_schema_version == base.ARTIFACT_SCHEMA_VERSION
     assert stamps.source_dataset_id == "ord_dataset-1"
-
-
-def _history(rows, chain=("a" * 40,)):
-    """Returns an index holding ``rows``, each a reaction ID and its first commit."""
-    table = pa.Table.from_pylist(
-        [{"reaction_id": reaction_id, **row} for reaction_id, row in rows.items()],
-        schema=first_commits.INDEX_SCHEMA,
-    )
-    return first_commits.Index(table, list(chain))
-
-
-_ARRIVAL = {
-    "sha": "a" * 40,
-    "timestamp": datetime(2022, 12, 6, 13, 51, 13),
-    "utc_offset_minutes": -300,
-    "dataset_id": "ord_dataset-0",
-}
-
-
-def test_write_projection_reads_each_reaction_s_first_commit(tmp_path):
-    later = {
-        "sha": "b" * 40,
-        "timestamp": datetime(2025, 1, 10, 0, 53, 10),
-        "utc_offset_minutes": 780,
-        "dataset_id": "ord_dataset-1",
-    }
-    source = _source(
-        tmp_path, [_reaction("ord-1"), _reaction("ord-2")], row_group_size=1
-    )
-    output = tmp_path / "projection.parquet"
-    projection.write_projection(
-        source,
-        output,
-        history=_history(
-            {"ord-1": _ARRIVAL, "ord-2": later, "ord-3": _ARRIVAL},
-            chain=("a" * 40, "b" * 40),
-        ),
-    )
-    table = pq.read_table(output)
-    assert table.schema.field("first_commit").type == first_commits.TYPE
-    assert table.column("first_commit").to_pylist() == [_ARRIVAL, later]
-    assert first_commits.read_stamp(output) == (first_commits.VERSION, "b" * 40)
-
-
-def test_write_projection_without_an_index_leaves_first_commit_null(tmp_path):
-    source = _source(tmp_path, [_reaction("ord-1"), _reaction("ord-2")])
-    output = tmp_path / "projection.parquet"
-    projection.write_projection(source, output)
-    assert pq.read_table(output).column("first_commit").to_pylist() == [None, None]
-    assert first_commits.read_stamp(output) is None
-
-
-def test_write_projection_refuses_a_reaction_the_index_lacks(tmp_path):
-    source = _source(tmp_path, [_reaction("ord-1"), _reaction("ord-2")])
-    output = tmp_path / "projection.parquet"
-    with pytest.raises(
-        ValueError, match=r"1 reactions are not in .* among them \['ord-2'\]"
-    ):
-        projection.write_projection(
-            source, output, history=_history({"ord-1": _ARRIVAL})
-        )
-    assert not output.exists()
-
-
-def test_reaction_row_carries_the_first_commit_it_is_given():
-    row = projection.reaction_row(_reaction(), "ord-0001", first_commit=_ARRIVAL)
-    assert row["first_commit"] == _ARRIVAL
-    assert projection.reaction_row(_reaction(), "ord-0001")["first_commit"] is None
-
-
-def test_first_commit_s_time_reads_like_every_projected_time():
-    # The struct is declared in first_commits, which the projection imports, so the
-    # names and types a DateTime projects to are typed twice; this holds them together.
-    provenance = projection.SCHEMA.field("provenance").type
-    date_time = provenance.field("record_created").type.field("time").type
-    for name in (projection.TIMESTAMP_COLUMN, projection.UTC_OFFSET_COLUMN):
-        assert first_commits.TYPE.field(name).type == date_time.field(name).type
-
-
-def test_build_schema_refuses_a_reaction_field_named_like_first_commit(monkeypatch):
-    monkeypatch.setattr(projection, "FIRST_COMMIT_COLUMN", "reaction_id")
-    with pytest.raises(ValueError, match="Reaction has a field named 'reaction_id'"):
-        projection.build_schema()
 
 
 def test_is_current_tracks_source_content(tmp_path):

@@ -32,6 +32,7 @@ from ord_schema import message_helpers, parquet
 from ord_schema.artifacts import (
     base,
     first_commits,
+    history,
     occurrences,
     pivot,
     projection,
@@ -645,7 +646,13 @@ def test_an_artifact_with_no_rdkit_stamp_reads_stale():
 
 # Every artifact this library derives.
 _ARTIFACTS = frozenset(
-    {projection.ARTIFACT, structures.ARTIFACT, pivot.ARTIFACT, occurrences.ARTIFACT}
+    {
+        projection.ARTIFACT,
+        structures.ARTIFACT,
+        first_commits.ARTIFACT,
+        pivot.ARTIFACT,
+        occurrences.ARTIFACT,
+    }
 )
 
 
@@ -673,8 +680,9 @@ def test_a_schema_bump_makes_every_artifact_stale(tmp_path, monkeypatch):
 # --force where the stamps still read current) and published in place.
 _GOLDEN_SCHEMA_VERSION = "1"
 _GOLDEN_OUTPUT = {
-    "projection": "871bba1a6878cf5c6a1524bd227b063e2ccb1d72ea2b86ac828d477b017e8272",
+    "projection": "c2433bce97d33545cb8d828d216550da9631d8c704e7103da840fbd926845dd8",
     "structures": "3c397cfc3ba2b8e0debd9b725ada6d119551e42aa7c20bf9791983e679ce7158",
+    "first_commits": "4144a8f53c7befaef014792e5a92c9255b5e70aa7750c30a8d53215388314b7c",
     "pivot": "c5e0ba5aa7a58a7e3839ddae0dfea32bcb518704b5f63959b1b40e710140b693",
     "occurrences": "d0617c0972b1c054c5f4507760cc53e055eb5cfd1336b0279e700a3c0a8c1118",
 }
@@ -688,9 +696,9 @@ _GOLDEN_FIXTURES = ("full.pbtxt", "ord-nielsen-example.pbtxt")
 
 # Footer keys recording who derived a file rather than what it holds: the RDKit and the
 # schema, pinned on their own above, the hash of how the fixture happened to serialize,
-# and the index of first commits it read, whose values the rows carry. The rest -- the
-# artifact name, the pivot or occurrence path a reader checks a file against -- are part
-# of what the artifact says.
+# and the index of first commits a first_commits artifact read, whose values its rows
+# carry. The rest -- the artifact name, the pivot or occurrence path a reader checks a
+# file against -- are part of what the artifact says.
 _PROVENANCE_KEYS = frozenset(
     {
         b"ord.rdkit_version",
@@ -744,10 +752,6 @@ def _derive_fixtures(root: pathlib.Path) -> dict[str, list[pathlib.Path]]:
     """
     testdata = pathlib.Path(__file__).parents[1] / "orm" / "testdata"
     derived: dict[str, list[pathlib.Path]] = collections.defaultdict(list)
-    sources = []
-    rows = []
-    # Each fixture first reached ord-data at a commit of its own, with an offset each
-    # side of UTC, so the pin covers both signs.
     for position, name in enumerate(_GOLDEN_FIXTURES):
         source = root / "data" / f"{name}.parquet"
         source.parent.mkdir(parents=True, exist_ok=True)
@@ -755,30 +759,37 @@ def _derive_fixtures(root: pathlib.Path) -> dict[str, list[pathlib.Path]]:
             message_helpers.load_message(str(testdata / name), dataset_pb2.Dataset),
             source,
         )
-        sources.append(source)
-        rows.extend(
-            {
-                "reaction_id": reaction_id,
-                "sha": f"{position + 1:040x}",
-                "timestamp": datetime(2021, 7, 28 + position, 14, 7, 53),
-                "utc_offset_minutes": -420 if position else 60,
-                "dataset_id": f"ord_dataset-{position}",
-            }
-            for reaction_id in parquet.DatasetView(source).iter_reaction_ids()
-        )
-    history = first_commits.Index(
-        pa.Table.from_pylist(rows, schema=first_commits.INDEX_SCHEMA),
-        [f"{position + 1:040x}" for position in range(len(_GOLDEN_FIXTURES))],
-    )
-    for source in sources:
         projected = root / "projections" / source.name
         projected.parent.mkdir(parents=True, exist_ok=True)
-        projection.write_projection(source, projected, history=history)
+        projection.write_projection(source, projected)
         derived["projection"].append(projected)
         structured = root / "structures" / source.name
         structured.parent.mkdir(parents=True, exist_ok=True)
         structures.write_structures(projected, structured)
         derived["structures"].append(structured)
+        # Each fixture first reached ord-data at a commit of its own, with an offset
+        # each side of UTC, so the pin covers both signs.
+        sha = f"{position + 1:040x}"
+        index = history.Index(
+            pa.Table.from_pylist(
+                [
+                    {
+                        "reaction_id": reaction_id,
+                        "sha": sha,
+                        "timestamp": datetime(2021, 7, 28 + position, 14, 7, 53),
+                        "utc_offset_minutes": -420 if position else 60,
+                        "dataset_id": f"ord_dataset-{position}",
+                    }
+                    for reaction_id in parquet.DatasetView(source).iter_reaction_ids()
+                ],
+                schema=history.INDEX_SCHEMA,
+            ),
+            [sha],
+        )
+        arrived = root / "first_commits" / source.name
+        arrived.parent.mkdir(parents=True, exist_ok=True)
+        first_commits.write_first_commits(projected, arrived, index=index)
+        derived["first_commits"].append(arrived)
         for level in sorted(pivot.LEVELS):
             pivoted = root / "pivots" / level / source.name
             pivoted.parent.mkdir(parents=True, exist_ok=True)

@@ -25,7 +25,14 @@ from huggingface_hub.errors import EntryNotFoundError
 from rdkit import rdBase
 
 from ord_schema import huggingface, message_helpers
-from ord_schema.artifacts import base, occurrences, pivot, projection, structures
+from ord_schema.artifacts import (
+    base,
+    first_commits,
+    occurrences,
+    pivot,
+    projection,
+    structures,
+)
 
 _DATASET_ID = "ord_dataset-35a5a513f1dd44a3a97c88da99f81a00"
 
@@ -100,6 +107,7 @@ def _published(levels=("inputs", "inputs.components")):
         "README.md",
         f"projections/{shard}",
         f"structures/{shard}",
+        f"first_commits/{shard}",
         f"occurrences/inputs.components/{shard}",
         *(f"pivots/{level}/{shard}" for level in levels),
     ]
@@ -165,6 +173,7 @@ def test_directories_cover_every_artifact():
     assert set(huggingface.ARTIFACT_DIRECTORIES) == {
         projection.ARTIFACT,
         structures.ARTIFACT,
+        first_commits.ARTIFACT,
         pivot.ARTIFACT,
         occurrences.ARTIFACT,
     }
@@ -208,6 +217,7 @@ class TestFetchArtifacts:
         assert {
             "projection": fetched.projections,
             "structures": fetched.structures,
+            "first_commits": fetched.first_commits,
             "pivot": fetched.pivots,
             "occurrences": fetched.occurrences,
         } == {
