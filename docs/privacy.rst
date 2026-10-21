@@ -17,8 +17,7 @@ The Open Reaction Database lets you search in plain English: you describe the
 reactions you want, and we translate that into a structured query — the kind
 you could build yourself in the structured search — and run it. This notice
 describes what we keep when you do that, and why. It covers the natural-language
-search only. Ordinary browsing of the site, and the structured search where you
-build a query yourself, are not covered here.
+search only, not ordinary browsing of the site or the structured search.
 
 **********
 Who we are
@@ -79,8 +78,7 @@ identifies you:
 
 - **No account, name, or email address.**
 - **No IP address, browser, or device identifier.** The web server keeps its own
-  access logs, as web servers do; those are separate from this and are not
-  joined to it.
+  access logs; those are separate from these records and are not joined to them.
 - **No cookie or mark that survives your visit.** Two visits by the same person
   are two unrelated sets of records to us, and we have no way to connect them.
 
@@ -114,11 +112,10 @@ need to keep private, and queries here are about chemistry. If a query would
 name a colleague, an unpublished program, a customer, or a compound you are not
 ready to disclose, please phrase it a different way.
 
-We do not filter what you type, and you should not rely on us to. Note also that
-the database itself contains submitters' names, organizations, and email
-addresses as part of each record's provenance — searching for them is an
-ordinary, supported thing to do, so a query naming a person is not by itself
-out of place here.
+We do not filter what you type, and you should not rely on us to. The database
+itself contains submitters' names, organizations, and email addresses as part of
+each record's provenance, and searching for them is ordinary and supported, so a
+query naming a person is not by itself out of place here.
 
 Where it is stored
 ==================
@@ -138,9 +135,12 @@ What we use it for
 
 1. **Running and fixing the search.** Diagnosing a bad result, finding a
    translation the grammar refused, and knowing what it costs to run.
-2. **Making it better.** Queries that were translated badly become test cases.
-   This is the main reason the log exists: a translation layer improves by being
-   shown where it was wrong, and only real queries show that.
+2. **Making it better.** Queries that were translated badly become the basis for
+   test cases. This is the main reason the log exists: a translation layer
+   improves by being shown where it was wrong, and only real queries show that.
+   Our test cases are public, so we write them ourselves rather than copying
+   your query: a test case keeps what went wrong, not your wording, and names no
+   person, organization, or unpublished compound.
 3. **Research and publication.** We may study and publish work on how people
    search a chemistry database in natural language, how they rephrase when a
    first attempt fails, and where the translation layer succeeds and fails. That
@@ -180,8 +180,7 @@ or down, and the structured query with the compound names and structures it
 searched for. That copy is what the analysis runs on, and it is deleted
 automatically **five years** after you run the query. The structured query
 carries whatever compounds, people, or other terms your query named, so the
-redacted copy is not anonymous in the way a count is — one more reason not to
-type what you would not want kept.
+redacted copy is not anonymous in the way a count is.
 
 ***************
 Who can read it
