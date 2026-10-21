@@ -2100,6 +2100,20 @@ def test_the_footer_cache_reaches_the_cursor_a_search_runs_on(corpus):
     assert setting == (True,)
 
 
+def test_a_search_does_not_wait_on_the_scan_order(corpus):
+    # Set globally for the reason the footer cache is: a search runs on its own cursor,
+    # which a session-scoped setting would leave holding rows back until every earlier
+    # row group had finished.
+    cursor = corpus._connection.cursor()
+    try:
+        setting = cursor.execute(
+            "SELECT current_setting('preserve_insertion_order')"
+        ).fetchone()
+    finally:
+        cursor.close()
+    assert setting == (False,)
+
+
 def test_a_rewritten_artifact_is_not_answered_from_its_cached_footer(
     corpus_dir, tmp_path
 ):
