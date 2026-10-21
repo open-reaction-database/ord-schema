@@ -22,7 +22,7 @@ relation, no join, no recursion, and no set-returning function, which means the 
 expressible in it is **one pass over the corpus plus a sort**. Expensive queries are not
 discouraged; they are unwritable. Where the compiler reads another relation — a pivot, the
 occurrence index, the first commits — it is a semi-join or a one-to-one join on
-`reaction_id`, never a product.
+`reaction_id`, or the first commits read in place of the projection, never a product.
 
 The same move settles two other things SQL leaves to whoever writes it:
 
@@ -263,43 +263,74 @@ only for a query naming `first_commit`:
 | query | compiles to |
 | --- | --- |
 | anything not naming `first_commit` | exactly what it would without the artifact |
-| added to ORD in 2022 | `reactions.reaction_id IN (SELECT reaction_id FROM first_commits WHERE …)` |
-| above 350 K and added in 2022 | the same semi-join, holding both bounds, beside the projection's filter |
+| added to ORD in 2022 | `SELECT reaction_id FROM first_commits WHERE …`, the projection unread |
+| how many reactions arrived in each dataset, or the earliest arrival | `FROM first_commits` alone, grouped or measured |
+| above 350 K and added in 2022 | `reactions.reaction_id IN (SELECT reaction_id FROM first_commits WHERE …)`, holding both bounds, beside the projection's filter |
 | above 350 K or added since 2025 | a semi-join of its own inside the `OR` |
-| how many reactions arrived in each dataset | `FROM reactions JOIN first_commits USING (reaction_id)`, grouped |
-| the earliest arrival, or reactions ordered by arrival | the same join |
+| how many reactions above 350 K arrived in each dataset | `FROM reactions JOIN first_commits USING (reaction_id)`, grouped |
+| reactions above 350 K, ordered by arrival | the same join |
 
-Every filter a conjunction places on `first_commit` goes into one semi-join, since one
-per filter makes DuckDB build and probe a hash table for each. The subquery excludes a
-NULL `reaction_id`, as a pivot's does, so a `not` around it never meets the NULL that
-makes `NOT IN` answer NULL. A join is reserved for grouping, measuring, and ordering,
-which need the value on the row; it would otherwise run for every query, since DuckDB
-keeps a `LEFT JOIN` whose columns nothing reads. A corpus opened without
-`first_commits_pattern` refuses a query naming `first_commit`, and one opened with it
-pairs an artifact with every projection or refuses: with a dataset missing, a negated
-filter would answer as though its reactions matched.
+A query whose filters, groups, measures, and ordering read nothing but `first_commit` and
+`reaction_id` reads the first commits alone. They hold one row for each reaction the
+corpus holds, so the answer is the one a join to the reactions would give, from a
+relation of two columns rather than the projection. Any other query naming
+`first_commit` reads the projection too. Every filter a conjunction places on
+`first_commit` then goes into one semi-join, since one per filter makes DuckDB build and
+probe a hash table for each. The subquery excludes a NULL `reaction_id`, as a pivot's
+does, so a `not` around it never meets the NULL that makes `NOT IN` answer NULL. A join
+is reserved for grouping, measuring, and ordering, which need the value on the row; it
+would otherwise run for every query, since DuckDB keeps a `LEFT JOIN` whose columns
+nothing reads.
+
+A corpus opened without `first_commits_pattern` refuses a query naming `first_commit`.
+One opened with it pairs an artifact holding as many rows with every projection, or
+refuses: with a dataset missing, a negated filter would answer as though its reactions
+matched. It also refuses first commits naming a reaction other than its own, which an
+artifact edited after it was written can do with its count and stamps intact; read
+alone, they would count a reaction the corpus does not hold. That is one anti-join of
+the reactions against the first commits, run beside the check that the corpus states
+each reaction once: at open, or with `warm=False` before the first query reading them.
+Measured on 2026-10-21 over the 93-dataset corpus in a container capped at 12 GiB with
+swap off, it took 0.12–0.13 s, and a warm open peaked at 4.11–4.16 GiB with it against
+4.09–4.15 GiB without, since building the substructure library sets that peak.
 
 What reading them costs, measured on 2026-10-21 over the 93-dataset corpus with
-projections at 10,000 rows per row group, against the same projections carrying
-`first_commit` as a column, behind the same view and settings, median of 15 warm runs in
-each of three processes, DuckDB at 2 threads:
+projections at 10,000 rows per row group, median of 15 warm runs in each of three
+processes, DuckDB at 2 threads. As a column is the same projections carrying
+`first_commit`, behind the same view and settings; joined is the semi-join or join a
+query reading the projection too runs; alone is the first commits alone. Every route
+returns the same answer.
 
-| query | as a column | first_commits artifact |
+| query | as a column | joined | alone |
+| --- | --- | --- | --- |
+| added in 2022, 1.8M reactions | 0.138 s | 0.235 s | 0.098 s |
+| how many reactions arrived in 2022 | 0.115 s | 0.208 s | 0.086 s |
+| not added in 2022 | 0.102 s | 0.180 s | 0.073 s |
+| how many reactions arrived in each dataset | 0.159 s | 0.256 s | 0.126 s |
+| the earliest arrival | 0.042 s | 0.161 s | 0.012 s |
+| the first three arrivals of 2022 | 0.076 s | 0.166 s | 0.046 s |
+
+Read alone, a question about arrivals runs 2.0–3.6 times as fast as joined, and 13 times
+for the earliest arrival, which reads one column of the artifact rather than joining
+every reaction. It also runs 1.3–1.7 times as fast as a column of the projection would,
+3.5 times for the earliest arrival. At 8 threads alone runs 2.0–3.5 times as fast as
+joined (9.8 for the earliest arrival) and 1.2–1.6 times as fast as a column (2.8). Beyond
+what opening the corpus holds, it peaks lower than joined for every query: 2 MiB against
+249 MiB for the earliest arrival, and 884 MiB against 1,190 MiB for the filter returning
+1.8M reactions.
+
+A query reading the projection too pays for the semi-join or the join, on the same
+corpus and settings:
+
+| query | as a column | joined |
 | --- | --- | --- |
-| above 350 K (does not name it) | 0.105 s | 0.104 s |
-| added in 2022, 1.8M reactions | 0.132 s | 0.227 s |
-| above 350 K and added in 2022 | 0.108 s | 0.140 s |
-| above 350 K or added since 2025 | 0.166 s | 0.212 s |
-| not added in 2022 | 0.098 s | 0.173 s |
-| how many reactions arrived in each dataset | 0.151 s | 0.244 s |
-| the earliest arrival | 0.039 s | 0.155 s |
+| above 350 K (does not name it) | 0.108 s | 0.107 s |
+| above 350 K and added in 2022 | 0.111 s | 0.144 s |
+| above 350 K or added since 2025 | 0.167 s | 0.221 s |
 
-A query naming `first_commit` takes 1.3–1.8 times as long as it would reading a column,
-and a measure over the whole corpus such as the earliest arrival four times, since it
-joins every reaction to read one value. At 8 threads the same queries run 0.8–2.1 times
-as long, and the earliest arrival 3.5 times. Beyond what opening the corpus holds, a
-query reading the artifact peaks 0.2–0.7 GiB higher than one reading a column, most for a
-filter returning 1.8M reactions. Nothing else moves.
+A filter on `first_commit` beside one on the projection takes 1.3 times as long as it
+would reading a column, and at 8 threads 0.8–1.0 times. A query not naming
+`first_commit` costs what it would without the artifact.
 
 ## Structure search
 

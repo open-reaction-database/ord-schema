@@ -2752,7 +2752,14 @@ class TestFirstCommitRouting:
         sql.validate(compiled.sql, parameters=compiled.literals)
 
     def test_a_null_check_is_routed_like_a_comparison(self):
-        compiled = _compile({"where": {"op": "not_null", "path": "first_commit.sha"}})
+        compiled = _compile(
+            {
+                "where": {
+                    "op": "and",
+                    "clauses": [_HOT, {"op": "not_null", "path": "first_commit.sha"}],
+                }
+            }
+        )
         assert compiled.sql.count(_SEMI_JOIN) == 1
         sql.validate(compiled.sql, parameters=compiled.literals)
 
@@ -2777,7 +2784,9 @@ class TestFirstCommitRouting:
         ids=["group_by", "measure", "order_by"],
     )
     def test_reading_it_on_the_row_joins_it(self, payload):
-        compiled = _compile({**payload, "where": {"op": "and", "clauses": _YEAR}})
+        compiled = _compile(
+            {**payload, "where": {"op": "and", "clauses": [_HOT, *_YEAR]}}
+        )
         assert "FROM reactions JOIN first_commits USING (reaction_id)" in compiled.sql
         # Joined, its filters read the row rather than semi-joining again.
         assert _SEMI_JOIN not in compiled.sql
@@ -2830,3 +2839,232 @@ class TestFirstCommitRouting:
             f"x0.reaction_id AND {_SEMI_JOIN}"
         )
         assert expected in compiled.sql
+
+
+_DAY = "CAST(first_commit.timestamp AS DATE)"
+_COUNT_REACTIONS = {"fn": "count_distinct", "path": "reaction_id", "name": "reactions"}
+
+
+class TestFirstCommitsAlone:
+    # S608: the SQL a compilation is expected to equal, never run.
+    @pytest.mark.parametrize(
+        ("payload", "expected"),
+        [
+            (
+                {"where": {"op": "and", "clauses": _YEAR}},
+                "SELECT reaction_id FROM first_commits WHERE "  # noqa: S608
+                f"(({_DAY} >= $literal_0 AND {_DAY} < $literal_1))",
+            ),
+            (
+                {
+                    "where": {"op": "and", "clauses": _YEAR},
+                    "aggregate": {"measures": [{"fn": "count", "name": "reactions"}]},
+                },
+                'SELECT count(*) AS "reactions" FROM first_commits WHERE '  # noqa: S608
+                f"(({_DAY} >= $literal_0 AND {_DAY} < $literal_1))",
+            ),
+            (
+                {
+                    "aggregate": {
+                        "group_by": ["first_commit.dataset_id"],
+                        "measures": [_COUNT_REACTIONS],
+                    },
+                    "order_by": [{"key": "reactions", "descending": True}],
+                    "limit": 5,
+                },
+                'SELECT first_commit.dataset_id AS "first_commit.dataset_id", '
+                'count(DISTINCT reaction_id) AS "reactions" FROM first_commits '
+                'GROUP BY 1 ORDER BY "reactions" DESC LIMIT 5',
+            ),
+            (
+                {
+                    "aggregate": {
+                        "measures": [
+                            {
+                                "fn": "min",
+                                "path": "first_commit.timestamp",
+                                "name": "earliest",
+                            }
+                        ]
+                    }
+                },
+                f'SELECT min({_DAY}) AS "earliest" FROM first_commits',  # noqa: S608
+            ),
+            (
+                {
+                    "where": {
+                        "op": "or",
+                        "clauses": [
+                            {"op": "not", "clause": _YEAR[0]},
+                            {
+                                "op": "eq",
+                                "path": "reaction_id",
+                                "value": {"literal": "ord-1"},
+                            },
+                        ],
+                    },
+                    "order_by": [
+                        {"key": "first_commit.timestamp", "descending": True},
+                        {"key": "reaction_id"},
+                    ],
+                    "limit": 3,
+                },
+                "SELECT reaction_id FROM first_commits WHERE "  # noqa: S608
+                f"((NOT ({_DAY} >= $literal_0)) OR reaction_id = $literal_1) "
+                f"ORDER BY {_DAY} DESC, reaction_id LIMIT 3",
+            ),
+            (
+                {"where": {"op": "is_null", "path": "first_commit.sha"}},
+                "SELECT reaction_id FROM first_commits "
+                "WHERE (first_commit.sha IS NULL)",
+            ),
+        ],
+        ids=["filter", "count", "group_by", "measure", "negated", "null_check"],
+    )
+    def test_a_query_reading_nothing_else_reads_them_alone(self, payload, expected):
+        compiled = _compile(payload)
+        assert compiled.sql == expected
+        sql.validate(compiled.sql, parameters=compiled.literals)
+
+    def test_a_measure_named_like_it_is_no_path_to_it(self):
+        # An aggregated query orders by its output columns: this key names the measure.
+        compiled = _compile(
+            {
+                "aggregate": {
+                    "group_by": ["first_commit.dataset_id"],
+                    "measures": [{"fn": "count", "name": "first_commit"}],
+                },
+                "order_by": [{"key": "first_commit", "descending": True}],
+            }
+        )
+        assert " FROM first_commits GROUP BY 1 " in compiled.sql
+        sql.validate(compiled.sql, parameters=compiled.literals)
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"where": {"op": "and", "clauses": [_HOT, *_YEAR]}},
+            {"where": {"op": "or", "clauses": [_HOT, _YEAR[0]]}},
+            {
+                "where": {"op": "not", "clause": _HOT},
+                "order_by": [{"key": "first_commit.timestamp"}],
+            },
+            {
+                "where": _YEAR[0],
+                "order_by": [{"key": "conditions.temperature.setpoint_kelvin"}],
+            },
+            {
+                "aggregate": {
+                    "group_by": ["dataset_id", "first_commit.dataset_id"],
+                    "measures": [_COUNT_REACTIONS],
+                }
+            },
+            {
+                "where": _YEAR[0],
+                "aggregate": {
+                    "measures": [
+                        {
+                            "fn": "max",
+                            "path": "conditions.temperature.setpoint_kelvin",
+                            "name": "hottest",
+                        }
+                    ]
+                },
+            },
+            {
+                "where": {
+                    "op": "and",
+                    "clauses": [
+                        _YEAR[0],
+                        {
+                            "op": "exists",
+                            "path": "inputs.components",
+                            "where": {
+                                "op": "eq",
+                                "path": "smiles",
+                                "value": {"literal": "CCO"},
+                            },
+                        },
+                    ],
+                }
+            },
+            {
+                "where": _YEAR[0],
+                "order_by": [
+                    {
+                        "key": {
+                            "reduce": "max",
+                            "path": "outcomes.products.measurements.percentage.value",
+                        }
+                    }
+                ],
+            },
+            {
+                "where": _YEAR[0],
+                "aggregate": {
+                    "measures": [
+                        {
+                            "fn": "max",
+                            "path": {
+                                "reduce": "max",
+                                "path": (
+                                    "outcomes.products.measurements.percentage.value"
+                                ),
+                            },
+                            "name": "best",
+                        }
+                    ]
+                },
+            },
+        ],
+        ids=[
+            "and",
+            "or",
+            "not",
+            "order_by",
+            "group_by",
+            "measure",
+            "quantifier",
+            "reduced_order",
+            "reduced_measure",
+        ],
+    )
+    def test_a_query_reading_the_projection_too_reads_the_reactions(self, payload):
+        compiled = _compile(payload)
+        assert re.search(r"\bFROM reactions\b", compiled.sql)
+        sql.validate(compiled.sql, parameters=compiled.literals)
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"where": {"op": "eq", "path": "reaction_id", "value": {"literal": "x"}}},
+            {
+                "aggregate": {"measures": [{"fn": "count", "name": "first_commit"}]},
+                "order_by": [{"key": "first_commit"}],
+            },
+        ],
+        ids=["reaction_id", "measure_name"],
+    )
+    def test_a_query_naming_no_first_commit_reads_the_reactions_alone(self, payload):
+        compiled = _compile(payload)
+        assert re.search(r"\bFROM reactions\b", compiled.sql)
+        assert query.HISTORY_TABLE not in compiled.sql
+
+    def test_a_relation_of_elements_is_never_left_for_them(self):
+        compiled = _compile(
+            {
+                "where": _YEAR[0],
+                "aggregate": {
+                    "over": "inputs.components",
+                    "measures": [_COUNT_REACTIONS],
+                },
+            },
+            pivot=lambda path: f"pivot_{path.replace('.', '_')}",
+        )
+        # S608: the SQL a compilation is expected to equal, never run.
+        assert compiled.sql == (
+            'SELECT count(DISTINCT x0.reaction_id) AS "reactions" '  # noqa: S608
+            "FROM pivot_inputs_components AS x0 WHERE EXISTS (SELECT 1 FROM reactions "
+            "WHERE reactions.reaction_id = x0.reaction_id AND "
+            f"{_SEMI_JOIN}{_DAY} >= $literal_0))"
+        )

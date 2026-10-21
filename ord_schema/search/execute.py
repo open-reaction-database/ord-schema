@@ -817,13 +817,15 @@ def _relations_read(sql: str, looked_up: dict[str, str]) -> str:
 
     Returns:
         The occurrence index, the pivots over the levels the SQL names, the first
-        commits, or the projection alone.
+        commits, alone where the SQL reads nothing else, or the projection alone.
     """
     reads = []
     if _INDEX_RELATION in sql:
         reads.append("the occurrence index")
     if _reads_history(sql):
-        reads.append("the first commits")
+        # Joined or semi-joined, the SQL reads the reactions in a FROM; alone, never.
+        alone = re.search(rf"\bFROM {query.TABLE}\b", sql) is None
+        reads.append("the first commits alone" if alone else "the first commits")
     # Matched as whole words, since one level's view name can begin another's:
     # pivot_outcomes_products is a prefix of pivot_outcomes_products_measurements.
     pivoted = sorted(
@@ -1197,12 +1199,12 @@ class Corpus:
                 projection's source is not among them, or one restates a dataset no
                 projection does. With ``warm``, also whatever publishing the occurrence
                 index and building the substructure library refuse: a corpus stating a
-                reaction twice, one whose occurrence artifacts do not reach every
-                structure it holds, one whose IDs are not every integer from zero, or
-                pivot or occurrence artifacts that belong to another corpus or carry a
-                structure ID their dataset does not hold, all of which otherwise
-                surface on the first query that wants what refused them rather than at
-                open.
+                reaction twice, first commits naming a reaction other than its own, one
+                whose occurrence artifacts do not reach every structure it holds, one
+                whose IDs are not every integer from zero, or pivot or occurrence
+                artifacts that belong to another corpus or carry a structure ID their
+                dataset does not hold, all of which otherwise surface on the first query
+                that wants what refused them rather than at open.
             ValueError: If ``max_rows`` is less than one, which is a bound no query can
                 satisfy rather than a small one; if ``require_pivots`` is set without a
                 ``pivots_dir``; or if ``require_occurrences`` is set without an
@@ -1239,6 +1241,12 @@ class Corpus:
         self._unique_checked = False
         self._duplicated: str | None = None
         self._unique_lock = threading.Lock()
+        # Whether the first commits name exactly the corpus's reactions, settled at open
+        # or by the first query reading them; see _require_one_first_commit_each. A
+        # refusal is kept for the reason _refused is.
+        self._first_commits_checked = False
+        self._first_commits_refused: str | None = None
+        self._first_commits_lock = threading.Lock()
         # Recent match sets, most recently used last; see _matches.
         self._matched: collections.OrderedDict[_MatchKey, str] = (
             collections.OrderedDict()
@@ -1338,14 +1346,17 @@ class Corpus:
         """Publishes the index and builds the library at open rather than on a query.
 
         Checks that the corpus states each reaction once whether or not it holds any
-        artifact, so a corpus a pivot or the index would refuse is refused at open.
+        artifact, and that its first commits name exactly those reactions, so a corpus
+        a pivot, the index, or the first commits would refuse is refused at open.
 
         Raises:
-            PairingError: Whatever the duplicate check, the index, or the library
-                refuses; see ``_require_unique_reactions``, ``_occurrences``, and
-                ``_library``.
+            PairingError: Whatever the duplicate check, the first commits' check, the
+                index, or the library refuses; see ``_require_unique_reactions``,
+                ``_require_one_first_commit_each``, ``_occurrences``, and ``_library``.
         """
         self._require_unique_reactions()
+        if self._history:
+            self._require_one_first_commit_each()
         self._occurrences()
         self._library()
 
@@ -1390,6 +1401,50 @@ class Corpus:
                 )
                 raise PairingError(self._duplicated)
             self._unique_checked = True
+
+    def _require_one_first_commit_each(self) -> None:
+        """Refuses first commits naming any reaction but the corpus's own, checked once.
+
+        Pairing holds each first_commits artifact to its projection's count of rows,
+        which an artifact edited after it was written keeps while naming other
+        reactions. Read alone, the first commits would then count a reaction the corpus
+        does not hold, or one twice; semi-joined, a reaction with none would read as
+        never having arrived. With the corpus stating each reaction once and the counts
+        equal, a first commit for every reaction leaves none over, so an anti-join
+        settles it. Costs a scan of both relations' IDs and a hash table over the
+        first commits'.
+
+        Raises:
+            PairingError: If a reaction is stated more than once, as
+                ``_require_unique_reactions`` refuses, or has no first commit. The
+                reason is kept and re-raised, since a corpus does not change under an
+                open ``Corpus``.
+        """
+        self._require_unique_reactions()
+        with self._first_commits_lock:
+            if self._first_commits_refused is not None:
+                raise PairingError(self._first_commits_refused)
+            if self._first_commits_checked:
+                return
+            # Its own cursor: this runs while searches are in flight.
+            cursor = self._connection.cursor()
+            try:
+                missing = cursor.execute(
+                    f"SELECT reaction_id FROM {query.TABLE} "  # noqa: S608
+                    f"ANTI JOIN {query.HISTORY_TABLE} USING (reaction_id) "
+                    "ORDER BY reaction_id LIMIT 1"
+                ).fetchone()
+            finally:
+                cursor.close()
+            if missing is not None:
+                self._first_commits_refused = (
+                    f"reaction {missing[0]} has no first commit, though the "
+                    "first_commits artifacts hold as many rows as the projections, so "
+                    "some name another reaction; derive them from these projections "
+                    "again"
+                )
+                raise PairingError(self._first_commits_refused)
+            self._first_commits_checked = True
 
     def _prepare(
         self, pairs: list[tuple[str, str, str, str | None]]
@@ -2639,9 +2694,11 @@ class Corpus:
         Raises:
             query.QueryError: If the query does not compile.
             ValueError: If a compound name cannot be resolved.
-            PairingError: If the corpus IDs do not come out one unbroken run, or the
+            PairingError: If the corpus IDs do not come out one unbroken run; if the
                 occurrence index refuses the corpus -- a reaction stated by more than
-                one row, or a structure no indexed path reaches.
+                one row, or a structure no indexed path reaches; or, for a query
+                reading the first commits, if they name a reaction other than the
+                corpus's own.
             TimeoutError: If the search exceeds ``timeout_seconds``, naming the phase
                 that was running when the bound passed.
         """
@@ -2690,8 +2747,9 @@ class Corpus:
             logger.info("the corpus bounds this query at %d rows", compiled.limit)
         logger.info("this query reads %s", _relations_read(compiled.sql, looked_up))
         if _reads_history(compiled.sql):
-            # The first commits are found by reaction ID, as a pivot's elements are.
-            self._require_unique_reactions()
+            # The first commits are found by reaction ID, as a pivot's elements are,
+            # and read alone they stand for the reactions.
+            self._require_one_first_commit_each()
         cursor = self._connection.cursor()
         try:
             parameters: dict[str, Any] = dict(compiled.literals)
