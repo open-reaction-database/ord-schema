@@ -62,9 +62,9 @@ element does. Either one reads the whole element, so "pyridine as the solvent" s
 condition on one element rather than an intersection of two reaction sets, which
 over-returns.
 
-An occurrence names its reaction by ID, so the index is published only over a corpus
-that states each reaction once; two files carrying one reaction would have each copy's
-structures answering for the other.
+An occurrence and a pivot row each name their reaction by ID, so neither is read over a
+corpus that states a reaction twice; two files carrying one reaction would have each
+copy's elements answering for the other.
 
 Reading the projection at all costs a re-parse of every file's footer, and over a schema
 this wide that parse is most of what a query spends however few leaves it goes on to
@@ -96,6 +96,7 @@ import hashlib
 import json
 import math
 import pathlib
+import re
 import threading
 import time
 from collections.abc import Callable, Iterable, Sequence
@@ -704,6 +705,10 @@ def _warn_when_the_bound_was_reached(
     return True
 
 
+# How an index condition names the index, which is also how the log recognizes one.
+_INDEX_RELATION = "occurrences AS occurrence"
+
+
 def _index_condition(path: str, allocate: Callable[[], str]) -> str | None:
     """Returns a row condition standing for an element quantifier, or None.
 
@@ -735,9 +740,39 @@ def _index_condition(path: str, allocate: Callable[[], str]) -> str | None:
     # parameter name. The inner relation is aliased so that the outer reaction_id and
     # the inner one cannot be confused for each other.
     return (
-        "reaction_id IN (SELECT occurrence.reaction_id "  # noqa: S608
-        f"FROM occurrences AS occurrence WHERE {' AND '.join(conditions)})"
+        f"reaction_id IN (SELECT occurrence.reaction_id FROM {_INDEX_RELATION} "  # noqa: S608
+        f"WHERE {' AND '.join(conditions)})"
     )
+
+
+def _relations_read(sql: str, looked_up: dict[str, str]) -> str:
+    """Returns which relations a compiled query reads, for a person reading the log.
+
+    Read off the SQL rather than recorded as the compiler asks for views: compiling a
+    nested quantifier looks up the inner level's pivot before the outer level can
+    decline, and the whole quantifier is then answered from the projection's lists.
+
+    Args:
+        sql: The compiled query.
+        looked_up: The view each pivot lookup returned, keyed by level.
+
+    Returns:
+        The occurrence index, the pivots over the levels the SQL names, or the
+        projection alone.
+    """
+    reads = []
+    if _INDEX_RELATION in sql:
+        reads.append("the occurrence index")
+    # Matched as whole words, since one level's view name can begin another's:
+    # pivot_outcomes_products is a prefix of pivot_outcomes_products_measurements.
+    pivoted = sorted(
+        path
+        for path, name in looked_up.items()
+        if re.search(rf"\b{re.escape(name)}\b", sql)
+    )
+    if pivoted:
+        reads.append(f"the pivots over {pivoted}")
+    return " and ".join(reads) or "the projection alone"
 
 
 def _group(entry_of: array.array, count: int) -> tuple[array.array, array.array]:
@@ -1124,6 +1159,12 @@ class Corpus:
         self._indexed: bool | None = None
         self._refused: str | None = None
         self._occurrences_lock = threading.Lock()
+        # Whether the corpus states each reaction once, settled by the first route that
+        # finds reactions by ID; see _require_unique_reactions. A refusal is kept for
+        # the reason _refused is.
+        self._unique_checked = False
+        self._duplicated: str | None = None
+        self._unique_lock = threading.Lock()
         # Recent match sets, most recently used last; see _matches.
         self._matched: collections.OrderedDict[_MatchKey, str] = (
             collections.OrderedDict()
@@ -1215,12 +1256,58 @@ class Corpus:
     def _warm(self) -> None:
         """Publishes the index and builds the library at open rather than on a query.
 
+        Checks that the corpus states each reaction once whether or not it holds any
+        artifact, so a corpus a pivot or the index would refuse is refused at open.
+
         Raises:
-            PairingError: Whatever the index or the library refuses; see
-                ``_occurrences`` and ``_library``.
+            PairingError: Whatever the duplicate check, the index, or the library
+                refuses; see ``_require_unique_reactions``, ``_occurrences``, and
+                ``_library``.
         """
+        self._require_unique_reactions()
         self._occurrences()
         self._library()
+
+    def _require_unique_reactions(self) -> None:
+        """Refuses a corpus stating a reaction more than once, checked once.
+
+        A pivot and the occurrence index both find reactions by ID: a semi-join on
+        ``reaction_id`` answers for every row carrying that ID. Two files stating the
+        same reaction pair cleanly -- what pairing checks is that each projection has
+        its structures, not that the corpus states a reaction once -- and each copy's
+        elements would then answer the other's queries, so a question narrowed to one
+        dataset is answered by the other's components. Costs a scan of one column.
+
+        Raises:
+            PairingError: If any reaction is stated by more than one row. The reason
+                is kept and re-raised, since a corpus does not change under an open
+                ``Corpus``.
+        """
+        with self._unique_lock:
+            if self._duplicated is not None:
+                raise PairingError(self._duplicated)
+            if self._unique_checked:
+                return
+            # Its own cursor: this runs while searches are in flight, and the shared
+            # connection holds their results.
+            cursor = self._connection.cursor()
+            try:
+                duplicated = cursor.execute(
+                    f"SELECT reaction_id, count(*) FROM {query.TABLE} "  # noqa: S608
+                    "GROUP BY reaction_id HAVING count(*) > 1 "
+                    "ORDER BY reaction_id LIMIT 1"
+                ).fetchone()
+            finally:
+                cursor.close()
+            if duplicated is not None:
+                self._duplicated = (
+                    f"reaction {duplicated[0]} is stated by {duplicated[1]} rows of "
+                    "the corpus, and the pivots and the occurrence index find "
+                    "reactions by ID, so one copy's elements would answer for the "
+                    "other; glob one artifact per reaction"
+                )
+                raise PairingError(self._duplicated)
+            self._unique_checked = True
 
     def _prepare(
         self, pairs: list[tuple[str, str, str, str | None]]
@@ -1872,29 +1959,12 @@ class Corpus:
                     )
                 self._indexed = False
                 return False
+            self._require_unique_reactions()
             selects = "\nUNION ALL\n".join(reads)
             # Its own cursor: this runs while searches are in flight, and the shared
             # connection holds their results.
             cursor = self._connection.cursor()
             try:
-                # An occurrence names the reaction it sat in by ID, so the semi-join
-                # answers for every row carrying that ID. Two files stating the same
-                # reaction pair cleanly -- what pairing checks is that each projection
-                # has its structures, not that the corpus states a reaction once -- and
-                # each one's structures would then answer the other's queries.
-                duplicated = cursor.execute(
-                    f"SELECT reaction_id, count(*) FROM {query.TABLE} "  # noqa: S608
-                    "GROUP BY reaction_id HAVING count(*) > 1 "
-                    "ORDER BY reaction_id LIMIT 1"
-                ).fetchone()
-                if duplicated is not None:
-                    self._refused = (
-                        f"reaction {duplicated[0]} is stated by {duplicated[1]} rows "
-                        "of the corpus, and the occurrence index finds reactions by "
-                        "ID, so one copy's structures would answer for the other; "
-                        "glob one artifact per reaction"
-                    )
-                    raise PairingError(self._refused)
                 # OR REPLACE, so a publish interrupted after the view exists is one the
                 # next query repeats rather than one that collides with itself forever.
                 # S608: the fragments are this module's own reads of the artifacts, not
@@ -2085,18 +2155,20 @@ class Corpus:
             which includes a path that names no level at all.
 
         Raises:
-            PairingError: If the artifacts for this level were not derived from the
-                projections this corpus reads -- a pivot of another corpus answers
-                confidently and wrongly, since its reaction IDs resolve against the
-                wrong rows -- if any lacks a column this library reads, if any carries
-                a structure ID its dataset does not hold, or, with ``require_current``,
-                if any of them is stale.
+            PairingError: If the corpus states a reaction more than once, which a
+                semi-join on ``reaction_id`` cannot tell apart; if the artifacts for
+                this level were not derived from the projections this corpus reads -- a
+                pivot of another corpus answers confidently and wrongly, since its
+                reaction IDs resolve against the wrong rows -- if any lacks a column
+                this library reads, if any carries a structure ID its dataset does not
+                hold, or, with ``require_current``, if any of them is stale.
         """
         if path not in pivot.LEVELS:
             return None
         sources = self._pivot_artifacts(path)
         if sources is None:
             return None
+        self._require_unique_reactions()
         files = list(sources)
         with self._views_lock:
             published = self._pivot_views.get(path)
@@ -2440,21 +2512,15 @@ class Corpus:
             TimeoutError: If the search exceeds ``timeout_seconds``, naming the phase
                 that was running when the bound passed.
         """
-        # Records into this search rather than onto the corpus: two searches share one
-        # Corpus, and whether the index answered is a fact about one of them.
-        indexing = False
 
         def index(path: str, allocate: Callable[[], str]) -> str | None:
             # Asked of the corpus before the condition is written, since the condition
             # names the index's view and a corpus without one has nothing for it to
             # read -- and only for a path the index covers, so a query over any other
             # never pays the check that publishes it.
-            nonlocal indexing
             if path not in INDEXED_PATHS or not self._occurrences():
                 return None
-            condition = _index_condition(path, allocate)
-            indexing = indexing or condition is not None
-            return condition
+            return _index_condition(path, allocate)
 
         # Kept per search as well as on the corpus, whose cache another search can evict
         # from meanwhile: a compound named in two structure predicates stays one
@@ -2466,14 +2532,14 @@ class Corpus:
                 resolved[name] = self._resolve(name)
             return resolved[name]
 
-        # The levels whose pivots the query reads, for the log: which relations
-        # answered is the one thing about a search that the result does not show.
-        pivoted: list[str] = []
+        # Every view the compiler looked up, by level, so the log can name the ones the
+        # SQL kept.
+        looked_up: dict[str, str] = {}
 
         def pivot_view(path: str) -> str | None:
             name = self._pivot_view(path)
-            if name is not None and path not in pivoted:
-                pivoted.append(path)
+            if name is not None:
+                looked_up[path] = name
             return name
 
         deadline = _Deadline(timeout_seconds)
@@ -2485,14 +2551,7 @@ class Corpus:
         deadline.check("compiling the query")
         if compiled.limit != request.limit:
             logger.info("the corpus bounds this query at %d rows", compiled.limit)
-        reads = []
-        if indexing:
-            reads.append("the occurrence index")
-        if pivoted:
-            reads.append(f"the pivots over {pivoted}")
-        logger.info(
-            "this query reads %s", " and ".join(reads) or "the projection alone"
-        )
+        logger.info("this query reads %s", _relations_read(compiled.sql, looked_up))
         cursor = self._connection.cursor()
         try:
             parameters: dict[str, Any] = dict(compiled.literals)

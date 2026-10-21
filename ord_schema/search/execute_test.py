@@ -3113,6 +3113,33 @@ def test_a_reaction_two_files_both_state_is_refused(tmp_path):
         value.search(query.Query.model_validate(_ROUTABLE["structure alone"]))
 
 
+def test_a_reaction_two_files_both_state_is_refused_by_a_pivot(tmp_path):
+    # A pivot finds reactions by ID as the index does, so with no index at all a
+    # question narrowed to aa, about a component only bb's copy holds, would answer
+    # with aa's reaction. Refused when the first pivot is published.
+    root = _doubled_tree(tmp_path)
+    narrowed = {
+        "op": "and",
+        "clauses": [
+            {"op": "eq", "path": "dataset_id", "value": {"literal": "ord_dataset-aa"}},
+            _exists({"op": "eq", "path": "smiles", "value": {"literal": "CCO"}}),
+        ],
+    }
+    with (
+        _open(root, resolver={}.__getitem__, occurrences_dir=None, warm=False) as value,
+        pytest.raises(execute.PairingError, match="ord-x01 is stated by 2 rows"),
+    ):
+        _search(value, narrowed)
+
+
+def test_warming_refuses_two_files_stating_a_reaction_without_an_index(tmp_path):
+    # Warming publishes no index here, so the check has to run on its own: the
+    # corpus a pivot would refuse on its first query is refused at open.
+    root = _doubled_tree(tmp_path)
+    with pytest.raises(execute.PairingError, match="ord-x01 is stated by 2 rows"):
+        _open(root, resolver={}.__getitem__, occurrences_dir=None)
+
+
 def test_an_index_that_misses_one_path_is_refused(corpus_dir, monkeypatch):
     # The dangerous shape is not an index that reaches nothing -- it is one that reaches
     # almost everything. A path whose artifact finds no element leaves the other paths
@@ -4599,6 +4626,40 @@ def test_a_level_without_artifacts_is_answered_from_the_projection(wide_root, ca
         assert "outcomes.products.measurements" not in corpus._pivot_views
     assert found == {"ord-wd01", "ord-wd02", "ord-wd07", "ord-wd08"}
     assert "this query reads the projection alone" in _messages(caplog)
+
+
+@pytest.mark.parametrize(
+    ("levels", "logged"),
+    [
+        # The inner level's pivot is looked up before the outer level declines, and the
+        # whole quantifier is then answered from the lists.
+        (("outcomes.products.measurements",), "the projection alone"),
+        (
+            ("outcomes.products", "outcomes.products.measurements"),
+            "the pivots over ['outcomes.products', 'outcomes.products.measurements']",
+        ),
+    ],
+)
+def test_the_log_names_the_pivots_the_query_reads(
+    wide_root, tmp_path, caplog, levels, logged
+):
+    # Someone asking why a query was slow reads this line, so a pivot named there and
+    # absent from the SQL sends them to the wrong relation.
+    pivots = _write_pivots(wide_root, levels, into=tmp_path / "pivots")
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+        ) as corpus,
+    ):
+        found = _search(
+            corpus, _DIFFERENTIAL["a desired product with a yield above 50%"]
+        )
+    assert found
+    assert f"this query reads {logged}" in _messages(caplog)
 
 
 def _messages(caplog) -> list[str]:
