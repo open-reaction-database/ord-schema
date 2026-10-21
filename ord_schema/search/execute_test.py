@@ -5504,6 +5504,41 @@ def test_a_pivot_from_another_corpus_is_refused(wide_root, corpus_dir, tmp_path)
         _search(corpus, _white("exists"))
 
 
+def test_a_pivot_row_naming_no_reaction_does_not_empty_a_negated_exists(
+    corpus_dir, tmp_path
+):
+    # An exists over a pivot is spelled IN, and NOT IN against a subquery holding a
+    # NULL answers NULL for every reaction, returning nothing. The subquery leaves such
+    # rows out, so the negation still answers every reaction without a solvent.
+    pivots = _write_pivots(corpus_dir, ("inputs.components",), into=tmp_path / "pivots")
+    # The aa shard, which holds the one solvent.
+    target = pivots / "inputs.components" / "aa" / "ord_dataset-aa.parquet"
+    table = pq.read_table(target)
+    roles = pa.compute.struct_field(table.column("element"), "reaction_role")
+    solvent = table.filter(pa.compute.equal(roles, "SOLVENT")).slice(0, 1)
+    assert solvent.num_rows == 1
+    unnamed = solvent.set_column(
+        0, table.schema.field("reaction_id"), pa.array([None], type=pa.string())
+    )
+    pq.write_table(
+        pa.concat_tables([table, unnamed]).replace_schema_metadata(
+            table.schema.metadata
+        ),
+        target,
+    )
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots),
+        warm=False,
+    ) as corpus:
+        assert _search(corpus, {"op": "not", "clause": _exists(_SOLVENT)}) == {
+            "ord-aa02",
+            "ord-bb01",
+        }
+
+
 def test_a_stranger_s_pivot_over_an_indexed_level_is_refused_at_open(
     wide_root, corpus_dir
 ):
