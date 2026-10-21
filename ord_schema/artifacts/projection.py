@@ -914,9 +914,9 @@ def write_projection(
     """Projects a source Parquet dataset and writes it.
 
     Reactions are read one source row group at a time and written one output row group
-    at a time, so peak memory is bounded by the larger of the two rather than by the
-    dataset. The output is published atomically, so a failure partway leaves any
-    existing projection untouched.
+    at a time, so peak memory is bounded by one of each rather than by the dataset. The
+    output is published atomically, so a failure partway leaves any existing projection
+    untouched.
 
     Args:
         source: Path to the source Parquet dataset.
@@ -926,11 +926,10 @@ def write_projection(
         source_dataset_id: Source dataset ID to stamp, if the caller already read one.
             Read from the source when omitted.
         compression: Parquet compression codec.
-        row_group_size: Rows per output row group, whatever the source's are. The
-            footer holds statistics for every leaf of every row group, and a query
-            parses it before reading any data, so the count of row groups is what the
-            footer costs; the source writer's default is sized for reading one reaction
-            at a time, which a projection is not read for.
+        row_group_size: Rows per output row group, independent of the source's. The
+            footer holds statistics for every leaf of every row group and is parsed
+            before any data is read, so fewer, larger row groups make a projection
+            cheaper to open.
 
     Returns:
         Number of rows written.
@@ -965,9 +964,8 @@ def write_projection(
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,
     ):
-        # Rows are carried across source row groups until a full output row group is
-        # ready, so the output's row groups are the size asked for rather than the
-        # source's.
+        # Carried across source row groups, so the output's row groups are the size
+        # asked for rather than the source's.
         batch: list[dict[str, Any]] = []
         for row_group in range(view.num_row_groups):
             for reaction_id, reaction in view.iter_reactions(row_group=row_group):
@@ -979,7 +977,7 @@ def write_projection(
                     raise ValueError(f"{view.path}: {error}") from error
                 unreadable += _unreadable_structures(row)
                 batch.append(row)
-                if len(batch) == row_group_size:
+                if len(batch) >= row_group_size:
                     writer.write_table(pa.Table.from_pylist(batch, schema=schema))
                     rows += len(batch)
                     batch = []

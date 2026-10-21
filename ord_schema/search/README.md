@@ -407,18 +407,18 @@ refuse it half-derived and warming reads the levels the occurrence index covers.
 
 Queries the index declines read the projection, and much of what that costs is not the
 reading. A scan re-parses the footer of every file it touches, and a 453-leaf projection
-has a large one: statistics for every leaf of every row group, charged again on every
-query however few leaves the query goes on to read. Over ORD that parse was most of what
-a projection query cost — **8–27×** across a range of scalar queries ([logbook][cache-entry],
-finding 10) — when projections inherited the source datasets' thousand-row row groups,
-which are sized for reading one reaction at a time. Two things keep it small now.
-`write_projection` sizes its own row groups, so the footer is a few hundred row groups
-over the corpus rather than a few thousand. And DuckDB **holds the parsed footers**
-between queries, which the corpus turns on at open: they are bounded by the files rather
-than by what is asked of them, and DuckDB's accounting books only part of what they
-hold, so what remains sits outside `memory_limit`. With them held, a scalar query over
-the projection lands in hundredths of a second, which leaves a cache of the columns
-themselves nothing to buy.
+has a large one: statistics for every leaf of every row group, charged on every query
+however few leaves the query goes on to read. Two things keep that small.
+`write_projection` sizes its own row groups rather than inheriting the source datasets'
+thousand-row ones, which are sized for reading one reaction at a time, so the footer is
+a few hundred row groups over the corpus rather than a few thousand. And DuckDB **holds
+the parsed footers** between queries, which the corpus turns on at open: over the
+inherited row groups the parse was most of what a projection query cost, **8–27×**
+across a range of scalar queries ([logbook][cache-entry], finding 10). The footers are
+bounded by the files rather than by what is asked of them, and DuckDB's accounting books
+only part of what they hold, so what remains sits outside `memory_limit`. With them
+held, a scalar query over the projection lands in hundredths of a second, which leaves a
+cache of the columns themselves nothing to buy.
 
 A pivot built in process is charged against `pivot_budget_bytes` and evicted
 least-recently-used, skipping any a search is still reading; one too large to keep is not

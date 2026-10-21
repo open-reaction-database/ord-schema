@@ -922,10 +922,10 @@ def _free_result_order(connection: duckdb.DuckDBPyConnection) -> None:
     """Lets rows come back in whatever order the scan's threads finish them.
 
     A query without ``ORDER BY`` promises no order, and keeping the scan's order anyway
-    holds every row back until the row groups before it are done. Over the projection's
-    row groups that stalls a wide scan returning many rows for several times its running
-    time, where a count of the same rows is unaffected. ``ORDER BY`` is honored as it
-    was, and ``reactions`` orders its own rows.
+    holds every row back until the row groups before it are done: over the projection's
+    row groups, a wide scan returning many rows waits longer on that than on the scan,
+    where a count of the same rows does not wait at all. ``ORDER BY`` is honored, and
+    ``reactions`` orders its own rows.
 
     Set globally, as ``_cache_footers`` is, so that each search's cursor is covered.
 
