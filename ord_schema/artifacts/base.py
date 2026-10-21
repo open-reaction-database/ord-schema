@@ -600,6 +600,7 @@ def derive_tree(
     force: bool = False,
     parent_artifact: str | None = None,
     root: str | os.PathLike[str] | None = None,
+    current: Callable[[pathlib.Path], bool] | None = None,
 ) -> tuple[int, int, int]:
     """Derives one artifact per file matching ``input_pattern``.
 
@@ -623,6 +624,9 @@ def derive_tree(
         root: The directory outputs mirror from, for a caller that has one rather than a
             pattern. Defaults to ``input_pattern``'s wildcard-free leading directories,
             which is what a caller who wrote the pattern means by it.
+        current: A further test an existing artifact has to pass to be skipped, for a
+            writer reading an input the stamps do not describe. Given the artifact's
+            path; False derives it again.
 
     Returns:
         ``(written, skipped, ignored)`` counts: artifacts derived, artifacts already
@@ -685,7 +689,11 @@ def derive_tree(
         source_md5, source_dataset_id = _parent_provenance(
             source, parent_artifact, parent_stamps[source]
         )
-        if not force and is_current(destination, artifact, source_md5, schema):
+        if (
+            not force
+            and is_current(destination, artifact, source_md5, schema)
+            and (current is None or current(destination))
+        ):
             logger.info("%s is current; skipping", destination)
             skipped += 1
             continue

@@ -2706,3 +2706,127 @@ def test_a_quantifier_buried_in_the_element_filter_is_found_too():
                 }
             }
         )
+
+
+_YEAR = [
+    {"op": "ge", "path": "first_commit.timestamp", "value": {"literal": "2022-01-01"}},
+    {"op": "lt", "path": "first_commit.timestamp", "value": {"literal": "2023-01-01"}},
+]
+_HOT = {
+    "op": "gt",
+    "path": "conditions.temperature.setpoint_kelvin",
+    "value": {"literal": 350},
+}
+_SEMI_JOIN = (
+    "reactions.reaction_id IN (SELECT reaction_id FROM first_commits "
+    "WHERE reaction_id IS NOT NULL AND "
+)
+
+
+class TestFirstCommitRouting:
+    def test_the_schema_a_model_reads_names_first_commit(self):
+        assert query.SCHEMA.names == [*query.TABLE_SCHEMA.names, "first_commit"]
+        assert "first_commit" not in query.TABLE_SCHEMA.names
+
+    def test_a_query_not_naming_it_reads_the_reactions_alone(self):
+        compiled = _compile({"where": _HOT})
+        assert query.HISTORY_TABLE not in compiled.sql
+
+    def test_a_conjunction_of_its_filters_is_one_semi_join(self):
+        compiled = _compile({"where": {"op": "and", "clauses": [_HOT, *_YEAR]}})
+        assert compiled.sql.count(_SEMI_JOIN) == 1
+        assert " JOIN " not in compiled.sql
+        sql.validate(compiled.sql, parameters=compiled.literals)
+
+    def test_a_filter_under_or_or_not_is_a_semi_join_of_its_own(self):
+        compiled = _compile(
+            {
+                "where": {
+                    "op": "or",
+                    "clauses": [_HOT, {"op": "not", "clause": _YEAR[0]}, _YEAR[1]],
+                }
+            }
+        )
+        assert compiled.sql.count(_SEMI_JOIN) == 2
+        assert f"(NOT {_SEMI_JOIN}" in compiled.sql
+        sql.validate(compiled.sql, parameters=compiled.literals)
+
+    def test_a_null_check_is_routed_like_a_comparison(self):
+        compiled = _compile({"where": {"op": "not_null", "path": "first_commit.sha"}})
+        assert compiled.sql.count(_SEMI_JOIN) == 1
+        sql.validate(compiled.sql, parameters=compiled.literals)
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {
+                "aggregate": {
+                    "group_by": ["first_commit.dataset_id"],
+                    "measures": [{"fn": "count", "name": "reactions"}],
+                }
+            },
+            {
+                "aggregate": {
+                    "measures": [
+                        {"fn": "max", "path": "first_commit.timestamp", "name": "last"}
+                    ]
+                }
+            },
+            {"order_by": [{"key": "first_commit.timestamp", "descending": True}]},
+        ],
+        ids=["group_by", "measure", "order_by"],
+    )
+    def test_reading_it_on_the_row_joins_it(self, payload):
+        compiled = _compile({**payload, "where": {"op": "and", "clauses": _YEAR}})
+        assert "FROM reactions JOIN first_commits USING (reaction_id)" in compiled.sql
+        # Joined, its filters read the row rather than semi-joining again.
+        assert _SEMI_JOIN not in compiled.sql
+        sql.validate(compiled.sql, parameters=compiled.literals)
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"where": _YEAR[0]},
+            {"where": {"op": "or", "clauses": [_HOT, _YEAR[0]]}},
+            {"order_by": [{"key": "first_commit.timestamp"}]},
+        ],
+        ids=["filter", "nested", "order_by"],
+    )
+    def test_refused_where_the_corpus_holds_none(self, payload):
+        with pytest.raises(query.QueryError, match="holds no first commits"):
+            _compile(payload, history=None)
+
+    def test_a_measure_named_like_it_is_not_a_path_to_it(self):
+        # An aggregated query orders by a measure name or a group_by path, so a key
+        # spelled first_commit names the measure and reads no first commit.
+        compiled = _compile(
+            {
+                "aggregate": {"measures": [{"fn": "count", "name": "first_commit"}]},
+                "order_by": [{"key": "first_commit"}],
+            },
+            history=None,
+        )
+        assert query.HISTORY_TABLE not in compiled.sql
+
+    def test_the_relation_has_to_be_an_identifier(self):
+        with pytest.raises(query.QueryError, match="history is not an identifier"):
+            _compile({"where": _YEAR[0]}, history="first_commits, range(10)")
+
+    def test_a_filter_on_elements_keeps_its_semi_join_on_the_reactions(self):
+        compiled = _compile(
+            {
+                "where": _YEAR[0],
+                "aggregate": {
+                    "over": "inputs.components",
+                    "group_by": ["reaction_role"],
+                    "measures": [{"fn": "count", "name": "components"}],
+                },
+            },
+            pivot=lambda path: f"pivot_{path.replace('.', '_')}",
+        )
+        # S608: the SQL a compilation is expected to contain, never run.
+        expected = (
+            "EXISTS (SELECT 1 FROM reactions WHERE reactions.reaction_id = "  # noqa: S608
+            f"x0.reaction_id AND {_SEMI_JOIN}"
+        )
+        assert expected in compiled.sql

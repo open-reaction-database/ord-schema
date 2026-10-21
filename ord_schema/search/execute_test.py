@@ -36,6 +36,8 @@ from rdkit.Chem import rdSubstructLibrary
 from ord_schema import message_helpers, parquet
 from ord_schema.artifacts import (
     base,
+    first_commits,
+    history,
     occurrences,
     pivot,
     projection,
@@ -5889,3 +5891,258 @@ def test_an_answer_the_bound_did_not_reach_carries_no_stamp(corpus_dir):
         answer = value.search(query.Query.model_validate({}))
     assert answer.num_rows == 3
     assert execute.TRUNCATED.encode() not in (answer.schema.metadata or {})
+
+
+# When each reaction of corpus_dir first reached ord-data: one in an early commit under
+# a dataset ID it no longer holds, the others in a later one.
+_ARRIVALS = {
+    "ord-aa01": {
+        "sha": "a" * 40,
+        "timestamp": datetime.datetime(2021, 3, 3, 13, 33, 15),
+        "utc_offset_minutes": -300,
+        "dataset_id": "ord_dataset-old",
+    },
+    "ord-aa02": {
+        "sha": "b" * 40,
+        "timestamp": datetime.datetime(2022, 12, 6, 13, 51, 13),
+        "utc_offset_minutes": -300,
+        "dataset_id": "ord_dataset-aa",
+    },
+    "ord-bb01": {
+        "sha": "b" * 40,
+        "timestamp": datetime.datetime(2022, 12, 6, 13, 51, 13),
+        "utc_offset_minutes": -300,
+        "dataset_id": "ord_dataset-bb",
+    },
+}
+
+
+def _write_first_commits(root, output, arrivals=None) -> str:
+    """Derives the first_commits artifacts of ``root``'s projections into ``output``.
+
+    Returns:
+        A glob matching them, for ``Corpus``.
+    """
+    rows = [
+        {"reaction_id": reaction_id, **row}
+        for reaction_id, row in (arrivals or _ARRIVALS).items()
+    ]
+    index = history.Index(
+        pa.Table.from_pylist(rows, schema=history.INDEX_SCHEMA), ["a" * 40, "b" * 40]
+    )
+    for projected in sorted((root / "projections").glob("*.parquet")):
+        output.mkdir(parents=True, exist_ok=True)
+        first_commits.write_first_commits(
+            projected, output / projected.name, index=index
+        )
+    return str(output / "*.parquet")
+
+
+@pytest.fixture(scope="module")
+def arrivals_pattern(corpus_dir, tmp_path_factory) -> str:
+    """The first_commits artifacts of ``corpus_dir``, in a directory of their own."""
+    return _write_first_commits(corpus_dir, tmp_path_factory.mktemp("first_commits"))
+
+
+@pytest.fixture(scope="module")
+def history_corpus(corpus_dir, arrivals_pattern) -> Iterator[execute.Corpus]:
+    with _open(
+        corpus_dir, resolver={}.__getitem__, first_commits_pattern=arrivals_pattern
+    ) as value:
+        yield value
+
+
+_ADDED_IN_2022 = [
+    {"op": "ge", "path": "first_commit.timestamp", "value": {"literal": "2022-01-01"}},
+    {"op": "lt", "path": "first_commit.timestamp", "value": {"literal": "2023-01-01"}},
+]
+
+
+class TestFirstCommits:
+    def test_a_filter_reads_the_first_commits(self, history_corpus, caplog):
+        with caplog.at_level(logging.INFO, logger=execute.logger.name):
+            found = _search(history_corpus, {"op": "and", "clauses": _ADDED_IN_2022})
+        assert found == {"ord-aa02", "ord-bb01"}
+        assert "this query reads the first commits" in caplog.text
+
+    def test_a_negated_filter_answers_the_rest(self, history_corpus):
+        where = {"op": "not", "clause": {"op": "and", "clauses": _ADDED_IN_2022}}
+        assert _search(history_corpus, where) == {"ord-aa01"}
+
+    def test_a_filter_combines_with_one_on_the_reaction(self, history_corpus):
+        old = {
+            "op": "eq",
+            "path": "first_commit.dataset_id",
+            "value": {"literal": "ord_dataset-old"},
+        }
+        ethanol = _exists({"op": "eq", "path": "smiles", "value": {"literal": "CCO"}})
+        assert _search(history_corpus, {"op": "or", "clauses": [old, ethanol]}) == {
+            "ord-aa01",
+            "ord-bb01",
+        }
+        assert (
+            _search(history_corpus, {"op": "and", "clauses": [old, ethanol]}) == set()
+        )
+
+    def test_a_query_that_does_not_name_them_reads_the_projection_alone(
+        self, history_corpus, caplog
+    ):
+        with caplog.at_level(logging.INFO, logger=execute.logger.name):
+            _search(
+                history_corpus,
+                {"op": "eq", "path": "reaction_id", "value": {"literal": "ord-aa01"}},
+            )
+        assert "this query reads the projection alone" in caplog.text
+
+    def test_groups_by_where_a_reaction_first_appeared(self, history_corpus):
+        answer = history_corpus.search(
+            query.Query.model_validate(
+                {
+                    "aggregate": {
+                        "group_by": ["first_commit.dataset_id"],
+                        "measures": [
+                            {
+                                "fn": "count_distinct",
+                                "path": "reaction_id",
+                                "name": "reactions",
+                            }
+                        ],
+                    }
+                }
+            )
+        )
+        assert dict(
+            zip(
+                answer.column("first_commit.dataset_id").to_pylist(),
+                answer.column("reactions").to_pylist(),
+                strict=True,
+            )
+        ) == {"ord_dataset-old": 1, "ord_dataset-aa": 1, "ord_dataset-bb": 1}
+
+    def test_measures_the_earliest_arrival(self, history_corpus):
+        answer = history_corpus.search(
+            query.Query.model_validate(
+                {
+                    "aggregate": {
+                        "measures": [
+                            {
+                                "fn": "min",
+                                "path": "first_commit.timestamp",
+                                "name": "earliest",
+                            }
+                        ]
+                    }
+                }
+            )
+        )
+        assert answer.column("earliest").to_pylist() == [datetime.date(2021, 3, 3)]
+
+    def test_orders_by_arrival(self, history_corpus):
+        answer = history_corpus.search(
+            query.Query.model_validate(
+                {"order_by": [{"key": "first_commit.timestamp"}], "limit": 1}
+            )
+        )
+        assert answer.column("reaction_id").to_pylist() == ["ord-aa01"]
+
+    def test_a_corpus_without_them_refuses_a_query_naming_them(self, corpus):
+        with pytest.raises(query.QueryError, match="holds no first commits"):
+            _search(corpus, {"op": "and", "clauses": _ADDED_IN_2022})
+
+    def test_their_stamps_reach_the_fingerprint(self, history_corpus, corpus):
+        assert history_corpus.fingerprint != corpus.fingerprint
+
+    def test_the_history_they_read_reaches_the_fingerprint(self, corpus_dir, tmp_path):
+        # Rebuilt from a rewritten history, the artifacts can answer differently while
+        # every stamp the other artifacts carry stays the same.
+        fingerprints = []
+        for head in ("c" * 40, "d" * 40):
+            output = tmp_path / head[0]
+            rows = [
+                {"reaction_id": reaction_id, **row}
+                for reaction_id, row in _ARRIVALS.items()
+            ]
+            index = history.Index(
+                pa.Table.from_pylist(rows, schema=history.INDEX_SCHEMA), [head]
+            )
+            output.mkdir()
+            for projected in sorted((corpus_dir / "projections").glob("*.parquet")):
+                first_commits.write_first_commits(
+                    projected, output / projected.name, index=index
+                )
+            with _open(
+                corpus_dir,
+                resolver={}.__getitem__,
+                first_commits_pattern=str(output / "*.parquet"),
+            ) as value:
+                fingerprints.append(value.fingerprint)
+        assert fingerprints[0] != fingerprints[1]
+
+
+class TestFirstCommitsPairing:
+    def test_refuses_a_dataset_without_them(self, corpus_dir, tmp_path):
+        pattern = _write_first_commits(corpus_dir, tmp_path / "first_commits")
+        (tmp_path / "first_commits" / "ord_dataset-bb.parquet").unlink()
+        with pytest.raises(
+            execute.PairingError, match="projections and first_commits artifacts do not"
+        ):
+            _open(corpus_dir, resolver={}.__getitem__, first_commits_pattern=pattern)
+
+    def test_refuses_them_from_another_walk_when_current_is_required(
+        self, corpus_dir, arrivals_pattern, monkeypatch
+    ):
+        monkeypatch.setattr(history, "VERSION", "2")
+        with pytest.raises(
+            execute.PairingError, match="not derived from a version 2 walk"
+        ):
+            _open(
+                corpus_dir,
+                resolver={}.__getitem__,
+                first_commits_pattern=arrivals_pattern,
+            )
+        with _open(
+            corpus_dir,
+            resolver={}.__getitem__,
+            first_commits_pattern=arrivals_pattern,
+            require_current=False,
+            warm=False,
+        ) as value:
+            assert _search(value, {"op": "and", "clauses": _ADDED_IN_2022})
+
+    def test_refuses_a_pattern_matching_nothing(self, corpus_dir, tmp_path):
+        with pytest.raises(
+            execute.PairingError, match="no first_commits artifacts matched"
+        ):
+            _open(
+                corpus_dir,
+                resolver={}.__getitem__,
+                first_commits_pattern=str(tmp_path / "*.parquet"),
+            )
+
+    def test_refuses_one_short_of_its_projection(self, corpus_dir, tmp_path):
+        pattern = _write_first_commits(corpus_dir, tmp_path / "first_commits")
+        short = tmp_path / "first_commits" / "ord_dataset-aa.parquet"
+        table = pq.read_table(short)
+        pq.write_table(table.slice(0, 1), short)
+        with pytest.raises(
+            execute.PairingError, match=r"holds 1 first commits but .* holds 2"
+        ):
+            _open(corpus_dir, resolver={}.__getitem__, first_commits_pattern=pattern)
+
+    def test_refuses_a_doubled_reaction_before_reading_them(self, tmp_path):
+        root = _doubled_tree(tmp_path / "doubled")
+        pattern = _write_first_commits(
+            root,
+            tmp_path / "first_commits",
+            arrivals={"ord-x01": _ARRIVALS["ord-aa01"]},
+        )
+        with (
+            _open(
+                root,
+                resolver={}.__getitem__,
+                warm=False,
+                first_commits_pattern=pattern,
+            ) as value,
+            pytest.raises(execute.PairingError, match="stated by 2 rows"),
+        ):
+            _search(value, {"op": "and", "clauses": _ADDED_IN_2022})

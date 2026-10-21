@@ -14,12 +14,14 @@
 
 """Checking the SQL a model wrote before anything runs it.
 
-Validation needs no corpus. ``query.SCHEMA`` is generated from the proto
+Validation needs no corpus. ``query.TABLE_SCHEMA`` is generated from the proto
 descriptors, plus the ``dataset_id`` the executor supplies, so an empty Arrow table
-carrying it has the shape a query runs against, and planning a query against that
-resolves every column reference and type without reading a byte of data. The prompt in
-:mod:`ord_schema.search.schema` renders the same schema object, so the columns a model
-is told about and the columns its query is checked against come from one call.
+carrying it has the shape a query runs against, and an empty one carrying the
+first_commits artifact's columns stands for the relation a query naming a first commit
+reads beside it. Planning a query against them resolves every column reference and type
+without reading a byte of data. The prompt in :mod:`ord_schema.search.schema` renders
+``query.SCHEMA``, those two relations' columns as one, so the columns a model is told
+about and the columns its query is checked against come from the same definitions.
 
 Two classes of defect are caught, and they are different in kind:
 
@@ -59,6 +61,7 @@ from typing import Any
 import duckdb
 import pyarrow as pa
 
+from ord_schema.artifacts import first_commits
 from ord_schema.search import query
 
 # The name the model is told to query. The only relation in scope, so no other table is
@@ -105,20 +108,22 @@ class InvalidQueryError(ValueError):
 
 
 def _connect(schema: pa.Schema) -> duckdb.DuckDBPyConnection:
-    """Returns a connection holding an empty ``TABLE`` and no access to anything else.
+    """Returns a connection holding empty relations and no access to anything else.
 
     External access is disabled after the table is registered, which leaves the
     in-memory relation queryable while ``read_parquet``, ``COPY``, and ``ATTACH`` can
     reach no path. The setting cannot be turned back on, so a query cannot lift it.
 
     Args:
-        schema: Schema the registered table carries.
+        schema: Schema the registered ``TABLE`` carries.
 
     Returns:
-        A connection scoped to a single empty relation.
+        A connection scoped to an empty ``TABLE`` and an empty
+        ``query.HISTORY_TABLE``.
     """
     connection = duckdb.connect()
     connection.register(TABLE, schema.empty_table())
+    connection.register(query.HISTORY_TABLE, first_commits.SCHEMA.empty_table())
     connection.execute("SET enable_external_access=false")
     return connection
 
@@ -127,21 +132,22 @@ def validate(
     sql: str,
     *,
     parameters: dict[str, Any] | None = None,
-    schema: pa.Schema = query.SCHEMA,
+    schema: pa.Schema = query.TABLE_SCHEMA,
 ) -> None:
     """Checks that ``sql`` is a single read-only query this surface will run.
 
     Says nothing about what the query costs; see the module warning.
 
     Args:
-        sql: The generated SQL, querying ``TABLE``.
+        sql: The generated SQL, querying ``TABLE`` and, for a first commit,
+            ``query.HISTORY_TABLE``.
         parameters: Values for the query's named placeholders, exactly as they will be
             bound at execution. Planning needs them, so a query referencing a
             placeholder the caller did not supply fails here rather than at execution.
             Binding different values later invalidates the result, since constant
             folding can prune a branch at plan time; nothing detects that, so validating
             once and re-binding is the caller's mistake to avoid.
-        schema: Schema to plan against; ``query.SCHEMA`` by default.
+        schema: Schema of ``TABLE`` to plan against; ``query.TABLE_SCHEMA`` by default.
 
     Raises:
         InvalidQueryError: If the SQL does not parse, is more than one statement, is not

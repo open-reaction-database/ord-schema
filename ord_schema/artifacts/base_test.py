@@ -21,6 +21,7 @@ import hashlib
 import importlib.metadata
 import json
 import pathlib
+from datetime import datetime
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -28,7 +29,15 @@ import pytest
 from rdkit import rdBase
 
 from ord_schema import message_helpers, parquet
-from ord_schema.artifacts import base, occurrences, pivot, projection, structures
+from ord_schema.artifacts import (
+    base,
+    first_commits,
+    history,
+    occurrences,
+    pivot,
+    projection,
+    structures,
+)
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -419,6 +428,38 @@ def test_derive_tree_skips_current_artifacts_unless_forced(tmp_path, monkeypatch
     assert len(calls) == 1
 
 
+def test_derive_tree_derives_again_what_the_caller_finds_out_of_date(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "aa").mkdir()
+    _fake_source(tmp_path / "aa" / "source.parquet")
+    calls = []
+
+    def _write_one(source, output, *, source_md5, source_dataset_id):
+        del source, source_md5, source_dataset_id  # Unused.
+        calls.append(output)
+        pathlib.Path(output).write_bytes(b"")
+        return 1
+
+    monkeypatch.setattr(base, "is_current", lambda *args: True)
+    assert base.derive_tree(
+        str(tmp_path / "*" / "*.parquet"),
+        str(tmp_path / "out"),
+        artifact="structures",
+        write=_write_one,
+        current=lambda path: True,
+    ) == (0, 1, 0)
+    asked = []
+    assert base.derive_tree(
+        str(tmp_path / "*" / "*.parquet"),
+        str(tmp_path / "out"),
+        artifact="structures",
+        write=_write_one,
+        current=lambda path: asked.append(path) or False,
+    ) == (1, 0, 0)
+    assert asked == calls == [tmp_path / "out" / "aa" / "source.parquet"]
+
+
 def test_derive_tree_reads_the_named_parent_artifact(tmp_path):
     (tmp_path / "aa").mkdir()
     _write(
@@ -605,7 +646,13 @@ def test_an_artifact_with_no_rdkit_stamp_reads_stale():
 
 # Every artifact this library derives.
 _ARTIFACTS = frozenset(
-    {projection.ARTIFACT, structures.ARTIFACT, pivot.ARTIFACT, occurrences.ARTIFACT}
+    {
+        projection.ARTIFACT,
+        structures.ARTIFACT,
+        first_commits.ARTIFACT,
+        pivot.ARTIFACT,
+        occurrences.ARTIFACT,
+    }
 )
 
 
@@ -635,6 +682,7 @@ _GOLDEN_SCHEMA_VERSION = "1"
 _GOLDEN_OUTPUT = {
     "projection": "c2433bce97d33545cb8d828d216550da9631d8c704e7103da840fbd926845dd8",
     "structures": "3c397cfc3ba2b8e0debd9b725ada6d119551e42aa7c20bf9791983e679ce7158",
+    "first_commits": "4144a8f53c7befaef014792e5a92c9255b5e70aa7750c30a8d53215388314b7c",
     "pivot": "c5e0ba5aa7a58a7e3839ddae0dfea32bcb518704b5f63959b1b40e710140b693",
     "occurrences": "d0617c0972b1c054c5f4507760cc53e055eb5cfd1336b0279e700a3c0a8c1118",
 }
@@ -647,14 +695,17 @@ _GOLDEN_RDKIT = "2026.03.5"
 _GOLDEN_FIXTURES = ("full.pbtxt", "ord-nielsen-example.pbtxt")
 
 # Footer keys recording who derived a file rather than what it holds: the RDKit and the
-# schema, pinned on their own above, and the hash of how the fixture happened to
-# serialize. The rest -- the artifact name, the pivot or occurrence path a reader checks
-# a file against -- are part of what the artifact says.
+# schema, pinned on their own above, the hash of how the fixture happened to serialize,
+# and the index of first commits a first_commits artifact read, whose values its rows
+# carry. The rest -- the artifact name, the pivot or occurrence path a reader checks a
+# file against -- are part of what the artifact says.
 _PROVENANCE_KEYS = frozenset(
     {
         b"ord.rdkit_version",
         b"ord.artifact_schema_version",
         b"ord.source_md5",
+        b"ord.first_commits_version",
+        b"ord.first_commits_head",
     }
 )
 
@@ -701,7 +752,7 @@ def _derive_fixtures(root: pathlib.Path) -> dict[str, list[pathlib.Path]]:
     """
     testdata = pathlib.Path(__file__).parents[1] / "orm" / "testdata"
     derived: dict[str, list[pathlib.Path]] = collections.defaultdict(list)
-    for name in _GOLDEN_FIXTURES:
+    for position, name in enumerate(_GOLDEN_FIXTURES):
         source = root / "data" / f"{name}.parquet"
         source.parent.mkdir(parents=True, exist_ok=True)
         parquet.save_dataset(
@@ -716,6 +767,29 @@ def _derive_fixtures(root: pathlib.Path) -> dict[str, list[pathlib.Path]]:
         structured.parent.mkdir(parents=True, exist_ok=True)
         structures.write_structures(projected, structured)
         derived["structures"].append(structured)
+        # Each fixture first reached ord-data at a commit of its own, with an offset
+        # each side of UTC, so the pin covers both signs.
+        sha = f"{position + 1:040x}"
+        index = history.Index(
+            pa.Table.from_pylist(
+                [
+                    {
+                        "reaction_id": reaction_id,
+                        "sha": sha,
+                        "timestamp": datetime(2021, 7, 28 + position, 14, 7, 53),
+                        "utc_offset_minutes": -420 if position else 60,
+                        "dataset_id": f"ord_dataset-{position}",
+                    }
+                    for reaction_id in parquet.DatasetView(source).iter_reaction_ids()
+                ],
+                schema=history.INDEX_SCHEMA,
+            ),
+            [sha],
+        )
+        arrived = root / "first_commits" / source.name
+        arrived.parent.mkdir(parents=True, exist_ok=True)
+        first_commits.write_first_commits(projected, arrived, index=index)
+        derived["first_commits"].append(arrived)
         for level in sorted(pivot.LEVELS):
             pivoted = root / "pivots" / level / source.name
             pivoted.parent.mkdir(parents=True, exist_ok=True)

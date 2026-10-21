@@ -5,18 +5,23 @@ reactions as opaque wire-format bytes, so any question about them costs a full
 deserialization. A **derived artifact** restates those same reactions in a shape some
 consumer can read cheaply. It adds no information, which is the whole discipline here: an
 artifact is *wrong* if it disagrees with its source, and *stale* if its source has moved
-on. Both have to be detectable without reading a single column of data.
+on. Both have to be detectable without reading a single column of data. One artifact
+reads something besides its source: `first_commits`, from ord-data's git history, which
+carries a stamp of that history too; see [First commits](#first-commits).
 
-Four artifacts, derived in a chain:
+Five artifacts, derived in a chain:
 
 ```mermaid
 flowchart LR
     D["source dataset<br/>ord-data, wire-format bytes"] --> P["<b>projection</b><br/>every field, as nested Parquet"]
     P --> S["<b>structures</b><br/>one row per distinct molecule<br/>fingerprints + serialized mol"]
+    P --> F["<b>first_commits</b><br/>one row per reaction<br/>its first commit to ord-data"]
+    H["ord-data's git history<br/>index of first commits"] --> F
     P --> V["<b>pivot</b><br/>one row per element of<br/>one repeated level"]
     V --> O["<b>occurrences</b><br/>one row per structure occurrence<br/>at one indexed path"]
     S -.->|"paired by source dataset"| C["ord_schema.search.Corpus"]
     P -.-> C
+    F -.->|"read only by a query<br/>naming first_commit"| C
     V -.-> C
     O -.-> C
 ```
@@ -25,6 +30,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | [`projection`](projection.py) | source dataset | every field of every message reachable from `Reaction`, as `STRUCT` / `LIST` / `MAP` | any query engine; the compiler in [`ord_schema.search`](../search/) |
 | [`structures`](structures.py) | projection | one row per distinct structure: `pattern_fp`, `morgan_fp`, `morgan_popcount`, `mol_binary`, keyed by `structure_id` | the screen and verify steps of substructure search |
+| [`first_commits`](first_commits.py) | projection | one row per reaction: its first commit to ord-data's `main`, that commit's time and offset, and the dataset it arrived in | a query naming `first_commit`, and no other |
 | [`pivot`](pivot.py) | projection × repeated level | one row per element, carrying `reaction_id`, the ordinal of every enclosing level, and the element's own non-repeated fields | `exists` and `forall` over the level, nested ones joined on the ordinals, rather than a filter over the projection's lists; per-reaction reductions such as a ranking by yield; `aggregate.over`, which reads nothing else; and the occurrences derivation |
 | [`occurrences`](occurrences.py) | pivot × indexed path | one row per structure occurrence: `reaction_id`, `structure_id` | the semi-join a structure query with no other element condition is routed to, as a view over the artifacts |
 
@@ -64,7 +70,9 @@ pins what each artifact holds when derived from two fixtures, so a change to an 
 fails there until someone decides which kind it is.
 
 A fifth, `ord.source_dataset_id`, is written only when the source records one, and is the
-only key not required to read stamps back.
+only key not required to read stamps back. A `first_commits` artifact also carries
+`ord.first_commits_version` and `ord.first_commits_head`, naming the index of ord-data's
+history it read; see [First commits](#first-commits).
 
 Rebuilding an artifact from the same source writes the same bytes, under any ord-schema
 release that leaves its definition alone, until pyarrow or DuckDB changes: every Parquet
@@ -100,7 +108,7 @@ each match:
   source tree maps one dataset onto a *different* one, which a per-source check passes
   while destroying a source the run has not reached yet.
 
-Four scripts wrap it, in dependency order:
+Five scripts wrap it, in dependency order:
 
 ```bash
 python -m ord_schema.artifacts.scripts.derive_projection \
@@ -108,6 +116,10 @@ python -m ord_schema.artifacts.scripts.derive_projection \
 
 python -m ord_schema.artifacts.scripts.derive_structures \
     --input_pattern='projections/*/*.parquet' --output_dir=structures
+
+python -m ord_schema.artifacts.scripts.derive_first_commits \
+    --input_pattern='projections/*/*.parquet' --output_dir=first_commits \
+    --index=first_commits_index.parquet
 
 python -m ord_schema.artifacts.scripts.derive_pivots \
     --input_pattern='projections/*/*.parquet' --output_dir=pivots \
@@ -122,7 +134,81 @@ Each takes `--force` to rewrite what is already current. `derive_pivots` default
 the levels it does is the cheaper run — and `derive_occurrences --print_levels` names the
 four it reads, which is why the command above asks it rather than spelling them.
 `derive_occurrences` covers every path a structure can sit at, which is not a choice: a
-path left out is one whose structures no query can find.
+path left out is one whose structures no query can find. `derive_first_commits` reads the
+index `index_first_commits` walks out of ord-data's history; see
+[First commits](#first-commits).
+
+## First commits
+
+A record says when its depositor created it, not when it entered ORD's public corpus. The
+submission pipeline's own `record_modified` event can precede the merge by days, so the
+answer comes from ord-data's git history instead. It is not in the record, so it is not in
+the projection either, which restates the record: the
+[`first_commits`](first_commits.py) artifact carries it, one row per reaction, beside the
+projection it derives from. A query names it as `first_commit`:
+
+| field | holds |
+| --- | --- |
+| `sha` | the first commit on ord-data's `main`, followed by first parent, whose version of a dataset file under `data/` held the reaction's ID |
+| `timestamp` | that commit's committer date as git recorded its wall clock, naive, like every projected time |
+| `utc_offset_minutes` | the offset git recorded with it, in minutes east of UTC |
+| `dataset_id` | the dataset whose file held it then, which need not be the one holding it now |
+
+First parent, because early submissions merged in two steps and a reaction entered the
+corpus when the second reached `main`. Every version of every file, because a file's own
+first commit is not the answer: every dataset has been rewritten into another format at
+least once, and USPTO has been resharded more than once. Per reaction, because a dataset
+updated later holds reactions that arrived at different commits.
+
+A reaction whose ID a migration reassigned first appears under its current ID at that
+migration, since nothing in either file links the two IDs. ord-data holds two:
+
+- The Nanomole flow dataset, merged in ord-data#41, was deleted and re-added under new
+  IDs as `ord_dataset-68cb8b4b2b384e3d85b5b1efae58b203` in #73.
+- The USPTO grants merged in #66 through #69 were removed in #149 and re-added under new
+  IDs by the reshard in #151, #153, and #155. Their first commits are December 2022.
+
+[`index_first_commits`](scripts/index_first_commits.py) walks the history
+([`history`](history.py)) into an index holding every reaction ID `main` has held,
+current or not, with the chain of commits it walked. History only grows, so an existing
+index is extended from its head and only the commits since are read; `--rebuild` starts
+from the root, which an index walked under another `history.VERSION`, or along a chain
+the branch no longer holds, needs. Each version is read for its reaction and dataset IDs
+alone, through a two-field message that parses any version of a `Dataset`, so text
+written under a retired schema still reads.
+
+The walk needs the whole history as committed: it refuses a shallow clone, whose oldest
+commit would read as where every reaction it holds arrived, and a grafts file, and it
+ignores replace refs. It reads only LFS objects already fetched. The Hugging Face mirror
+ord-data's `.lfsconfig` points at holds no object older than October 2024, nor every one
+since, while GitHub's LFS store holds them all, so the first walk on a machine fetches
+from there once:
+
+```bash
+git -C ord-data -c lfs.url=https://github.com/open-reaction-database/ord-data.git/info/lfs \
+    lfs fetch origin $(git -C ord-data rev-list --first-parent main)
+```
+
+[`derive_first_commits`](scripts/derive_first_commits.py) looks up each projection's
+reactions in the index and stamps the artifact with the index's walk version and head. An
+artifact stays current while its stamped head is on the chain the index walked: an index
+only appends, so the first commit it gives a reaction never changes, and a new ord-data
+commit leaves every artifact current. One stamped with a head the chain does not hold
+derives again, in seconds for the whole corpus, and no projection is touched. A projection
+holding a reaction the index lacks refuses, since a missing first commit would read as a
+reaction ord-data never held.
+
+A `Corpus` given `first_commits_pattern` pairs one artifact with every projection or
+refuses, and reads them only for a query naming `first_commit`; every other query reads
+what it would without them. The compiler turns the filters a conjunction places on
+`first_commit` into one semi-join, and grouping, measuring, or ordering by it into a join
+on `reaction_id`; see [the search README](../search/README.md#first-commits).
+
+Measured on 2026-10-20 over ord-data at `7048706`, 135 first-parent commits: the full
+walk read 1,264 LFS objects (7.0 GB) and 285 MB of blobs stored in git in 46 seconds, at a
+5.5 GB peak resident set, the largest single `.pb.gz` alone reaching 2.6 GB. The index
+holds 4,205,068 reaction IDs, 2,428,291 of them current, in 71 MB. The artifacts for the
+93-dataset corpus hold 41 MiB and derive in 10 seconds.
 
 ## Published builds
 

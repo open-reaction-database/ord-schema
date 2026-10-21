@@ -20,7 +20,9 @@ predicate-free `SELECT *`. Entries can be added to that blacklist, but it never 
 So the model emits a `Query` instead, and the library compiles it. The grammar has one
 relation, no join, no recursion, and no set-returning function, which means the worst program
 expressible in it is **one pass over the corpus plus a sort**. Expensive queries are not
-discouraged; they are unwritable.
+discouraged; they are unwritable. Where the compiler reads another relation — a pivot, the
+occurrence index, the first commits — it is a semi-join or a one-to-one join on
+`reaction_id`, never a product.
 
 The same move settles two other things SQL leaves to whoever writes it:
 
@@ -209,8 +211,8 @@ else:
 
 ```mermaid
 flowchart TB
-    Q["Query, as JSON"] --> V["validate against projection.SCHEMA<br/>paths, leaf types, quantifiers"]
-    V --> C["compile to one SQL statement<br/>one relation, no join, no recursion"]
+    Q["Query, as JSON"] --> V["validate against query.SCHEMA<br/>paths, leaf types, quantifiers"]
+    V --> C["compile to one SQL statement<br/>no product, no recursion"]
     C --> S["structure predicates<br/>compound names → resolvers → SMILES<br/>RDKit screen → verify → bitmap"]
     C --> X["run on this search's own cursor"]
     S -- "bound parameters" --> X
@@ -248,6 +250,56 @@ in what they read. Worked examples, with the route each clause takes:
 Every pivot row above falls to the elements when the corpus holds no artifact for the
 level. The answer does not change; the query gets slower, and the log says which
 relations it read.
+
+## First commits
+
+`first_commit` — when a reaction first reached ord-data, which commit, and the dataset
+it arrived in — is part of the schema a model reads but not of the projection: it comes
+from ord-data's git history rather than the record, and lives in its own
+[`first_commits`](../artifacts/first_commits.py) artifact, one row per reaction. The
+corpus publishes those as a relation beside the projection, and the compiler reads it
+only for a query naming `first_commit`:
+
+| query | compiles to |
+| --- | --- |
+| anything not naming `first_commit` | exactly what it would without the artifact |
+| added to ORD in 2022 | `reactions.reaction_id IN (SELECT reaction_id FROM first_commits WHERE …)` |
+| above 350 K and added in 2022 | the same semi-join, holding both bounds, beside the projection's filter |
+| above 350 K or added since 2025 | a semi-join of its own inside the `OR` |
+| how many reactions arrived in each dataset | `FROM reactions JOIN first_commits USING (reaction_id)`, grouped |
+| the earliest arrival, or reactions ordered by arrival | the same join |
+
+Every filter a conjunction places on `first_commit` goes into one semi-join, since one
+per filter makes DuckDB build and probe a hash table for each. The subquery excludes a
+NULL `reaction_id`, as a pivot's does, so a `not` around it never meets the NULL that
+makes `NOT IN` answer NULL. A join is reserved for grouping, measuring, and ordering,
+which need the value on the row; it would otherwise run for every query, since DuckDB
+keeps a `LEFT JOIN` whose columns nothing reads. A corpus opened without
+`first_commits_pattern` refuses a query naming `first_commit`, and one opened with it
+pairs an artifact with every projection or refuses: with a dataset missing, a negated
+filter would answer as though its reactions matched.
+
+What reading them costs, measured on 2026-10-21 over the 93-dataset corpus with
+projections at 10,000 rows per row group, against the same projections carrying
+`first_commit` as a column, behind the same view and settings, median of 15 warm runs in
+each of three processes, DuckDB at 2 threads:
+
+| query | as a column | first_commits artifact |
+| --- | --- | --- |
+| above 350 K (does not name it) | 0.105 s | 0.104 s |
+| added in 2022, 1.8M reactions | 0.132 s | 0.227 s |
+| above 350 K and added in 2022 | 0.108 s | 0.140 s |
+| above 350 K or added since 2025 | 0.166 s | 0.212 s |
+| not added in 2022 | 0.098 s | 0.173 s |
+| how many reactions arrived in each dataset | 0.151 s | 0.244 s |
+| the earliest arrival | 0.039 s | 0.155 s |
+
+A query naming `first_commit` takes 1.3–1.8 times as long as it would reading a column,
+and a measure over the whole corpus such as the earliest arrival four times, since it
+joins every reaction to read one value. At 8 threads the same queries run 0.8–2.1 times
+as long, and the earliest arrival 3.5 times. Beyond what opening the corpus holds, a
+query reading the artifact peaks 0.2–0.7 GiB higher than one reading a column, most for a
+filter returning 1.8M reactions. Nothing else moves.
 
 ## Structure search
 
