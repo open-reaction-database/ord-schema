@@ -226,7 +226,7 @@ flowchart TB
     A["exists / forall over a repeated level"] --> B{"an exists whose body is one structure<br/>predicate on the element's own smiles<br/>and nothing else?"}
     B -- yes --> I["<b>occurrence index</b><br/>reaction_id IN (SELECT … FROM occurrences …)"]
     B -- no --> P{"does the body resolve against<br/>the pivot's pruned element,<br/>and does a pivot fit?"}
-    P -- yes --> V["<b>a pivot</b><br/>EXISTS (SELECT 1 FROM pivot_… AS x0 …)"]
+    P -- yes --> V["<b>a pivot</b><br/>reaction_id IN (SELECT … FROM pivot_… AS x0 …)"]
     P -- no --> E["<b>the elements</b><br/>list_filter over the nested column"]
 ```
 
@@ -313,9 +313,12 @@ for `warm` to do but check that the index reaches every structure the corpus hol
 The occurrence index answers a quantifier about a *structure* alone. A **pivot** answers
 one about anything else: one row per element of a repeated level, carrying `reaction_id`,
 the ordinal of every repeated level from the root down to that one, and the element's
-own fields with the repeated ones removed recursively. A quantifier over a covered level
-becomes `EXISTS (SELECT 1 FROM <pivot> AS x WHERE x.reaction_id = reactions.reaction_id
-AND …)`, and a `forall` the same with `NOT EXISTS` and the body negated.
+own fields with the repeated ones removed recursively. An `exists` over a covered level
+becomes `reaction_id IN (SELECT x.reaction_id FROM <pivot> AS x WHERE …)`, which DuckDB
+plans as a plain hash semi-join, and a `forall` becomes `NOT EXISTS (SELECT 1 FROM
+<pivot> AS x WHERE x.reaction_id = reactions.reaction_id AND NOT (…))`. The `IN`
+subquery leaves out rows naming no reaction, so a `not` around an `exists` never meets
+the NULL that would make `NOT IN` answer NULL for every reaction.
 
 Two properties do the work. The pivot is **complete** — every element gets a row,
 including one whose fields are all NULL — which is what lets it answer `forall`, where

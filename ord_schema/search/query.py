@@ -1262,10 +1262,14 @@ def _pivoted(
     """Returns a semi-join standing for a quantifier, or None to leave it to the level.
 
     A pivot holds one row per element, so ``exists`` is a semi-join and ``forall`` is
-    the absence of a counterexample. Both are written as ``EXISTS`` rather than ``IN``:
-    a NULL ``reaction_id`` would make ``NOT IN`` answer NULL for every reaction and
-    return nothing, where ``NOT EXISTS`` answers the same on a corpus that has one and
-    on a corpus that does not.
+    the absence of a counterexample. An ``exists`` at the row is written as ``IN``,
+    which DuckDB plans as a plain hash semi-join where it plans a correlated ``EXISTS``
+    through a delimiter join; the subquery leaves out rows naming no reaction, so a
+    ``NOT`` around the condition never meets the NULL that would make ``NOT IN`` answer
+    NULL for every reaction and return nothing. A nested ``exists`` correlates on the
+    enclosing element's ordinals as well, and a ``forall`` is the absence of a
+    counterexample, so both are written as ``EXISTS``, which answers the same on a
+    corpus holding a NULL ``reaction_id`` and on one that does not.
 
     The body compiles against the element's *pruned* type, so a path reaching a field
     the pivot dropped -- anything repeated -- raises and this declines, leaving the
@@ -1318,6 +1322,13 @@ def _pivoted(
     # S608: the relation is named by this module's own walk of the schema, and every
     # fragment of the body is an expression resolved against that walk's element type.
     if routing.enclosing is None:
+        if node.op == "exists":
+            return (
+                f"{routing.table}.{pivot_levels.REACTION_ID} IN ("  # noqa: S608
+                f"SELECT {variable}.{pivot_levels.REACTION_ID} FROM {table} AS "
+                f"{variable} WHERE {variable}.{pivot_levels.REACTION_ID} IS NOT NULL "
+                f"AND {body})"
+            )
         correlation = [
             f"{variable}.{pivot_levels.REACTION_ID} = "
             f"{routing.table}.{pivot_levels.REACTION_ID}"
@@ -1340,9 +1351,8 @@ def _pivoted(
         f"SELECT 1 FROM {table} AS {variable} "  # noqa: S608
         f"WHERE {' AND '.join(correlation)} AND "
     )
-    if node.op == "exists":
-        return f"EXISTS ({inner}{body})"
-    return f"NOT EXISTS ({inner}NOT ({body}))"
+    condition = f"{inner}{body}" if node.op == "exists" else f"{inner}NOT ({body})"
+    return f"{'' if node.op == 'exists' else 'NOT '}EXISTS ({condition})"
 
 
 def _quantifier(
