@@ -7,8 +7,7 @@ Natural language search: privacy notice
    **DRAFT — not adopted, not in force.** Written to start a conversation, not
    to end one. Nothing described here is collected until this notice, or
    something it becomes, is published alongside a running natural-language
-   search. The maintainer notes at the bottom are not part of the notice and
-   should not be published with it.
+   search.
 
 ****************
 What this covers
@@ -26,9 +25,11 @@ What we keep
 
 Each time you ask a question, we record:
 
-- **Your question**, as you typed it.
+- **Your question**, as you typed it, and when you asked it.
+- **Any structure you draw or paste** into it.
 - **The query it was translated into**, including any attempt that failed and
-  the error that rejected it.
+  the error that rejected it, and the structure each compound name in it was
+  matched to.
 - **How it ended** — answered, matched nothing, refused, failed — and how many
   reactions came back.
 - **What it cost**: which model translated, how many tokens it used, and how
@@ -71,20 +72,30 @@ identifies you:
 - **No cookie or mark that survives your visit.** Two visits by the same person
   are two unrelated sets of records to us, and we have no way to connect them.
 
-**************************************
-Your question goes to a model provider
-**************************************
+***************************
+Who else sees your question
+***************************
 
-Translating your question means sending it to a third-party model provider,
-which is how the search works at all. What they do with it is governed by their
-terms, which we link to from the search page.
+Translating your question means sending it to `Anthropic
+<https://www.anthropic.com>`__, whose model writes the query; that is how the
+search works at all. What Anthropic does with it is governed by its `Commercial
+Terms of Service <https://www.anthropic.com/legal/commercial-terms>`__. A
+structure you draw or paste is not sent to Anthropic: the model sees only a
+placeholder standing in for it, and the structure itself is used only in our own
+search.
+
+When the query names a compound, we look up that name — the name alone, not your
+question — with public chemical name services: `PubChem
+<https://pubchem.ncbi.nlm.nih.gov>`__, the NCI/CADD `Chemical Identifier
+Resolver <https://cactus.nci.nih.gov/chemical/structure>`__, and `OPSIN
+<https://www.ebi.ac.uk/opsin/>`__, in that order until one answers.
 
 **Please do not type anything into the search that you would not want recorded,
-read by us, or published.** A question can be interesting to us — and to other
-researchers — without being about anything you need to keep private, and
-questions here are about chemistry. If a question would name a colleague, an
-unpublished program, a customer, or a compound you are not ready to disclose,
-please ask it a different way.
+read by us, sent to the services above, or published.** A question can be
+interesting to us — and to other researchers — without being about anything you
+need to keep private, and questions here are about chemistry. If a question
+would name a colleague, an unpublished program, a customer, or a compound you
+are not ready to disclose, please ask it a different way.
 
 We do not filter what you type, and you should not rely on us to. Note also that
 the database itself contains submitters' names, organizations, and email
@@ -131,13 +142,17 @@ How we would publish
 How long we keep it
 *******************
 
-Questions and their translations are held for a limited period and then deleted
-automatically. The aggregate measurements derived from them — outcomes, timings,
-costs, and the queries themselves — are kept longer, because that is what the
-analysis runs on and it says nothing about who asked.
+Your question, the answer we wrote, and any comment you left with your feedback
+are deleted automatically **one year** after you ask.
 
-Retention periods are stated on the search page and are set to the shortest
-period that serves the purposes above.
+We also keep a redacted copy that leaves those three out and keeps everything
+else: the outcome, timings, costs, versions, session identifier, your thumbs up
+or down, and the translated query with the compound names and structures it
+searched for. That copy is what the analysis runs on, and it is deleted
+automatically **five years** after you ask. The translated query carries
+whatever compounds, people, or other terms your question named, so the redacted
+copy is not anonymous in the way a count is — one more reason not to type what
+you would not want kept.
 
 ***************
 Who can read it
@@ -157,7 +172,7 @@ visit, we generally **cannot find your records** — which is a consequence of
 collecting so little, not a refusal. We are not able to identify you from what
 we hold, so the rights that depend on identifying you do not attach to these
 records. If you can describe a question closely enough that we could locate it,
-write to us at the address on the search page and we will consider what we can
+write to us at help@open-reaction-database.org and we will consider what we can
 do.
 
 Under the GDPR we rely on our legitimate interests in operating and improving a
@@ -171,4 +186,5 @@ Changes
 
 We may update this notice. Changes take effect when they are posted here.
 
-**Effective date:** *(not yet in force)* **Contact:** *(to be filled in)*
+| **Effective date:** *(not yet in force)*
+| **Contact:** help@open-reaction-database.org
