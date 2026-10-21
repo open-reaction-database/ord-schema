@@ -1726,27 +1726,42 @@ def _history_clause(
     )
 
 
+def _row_paths(query: "Query") -> list["str | Reduction"]:
+    """Returns what grouping, measuring, and ordering read, each reduction as written.
+
+    An aggregated query orders by a measure's name or a group_by path, and the group_by
+    paths are among these already, so its ordering adds none: a measure may be named
+    first_commit.
+
+    Args:
+        query: The query being compiled.
+
+    Returns:
+        The group_by paths and measures' paths of an aggregated query, or the ordering
+        keys of one that is not.
+    """
+    paths: list[str | Reduction] = []
+    if query.aggregate is not None:
+        paths.extend(query.aggregate.group_by)
+        paths.extend(
+            measure.path
+            for measure in query.aggregate.measures
+            if measure.path is not None
+        )
+    else:
+        paths.extend(order.key for order in query.order_by)
+    return paths
+
+
 def _reads_history_beyond_where(query: "Query") -> bool:
     """Returns whether grouping, measuring, or ordering reads a first commit.
 
     Each of those needs a first commit on the row itself, which a semi-join cannot put
     there, so the query reads the first commits joined to the reactions instead.
     """
-    paths: list[str] = []
-    if query.aggregate is not None:
-        paths.extend(query.aggregate.group_by)
-        paths.extend(
-            measure.path
-            for measure in query.aggregate.measures
-            if isinstance(measure.path, str)
-        )
-    else:
-        # An aggregated query orders by a measure's name or a group_by path, and the
-        # group_by paths are above: a measure may be named first_commit.
-        paths.extend(
-            order.key for order in query.order_by if isinstance(order.key, str)
-        )
-    return any(_is_history_path(path) for path in paths)
+    return any(
+        isinstance(path, str) and _is_history_path(path) for path in _row_paths(query)
+    )
 
 
 def _reads_history_alone(query: "Query") -> bool:
@@ -1765,7 +1780,13 @@ def _reads_history_alone(query: "Query") -> bool:
         ``reaction_id``, every clause of ``where`` is a comparison or null check under
         ``and``, ``or``, and ``not``, and nothing is reduced or grouped over a level.
     """
-    paths: list[str] = []
+    if query.aggregate is not None and query.aggregate.over is not None:
+        return False
+    row = _row_paths(query)
+    paths = [path for path in row if isinstance(path, str)]
+    if len(paths) < len(row):
+        # A reduction crosses a repeated level, which only the projection holds.
+        return False
     pending = [] if query.where is None else [query.where]
     while pending:
         node = pending.pop()
@@ -1777,21 +1798,6 @@ def _reads_history_alone(query: "Query") -> bool:
             paths.append(node.path)
         else:
             return False
-    if query.aggregate is not None:
-        if query.aggregate.over is not None:
-            return False
-        paths.extend(query.aggregate.group_by)
-        for measure in query.aggregate.measures:
-            if isinstance(measure.path, Reduction):
-                return False
-            if measure.path is not None:
-                paths.append(measure.path)
-    else:
-        # An aggregated query orders by its own output columns, which name no path.
-        for order in query.order_by:
-            if isinstance(order.key, Reduction):
-                return False
-            paths.append(order.key)
     return any(_is_history_path(path) for path in paths) and all(
         _is_history_path(path) or path == pivot_levels.REACTION_ID for path in paths
     )

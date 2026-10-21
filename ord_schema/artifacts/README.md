@@ -198,13 +198,13 @@ derives again, in seconds for the whole corpus, and no projection is touched. A 
 holding a reaction the index lacks refuses, since a missing first commit would read as a
 reaction ord-data never held.
 
-A `Corpus` given `first_commits_pattern` pairs one artifact with every projection or
-refuses, refuses artifacts naming a reaction other than their projection's, and reads them
-only for a query naming `first_commit`; every other query reads what it would without
-them. A query reading nothing but `first_commit` and `reaction_id` reads the artifacts
-alone. Otherwise the compiler turns the filters a conjunction places on `first_commit`
-into one semi-join, and grouping, measuring, or ordering by it into a join on
-`reaction_id`; see [the search README](../search/README.md#first-commits).
+A `Corpus` given `first_commits_pattern` refuses unless one artifact pairs with every
+projection and the artifacts name only reactions the corpus holds. It reads them only for
+a query naming `first_commit`; every other query reads what it would without them. A query
+reading nothing but `first_commit` and `reaction_id` reads the artifacts alone. Otherwise
+the compiler turns the filters a conjunction places on `first_commit` into one semi-join,
+and grouping, measuring, or ordering by it into a join on `reaction_id`; see [the search
+README](../search/README.md#first-commits).
 
 Measured on 2026-10-20 over ord-data at `7048706`, 135 first-parent commits: the full
 walk read 1,264 LFS objects (7.0 GB) and 285 MB of blobs stored in git in 46 seconds, at a

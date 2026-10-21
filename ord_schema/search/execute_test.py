@@ -6268,6 +6268,19 @@ class TestFirstCommitsAlone:
                 joined.to_pylist(), key=repr
             )
 
+    def test_orders_by_a_measure_named_like_them(self, history_corpus):
+        # The measure's alias shadows the first_commit column, and the ordering has to
+        # bind the alias: by the column, it would not bind at all beside a GROUP BY.
+        answer = history_corpus.search(
+            query.Query.model_validate(
+                _ARRIVAL_QUESTIONS["commits by how many reactions they brought"]
+            )
+        )
+        assert answer.to_pylist() == [
+            {"first_commit.sha": "b" * 40, "first_commit": 2},
+            {"first_commit.sha": "a" * 40, "first_commit": 1},
+        ]
+
     def test_a_question_naming_the_projection_too_reads_it(
         self, history_corpus, caplog
     ):

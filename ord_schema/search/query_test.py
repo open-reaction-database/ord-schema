@@ -2926,8 +2926,9 @@ class TestFirstCommitsAlone:
         assert compiled.sql == expected
         sql.validate(compiled.sql, parameters=compiled.literals)
 
-    def test_a_measure_named_like_it_is_no_path_to_it(self):
-        # An aggregated query orders by its output columns: this key names the measure.
+    def test_orders_by_a_measure_named_like_it_through_its_alias(self):
+        # An aggregated query orders by its output columns, so this key names the
+        # measure, quoted as the SELECT aliased it, beside a column it shadows.
         compiled = _compile(
             {
                 "aggregate": {
@@ -2937,7 +2938,11 @@ class TestFirstCommitsAlone:
                 "order_by": [{"key": "first_commit", "descending": True}],
             }
         )
-        assert " FROM first_commits GROUP BY 1 " in compiled.sql
+        assert compiled.sql == (
+            'SELECT first_commit.dataset_id AS "first_commit.dataset_id", '
+            'count(*) AS "first_commit" FROM first_commits GROUP BY 1 '
+            'ORDER BY "first_commit" DESC'
+        )
         sql.validate(compiled.sql, parameters=compiled.literals)
 
     @pytest.mark.parametrize(
