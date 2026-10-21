@@ -1767,10 +1767,10 @@ def _reads_history_beyond_where(query: "Query") -> bool:
 def _reads_history_alone(query: "Query") -> bool:
     """Returns whether a query reads first commits and reaction IDs and nothing else.
 
-    The first commits hold one row per reaction, keyed by ``reaction_id`` -- what
-    ``compile_query`` requires of ``history`` -- so such a query has the same answer
-    over them as over the reactions they would be joined or semi-joined to, without
-    reading the projection.
+    The first commits hold one whole first commit per reaction, keyed by
+    ``reaction_id`` -- what ``compile_query`` requires of ``history`` -- so such a query
+    has the same answer over them as over the reactions they would be joined or
+    semi-joined to, without reading the projection.
 
     Args:
         query: The query being compiled.
@@ -2261,10 +2261,12 @@ def compile_query(
             ``exists``.
         history: Relation holding each reaction's first commit, keyed by
             ``reaction_id``; ``HISTORY_TABLE`` by default. It has to hold one row for
-            each reaction in ``table`` and no other. Read only by a query naming
-            ``first_commit``: one reading nothing besides ``reaction_id`` reads it
-            alone; otherwise a filter on it is a semi-join, and grouping, measuring, or
-            ordering by it joins it to ``table``. None refuses such a query.
+            each reaction in ``table`` and no other, with no field of ``first_commit``
+            NULL: a ``not`` over a NULL holds of the reaction through a semi-join and
+            not on a row carrying it, so the routes would disagree. Read only by a query
+            naming ``first_commit``: one reading nothing besides ``reaction_id`` reads
+            it alone; otherwise a filter on it is a semi-join, and grouping, measuring,
+            or ordering by it joins it to ``table``. None refuses such a query.
         max_rows: Most rows the SQL may return, applied whether or not the query asked
             for a limit and clamping one that asks for more. The grammar leaves
             ``limit`` optional, and a query without one returns every matching

@@ -1199,12 +1199,12 @@ class Corpus:
                 projection's source is not among them, or one restates a dataset no
                 projection does. With ``warm``, also whatever publishing the occurrence
                 index and building the substructure library refuse: a corpus stating a
-                reaction twice, first commits naming a reaction other than its own, one
-                whose occurrence artifacts do not reach every structure it holds, one
-                whose IDs are not every integer from zero, or pivot or occurrence
-                artifacts that belong to another corpus or carry a structure ID their
-                dataset does not hold, all of which otherwise surface on the first query
-                that wants what refused them rather than at open.
+                reaction twice, first commits naming a reaction other than its own or
+                leaving a field NULL, one whose occurrence artifacts do not reach every
+                structure it holds, one whose IDs are not every integer from zero, or
+                pivot or occurrence artifacts that belong to another corpus or carry a
+                structure ID their dataset does not hold, all of which otherwise surface
+                on the first query that wants what refused them rather than at open.
             ValueError: If ``max_rows`` is less than one, which is a bound no query can
                 satisfy rather than a small one; if ``require_pivots`` is set without a
                 ``pivots_dir``; or if ``require_occurrences`` is set without an
@@ -1403,7 +1403,7 @@ class Corpus:
             self._unique_checked = True
 
     def _require_one_first_commit_each(self) -> None:
-        """Refuses first commits naming any reaction but the corpus's own, checked once.
+        """Refuses first commits other than one whole commit per reaction, checked once.
 
         Pairing holds each first_commits artifact to its projection's count of rows,
         which an artifact edited after it was written keeps while naming other
@@ -1411,14 +1411,16 @@ class Corpus:
         does not hold, or one twice; semi-joined, a reaction with none would read as
         never having arrived. With the corpus stating each reaction once and the counts
         equal, a first commit for every reaction leaves none over, so an anti-join
-        settles it. Costs a scan of both relations' IDs and a hash table over the
-        first commits'.
+        settles it. A field left NULL, which no derivation writes, would let the
+        routes disagree: a ``not`` over it holds through a semi-join and fails on a row
+        carrying the field. Costs a scan of both relations' IDs, a hash table over the
+        first commits', and a scan of the first commits.
 
         Raises:
             PairingError: If a reaction is stated more than once, as
-                ``_require_unique_reactions`` refuses, or has no first commit. The
-                reason is kept and re-raised, since a corpus does not change under an
-                open ``Corpus``.
+                ``_require_unique_reactions`` refuses, has no first commit, or has one
+                with a field left NULL. The reason is kept and re-raised, since a corpus
+                does not change under an open ``Corpus``.
         """
         self._require_unique_reactions()
         with self._first_commits_lock:
@@ -1426,6 +1428,14 @@ class Corpus:
                 raise PairingError(self._first_commits_refused)
             if self._first_commits_checked:
                 return
+            fields = [
+                field.name
+                for field in first_commits.SCHEMA.field(first_commits.COLUMN).type
+            ]
+            # A NULL first_commit reads as NULL in every field.
+            left_out = " OR ".join(
+                f"{first_commits.COLUMN}.{name} IS NULL" for name in fields
+            )
             # Its own cursor: this runs while searches are in flight.
             cursor = self._connection.cursor()
             try:
@@ -1434,17 +1444,35 @@ class Corpus:
                     f"ANTI JOIN {query.HISTORY_TABLE} USING (reaction_id) "
                     "ORDER BY reaction_id LIMIT 1"
                 ).fetchone()
+                partial = cursor.execute(
+                    f"SELECT reaction_id, {first_commits.COLUMN} "  # noqa: S608
+                    f"FROM {query.HISTORY_TABLE} WHERE {left_out} "
+                    "ORDER BY reaction_id LIMIT 1"
+                ).fetchone()
             finally:
                 cursor.close()
             if missing is not None:
-                self._first_commits_refused = (
+                refusal = (
                     f"reaction {missing[0]} has no first commit, though the "
                     "first_commits artifacts hold as many rows as the projections, so "
                     "some name another reaction; derive them from these projections "
                     "again"
                 )
-                raise PairingError(self._first_commits_refused)
-            self._first_commits_checked = True
+            elif partial is not None:
+                reaction_id, commit = partial
+                absent = [
+                    name for name in fields if commit is None or commit[name] is None
+                ]
+                refusal = (
+                    f"reaction {reaction_id} has a first commit without its "
+                    f"{', '.join(absent)}, which no derivation leaves out; derive the "
+                    "first_commits artifacts again"
+                )
+            else:
+                self._first_commits_checked = True
+                return
+            self._first_commits_refused = refusal
+            raise PairingError(refusal)
 
     def _prepare(
         self, pairs: list[tuple[str, str, str, str | None]]
@@ -2698,7 +2726,7 @@ class Corpus:
                 occurrence index refuses the corpus -- a reaction stated by more than
                 one row, or a structure no indexed path reaches; or, for a query
                 reading the first commits, if they name a reaction other than the
-                corpus's own.
+                corpus's own or leave a field NULL.
             TimeoutError: If the search exceeds ``timeout_seconds``, naming the phase
                 that was running when the bound passed.
         """

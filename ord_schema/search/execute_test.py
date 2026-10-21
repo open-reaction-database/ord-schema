@@ -6181,6 +6181,40 @@ class TestFirstCommitsPairing:
                 with pytest.raises(execute.PairingError, match=refused):
                     _search(value, {"op": "and", "clauses": _ADDED_IN_2022})
 
+    @pytest.mark.parametrize(
+        "left_out",
+        [*(field.name for field in history.TYPE), None],
+        ids=[*(field.name for field in history.TYPE), "the whole commit"],
+    )
+    def test_refuses_a_first_commit_missing_a_field(
+        self, corpus_dir, tmp_path, left_out
+    ):
+        # The derivation writes every field, and a semi-join and a row carrying the
+        # field would answer a negation over a NULL one differently.
+        pattern = _write_first_commits(corpus_dir, tmp_path / "first_commits")
+        edited = tmp_path / "first_commits" / "ord_dataset-aa.parquet"
+        table = pq.read_table(edited)
+        rows = table.to_pylist()
+        for row in rows:
+            if row["reaction_id"] == "ord-aa02":
+                if left_out is None:
+                    row["first_commit"] = None
+                else:
+                    row["first_commit"][left_out] = None
+        pq.write_table(pa.Table.from_pylist(rows, schema=table.schema), edited)
+        absent = (
+            ", ".join(field.name for field in history.TYPE)
+            if left_out is None
+            else left_out
+        )
+        with pytest.raises(
+            execute.PairingError,
+            match=re.escape(
+                f"reaction ord-aa02 has a first commit without its {absent},"
+            ),
+        ):
+            _open(corpus_dir, resolver={}.__getitem__, first_commits_pattern=pattern)
+
 
 # Questions about arrivals and reaction IDs and nothing else, which the first commits
 # answer without the projection.

@@ -286,13 +286,16 @@ A corpus opened without `first_commits_pattern` refuses a query naming `first_co
 One opened with it pairs an artifact holding as many rows with every projection, or
 refuses: with a dataset missing, a negated filter would answer as though its reactions
 matched. It also refuses first commits naming a reaction other than its own, which an
-artifact edited after it was written can do with its count and stamps intact; read
-alone, they would count a reaction the corpus does not hold. That is one anti-join of
-the reactions against the first commits, run beside the check that the corpus states
-each reaction once: at open, or with `warm=False` before the first query reading them.
-Measured on 2026-10-21 over the 93-dataset corpus in a container capped at 12 GiB with
-swap off, it took 0.12–0.13 s, and a warm open peaked at 4.11–4.16 GiB with it against
-4.09–4.15 GiB without, since building the substructure library sets that peak.
+artifact edited after it was written can do with its count and stamps intact, and a first
+commit with a field left NULL, which no derivation writes. Read alone, the first commits
+would otherwise count a reaction the corpus does not hold, and a `not` over a NULL field
+holds through a semi-join but not on a row carrying it. That is one anti-join of the
+reactions against the first commits and one scan of the first commits, run beside the
+check that the corpus states each reaction once: at open, or with `warm=False` before
+the first query reading them. Measured on 2026-10-21 over the 93-dataset corpus in a
+container capped at 12 GiB with swap off, it took 0.17–0.18 s, and over five warm opens
+each the peak was 4.14–4.15 GiB with it against 4.08–4.15 GiB without, since building
+the substructure library sets that peak.
 
 What reading them costs, measured on 2026-10-21 over the 93-dataset corpus with
 projections at 10,000 rows per row group, median of 15 warm runs in each of three
