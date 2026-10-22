@@ -80,18 +80,18 @@ from rdkit.Chem import rdChemReactions
 
 # Aliased because ``pivot`` is the parameter name a caller passes an index under, and a
 # module shadowed inside the function that needs it is a bug waiting for an edit.
-from ord_schema.artifacts import first_commits, history, projection
+from ord_schema.artifacts import arrivals, history, projection
 from ord_schema.artifacts import pivot as pivot_levels
 
 # The relation a compiled query reads: one row per reaction.
 TABLE = "reactions"
 
-# The relation over the first_commits artifacts, which a query reads only where it names
+# The relation over the arrivals artifacts, which a query reads only where it names
 # ``first_commit``: alone where the query reads nothing besides ``reaction_id``;
 # otherwise a filter on it is a semi-join, and grouping, measuring, or ordering by it
 # joins it to TABLE. Kept out of TABLE because a join there runs for every query,
 # reading it or not.
-HISTORY_TABLE = "first_commits"
+HISTORY_TABLE = "arrivals"
 
 # The per-row column mapping a dataset-local structure_id into the corpus-wide ID
 # space a bitmap parameter is indexed by. Supplied by the executor's relation and
@@ -111,7 +111,7 @@ TABLE_SCHEMA = projection.SCHEMA.append(pa.field(DATASET_ID, pa.string()))
 # What a query may name: TABLE's columns and each reaction's first commit, which
 # HISTORY_TABLE holds. What resolve() and compile_query() resolve paths against, and
 # what schema.describe() tells a model.
-SCHEMA = TABLE_SCHEMA.append(pa.field(first_commits.COLUMN, history.TYPE))
+SCHEMA = TABLE_SCHEMA.append(pa.field(arrivals.COLUMN, history.TYPE))
 
 # A literal as the caller binds it: one of the grammar's scalars, or the day a string
 # names where it is compared against a date or timestamp column.
@@ -1654,9 +1654,11 @@ def _predicate(
         if isinstance(node, And) and scope is None:
             # Every first_commit clause of a conjunction in one semi-join, since one
             # per clause makes DuckDB build and probe a hash table for each.
-            arrivals = [clause for clause in clauses if _names_history(clause)]
-            if arrivals:
-                compiled.append(_history_clause(arrivals, schema, parameters, routing))
+            on_history = [clause for clause in clauses if _names_history(clause)]
+            if on_history:
+                compiled.append(
+                    _history_clause(on_history, schema, parameters, routing)
+                )
                 clauses = [clause for clause in clauses if not _names_history(clause)]
         compiled.extend(
             _predicate(clause, scope, schema, parameters, depth, routing)
@@ -1685,14 +1687,14 @@ def _predicate(
 
 def _is_history_path(path: str) -> bool:
     """Returns whether ``path`` names a reaction's first commit."""
-    return path.split(".", 1)[0] == first_commits.COLUMN
+    return path.split(".", 1)[0] == arrivals.COLUMN
 
 
 def _names_history(node: Any) -> bool:
     """Returns whether ``node`` is a leaf clause on a reaction's first commit.
 
     Only a comparison or a null check names one: their path is the only column they
-    read, compared against a literal, so the clause reads the first_commits artifact and
+    read, compared against a literal, so the clause reads the arrivals artifact and
     nothing else.
     """
     return isinstance(node, Comparison | NullCheck) and _is_history_path(node.path)
@@ -1707,7 +1709,7 @@ def _history_clause(
         clauses: Comparisons and null checks on ``first_commit`` paths.
         schema: The schema the paths resolve within, holding ``first_commit``.
         parameters: What the compilation binds so far, appended to.
-        routing: Where the first commits are; see ``_Routing``.
+        routing: Where the arrivals are; see ``_Routing``.
 
     Returns:
         The clauses as one condition on the row. Read in place where the row carries
@@ -1717,11 +1719,11 @@ def _history_clause(
         answer NULL for every row.
 
     Raises:
-        QueryError: If the corpus holds no first commits, or a path does not resolve.
+        QueryError: If the corpus holds no arrivals, or a path does not resolve.
     """
     if routing.history is None:
         raise QueryError(
-            f"{clauses[0].path}: this corpus holds no first commits, so when a "
+            f"{clauses[0].path}: this corpus holds no arrivals, so when a "
             "reaction reached ord-data cannot be asked of it"
         )
     conditions = [
@@ -1771,7 +1773,7 @@ def _reads_history_beyond_where(query: "Query") -> bool:
     """Returns whether grouping, measuring, or ordering reads a first commit.
 
     Each of those needs a first commit on the row itself, which a semi-join cannot put
-    there, so the query reads the first commits joined to the reactions instead.
+    there, so the query reads the arrivals joined to the reactions instead.
     """
     return any(
         isinstance(path, str) and _is_history_path(path) for path in _row_paths(query)
@@ -1781,7 +1783,7 @@ def _reads_history_beyond_where(query: "Query") -> bool:
 def _reads_history_alone(query: "Query") -> bool:
     """Returns whether a query reads first commits and reaction IDs and nothing else.
 
-    The first commits hold one whole first commit per reaction, keyed by
+    The arrivals hold one whole first commit per reaction, keyed by
     ``reaction_id`` -- what ``compile_query`` requires of ``history`` -- so such a query
     has the same answer over them as over the reactions they would be joined or
     semi-joined to, without reading the projection.
@@ -2316,15 +2318,15 @@ def compile_query(
         )
     parameters = _Parameters()
     element = _element_relation(query, table, pivot)
-    # A query reading nothing but first commits and reaction IDs reads the first commits
-    # by themselves. Otherwise grouping, measuring, or ordering by a first commit needs
-    # it on the row, so the query reads the first commits joined to the reactions; a
-    # filter on one is a semi-join, and every other query reads the reactions alone.
+    # A query reading nothing but first commits and reaction IDs reads the arrivals by
+    # themselves. Otherwise grouping, measuring, or ordering by a first commit needs it
+    # on the row, so the query reads the arrivals joined to the reactions; a filter on
+    # one is a semi-join, and every other query reads the reactions alone.
     alone = history is not None and _reads_history_alone(query)
     joined = not alone and element is None and _reads_history_beyond_where(query)
     if joined and history is None:
         raise QueryError(
-            "this corpus holds no first commits, so when a reaction reached ord-data "
+            "this corpus holds no arrivals, so when a reaction reached ord-data "
             "cannot be asked of it"
         )
     routing = _Routing(

@@ -26,8 +26,8 @@ from rdkit import rdBase
 
 from ord_schema import huggingface, message_helpers
 from ord_schema.artifacts import (
+    arrivals,
     base,
-    first_commits,
     occurrences,
     pivot,
     projection,
@@ -107,7 +107,7 @@ def _published(levels=("inputs", "inputs.components")):
         "README.md",
         f"projections/{shard}",
         f"structures/{shard}",
-        f"first_commits/{shard}",
+        f"arrivals/{shard}",
         f"occurrences/inputs.components/{shard}",
         *(f"pivots/{level}/{shard}" for level in levels),
     ]
@@ -173,7 +173,7 @@ def test_directories_cover_every_artifact():
     assert set(huggingface.ARTIFACT_DIRECTORIES) == {
         projection.ARTIFACT,
         structures.ARTIFACT,
-        first_commits.ARTIFACT,
+        arrivals.ARTIFACT,
         pivot.ARTIFACT,
         occurrences.ARTIFACT,
     }
@@ -217,7 +217,7 @@ class TestFetchArtifacts:
         assert {
             "projection": fetched.projections,
             "structures": fetched.structures,
-            "first_commits": fetched.first_commits,
+            "arrivals": fetched.arrivals,
             "pivot": fetched.pivots,
             "occurrences": fetched.occurrences,
         } == {

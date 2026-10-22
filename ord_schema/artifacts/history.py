@@ -18,7 +18,7 @@ A record says when its depositor created it and when the submission pipeline mod
 it, but not when it entered ORD's public corpus: the pipeline stamps its own
 ``record_modified`` event when it processes a submission, which can precede the merge
 by days. ord-data's history holds the answer, so this module walks it into an index,
-from which :mod:`ord_schema.artifacts.first_commits` derives one artifact per dataset.
+from which :mod:`ord_schema.artifacts.arrivals` derives one artifact per dataset.
 The fact stays out of the records, which hold what the depositor and the pipeline
 wrote, and out of the projection, which restates them.
 
@@ -98,7 +98,7 @@ logger = get_logger(__name__)
 # reads as stale.
 VERSION = "1"
 
-# What a first_commits artifact holds per reaction. The time is named as every projected
+# What an arrivals artifact holds per reaction. The time is named as every projected
 # time is:
 # the wall clock as written, and the offset it was written under in minutes east of UTC.
 TYPE = pa.struct(
@@ -119,11 +119,11 @@ INDEX_SCHEMA = pa.schema(
     ]
 )
 
-_META_VERSION = "ord.first_commits_version"
+_META_VERSION = "ord.arrivals_version"
 # In an index: every commit walked, oldest first, separated by spaces.
-_META_CHAIN = "ord.first_commits_chain"
-# In a first_commits artifact: the head of the index it was derived with.
-_META_HEAD = "ord.first_commits_head"
+_META_CHAIN = "ord.arrivals_chain"
+# In an arrivals artifact: the head of the index it was derived with.
+_META_HEAD = "ord.arrivals_head"
 
 # The footer key the Parquet datasets in ord-data's history record their ID under. Named
 # here rather than taken from ord_schema.parquet: what matters is what those versions
@@ -148,8 +148,8 @@ def _ids_message() -> type[Message]:
     # descriptor_pb2 is generated, and ships without the stubs a checker would read.
     field = descriptor_pb2.FieldDescriptorProto  # ty: ignore[unresolved-attribute]
     proto = descriptor_pb2.FileDescriptorProto(  # ty: ignore[unresolved-attribute]
-        name="ord_schema/artifacts/first_commits.proto",
-        package="ord_schema.first_commits",
+        name="ord_schema/artifacts/arrivals.proto",
+        package="ord_schema.arrivals",
         syntax="proto3",
     )
     reaction = proto.message_type.add(name="Reaction")
@@ -165,7 +165,7 @@ def _ids_message() -> type[Message]:
         number=3,
         type=field.TYPE_MESSAGE,
         label=field.LABEL_REPEATED,
-        type_name=".ord_schema.first_commits.Reaction",
+        type_name=".ord_schema.arrivals.Reaction",
     )
     dataset.field.add(
         name="dataset_id",
@@ -176,7 +176,7 @@ def _ids_message() -> type[Message]:
     pool = descriptor_pool.DescriptorPool()  # ty: ignore[possibly-missing-implicit-call]
     pool.Add(proto)
     return message_factory.GetMessageClass(
-        pool.FindMessageTypeByName("ord_schema.first_commits.Dataset")
+        pool.FindMessageTypeByName("ord_schema.arrivals.Dataset")
     )
 
 
@@ -247,7 +247,7 @@ class Index:
         derived from a history that has since been rewritten.
 
         Args:
-            path: A first_commits artifact. Need not exist.
+            path: An arrivals artifact. Need not exist.
 
         Returns:
             Whether its stamp names this walk version and a commit on this chain. A
@@ -261,7 +261,7 @@ def read_stamp(path: str | os.PathLike[str]) -> tuple[str, str] | None:
     """Returns the walk version and index head an artifact was derived with.
 
     Args:
-        path: A first_commits artifact.
+        path: An arrivals artifact.
 
     Returns:
         ``(version, head)``, or None where ``path`` carries no index stamp: derived
@@ -311,7 +311,7 @@ def read_index(path: str | os.PathLike[str]) -> Index:
     version = metadata.get(_META_VERSION.encode())
     chain = metadata.get(_META_CHAIN.encode())
     if version is None or chain is None:
-        raise ValueError(f"{path} is not a first-commits index")
+        raise ValueError(f"{path} is not an arrivals index")
     if version.decode() != VERSION:
         raise ValueError(
             f"{path} was walked under version {version.decode()}, not {VERSION}; walk "

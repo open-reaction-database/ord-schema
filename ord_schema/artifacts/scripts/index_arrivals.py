@@ -14,10 +14,10 @@
 
 """Walks ord-data's history into the index of each reaction's first commit.
 
-The index is what ``derive_first_commits --index`` reads; see
+The index is what ``derive_arrivals --index`` reads; see
 ``ord_schema.artifacts.history`` for what a first commit is::
 
-    index_first_commits.py --ord_data=ord-data --output=first_commits_index.parquet
+    index_arrivals.py --ord_data=ord-data --output=arrivals_index.parquet
 
 An existing index at ``--output`` is extended from its head, so only the commits since
 are read; ``--rebuild`` walks from the root instead, which an index walked under an

@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-r"""Derives each projection's first_commits artifact from the index of first commits.
+r"""Derives each projection's arrivals artifact from the index of first commits.
 
 Each projection yields one artifact: its reactions' first commits to ord-data, looked up
-in the index ``index_first_commits`` writes; see ``ord_schema.artifacts.first_commits``.
+in the index ``index_arrivals`` writes; see ``ord_schema.artifacts.arrivals``.
 Outputs mirror the inputs' directory layout beneath ``--output_dir``::
 
-    derive_first_commits.py --input_pattern='projections/*/*.parquet' \
-        --output_dir=first_commits --index=first_commits_index.parquet
+    derive_arrivals.py --input_pattern='projections/*/*.parquet' \
+        --output_dir=arrivals --index=arrivals_index.parquet
 
-    projections/aa/ord_dataset-<id>.parquet -> first_commits/aa/ord_dataset-<id>.parquet
+    projections/aa/ord_dataset-<id>.parquet -> arrivals/aa/ord_dataset-<id>.parquet
 
 An artifact whose stamps record the current source content, versions, and a head on the
 index's chain is skipped, so re-running after the index is extended rewrites nothing;
@@ -32,7 +32,7 @@ error, as is a run that finds no projections.
 import argparse
 import functools
 
-from ord_schema.artifacts import base, first_commits, history, projection
+from ord_schema.artifacts import arrivals, base, history, projection
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -49,7 +49,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--index",
         required=True,
-        help="The index of first commits, from index_first_commits",
+        help="The index of first commits, from index_arrivals",
     )
     parser.add_argument(
         "--force",
@@ -60,7 +60,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(args: argparse.Namespace) -> None:
-    """Derives a first_commits artifact for every projection matching the pattern.
+    """Derives an arrivals artifact for every projection matching the pattern.
 
     Args:
         args: Parsed arguments, read for ``input_pattern``, ``output_dir``, ``index``,
@@ -75,16 +75,16 @@ def main(args: argparse.Namespace) -> None:
     written, skipped, ignored = base.derive_tree(
         args.input_pattern,
         args.output_dir,
-        artifact=first_commits.ARTIFACT,
-        write=functools.partial(first_commits.write_first_commits, index=index),
-        schema=first_commits.SCHEMA,
+        artifact=arrivals.ARTIFACT,
+        write=functools.partial(arrivals.write_arrivals, index=index),
+        schema=arrivals.SCHEMA,
         force=args.force,
         parent_artifact=projection.ARTIFACT,
         current=index.covers,
     )
     if not written and not skipped:
         raise ValueError(
-            f"no first_commits artifacts derived: none of the {ignored} matches for "
+            f"no arrivals artifacts derived: none of the {ignored} matches for "
             f"{args.input_pattern!r} are projections"
         )
 
