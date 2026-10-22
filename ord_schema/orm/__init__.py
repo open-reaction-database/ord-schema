@@ -18,9 +18,21 @@ Deprecated: query the derived Parquet artifacts with ``ord_schema.search`` inste
 ``ord_schema/orm/README.md``.
 """
 
+import warnings
+
 from sqlalchemy.orm import declarative_base
 
 from ord_schema.logging import silence_rdkit_logs
+
+# stacklevel=2 attributes the warning to the importing module: the warnings module skips
+# importlib's frames, so Python's default filters show it to code in __main__.
+warnings.warn(
+    "ord_schema.orm is deprecated and may be removed in a future release; query the "
+    "derived Parquet artifacts with ord_schema.search instead. See "
+    "https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/orm/README.md",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 silence_rdkit_logs()
 Base = declarative_base()
