@@ -57,7 +57,7 @@ ORD_ARTIFACTS_HF_REPO = "open-reaction-database/ord-artifacts"
 ARTIFACT_DIRECTORIES = {
     "projection": "projections",
     "structures": "structures",
-    "first_commits": "first_commits",
+    "arrivals": "arrivals",
     "pivot": "pivots",
     "occurrences": "occurrences",
 }
@@ -131,7 +131,7 @@ class FetchedArtifacts:
         revision: The commit the artifacts were fetched from.
         projections: Directory holding the projections.
         structures: Directory holding the structures artifacts.
-        first_commits: Directory holding the first_commits artifacts.
+        arrivals: Directory holding the arrivals artifacts.
         pivots: Directory holding one subdirectory per pivoted level.
         occurrences: Directory holding one subdirectory per indexed path.
     """
@@ -139,7 +139,7 @@ class FetchedArtifacts:
     revision: str
     projections: pathlib.Path
     structures: pathlib.Path
-    first_commits: pathlib.Path
+    arrivals: pathlib.Path
     pivots: pathlib.Path
     occurrences: pathlib.Path
 
@@ -154,9 +154,9 @@ class FetchedArtifacts:
         return parquet_pattern(self.structures)
 
     @property
-    def first_commits_pattern(self) -> str:
-        """A glob matching every first_commits artifact, for ``Corpus``."""
-        return parquet_pattern(self.first_commits)
+    def arrivals_pattern(self) -> str:
+        """A glob matching every arrivals artifact, for ``Corpus``."""
+        return parquet_pattern(self.arrivals)
 
 
 def parquet_pattern(directory: pathlib.Path) -> str:
@@ -343,7 +343,7 @@ def fetch_artifacts(
         revision=commit,
         projections=root / ARTIFACT_DIRECTORIES["projection"],
         structures=root / ARTIFACT_DIRECTORIES["structures"],
-        first_commits=root / ARTIFACT_DIRECTORIES["first_commits"],
+        arrivals=root / ARTIFACT_DIRECTORIES["arrivals"],
         pivots=root / pivots,
         occurrences=root / ARTIFACT_DIRECTORIES["occurrences"],
     )

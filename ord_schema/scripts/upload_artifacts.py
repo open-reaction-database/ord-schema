@@ -32,7 +32,7 @@ build of only some datasets passes every other check. The tree has to be one bui
 ``Corpus(require_pivots=True, require_occurrences=True)`` opens, so it is refused if:
 
 * its files carry more than one artifact schema version or RDKit version;
-* a first_commits artifact was derived under another walk of ord-data's history, or
+* an arrivals artifact was derived under another walk of ord-data's history, or
   carries no stamp of one;
 * a pivot or occurrences file sits under a level or path other than the one its footer
   names, or a level or path this library derives is missing;
@@ -65,7 +65,7 @@ from huggingface_hub import (
 )
 
 from ord_schema import huggingface
-from ord_schema.artifacts import base, first_commits, history, occurrences, pivot
+from ord_schema.artifacts import arrivals, base, history, occurrences, pivot
 from ord_schema.logging import get_logger
 from ord_schema.search import execute
 
@@ -271,7 +271,7 @@ def _check_build(directory: pathlib.Path, artifact: str) -> _Build:
 
     Raises:
         ValueError: If the tree is missing or empty, holds a file that is not
-            ``artifact`` or carries no RDKit stamp, holds a first_commits artifact from
+            ``artifact`` or carries no RDKit stamp, holds an arrivals artifact from
             another walk of the history, spans more than one build, files a
             pivot or occurrences artifact under a group its footer does not name, or
             restates a source dataset twice within a group.
@@ -289,12 +289,12 @@ def _check_build(directory: pathlib.Path, artifact: str) -> _Build:
             raise ValueError(f"{path} holds {stamps.artifact}, not {artifact}")
         if stamps.rdkit_version is None:
             raise ValueError(f"{path} carries no RDKit stamp; derive it again")
-        if artifact == first_commits.ARTIFACT:
+        if artifact == arrivals.ARTIFACT:
             walked = history.read_stamp(path)
             if walked is None or walked[0] != history.VERSION:
                 raise ValueError(
                     f"{path} was not derived from a version {history.VERSION} index of "
-                    "first commits; derive it again with derive_first_commits"
+                    "first commits; derive it again with derive_arrivals"
                 )
         stamped[stamps.artifact_schema_version, stamps.rdkit_version] += 1
         relative = path.relative_to(directory)
@@ -384,8 +384,8 @@ def _check_opens(
         huggingface.parquet_pattern(
             root / huggingface.ARTIFACT_DIRECTORIES["structures"]
         ),
-        first_commits_pattern=huggingface.parquet_pattern(
-            root / huggingface.ARTIFACT_DIRECTORIES["first_commits"]
+        arrivals_pattern=huggingface.parquet_pattern(
+            root / huggingface.ARTIFACT_DIRECTORIES["arrivals"]
         ),
         pivots_dir=str(root / huggingface.ARTIFACT_DIRECTORIES["pivot"]),
         require_pivots=require_pivots,

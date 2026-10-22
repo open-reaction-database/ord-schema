@@ -2678,7 +2678,7 @@ _HOT = {
     "value": {"literal": 350},
 }
 _SEMI_JOIN = (
-    "reactions.reaction_id IN (SELECT reaction_id FROM first_commits "
+    "reactions.reaction_id IN (SELECT reaction_id FROM arrivals "
     "WHERE reaction_id IS NOT NULL AND "
 )
 
@@ -2747,7 +2747,7 @@ class TestFirstCommitRouting:
         compiled = _compile(
             {**payload, "where": {"op": "and", "clauses": [_HOT, *_YEAR]}}
         )
-        assert "FROM reactions JOIN first_commits USING (reaction_id)" in compiled.sql
+        assert "FROM reactions JOIN arrivals USING (reaction_id)" in compiled.sql
         # Joined, its filters read the row rather than semi-joining again.
         assert _SEMI_JOIN not in compiled.sql
         sql.validate(compiled.sql, parameters=compiled.literals)
@@ -2762,7 +2762,7 @@ class TestFirstCommitRouting:
         ids=["filter", "nested", "order_by"],
     )
     def test_refused_where_the_corpus_holds_none(self, payload):
-        with pytest.raises(query.QueryError, match="holds no first commits"):
+        with pytest.raises(query.QueryError, match="holds no arrivals"):
             _compile(payload, history=None)
 
     def test_a_measure_named_like_it_is_not_a_path_to_it(self):
@@ -2779,7 +2779,7 @@ class TestFirstCommitRouting:
 
     def test_the_relation_has_to_be_an_identifier(self):
         with pytest.raises(query.QueryError, match="history is not an identifier"):
-            _compile({"where": _YEAR[0]}, history="first_commits, range(10)")
+            _compile({"where": _YEAR[0]}, history="arrivals, range(10)")
 
     def test_a_filter_on_elements_keeps_its_semi_join_on_the_reactions(self):
         compiled = _compile(
@@ -2812,7 +2812,7 @@ class TestFirstCommitsAlone:
         [
             (
                 {"where": {"op": "and", "clauses": _YEAR}},
-                "SELECT reaction_id FROM first_commits WHERE "  # noqa: S608
+                "SELECT reaction_id FROM arrivals WHERE "  # noqa: S608
                 f"(({_DAY} >= $literal_0 AND {_DAY} < $literal_1))",
             ),
             (
@@ -2820,7 +2820,7 @@ class TestFirstCommitsAlone:
                     "where": {"op": "and", "clauses": _YEAR},
                     "aggregate": {"measures": [{"fn": "count", "name": "reactions"}]},
                 },
-                'SELECT count(*) AS "reactions" FROM first_commits WHERE '  # noqa: S608
+                'SELECT count(*) AS "reactions" FROM arrivals WHERE '  # noqa: S608
                 f"(({_DAY} >= $literal_0 AND {_DAY} < $literal_1))",
             ),
             (
@@ -2833,7 +2833,7 @@ class TestFirstCommitsAlone:
                     "limit": 5,
                 },
                 'SELECT first_commit.dataset_id AS "first_commit.dataset_id", '
-                'count(DISTINCT reaction_id) AS "reactions" FROM first_commits '
+                'count(DISTINCT reaction_id) AS "reactions" FROM arrivals '
                 'GROUP BY 1 ORDER BY "reactions" DESC LIMIT 5',
             ),
             (
@@ -2848,7 +2848,7 @@ class TestFirstCommitsAlone:
                         ]
                     }
                 },
-                f'SELECT min({_DAY}) AS "earliest" FROM first_commits',  # noqa: S608
+                f'SELECT min({_DAY}) AS "earliest" FROM arrivals',  # noqa: S608
             ),
             (
                 {
@@ -2869,14 +2869,13 @@ class TestFirstCommitsAlone:
                     ],
                     "limit": 3,
                 },
-                "SELECT reaction_id FROM first_commits WHERE "  # noqa: S608
+                "SELECT reaction_id FROM arrivals WHERE "  # noqa: S608
                 f"((NOT ({_DAY} >= $literal_0)) OR reaction_id = $literal_1) "
                 f"ORDER BY {_DAY} DESC, reaction_id LIMIT 3",
             ),
             (
                 {"where": {"op": "is_null", "path": "first_commit.sha"}},
-                "SELECT reaction_id FROM first_commits "
-                "WHERE (first_commit.sha IS NULL)",
+                "SELECT reaction_id FROM arrivals WHERE (first_commit.sha IS NULL)",
             ),
         ],
         ids=["filter", "count", "group_by", "measure", "negated", "null_check"],
@@ -2900,7 +2899,7 @@ class TestFirstCommitsAlone:
         )
         assert compiled.sql == (
             'SELECT first_commit.dataset_id AS "first_commit.dataset_id", '
-            'count(*) AS "first_commit" FROM first_commits GROUP BY 1 '
+            'count(*) AS "first_commit" FROM arrivals GROUP BY 1 '
             'ORDER BY "first_commit" DESC'
         )
         sql.validate(compiled.sql, parameters=compiled.literals)

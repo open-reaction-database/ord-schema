@@ -28,7 +28,7 @@ from google.protobuf import text_format
 
 from ord_schema import parquet
 from ord_schema.artifacts import history
-from ord_schema.artifacts.scripts import index_first_commits
+from ord_schema.artifacts.scripts import index_arrivals
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 # Isolated from the machine's own git configuration -- signing, hooks, a global LFS
@@ -502,7 +502,7 @@ class TestIndex:
     def test_refuses_a_file_that_is_not_an_index(self, tmp_path):
         path = tmp_path / "other.parquet"
         pq.write_table(pa.table({"reaction_id": ["ord-r1"]}), path)
-        with pytest.raises(ValueError, match="is not a first-commits index"):
+        with pytest.raises(ValueError, match="is not an arrivals index"):
             history.read_index(path)
 
     def test_refuses_an_empty_chain(self):
@@ -550,8 +550,8 @@ class TestScript:
         repository = ord_data["repository"]
         commits = ord_data["commits"]
         output = tmp_path / "history.parquet"
-        index_first_commits.main(
-            index_first_commits.parse_args(
+        index_arrivals.main(
+            index_arrivals.parse_args(
                 [
                     f"--ord_data={repository}",
                     f"--output={output}",
@@ -569,8 +569,8 @@ class TestScript:
                 walked.append(kwargs["previous"]) or original(*args, **kwargs)
             ),
         )
-        index_first_commits.main(
-            index_first_commits.parse_args(
+        index_arrivals.main(
+            index_arrivals.parse_args(
                 [f"--ord_data={repository}", f"--output={output}"]
             )
         )
@@ -583,7 +583,7 @@ class TestScript:
         # Not an index at all, which only --rebuild may write over.
         pq.write_table(pa.table({"x": [1]}), output)
         args = [f"--ord_data={repository}", f"--output={output}"]
-        with pytest.raises(ValueError, match="is not a first-commits index"):
-            index_first_commits.main(index_first_commits.parse_args(args))
-        index_first_commits.main(index_first_commits.parse_args([*args, "--rebuild"]))
+        with pytest.raises(ValueError, match="is not an arrivals index"):
+            index_arrivals.main(index_arrivals.parse_args(args))
+        index_arrivals.main(index_arrivals.parse_args([*args, "--rebuild"]))
         assert history.read_index(output).head == ord_data["commits"]["split"]

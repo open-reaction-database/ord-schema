@@ -23,7 +23,7 @@ env, for one) every file reads stale and a derive rebuilds the whole corpus.
 ```sh
 ORD_DATA=~/ord/ord-data
 ARTIFACTS=~/ord/artifacts
-FIRST_COMMITS_INDEX=~/ord/first_commits_index.parquet
+ARRIVALS_INDEX=~/ord/arrivals_index.parquet
 ```
 
 ## Steps
@@ -32,13 +32,13 @@ FIRST_COMMITS_INDEX=~/ord/first_commits_index.parquet
    `data/` is in LFS, and a pointer file is not a dataset.
 
 2. **Walk ord-data's history** into the index of each reaction's first commit. It
-   extends the index at `$FIRST_COMMITS_INDEX` from its head, so after the first walk it
+   extends the index at `$ARRIVALS_INDEX` from its head, so after the first walk it
    reads only the commits since.
 
    ```sh
    git -C $ORD_DATA lfs fetch origin $(git -C $ORD_DATA rev-list --first-parent main)
-   python -m ord_schema.artifacts.scripts.index_first_commits \
-       --ord_data=$ORD_DATA --output=$FIRST_COMMITS_INDEX
+   python -m ord_schema.artifacts.scripts.index_arrivals \
+       --ord_data=$ORD_DATA --output=$ARRIVALS_INDEX
    ```
 
    The walk reads every version of every dataset file on the chain it walks. The
@@ -60,9 +60,9 @@ FIRST_COMMITS_INDEX=~/ord/first_commits_index.parquet
        --input_pattern="$ORD_DATA/data/*/*.parquet" --output_dir=$ARTIFACTS/projections
    python -m ord_schema.artifacts.scripts.derive_structures \
        --input_pattern="$ARTIFACTS/projections/*/*.parquet" --output_dir=$ARTIFACTS/structures
-   python -m ord_schema.artifacts.scripts.derive_first_commits \
+   python -m ord_schema.artifacts.scripts.derive_arrivals \
        --input_pattern="$ARTIFACTS/projections/*/*.parquet" \
-       --output_dir=$ARTIFACTS/first_commits --index=$FIRST_COMMITS_INDEX
+       --output_dir=$ARTIFACTS/arrivals --index=$ARRIVALS_INDEX
    python -m ord_schema.artifacts.scripts.derive_pivots \
        --input_pattern="$ARTIFACTS/projections/*/*.parquet" --output_dir=$ARTIFACTS/pivots
    python -m ord_schema.artifacts.scripts.derive_occurrences \
@@ -73,13 +73,13 @@ FIRST_COMMITS_INDEX=~/ord/first_commits_index.parquet
 
    ```sh
    python .claude/skills/publish-artifacts/scripts/check_tree.py \
-       --root=$ARTIFACTS --ord_data=$ORD_DATA --index=$FIRST_COMMITS_INDEX
+       --root=$ARTIFACTS --ord_data=$ORD_DATA --index=$ARRIVALS_INDEX
    ```
 
    It requires every Parquet dataset in the checkout to have exactly one projection
    stamped with its current content hash, the checkout to hold the same datasets as the
    ord-data mirror on `main`, byte for byte, the index to be walked to the checkout's
-   `HEAD`, and every first_commits artifact to come from that index's history. A
+   `HEAD`, and every arrivals artifact to come from that index's history. A
    mismatch is fixed by walking, deriving, or updating the checkout, never by uploading
    anyway.
 
@@ -151,8 +151,8 @@ already have caught.
 | Mistake | What happens |
 | --- | --- |
 | Deriving a new dataset into an empty directory and uploading that | A one-dataset build: refused once the repository holds other datasets; on the first publish it goes up, and every reader fetches one dataset. Step 4 catches both. |
-| Skipping `derive_first_commits` | The tree restates fewer datasets in `first_commits/` than in `projections/`; `upload_artifacts` refuses it. |
-| Deriving before walking the commits just pulled | A projection holding a reaction the index lacks refuses to derive its first_commits artifact; walk first. |
+| Skipping `derive_arrivals` | The tree restates fewer datasets in `arrivals/` than in `projections/`; `upload_artifacts` refuses it. |
+| Deriving before walking the commits just pulled | A projection holding a reaction the index lacks refuses to derive its arrivals artifact; walk first. |
 | Deriving under the conda `ord` env | Every file reads stale; the corpus re-derives under the older RDKit, and uploading it replaces the published build with one that readers on the newer RDKit refuse. |
 | Passing `--allow_deletes` to get past a refusal | Deletes published datasets from the build readers fetch. |
 | Reading the dry run's upload count as the size of the change | It is every file in the tree; a new dataset still reads as all of them. |

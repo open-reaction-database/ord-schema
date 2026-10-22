@@ -30,8 +30,8 @@ from rdkit import rdBase
 
 from ord_schema import message_helpers, parquet
 from ord_schema.artifacts import (
+    arrivals,
     base,
-    first_commits,
     history,
     occurrences,
     pivot,
@@ -649,7 +649,7 @@ _ARTIFACTS = frozenset(
     {
         projection.ARTIFACT,
         structures.ARTIFACT,
-        first_commits.ARTIFACT,
+        arrivals.ARTIFACT,
         pivot.ARTIFACT,
         occurrences.ARTIFACT,
     }
@@ -682,7 +682,7 @@ _GOLDEN_SCHEMA_VERSION = "1"
 _GOLDEN_OUTPUT = {
     "projection": "c2433bce97d33545cb8d828d216550da9631d8c704e7103da840fbd926845dd8",
     "structures": "3c397cfc3ba2b8e0debd9b725ada6d119551e42aa7c20bf9791983e679ce7158",
-    "first_commits": "4144a8f53c7befaef014792e5a92c9255b5e70aa7750c30a8d53215388314b7c",
+    "arrivals": "d30f6710e8fbf5f2b1d11793c4de66b8d7b3bc3195e9fd83771627ad78f0d432",
     "pivot": "c5e0ba5aa7a58a7e3839ddae0dfea32bcb518704b5f63959b1b40e710140b693",
     "occurrences": "d0617c0972b1c054c5f4507760cc53e055eb5cfd1336b0279e700a3c0a8c1118",
 }
@@ -696,7 +696,7 @@ _GOLDEN_FIXTURES = ("full.pbtxt", "ord-nielsen-example.pbtxt")
 
 # Footer keys recording who derived a file rather than what it holds: the RDKit and the
 # schema, pinned on their own above, the hash of how the fixture happened to serialize,
-# and the index of first commits a first_commits artifact read, whose values its rows
+# and the index of first commits an arrivals artifact read, whose values its rows
 # carry. The rest -- the artifact name, the pivot or occurrence path a reader checks a
 # file against -- are part of what the artifact says.
 _PROVENANCE_KEYS = frozenset(
@@ -704,8 +704,8 @@ _PROVENANCE_KEYS = frozenset(
         b"ord.rdkit_version",
         b"ord.artifact_schema_version",
         b"ord.source_md5",
-        b"ord.first_commits_version",
-        b"ord.first_commits_head",
+        b"ord.arrivals_version",
+        b"ord.arrivals_head",
     }
 )
 
@@ -786,10 +786,10 @@ def _derive_fixtures(root: pathlib.Path) -> dict[str, list[pathlib.Path]]:
             ),
             [sha],
         )
-        arrived = root / "first_commits" / source.name
+        arrived = root / "arrivals" / source.name
         arrived.parent.mkdir(parents=True, exist_ok=True)
-        first_commits.write_first_commits(projected, arrived, index=index)
-        derived["first_commits"].append(arrived)
+        arrivals.write_arrivals(projected, arrived, index=index)
+        derived["arrivals"].append(arrived)
         for level in sorted(pivot.LEVELS):
             pivoted = root / "pivots" / level / source.name
             pivoted.parent.mkdir(parents=True, exist_ok=True)

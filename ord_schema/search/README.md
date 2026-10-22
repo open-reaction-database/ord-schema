@@ -21,8 +21,8 @@ So the model emits a `Query` instead, and the library compiles it. The grammar h
 relation, no join, no recursion, and no set-returning function, which means the worst program
 expressible in it is **one pass over the corpus plus a sort**. Expensive queries are not
 discouraged; they are unwritable. Where the compiler reads another relation — a pivot, the
-occurrence index, the first commits — it is a semi-join or a one-to-one join on
-`reaction_id`, or the first commits read in place of the projection, never a product.
+occurrence index, the arrivals — it is a semi-join or a one-to-one join on
+`reaction_id`, or the arrivals read in place of the projection, never a product.
 
 The same move settles two other things SQL leaves to whoever writes it:
 
@@ -251,27 +251,27 @@ Every pivot row above falls to the elements when the corpus holds no artifact fo
 level. The answer does not change; the query gets slower, and the log says which
 relations it read.
 
-## First commits
+## Arrivals
 
 `first_commit` — when a reaction first reached ord-data, which commit, and the dataset
 it arrived in — is part of the schema a model reads but not of the projection: it comes
 from ord-data's git history rather than the record, and lives in its own
-[`first_commits`](../artifacts/first_commits.py) artifact, one row per reaction. The
+[`arrivals`](../artifacts/arrivals.py) artifact, one row per reaction. The
 corpus publishes those as a relation beside the projection, and the compiler reads it
 only for a query naming `first_commit`:
 
 | query | compiles to |
 | --- | --- |
 | anything not naming `first_commit` | exactly what it would without the artifact |
-| added to ORD in 2022 | `SELECT reaction_id FROM first_commits WHERE …`, the projection unread |
-| how many reactions arrived in each dataset, or the earliest arrival | `FROM first_commits` alone, grouped or measured |
-| above 350 K and added in 2022 | `reactions.reaction_id IN (SELECT reaction_id FROM first_commits WHERE …)`, holding both bounds, beside the projection's filter |
+| added to ORD in 2022 | `SELECT reaction_id FROM arrivals WHERE …`, the projection unread |
+| how many reactions arrived in each dataset, or the earliest arrival | `FROM arrivals` alone, grouped or measured |
+| above 350 K and added in 2022 | `reactions.reaction_id IN (SELECT reaction_id FROM arrivals WHERE …)`, holding both bounds, beside the projection's filter |
 | above 350 K or added since 2025 | a semi-join of its own inside the `OR` |
-| how many reactions above 350 K arrived in each dataset | `FROM reactions JOIN first_commits USING (reaction_id)`, grouped |
+| how many reactions above 350 K arrived in each dataset | `FROM reactions JOIN arrivals USING (reaction_id)`, grouped |
 | reactions above 350 K, ordered by arrival | the same join |
 
 A query whose filters, groups, measures, and ordering read nothing but `first_commit` and
-`reaction_id` reads the first commits alone. They hold one row for each reaction the
+`reaction_id` reads the arrivals alone. They hold one row for each reaction the
 corpus holds, so the answer is the one a join to the reactions would give, from a
 relation of two columns rather than the projection. Any other query naming
 `first_commit` reads the projection too. Every filter a conjunction places on
@@ -282,15 +282,15 @@ is reserved for grouping, measuring, and ordering, which need the value on the r
 would otherwise run for every query, since DuckDB keeps a `LEFT JOIN` whose columns
 nothing reads.
 
-A corpus opened without `first_commits_pattern` refuses a query naming `first_commit`.
+A corpus opened without `arrivals_pattern` refuses a query naming `first_commit`.
 One opened with it pairs an artifact holding as many rows with every projection, or
 refuses: with a dataset missing, a negated filter would answer as though its reactions
-matched. It also refuses first commits naming a reaction other than its own, which an
+matched. It also refuses arrivals naming a reaction other than its own, which an
 artifact edited after it was written can do with its count and stamps intact, and a first
-commit with a field left NULL, which no derivation writes. Read alone, the first commits
+commit with a field left NULL, which no derivation writes. Read alone, the arrivals
 would otherwise count a reaction the corpus does not hold, and a `not` over a NULL field
 holds through a semi-join but not on a row carrying it. That is one anti-join of the
-reactions against the first commits and one scan of the first commits, run beside the
+reactions against the arrivals and one scan of the arrivals, run beside the
 check that the corpus states each reaction once: at open, or with `warm=False` before
 the first query reading them. Measured on 2026-10-21 over the 93-dataset corpus in a
 container capped at 12 GiB with swap off, it took 0.17–0.18 s, and over five warm opens
@@ -301,7 +301,7 @@ What reading them costs, measured on 2026-10-21 over the 93-dataset corpus with
 projections at 10,000 rows per row group, median of 15 warm runs in each of three
 processes, DuckDB at 2 threads. As a column is the same projections carrying
 `first_commit`, behind the same view and settings; joined is the semi-join or join a
-query reading the projection too runs; alone is the first commits alone. Every route
+query reading the projection too runs; alone is the arrivals alone. Every route
 returns the same answer.
 
 | query | as a column | joined | alone |

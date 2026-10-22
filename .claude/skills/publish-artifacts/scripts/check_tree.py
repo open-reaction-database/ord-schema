@@ -25,7 +25,7 @@ Face mirror:
   by the SHA-256 the mirror's LFS records, so a stale checkout cannot pass for the
   whole corpus;
 * the index of first commits is walked to the checkout's ``HEAD``, and every
-  first_commits artifact was derived with it or with an index it extends, so none
+  arrivals artifact was derived with it or with an index it extends, so none
   holds first commits read from another history.
 
 ``upload_artifacts`` carries the projections' dataset set to every other artifact.
@@ -128,7 +128,7 @@ def _head(ord_data: pathlib.Path) -> str:
 def _first_commit_problems(
     root: pathlib.Path, ord_data: pathlib.Path, index_path: pathlib.Path
 ) -> list[str]:
-    """Returns each way the index or a first_commits artifact falls short."""
+    """Returns each way the index or an arrivals artifact falls short."""
     index = history.read_index(index_path)
     problems = []
     head = _head(ord_data)
@@ -138,9 +138,9 @@ def _first_commit_problems(
             f"checkout's HEAD {head}"
         )
     problems.extend(
-        f"first_commits artifact derived from another history: {path}"
+        f"arrivals artifact derived from another history: {path}"
         for path in huggingface.parquet_files(
-            root / huggingface.ARTIFACT_DIRECTORIES["first_commits"]
+            root / huggingface.ARTIFACT_DIRECTORIES["arrivals"]
         )
         if not index.covers(path)
     )
@@ -206,7 +206,7 @@ def main() -> None:
     parser.add_argument(
         "--index",
         required=True,
-        help="The index of first commits the first_commits artifacts were derived with",
+        help="The index of first commits the arrivals artifacts were derived with",
     )
     args = parser.parse_args()
     problems = check(
