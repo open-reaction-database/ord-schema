@@ -61,11 +61,11 @@ def test_element_type_drops_repeated_fields_and_keeps_structs():
     element = pivot.repeated_levels()["outcomes.products"].element_type
     names = [field.name for field in element]
     assert "isolated_color" in names
-    assert "texture" in names
+    assert "isolated_texture" in names
     assert "measurements" not in names
     assert "identifiers" not in names
     assert "analyses" not in names
-    assert [field.name for field in element.field("texture").type] == [
+    assert [field.name for field in element.field("isolated_texture").type] == [
         "type",
         "details",
     ]

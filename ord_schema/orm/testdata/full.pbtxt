@@ -540,7 +540,7 @@ reactions {
         }
       }
       isolated_color: "124"
-      texture {
+      isolated_texture {
         type: POWDER
         details: "125"
       }

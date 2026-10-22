@@ -1065,7 +1065,7 @@ class ReactionOutcome(_message.Message):
     def __init__(self, reaction_time: _Optional[_Union[Time, _Mapping]] = ..., conversion: _Optional[_Union[Percentage, _Mapping]] = ..., products: _Optional[_Iterable[_Union[ProductCompound, _Mapping]]] = ..., analyses: _Optional[_Mapping[str, Analysis]] = ...) -> None: ...
 
 class ProductCompound(_message.Message):
-    __slots__ = ["identifiers", "is_desired_product", "measurements", "isolated_color", "texture", "features", "reaction_role"]
+    __slots__ = ["identifiers", "is_desired_product", "measurements", "isolated_color", "isolated_texture", "features", "reaction_role"]
     class FeaturesEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -1077,17 +1077,17 @@ class ProductCompound(_message.Message):
     IS_DESIRED_PRODUCT_FIELD_NUMBER: _ClassVar[int]
     MEASUREMENTS_FIELD_NUMBER: _ClassVar[int]
     ISOLATED_COLOR_FIELD_NUMBER: _ClassVar[int]
-    TEXTURE_FIELD_NUMBER: _ClassVar[int]
+    ISOLATED_TEXTURE_FIELD_NUMBER: _ClassVar[int]
     FEATURES_FIELD_NUMBER: _ClassVar[int]
     REACTION_ROLE_FIELD_NUMBER: _ClassVar[int]
     identifiers: _containers.RepeatedCompositeFieldContainer[CompoundIdentifier]
     is_desired_product: bool
     measurements: _containers.RepeatedCompositeFieldContainer[ProductMeasurement]
     isolated_color: str
-    texture: Texture
+    isolated_texture: Texture
     features: _containers.MessageMap[str, Data]
     reaction_role: ReactionRole.ReactionRoleType
-    def __init__(self, identifiers: _Optional[_Iterable[_Union[CompoundIdentifier, _Mapping]]] = ..., is_desired_product: bool = ..., measurements: _Optional[_Iterable[_Union[ProductMeasurement, _Mapping]]] = ..., isolated_color: _Optional[str] = ..., texture: _Optional[_Union[Texture, _Mapping]] = ..., features: _Optional[_Mapping[str, Data]] = ..., reaction_role: _Optional[_Union[ReactionRole.ReactionRoleType, str]] = ...) -> None: ...
+    def __init__(self, identifiers: _Optional[_Iterable[_Union[CompoundIdentifier, _Mapping]]] = ..., is_desired_product: bool = ..., measurements: _Optional[_Iterable[_Union[ProductMeasurement, _Mapping]]] = ..., isolated_color: _Optional[str] = ..., isolated_texture: _Optional[_Union[Texture, _Mapping]] = ..., features: _Optional[_Mapping[str, Data]] = ..., reaction_role: _Optional[_Union[ReactionRole.ReactionRoleType, str]] = ...) -> None: ...
 
 class ProductMeasurement(_message.Message):
     __slots__ = ["analysis_key", "type", "details", "uses_internal_standard", "is_normalized", "uses_authentic_standard", "authentic_standard", "percentage", "float_value", "string_value", "amount", "retention_time", "mass_spec_details", "selectivity", "wavelength"]

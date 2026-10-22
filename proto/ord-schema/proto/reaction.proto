@@ -933,7 +933,8 @@ message ProductCompound {
   // (and unnormalized) metrics like an integrated UV peak area.
   repeated ProductMeasurement measurements = 3;
   string isolated_color = 4;
-  Texture texture = 5;
+  // Texture of the isolated product.
+  Texture isolated_texture = 5;
   // Any features (e.g., calculated descriptors) of the product compound.
   map<string, Data> features = 6;
   // Specify the role the ProductCompound played in the reaction. This

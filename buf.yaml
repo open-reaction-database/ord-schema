@@ -36,13 +36,14 @@ lint:
 breaking:
   use:
     - FILE
-  # The rename of ReactionSetup.automation_code to procedure_code keeps its field
-  # number, so binary and Parquet data read as before; only text-format and JSON
-  # names change. Being a map, it also renames the synthetic entry message
+  # The renames of ReactionSetup.automation_code to procedure_code and of
+  # ProductCompound.texture to isolated_texture keep their field numbers, so binary
+  # and Parquet data read as before; only text-format and JSON names change. Being
+  # a map, procedure_code also renames the synthetic entry message
   # (AutomationCodeEntry to ProcedureCodeEntry), which buf reports as a deleted
   # message and a changed field type although map entries are encoded by field
   # number. These exemptions cover the whole file, FIELD_SAME_TYPE included, so
-  # remove them once a release carrying the rename is tagged.
+  # remove them once a release carrying the renames is tagged.
   ignore_only:
     FIELD_SAME_TYPE:
       - proto/ord-schema/proto/reaction.proto

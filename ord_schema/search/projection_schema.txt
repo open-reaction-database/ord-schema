@@ -467,7 +467,7 @@ outcomes: LIST<STRUCT>
       wavelength_nanometers: DOUBLE
       wavelength_precision_nanometers: DOUBLE
     isolated_color: VARCHAR
-    texture: STRUCT
+    isolated_texture: STRUCT
       type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
       details: VARCHAR
     features: MAP<VARCHAR, STRUCT>

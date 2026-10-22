@@ -243,8 +243,8 @@ def parse_product(
             texture = PRODUCT_STATES.get(
                 (child.text or "").lower(), reaction_pb2.Texture.CUSTOM
             )
-            product_compound.texture.type = texture
-            product_compound.texture.details = child.text or ""
+            product_compound.isolated_texture.type = texture
+            product_compound.isolated_texture.details = child.text or ""
         elif tag == "dl:appearance":
             product_compound.isolated_color = child.text or ""
         else:
