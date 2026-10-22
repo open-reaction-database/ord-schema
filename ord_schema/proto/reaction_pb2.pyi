@@ -1281,7 +1281,7 @@ class Analysis(_message.Message):
     def __init__(self, type: _Optional[_Union[Analysis.AnalysisType, str]] = ..., details: _Optional[str] = ..., chmo_id: _Optional[int] = ..., is_of_isolated_species: bool = ..., data: _Optional[_Mapping[str, Data]] = ..., instrument_manufacturer: _Optional[str] = ..., instrument_last_calibrated: _Optional[_Union[DateTime, _Mapping]] = ...) -> None: ...
 
 class ReactionProvenance(_message.Message):
-    __slots__ = ["experimenter", "city", "experiment_start", "doi", "patent", "publication_url", "record_created", "record_modified", "reaction_metadata", "is_mined", "publication", "extraction"]
+    __slots__ = ["experimenter", "city", "experiment_start", "doi", "patent", "publication_url", "record_created", "record_modified", "reaction_metadata", "is_mined", "publication", "extraction", "additional_sources"]
     class ReactionMetadataEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -1301,6 +1301,7 @@ class ReactionProvenance(_message.Message):
     IS_MINED_FIELD_NUMBER: _ClassVar[int]
     PUBLICATION_FIELD_NUMBER: _ClassVar[int]
     EXTRACTION_FIELD_NUMBER: _ClassVar[int]
+    ADDITIONAL_SOURCES_FIELD_NUMBER: _ClassVar[int]
     experimenter: Person
     city: str
     experiment_start: DateTime
@@ -1313,7 +1314,8 @@ class ReactionProvenance(_message.Message):
     is_mined: bool
     publication: Publication
     extraction: ExtractionMetadata
-    def __init__(self, experimenter: _Optional[_Union[Person, _Mapping]] = ..., city: _Optional[str] = ..., experiment_start: _Optional[_Union[DateTime, _Mapping]] = ..., doi: _Optional[str] = ..., patent: _Optional[str] = ..., publication_url: _Optional[str] = ..., record_created: _Optional[_Union[RecordEvent, _Mapping]] = ..., record_modified: _Optional[_Iterable[_Union[RecordEvent, _Mapping]]] = ..., reaction_metadata: _Optional[_Mapping[str, Data]] = ..., is_mined: bool = ..., publication: _Optional[_Union[Publication, _Mapping]] = ..., extraction: _Optional[_Union[ExtractionMetadata, _Mapping]] = ...) -> None: ...
+    additional_sources: _containers.RepeatedCompositeFieldContainer[AdditionalSource]
+    def __init__(self, experimenter: _Optional[_Union[Person, _Mapping]] = ..., city: _Optional[str] = ..., experiment_start: _Optional[_Union[DateTime, _Mapping]] = ..., doi: _Optional[str] = ..., patent: _Optional[str] = ..., publication_url: _Optional[str] = ..., record_created: _Optional[_Union[RecordEvent, _Mapping]] = ..., record_modified: _Optional[_Iterable[_Union[RecordEvent, _Mapping]]] = ..., reaction_metadata: _Optional[_Mapping[str, Data]] = ..., is_mined: bool = ..., publication: _Optional[_Union[Publication, _Mapping]] = ..., extraction: _Optional[_Union[ExtractionMetadata, _Mapping]] = ..., additional_sources: _Optional[_Iterable[_Union[AdditionalSource, _Mapping]]] = ...) -> None: ...
 
 class Publication(_message.Message):
     __slots__ = ["doi", "patent", "url", "location", "authors", "publication_date", "details", "organizations"]
@@ -1334,6 +1336,30 @@ class Publication(_message.Message):
     details: str
     organizations: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, doi: _Optional[str] = ..., patent: _Optional[str] = ..., url: _Optional[str] = ..., location: _Optional[str] = ..., authors: _Optional[_Iterable[_Union[Person, _Mapping]]] = ..., publication_date: _Optional[_Union[DateTime, _Mapping]] = ..., details: _Optional[str] = ..., organizations: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class AdditionalSource(_message.Message):
+    __slots__ = ["type", "publication", "details"]
+    class SourceRole(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = []
+        UNSPECIFIED: _ClassVar[AdditionalSource.SourceRole]
+        CUSTOM: _ClassVar[AdditionalSource.SourceRole]
+        OTHER_VERSION: _ClassVar[AdditionalSource.SourceRole]
+        SAME_TEXT: _ClassVar[AdditionalSource.SourceRole]
+        DATA_SOURCE: _ClassVar[AdditionalSource.SourceRole]
+        RELATED: _ClassVar[AdditionalSource.SourceRole]
+    UNSPECIFIED: AdditionalSource.SourceRole
+    CUSTOM: AdditionalSource.SourceRole
+    OTHER_VERSION: AdditionalSource.SourceRole
+    SAME_TEXT: AdditionalSource.SourceRole
+    DATA_SOURCE: AdditionalSource.SourceRole
+    RELATED: AdditionalSource.SourceRole
+    TYPE_FIELD_NUMBER: _ClassVar[int]
+    PUBLICATION_FIELD_NUMBER: _ClassVar[int]
+    DETAILS_FIELD_NUMBER: _ClassVar[int]
+    type: AdditionalSource.SourceRole
+    publication: Publication
+    details: str
+    def __init__(self, type: _Optional[_Union[AdditionalSource.SourceRole, str]] = ..., publication: _Optional[_Union[Publication, _Mapping]] = ..., details: _Optional[str] = ...) -> None: ...
 
 class ExtractionMetadata(_message.Message):
     __slots__ = ["is_mined", "how_mined", "confidence", "confidence_details", "is_human_reviewed"]

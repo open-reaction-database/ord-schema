@@ -1155,6 +1155,9 @@ message ReactionProvenance {
   Publication publication = 11;
   // How the record was produced, for records extracted automatically.
   ExtractionMetadata extraction = 12;
+  // Other sources that report this reaction. publication stays the source
+  // the record's values were taken from; these never replace it.
+  repeated AdditionalSource additional_sources = 13;
 }
 
 /**
@@ -1181,6 +1184,36 @@ message Publication {
   // which author they belong to. Leave empty when each author's organisation
   // is recorded in Person.organization.
   repeated string organizations = 8;
+}
+
+/**
+ * A source that reports a reaction besides the one its record was taken from
+ * (ReactionProvenance.publication), such as another version of the same
+ * publication, another patent in the same family, or a data repository.
+ */
+message AdditionalSource {
+  enum SourceRole {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    // Another version of the same publication, e.g. the preprint of an
+    // article or the article of a preprint.
+    OTHER_VERSION = 2;
+    // The same passage appears in this source, e.g. another patent in the same
+    // family.
+    SAME_TEXT = 3;
+    // Data repository the record's data was taken from, e.g. figshare, Zenodo
+    // or GitHub. Give the version used: a versioned DOI where available,
+    // otherwise a URL to a tagged release or commit. A repository that is the
+    // only source goes in ReactionProvenance.publication instead.
+    DATA_SOURCE = 4;
+    // Reports the same reaction; values may differ.
+    RELATED = 5;
+  }
+  // How this source relates to the record.
+  SourceRole type = 1;
+  Publication publication = 2;
+  // e.g. the repository release, tag or commit.
+  string details = 3;
 }
 
 /**

@@ -245,6 +245,9 @@ def _second_reaction() -> reaction_pb2.Reaction:
     reaction.provenance.record_modified.add(details="also recorded")
     reaction.provenance.reaction_metadata["other"].string_value = "recorded"
     reaction.provenance.publication.authors.add(name="also recorded")
+    reaction.provenance.additional_sources.add(
+        type=reaction_pb2.AdditionalSource.RELATED
+    ).publication.authors.add(name="also recorded")
     return reaction
 
 
@@ -312,6 +315,9 @@ def populated(tmp_path_factory) -> pathlib.Path:
     reaction.provenance.record_modified.add(details="recorded")
     reaction.provenance.reaction_metadata["note"].string_value = "recorded"
     reaction.provenance.publication.authors.add(name="recorded")
+    reaction.provenance.additional_sources.add(
+        type=reaction_pb2.AdditionalSource.SAME_TEXT
+    ).publication.authors.add(name="recorded")
     source = root / "ord_dataset-pvfull.parquet"
     parquet.save_dataset(
         dataset_pb2.Dataset(
