@@ -18,6 +18,7 @@ import contextlib
 import dataclasses
 import datetime
 import gc
+import itertools
 import logging
 import pathlib
 import re
@@ -64,8 +65,8 @@ def _reaction(reaction_id, *, components, product="Cc1ccccc1"):
     return reaction
 
 
-# Two datasets, so that the second's structure IDs only join correctly through a
-# nonzero offset. Basenames sort "aa" before "bb".
+# Two datasets, so that one's structure IDs only join correctly through a nonzero
+# offset. Which one is the sources' hashes' to decide, since offsets follow them.
 _REACTIONS = {
     "aa": [
         # Pyridine as the solvent; benzene as the reactant.
@@ -6321,3 +6322,169 @@ class TestFirstCommitsAlone:
             _search(history_corpus, {"op": "and", "clauses": [hot, *_ADDED_IN_2022]})
         assert "this query reads the arrivals" in _messages(caplog)
         assert "this query reads the arrivals alone" not in _messages(caplog)
+
+
+_PYRIDINE_AS_REACTANT = _exists(
+    {
+        "op": "and",
+        "clauses": [
+            {"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"},
+            {"op": "eq", "path": "reaction_role", "value": {"literal": "REACTANT"}},
+        ],
+    }
+)
+
+
+def _offset_tree(root: pathlib.Path) -> pathlib.Path:
+    """Writes a tree whose first dataset in offset order holds the most structures.
+
+    Offsets follow the sources' hashes, so the larger dataset's description is varied
+    until its hash sorts first. Its structure IDs then reach past the second dataset's
+    count, and one of them at the second dataset's offset lies outside the corpus-wide
+    bitmap.
+
+    Args:
+        root: Where to write the sources, projections, structures, and pivots.
+
+    Returns:
+        ``root``.
+    """
+    big = [
+        _reaction(
+            "ord-big01",
+            components=[
+                (smiles, _ROLE.REACTANT)
+                for smiles in ("CCO", "CCN", "CCC", "CCCC", "c1ccncc1")
+            ],
+        )
+    ]
+    small = [_reaction("ord-small01", components=[("CO", _ROLE.REACTANT)])]
+    sources = root / "data"
+    sources.mkdir(parents=True)
+    small_source = sources / "ord_dataset-small.parquet"
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-small",
+            name="small",
+            description="one structure",
+            reactions=small,
+        ),
+        str(small_source),
+    )
+    big_source = sources / "ord_dataset-big.parquet"
+    for attempt in itertools.count():
+        parquet.save_dataset(
+            dataset_pb2.Dataset(
+                dataset_id="ord_dataset-big",
+                name="big",
+                description=f"attempt {attempt}",
+                reactions=big,
+            ),
+            str(big_source),
+        )
+        if (
+            parquet.DatasetView(big_source).md5()
+            < parquet.DatasetView(small_source).md5()
+        ):
+            break
+    for source in (big_source, small_source):
+        projected = root / "projections" / source.name
+        projected.parent.mkdir(parents=True, exist_ok=True)
+        projection.write_projection(source, projected)
+        structured = root / "structures" / source.name
+        structured.parent.mkdir(parents=True, exist_ok=True)
+        structures.write_structures(projected, structured)
+    _write_pivots(root, ["inputs.components"])
+    return root
+
+
+class TestPivotStructureOffsets:
+    def test_a_pivot_row_never_reads_another_datasets_offset(self, tmp_path):
+        root = _offset_tree(tmp_path / "offsets")
+        with _open(
+            root, resolver={}.__getitem__, occurrences_dir=None, warm=False
+        ) as value:
+            offsets = dict(
+                value._connection.execute(
+                    "SELECT dataset_id, structure_offset FROM structure_offsets"
+                ).fetchall()
+            )
+            # The precondition the tree is written for: the dataset of six structures,
+            # its reactants and its product, first, so that its IDs at the other's
+            # offset reach past the corpus's eight.
+            assert offsets == {"ord_dataset-big": 0, "ord_dataset-small": 6}
+            assert _search(value, _PYRIDINE_AS_REACTANT) == {"ord-big01"}
+            assert _search(value, {"op": "not", "clause": _PYRIDINE_AS_REACTANT}) == {
+                "ord-small01"
+            }
+
+    def test_a_row_level_exists_reads_each_dataset_at_its_own_offset(
+        self, corpus, caplog
+    ):
+        # The role is a field no index row carries, so the pivot answers. Each pivot
+        # row's structure ID is its own dataset's, and the bitmap is corpus-wide, so
+        # the offset has to be that row's: dataset aa's IDs at bb's offset fall
+        # outside the bitmap, and inside it they would name bb's molecules.
+        with caplog.at_level(logging.INFO, logger=execute.logger.name):
+            found = _search(corpus, _PYRIDINE_AS_REACTANT)
+        assert found == {"ord-aa02"}
+        assert "this query reads the pivots over ['inputs.components']" in _messages(
+            caplog
+        )
+
+    def test_a_negated_row_level_exists_answers_the_rest(self, corpus):
+        where = {"op": "not", "clause": _PYRIDINE_AS_REACTANT}
+        assert _search(corpus, where) == {"ord-aa01", "ord-bb01"}
+
+    def test_refuses_a_view_that_loses_a_file_to_its_offsets(
+        self, corpus_dir, monkeypatch
+    ):
+        # A file read_parquet named otherwise than the path it was given joins no
+        # offset, and its rows would leave the pivot without a word.
+        publish = execute.Corpus._artifact_offsets
+
+        def short(self, published, sources):
+            return publish(self, published, dict(list(sources.items())[1:]))
+
+        monkeypatch.setattr(execute.Corpus, "_artifact_offsets", short)
+        with (
+            _open(
+                corpus_dir,
+                resolver={}.__getitem__,
+                occurrences_dir=None,
+                warm=False,
+            ) as value,
+            pytest.raises(execute.PairingError, match="joined to their offsets"),
+        ):
+            _search(value, _exists(_SOLVENT))
+
+    def test_an_element_filter_reads_each_dataset_at_its_own_offset(self, corpus):
+        answer = corpus.search(
+            query.Query.model_validate(
+                {
+                    "aggregate": {
+                        "over": "inputs.components",
+                        "where": {
+                            "op": "substructure",
+                            "path": "smiles",
+                            "smarts": "c1ccncc1",
+                        },
+                        "group_by": ["reaction_role"],
+                        "measures": [
+                            {
+                                "fn": "count_distinct",
+                                "path": "reaction_id",
+                                "name": "reactions",
+                            }
+                        ],
+                    }
+                }
+            )
+        )
+        assert dict(
+            zip(
+                answer.column("reaction_role").to_pylist(),
+                answer.column("reactions").to_pylist(),
+                strict=True,
+            )
+        ) == {"SOLVENT": 1, "REACTANT": 1}

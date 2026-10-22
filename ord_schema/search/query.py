@@ -57,9 +57,10 @@ bitmap parameter indexed by the corpus-wide ID -- the projection's ``structure_i
 its file's offset: DuckDB permits no subquery inside a lambda expression, so the element
 a quantifier binds cannot semi-join a match table, but it can test one integer against
 a bitmap. The compiled SQL therefore references ``structure_offset``, a column only the
-executor's relation carries -- a raw projection cannot answer a structure query, which
-is the point: the IDs are dataset-local and only the executor knows the offsets that
-make them one corpus-wide space.
+executor's relations carry -- the reactions and each pivot view it publishes, whose
+rows come from every dataset and so each carry their own. A raw projection cannot answer
+a structure query, which is the point: the IDs are dataset-local and only the executor
+knows the offsets that make them one corpus-wide space.
 """
 
 import dataclasses
@@ -155,6 +156,11 @@ class _Routing:
         history_on_row: Whether the row the query reads carries ``first_commit`` --
             ``history`` joined to ``table``, or ``history`` alone -- so a clause reads
             it in place rather than through a semi-join.
+        offset: What a structure ID read here adds to reach a corpus-wide one: the
+            row's ``STRUCTURE_OFFSET`` at the reaction, and the pivot row's own where
+            the clause reads one. A pivot holds every dataset's rows, so an offset left
+            to bind outward takes an enclosing reaction's, which is another dataset's
+            for every row but its own.
     """
 
     table: str
@@ -163,6 +169,7 @@ class _Routing:
     enclosing: "tuple[str, pivot_levels.RepeatedLevel] | None" = None
     history: str | None = None
     history_on_row: bool = False
+    offset: str = STRUCTURE_OFFSET
 
 
 def executable_schema(schema: pa.Schema | None = None) -> pa.Schema:
@@ -1168,6 +1175,7 @@ def _structure(
     scope: str | None,
     schema: Any,
     structures: list[StructureParameter],
+    offset: str,
 ) -> str:
     """Compiles a structure predicate to a bitmap test on the element's structure ID.
 
@@ -1180,6 +1188,8 @@ def _structure(
         scope: Bound variable the path is relative to, or None at the row.
         schema: Schema or struct type the path resolves within.
         structures: Parameters named so far, appended to when this one is new.
+        offset: What the element's dataset-local ID adds to index the bitmap; see
+            ``_Routing.offset``.
 
     Returns:
         The DuckDB expression testing the element's ID against the predicate's bitmap.
@@ -1212,7 +1222,7 @@ def _structure(
     parameter = _structure_parameter(node, structures)
     return (
         f"({identifier.expression} IS NOT NULL AND get_bit(CAST(${parameter} AS "
-        f"BITSTRING), ({identifier.expression} + {STRUCTURE_OFFSET})::INTEGER) = 1)"
+        f"BITSTRING), ({identifier.expression} + {offset})::INTEGER) = 1)"
     )
 
 
@@ -1325,7 +1335,11 @@ def _pivoted(
             element_type,
             taken,
             depth + 1,
-            dataclasses.replace(routing, enclosing=(variable, level)),
+            dataclasses.replace(
+                routing,
+                enclosing=(variable, level),
+                offset=f"{variable}.{STRUCTURE_OFFSET}",
+            ),
         )
     except QueryError:
         return None
@@ -1657,7 +1671,7 @@ def _predicate(
     if isinstance(node, Quantifier):
         return _quantifier(node, scope, schema, parameters, depth, routing)
     if isinstance(node, StructurePredicate):
-        return _structure(node, scope, schema, parameters.structures)
+        return _structure(node, scope, schema, parameters.structures, routing.offset)
     if scope is None and _names_history(node):
         condition = _history_clause([node], schema, parameters, routing)
     else:
@@ -1953,7 +1967,9 @@ def _pivoted_reduction(
             level.element_type,
             parameters,
             1,
-            routing,
+            dataclasses.replace(
+                routing, offset=f"{_REDUCTION_ALIAS}.{STRUCTURE_OFFSET}"
+            ),
         )
     argument = f"DISTINCT {column}" if distinct else column
     return (
@@ -2379,7 +2395,9 @@ def compile_query(
                     element[2],
                     parameters,
                     1,
-                    routing,
+                    dataclasses.replace(
+                        routing, offset=f"{element[0]}.{STRUCTURE_OFFSET}"
+                    ),
                 )
             )
     if query.where is not None:

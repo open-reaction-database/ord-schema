@@ -1978,46 +1978,6 @@ def test_without_a_pivot_the_sql_is_unchanged():
     assert _pivot_sql(body) == _pivot_sql(body, pivot=lambda path: None)
 
 
-def test_a_structure_predicate_routes_through_the_pivot_with_the_outer_offset():
-    # The occurrence index declines a body that is not one structure predicate plus
-    # string equalities, so this lands on the pivot. Its rows carry structure_id but no
-    # structure_offset, and the bitmap is indexed by the two added: the offset resolves
-    # outward to the reaction the element belongs to, which is the one its ID is meant
-    # to be read against. Pinned here because it holds by name resolution -- a pivot
-    # that ever carried an offset column of its own would bind inward instead.
-    compiled = query.compile_query(
-        query.Query.model_validate(
-            {
-                "where": {
-                    "op": "exists",
-                    "path": "inputs.components",
-                    "where": {
-                        "op": "and",
-                        "clauses": [
-                            {
-                                "op": "substructure",
-                                "path": "smiles",
-                                "smarts": "c1ccncc1",
-                            },
-                            {"op": "not_null", "path": "smiles"},
-                        ],
-                    },
-                }
-            }
-        ),
-        pivot=_every_level,
-    )
-    assert (
-        "IN (SELECT x0.reaction_id FROM pivot_inputs_components AS x0" in compiled.sql
-    )
-    assert "x0.element.structure_id" in compiled.sql
-    # Unqualified, so it is the enclosing relation's column rather than one of the
-    # pivot's; the pivot has none.
-    assert "+ structure_offset)" in compiled.sql
-    assert "x0.structure_offset" not in compiled.sql
-    assert len(compiled.structures) == 1
-
-
 def test_a_declining_body_is_never_charged_for_a_pivot():
     # Supplying a pivot is what builds it, an unnest of the projection per level. A
     # body reaching a repeated field declines, so it must not ask for one first.
@@ -3071,4 +3031,98 @@ class TestFirstCommitsAlone:
             "FROM pivot_inputs_components AS x0 WHERE EXISTS (SELECT 1 FROM reactions "
             "WHERE reactions.reaction_id = x0.reaction_id AND "
             f"{_SEMI_JOIN}{_DAY} >= $literal_0))"
+        )
+
+
+_PIVOT = {"pivot": lambda path: f"pivot_{path.replace('.', '_')}"}
+_PYRIDINE = {"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"}
+_REACTANT = {"op": "eq", "path": "reaction_role", "value": {"literal": "REACTANT"}}
+
+
+class TestStructureOffsets:
+    def test_a_row_level_exists_reads_its_pivot_rows_offset(self):
+        compiled = _compile(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "inputs.components",
+                    "where": {"op": "and", "clauses": [_PYRIDINE, _REACTANT]},
+                }
+            },
+            **_PIVOT,
+        )
+        # The index declines a structure beside a field no index row carries, so this
+        # lands on the pivot. An offset left bare binds to the reaction outside the
+        # IN, whose dataset is not the pivot row's.
+        assert "(x0.element.structure_id + x0.structure_offset)" in compiled.sql
+        assert " + structure_offset)" not in compiled.sql
+
+    def test_a_nested_exists_reads_its_own_pivot_rows_offset(self):
+        compiled = _compile(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "outcomes",
+                    "where": {
+                        "op": "exists",
+                        "path": "products",
+                        "where": _PYRIDINE,
+                    },
+                }
+            },
+            **_PIVOT,
+        )
+        assert "(x1.element.structure_id + x1.structure_offset)" in compiled.sql
+        assert " + structure_offset)" not in compiled.sql
+
+    def test_a_forall_reads_its_pivot_rows_offset(self):
+        compiled = _compile(
+            {
+                "where": {
+                    "op": "forall",
+                    "path": "inputs.components",
+                    "where": {"op": "or", "clauses": [_PYRIDINE, _REACTANT]},
+                }
+            },
+            **_PIVOT,
+        )
+        assert "(x0.element.structure_id + x0.structure_offset)" in compiled.sql
+
+    def test_a_reduction_reads_its_pivot_rows_offset(self):
+        compiled = _compile(
+            {"where": {"op": "reaction_smarts", "smarts": "C(=O)O.N>>C(=O)N"}},
+            **_PIVOT,
+        )
+        assert "(r0.element.structure_id + r0.structure_offset)" in compiled.sql
+        assert " + structure_offset)" not in compiled.sql
+
+    def test_an_element_filter_reads_its_pivot_rows_offset(self):
+        compiled = _compile(
+            {
+                "aggregate": {
+                    "over": "inputs.components",
+                    "where": _PYRIDINE,
+                    "measures": [{"fn": "count", "name": "components"}],
+                }
+            },
+            **_PIVOT,
+        )
+        assert "(x0.element.structure_id + x0.structure_offset)" in compiled.sql
+        assert " + structure_offset)" not in compiled.sql
+
+    def test_the_projections_lists_read_the_reactions_offset(self):
+        compiled = _compile(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "inputs.components",
+                    "where": {"op": "and", "clauses": [_PYRIDINE, _REACTANT]},
+                }
+            }
+        )
+        assert "(e0.structure_id + structure_offset)" in compiled.sql
+        sql.validate(
+            compiled.sql,
+            parameters={**compiled.literals, "structure_0": "1"},
+            schema=query.executable_schema(),
         )
