@@ -406,7 +406,9 @@ goes; the cost was never struct access but the reconstruction of lists of struct
 That also decides coverage without a list anybody maintains. A body reaching a field the
 pivot dropped fails to resolve against the pruned element type, so the quantifier falls
 back to the elements. A pivot does carry `structure_id`, so a structure predicate inside
-a pivoted quantifier works too, reading `structure_offset` from the enclosing reaction.
+a pivoted quantifier works too, reading the `structure_offset` the pivot view gives each
+row for its own dataset: the view holds every dataset's rows, and the semi-join an
+`exists` compiles to correlates with no reaction whose offset could stand in.
 A quantifier's path need not name a level either: descending through singular struct
 fields reaches one value per element rather than a list of its own — an authentic
 standard is one compound per measurement — so the level it ranges over is the nearest
@@ -667,9 +669,9 @@ artifact derived from the same source dataset, and long enough to hold every
 `structure_id` the projection carries, because the IDs joining them are meaningful only
 as a pair. Pairing is by source dataset rather than by filename, so the two trees need
 not share a layout. Structure IDs are dataset-local; the executor's relation
-carries a per-file offset column (`structure_offset`), which is why compiled SQL with a
-structure predicate runs only there — validate it against `query.executable_schema()`
-rather than the bare projection schema. It also carries `dataset_id`, read from each
+carries a per-file offset column (`structure_offset`), as does each pivot view it
+publishes, which is why compiled SQL with a structure predicate runs only there —
+validate it against `query.executable_schema()` rather than the bare projection schema. It also carries `dataset_id`, read from each
 projection's `ord.source_dataset_id` stamp, so a query can narrow to a dataset or group
 by one; it is NULL for a projection whose source recorded no dataset ID.
 

@@ -2002,14 +2002,16 @@ class Corpus:
                 ),
             }
         )
-        # Called under _occurrences_lock, so two cursors never register one name at
-        # once. S608: the name comes from this module's walk of the schema.
-        self._connection.register("registered_artifact_offsets", registered)
+        # Registered under a name of its own: a pivot view and the occurrence index
+        # publish under different locks, and two cursors registering one name at once
+        # would each read the other's rows. S608: the name comes from this module's
+        # walk of the schema.
+        staged = f"registered_{published}"
+        self._connection.register(staged, registered)
         self._connection.execute(
-            f"CREATE OR REPLACE TABLE {published} AS "  # noqa: S608
-            "SELECT * FROM registered_artifact_offsets"
+            f"CREATE OR REPLACE TABLE {published} AS SELECT * FROM {staged}"  # noqa: S608
         )
-        self._connection.unregister("registered_artifact_offsets")
+        self._connection.unregister(staged)
         return published
 
     def _occurrence_artifacts(self, path: str) -> dict[str, str] | None:
@@ -2377,7 +2379,8 @@ class Corpus:
                 pivot of another corpus answers confidently and wrongly, since its
                 reaction IDs resolve against the wrong rows -- if any lacks a column
                 this library reads, if any carries a structure ID its dataset does not
-                hold, or, with ``require_current``, if any of them is stale.
+                hold, if the view loses rows joining each to its dataset's offset, or,
+                with ``require_current``, if any of them is stale.
         """
         if path not in pivot.LEVELS:
             return None
@@ -2391,12 +2394,42 @@ class Corpus:
             if published is not None:
                 return published
             name = pivot.table_name(path)
+            # A pivot holds its dataset's own structure IDs, and a structure predicate
+            # over its rows needs each row's dataset offset beside them: the offset
+            # of a reaction outside the pivot is another dataset's for every row but
+            # its own. Joined from the file each row came from, as the occurrence index
+            # joins it.
+            offsets = self._artifact_offsets(f"{name}_offsets", sources)
             # S608: the name comes from this module's walk of the schema, and the paths
             # from this process's own glob, quoted with their single quotes escaped.
             self._connection.execute(
-                f"CREATE OR REPLACE VIEW {name} AS "  # noqa: S608
-                f"SELECT * FROM read_parquet({_sql_paths(files)})"
+                f"""
+                CREATE OR REPLACE VIEW {name} AS
+                SELECT x.* EXCLUDE (filename), o.{query.STRUCTURE_OFFSET}
+                FROM read_parquet({_sql_paths(files)}, filename=true) x
+                JOIN {offsets} o ON x.filename = o.artifact_filename
+                """  # noqa: S608
             )
+            # The join drops the rows of a file read_parquet names otherwise than the
+            # path it was given, and a dataset's elements gone from a pivot answer every
+            # exists over them no and every forall yes. Counted against the plain
+            # read, which the footers answer, on its own cursor: searches are in
+            # flight on the shared connection.
+            cursor = self._connection.cursor()
+            try:
+                counts = cursor.execute(
+                    f"SELECT (SELECT count(*) FROM read_parquet({_sql_paths(files)})), "  # noqa: S608
+                    f"(SELECT count(*) FROM {name})"
+                ).fetchone()
+            finally:
+                cursor.close()
+            assert counts is not None  # A SELECT of two aggregates returns one row.
+            if counts[0] != counts[1]:
+                raise PairingError(
+                    f"the {path} pivot artifacts hold {counts[0]} rows but only "
+                    f"{counts[1]} joined to their offsets; a path did not survive "
+                    "read_parquet"
+                )
             logger.info("read %d pivot artifacts for %s", len(files), path)
             self._pivot_views[path] = name
             return name
