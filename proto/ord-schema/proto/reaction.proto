@@ -79,6 +79,16 @@ message ReactionIdentifier {
     RDFILE = 3;  // Reaction data file.
     RINCHI = 4;  // Reaction InChI.
     REACTION_TYPE = 5;  // Named reaction or reaction category.
+    // Membership of a group of reactions within the dataset, e.g. a table in
+    // the source or a block in a designed experiment. Name the grouping in
+    // details (e.g. "table", "block") and the group in value (e.g. "Table 2",
+    // "3"). A reaction may belong to several groupings, told apart by details.
+    GROUP = 7;
+    // Position in an explicit sequence of reactions within the dataset, e.g.
+    // the run order of a designed experiment. Describe the sequence in details
+    // (e.g. "run order") and give the position as an integer in value. A
+    // reaction may have several, told apart by details.
+    ORDER = 8;
   }
   ReactionIdentifierType type = 1;
   string details = 2;
