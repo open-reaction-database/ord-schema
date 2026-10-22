@@ -845,6 +845,11 @@ _TEXTURE_TO_STATE = {
     reaction_pb2.Texture.AMORPHOUS_SOLID: _StateOfMatter.SOLID,
     reaction_pb2.Texture.SEMI_SOLID: _StateOfMatter.SOLID,
     reaction_pb2.Texture.SOLID: _StateOfMatter.SOLID,
+    reaction_pb2.Texture.SOLUTION: _StateOfMatter.LIQUID,
+    reaction_pb2.Texture.EMULSION: _StateOfMatter.LIQUID,
+    # A suspension holds both a solid and a liquid, so no one state fits it.
+    reaction_pb2.Texture.SUSPENSION: None,
+    reaction_pb2.Texture.GUM: _StateOfMatter.SOLID,
 }
 
 

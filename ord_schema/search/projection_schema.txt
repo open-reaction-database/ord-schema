@@ -58,7 +58,7 @@ inputs: MAP<VARCHAR, STRUCT>
         timestamp: DATE
         utc_offset_minutes: SMALLINT
     texture: STRUCT
-      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
       details: VARCHAR
   crude_components: LIST<STRUCT>
     reaction_id: VARCHAR
@@ -76,7 +76,7 @@ inputs: MAP<VARCHAR, STRUCT>
         details: VARCHAR
       volume_includes_solutes: BOOLEAN
     texture: STRUCT
-      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
       details: VARCHAR
   addition_order: INTEGER
   addition_time_seconds: DOUBLE
@@ -94,7 +94,7 @@ inputs: MAP<VARCHAR, STRUCT>
   addition_temperature_kelvin: DOUBLE
   addition_temperature_precision_kelvin: DOUBLE
   texture: STRUCT
-    type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
     details: VARCHAR
 setup: STRUCT
   vessel: STRUCT
@@ -288,7 +288,7 @@ workups: LIST<STRUCT>
           timestamp: DATE
           utc_offset_minutes: SMALLINT
       texture: STRUCT
-        type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
         details: VARCHAR
     crude_components: LIST<STRUCT>
       reaction_id: VARCHAR
@@ -306,7 +306,7 @@ workups: LIST<STRUCT>
           details: VARCHAR
         volume_includes_solutes: BOOLEAN
       texture: STRUCT
-        type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
         details: VARCHAR
     addition_order: INTEGER
     addition_time_seconds: DOUBLE
@@ -324,7 +324,7 @@ workups: LIST<STRUCT>
     addition_temperature_kelvin: DOUBLE
     addition_temperature_precision_kelvin: DOUBLE
     texture: STRUCT
-      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
       details: VARCHAR
   amount: STRUCT
     mass_grams: DOUBLE
@@ -433,7 +433,7 @@ outcomes: LIST<STRUCT>
             timestamp: DATE
             utc_offset_minutes: SMALLINT
         texture: STRUCT
-          type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+          type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
           details: VARCHAR
       percentage: STRUCT
         value: FLOAT
@@ -468,7 +468,7 @@ outcomes: LIST<STRUCT>
       wavelength_precision_nanometers: DOUBLE
     isolated_color: VARCHAR
     texture: STRUCT
-      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
       details: VARCHAR
     features: MAP<VARCHAR, STRUCT>
       float_value: FLOAT

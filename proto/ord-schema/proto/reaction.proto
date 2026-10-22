@@ -244,8 +244,15 @@ message Texture {
     WAX = 7;
     SEMI_SOLID = 8;
     SOLID = 9;
-    LIQUID = 10;
+    LIQUID = 10;  // A neat liquid; use SOLUTION for dissolved material.
     GAS = 11;
+    // Material dissolved in a liquid; a homogeneous mixture.
+    SOLUTION = 12;
+    // Solid dispersed in a liquid, e.g. a slurry or "60% dispersion in mineral
+    // oil" (in details).
+    SUSPENSION = 13;
+    EMULSION = 14;  // Liquid dispersed in another liquid.
+    GUM = 15;  // A sticky, non-crystalline product, distinct from an OIL.
   }
   TextureType type = 1;
   // Specify texture forms such as "fine needles" for CRYSTAL,
