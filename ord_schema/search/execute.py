@@ -2379,7 +2379,8 @@ class Corpus:
                 pivot of another corpus answers confidently and wrongly, since its
                 reaction IDs resolve against the wrong rows -- if any lacks a column
                 this library reads, if any carries a structure ID its dataset does not
-                hold, or, with ``require_current``, if any of them is stale.
+                hold, if the view loses rows joining each to its dataset's offset, or,
+                with ``require_current``, if any of them is stale.
         """
         if path not in pivot.LEVELS:
             return None
@@ -2409,6 +2410,26 @@ class Corpus:
                 JOIN {offsets} o ON x.filename = o.artifact_filename
                 """  # noqa: S608
             )
+            # The join drops the rows of a file read_parquet names otherwise than the
+            # path it was given, and a dataset's elements gone from a pivot answer every
+            # exists over them no and every forall yes. Counted against the plain
+            # read, which the footers answer, on its own cursor: searches are in
+            # flight on the shared connection.
+            cursor = self._connection.cursor()
+            try:
+                counts = cursor.execute(
+                    f"SELECT (SELECT count(*) FROM read_parquet({_sql_paths(files)})), "  # noqa: S608
+                    f"(SELECT count(*) FROM {name})"
+                ).fetchone()
+            finally:
+                cursor.close()
+            assert counts is not None  # A SELECT of two aggregates returns one row.
+            if counts[0] != counts[1]:
+                raise PairingError(
+                    f"the {path} pivot artifacts hold {counts[0]} rows but only "
+                    f"{counts[1]} joined to their offsets; a path did not survive "
+                    "read_parquet"
+                )
             logger.info("read %d pivot artifacts for %s", len(files), path)
             self._pivot_views[path] = name
             return name

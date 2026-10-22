@@ -6442,6 +6442,28 @@ class TestPivotStructureOffsets:
         where = {"op": "not", "clause": _PYRIDINE_AS_REACTANT}
         assert _search(corpus, where) == {"ord-aa01", "ord-bb01"}
 
+    def test_refuses_a_view_that_loses_a_file_to_its_offsets(
+        self, corpus_dir, monkeypatch
+    ):
+        # A file read_parquet named otherwise than the path it was given joins no
+        # offset, and its rows would leave the pivot without a word.
+        publish = execute.Corpus._artifact_offsets
+
+        def short(self, published, sources):
+            return publish(self, published, dict(list(sources.items())[1:]))
+
+        monkeypatch.setattr(execute.Corpus, "_artifact_offsets", short)
+        with (
+            _open(
+                corpus_dir,
+                resolver={}.__getitem__,
+                occurrences_dir=None,
+                warm=False,
+            ) as value,
+            pytest.raises(execute.PairingError, match="joined to their offsets"),
+        ):
+            _search(value, _exists(_SOLVENT))
+
     def test_an_element_filter_reads_each_dataset_at_its_own_offset(self, corpus):
         answer = corpus.search(
             query.Query.model_validate(
