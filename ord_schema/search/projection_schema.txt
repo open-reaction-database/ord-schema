@@ -41,7 +41,7 @@ inputs: MAP<VARCHAR, STRUCT>
       description: VARCHAR
       format: VARCHAR
     analyses: MAP<VARCHAR, STRUCT>
-      type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD)
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD | BP | NMR_19F | NMR_31P | ELEMENTAL_ANALYSIS)
       details: VARCHAR
       chmo_id: INTEGER
       is_of_isolated_species: BOOLEAN
@@ -271,7 +271,7 @@ workups: LIST<STRUCT>
         description: VARCHAR
         format: VARCHAR
       analyses: MAP<VARCHAR, STRUCT>
-        type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD)
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD | BP | NMR_19F | NMR_31P | ELEMENTAL_ANALYSIS)
         details: VARCHAR
         chmo_id: INTEGER
         is_of_isolated_species: BOOLEAN
@@ -416,7 +416,7 @@ outcomes: LIST<STRUCT>
           description: VARCHAR
           format: VARCHAR
         analyses: MAP<VARCHAR, STRUCT>
-          type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD)
+          type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD | BP | NMR_19F | NMR_31P | ELEMENTAL_ANALYSIS)
           details: VARCHAR
           chmo_id: INTEGER
           is_of_isolated_species: BOOLEAN
@@ -480,7 +480,7 @@ outcomes: LIST<STRUCT>
       format: VARCHAR
     reaction_role: VARCHAR  (UNSPECIFIED | REACTANT | REAGENT | SOLVENT | CATALYST | WORKUP | INTERNAL_STANDARD | AUTHENTIC_STANDARD | PRODUCT | BYPRODUCT | SIDE_PRODUCT)
   analyses: MAP<VARCHAR, STRUCT>
-    type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD)
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD | BP | NMR_19F | NMR_31P | ELEMENTAL_ANALYSIS)
     details: VARCHAR
     chmo_id: INTEGER
     is_of_isolated_species: BOOLEAN

@@ -1219,6 +1219,10 @@ class Analysis(_message.Message):
         ED: _ClassVar[Analysis.AnalysisType]
         OPTICAL_ROTATION: _ClassVar[Analysis.AnalysisType]
         CAD: _ClassVar[Analysis.AnalysisType]
+        BP: _ClassVar[Analysis.AnalysisType]
+        NMR_19F: _ClassVar[Analysis.AnalysisType]
+        NMR_31P: _ClassVar[Analysis.AnalysisType]
+        ELEMENTAL_ANALYSIS: _ClassVar[Analysis.AnalysisType]
     UNSPECIFIED: Analysis.AnalysisType
     CUSTOM: Analysis.AnalysisType
     LC: Analysis.AnalysisType
@@ -1245,6 +1249,10 @@ class Analysis(_message.Message):
     ED: Analysis.AnalysisType
     OPTICAL_ROTATION: Analysis.AnalysisType
     CAD: Analysis.AnalysisType
+    BP: Analysis.AnalysisType
+    NMR_19F: Analysis.AnalysisType
+    NMR_31P: Analysis.AnalysisType
+    ELEMENTAL_ANALYSIS: Analysis.AnalysisType
     class DataEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]

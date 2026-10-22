@@ -1080,7 +1080,7 @@ message Analysis {
     IR = 4;  // Infrared spectroscopy, including ReactIR.
     NMR_1H = 5;  // 1H NMR spectroscopy.
     NMR_13C = 6;  // 13C NMR spectroscopy.
-    NMR_OTHER = 7;  // Specify type and details in "details".
+    NMR_OTHER = 7;  // Other nuclei; specify the nucleus in "details".
     MP = 8;  // Melting point characterization.
     UV = 9;  // Ultraviolet spectroscopy.
     TLC = 10;  // Thin-layer chromatography.
@@ -1099,6 +1099,10 @@ message Analysis {
     ED = 23;  // Electron diffraction, including MicroED.
     OPTICAL_ROTATION = 24;  // optical rotation.
     CAD = 25;  // Charged Aerosol Detector.
+    BP = 26;  // Boiling point characterization.
+    NMR_19F = 27;  // 19F NMR spectroscopy.
+    NMR_31P = 28;  // 31P NMR spectroscopy.
+    ELEMENTAL_ANALYSIS = 29;  // Elemental (combustion) analysis.
   }
   AnalysisType type = 1;
   // Any details about analysis (e.g., NMR type, columns, gradients).
