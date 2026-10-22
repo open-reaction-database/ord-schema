@@ -557,6 +557,12 @@ provenance: STRUCT
       utc_offset_minutes: SMALLINT
     details: VARCHAR
     organizations: LIST<VARCHAR>
+  extraction: STRUCT
+    is_mined: BOOLEAN
+    how_mined: VARCHAR
+    confidence: FLOAT
+    confidence_details: VARCHAR
+    is_human_reviewed: BOOLEAN
 reaction_id: VARCHAR
 dataset_id: VARCHAR
 first_commit: STRUCT

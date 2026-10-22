@@ -680,7 +680,7 @@ def test_a_schema_bump_makes_every_artifact_stale(tmp_path, monkeypatch):
 # --force where the stamps still read current) and published in place.
 _GOLDEN_SCHEMA_VERSION = "2"
 _GOLDEN_OUTPUT = {
-    "projection": "7c8fd0f7eccced903e9a319ffd6d8180f779b19770b46f27b220dfa998445dd2",
+    "projection": "63398a82f22af2d0f3706b500f5e79f2f46693516f336fb93b4cf74ab7b91e4f",
     "structures": "3c397cfc3ba2b8e0debd9b725ada6d119551e42aa7c20bf9791983e679ce7158",
     "arrivals": "d30f6710e8fbf5f2b1d11793c4de66b8d7b3bc3195e9fd83771627ad78f0d432",
     "pivot": "b670f69a37503f7f113d5c9e40085b9b76b5c457c9c7e9f739c3dbc084ca613e",

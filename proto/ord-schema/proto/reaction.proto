@@ -1138,13 +1138,13 @@ message ReactionProvenance {
   // Container for arbitrary reaction metadata; e.g., an internal project
   // identifier.
   map<string, Data> reaction_metadata = 9;
-  // Set to true for programmatically extracted data; e.g., text mining from
-  // patents. Set to false for manually curated data or template enumeration
-  // from structured data (like a spreadsheet).
-  optional bool is_mined = 10;
+  // Deprecated: use extraction.is_mined.
+  optional bool is_mined = 10 [deprecated = true];
   // The source this record's values were taken from. experimenter remains the
   // person who ran the experiment.
   Publication publication = 11;
+  // How the record was produced, for records extracted automatically.
+  ExtractionMetadata extraction = 12;
 }
 
 /**
@@ -1171,6 +1171,28 @@ message Publication {
   // which author they belong to. Leave empty when each author's organisation
   // is recorded in Person.organization.
   repeated string organizations = 8;
+}
+
+/**
+ * How a reaction record was produced by automated extraction, e.g. text mining
+ * of patents and papers or digitisation of notebooks, and whether a person has
+ * checked it since.
+ */
+message ExtractionMetadata {
+  // Set to true for programmatically extracted data; e.g., text mining from
+  // patents. Set to false for manually curated data or template enumeration
+  // from structured data (like a spreadsheet).
+  optional bool is_mined = 1;
+  // Brief summary of the extraction tools, pipeline and versions.
+  string how_mined = 2;
+  // Submitter-defined reaction-level confidence; higher means more confident.
+  // There is no common scale, so values are only comparable within a dataset,
+  // whose description should explain how they were assigned.
+  optional float confidence = 3;
+  // How the confidence was assigned: method, scale, and whether calibrated.
+  string confidence_details = 4;
+  // Whether a person has reviewed this record against its source.
+  optional bool is_human_reviewed = 5;
 }
 
 message Person {
