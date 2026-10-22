@@ -521,8 +521,11 @@ message ReactionSetup {
   optional bool is_automated = 2;
   // Automated platform name, brand, or model number.
   string automation_platform = 3;
-  // Raw automation code or synthetic recipe definition.
-  map<string, Data> automation_code = 4;
+  // Machine-readable procedure, recipe or automation code, executable or not
+  // (e.g. XDL, or the action list from a text-mining pipeline). Name the format
+  // and its version in Data.format, e.g. "XDL v6"; Data.description may link to
+  // the format's documentation.
+  map<string, Data> procedure_code = 4;
   message ReactionEnvironment {
     enum ReactionEnvironmentType {
       UNSPECIFIED = 0;
@@ -1343,5 +1346,7 @@ message Data {
   string description = 6;
   // Description of the file format (if applicable); usually the file extension.
   // For example, 'png' or 'tiff' for images. If empty, we assume string data.
+  // For a procedure (ReactionSetup.procedure_code), name the format and its
+  // version, e.g. "XDL v6".
   string format = 7;
 }
