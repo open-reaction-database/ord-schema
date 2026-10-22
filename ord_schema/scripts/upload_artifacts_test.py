@@ -28,8 +28,8 @@ from rdkit import rdBase
 
 from ord_schema import huggingface, parquet
 from ord_schema.artifacts import (
+    arrivals,
     base,
-    first_commits,
     history,
     occurrences,
     pivot,
@@ -79,7 +79,7 @@ def _write_artifact(
 ):
     """Writes a one-row Parquet file carrying an artifact's footer stamps.
 
-    A first_commits artifact also carries the stamp of the index it was derived from,
+    An arrivals artifact also carries the stamp of the index it was derived from,
     unless ``stamp_history`` is False.
     """
     stamps = base.Stamps(
@@ -90,7 +90,7 @@ def _write_artifact(
         rdkit_version=(rdkit_version or rdBase.rdkitVersion) if stamp_rdkit else None,
     )
     metadata = base.to_metadata(stamps)
-    if artifact == first_commits.ARTIFACT and stamp_history:
+    if artifact == arrivals.ARTIFACT and stamp_history:
         metadata |= _index().stamps()
     if group is not None:
         metadata[_GROUP_KEYS[artifact]] = group
@@ -104,7 +104,7 @@ def _write_tree(root, sources=("aa", "bb")):
         name = f"{source}/ord_dataset-{source}.parquet"
         _write_artifact(root / "projections" / name, "projection", source)
         _write_artifact(root / "structures" / name, "structures", source)
-        _write_artifact(root / "first_commits" / name, "first_commits", source)
+        _write_artifact(root / "arrivals" / name, "arrivals", source)
         for level in _LEVELS:
             _write_artifact(
                 root / "pivots" / level / name, "pivot", source, group=level
@@ -186,7 +186,7 @@ class TestUploadArtifacts:
         assert len(upload.uploaded) == 12
         assert "projections/aa/ord_dataset-aa.parquet" in upload.uploaded
         assert "pivots/inputs/bb/ord_dataset-bb.parquet" in upload.uploaded
-        assert "first_commits/aa/ord_dataset-aa.parquet" in upload.uploaded
+        assert "arrivals/aa/ord_dataset-aa.parquet" in upload.uploaded
         # Only what the tree no longer holds goes; the card and the rest are left alone.
         assert upload.deleted == [stale]
         [(repo_id, operations, kwargs)] = hub.commits
@@ -401,11 +401,11 @@ class TestUploadArtifacts:
         with pytest.raises(ValueError, match="carries no RDKit stamp"):
             _upload(tmp_path)
 
-    def test_refuses_first_commits_from_no_walk(self, tmp_path, monkeypatch):
+    def test_refuses_arrivals_from_no_walk(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
         _write_artifact(
-            tmp_path / "first_commits" / "bb" / "ord_dataset-bb.parquet",
-            "first_commits",
+            tmp_path / "arrivals" / "bb" / "ord_dataset-bb.parquet",
+            "arrivals",
             "bb",
             stamp_history=False,
         )
@@ -413,7 +413,7 @@ class TestUploadArtifacts:
         with pytest.raises(ValueError, match=r"bb\.parquet was not derived from a"):
             _upload(tmp_path)
 
-    def test_refuses_first_commits_from_another_walk(self, tmp_path, monkeypatch):
+    def test_refuses_arrivals_from_another_walk(self, tmp_path, monkeypatch):
         _write_tree(tmp_path)
         monkeypatch.setattr(history, "VERSION", "2")
         _FakeHub(monkeypatch)
@@ -454,9 +454,9 @@ def derived_tree(tmp_path_factory):
         structured = root / "artifacts" / "structures" / shard / source.name
         structured.parent.mkdir(parents=True)
         structures.write_structures(projected, structured)
-        arrived = root / "artifacts" / "first_commits" / shard / source.name
+        arrived = root / "artifacts" / "arrivals" / shard / source.name
         arrived.parent.mkdir(parents=True)
-        first_commits.write_first_commits(
+        arrivals.write_arrivals(
             projected, arrived, index=_index("ord-aa01", "ord-bb01")
         )
     artifacts = root / "artifacts"

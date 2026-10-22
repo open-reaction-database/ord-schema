@@ -17,7 +17,7 @@
 Validation needs no corpus. ``query.TABLE_SCHEMA`` is generated from the proto
 descriptors, plus the ``dataset_id`` the executor supplies, so an empty Arrow table
 carrying it has the shape a query runs against, and an empty one carrying the
-first_commits artifact's columns stands for the relation a query naming a first commit
+arrivals artifact's columns stands for the relation a query naming a first commit
 reads beside it. Planning a query against them resolves every column reference and type
 without reading a byte of data. The prompt in :mod:`ord_schema.search.schema` renders
 ``query.SCHEMA``, those two relations' columns as one, so the columns a model is told
@@ -61,7 +61,7 @@ from typing import Any
 import duckdb
 import pyarrow as pa
 
-from ord_schema.artifacts import first_commits
+from ord_schema.artifacts import arrivals
 from ord_schema.search import query
 
 # The name the model is told to query. The only relation in scope, so no other table is
@@ -123,7 +123,7 @@ def _connect(schema: pa.Schema) -> duckdb.DuckDBPyConnection:
     """
     connection = duckdb.connect()
     connection.register(TABLE, schema.empty_table())
-    connection.register(query.HISTORY_TABLE, first_commits.SCHEMA.empty_table())
+    connection.register(query.HISTORY_TABLE, arrivals.SCHEMA.empty_table())
     connection.execute("SET enable_external_access=false")
     return connection
 

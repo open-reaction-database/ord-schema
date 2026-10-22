@@ -44,7 +44,7 @@ Each dataset in the [Open Reaction Database](https://huggingface.co/datasets/ope
 | --- | --- | --- |
 | `projections` | source dataset | every field of every reaction as nested Parquet, with units folded into column names (`setpoint_kelvin`) and each molecule's structural identifiers resolved to one `smiles` |
 | `structures` | source dataset | one row per distinct molecule: SMILES, registration hashes, pattern and Morgan fingerprints, and a serialized RDKit mol, keyed by `structure_id` |
-| `first_commits` | source dataset | one row per reaction: the first ord-data commit whose files held it, that commit's time and UTC offset, and the dataset it arrived in |
+| `arrivals` | source dataset | one row per reaction: the first ord-data commit whose files held it, that commit's time and UTC offset, and the dataset it arrived in |
 | `pivots` | source dataset and repeated level | one row per element of that level, with its `reaction_id`, the ordinal of every enclosing level, and the element's own non-repeated fields |
 | `occurrences` | source dataset and indexed path | one row per molecule occurrence at that path: `reaction_id`, `structure_id` |
 
@@ -55,12 +55,13 @@ A `structure_id` is local to its dataset: it joins a projection, pivot, or occur
 ```text
 projections/<shard>/ord_dataset-<id>.parquet
 structures/<shard>/ord_dataset-<id>.parquet
+arrivals/<shard>/ord_dataset-<id>.parquet
 pivots/<level>/<shard>/ord_dataset-<id>.parquet
 occurrences/<path>/<shard>/ord_dataset-<id>.parquet
 ```
 
 - The shard and file name are the source dataset's own, as in ord-data's `data/<shard>/ord_dataset-<id>.parquet`.
-- The repository holds one build at a time. Every file's Parquet footer names the artifact (`ord.artifact`), the artifact schema version (`ord.artifact_schema_version`), the RDKit release it was derived under (`ord.rdkit_version`), and the MD5 of the source dataset it restates (`ord.source_md5`).
+- The repository holds one build at a time. Every file's Parquet footer names the artifact (`ord.artifact`), the artifact schema version (`ord.artifact_schema_version`), the RDKit release it was derived under (`ord.rdkit_version`), and the MD5 of the source dataset it restates (`ord.source_md5`). An arrivals file also names the version of the walk through ord-data's history it was read from (`ord.arrivals_version`) and the commit that walk reached (`ord.arrivals_head`).
 - A new artifact schema version or RDKit release replaces the build, and earlier builds stay in the repository's history. A reader needs the RDKit the build was derived under exactly, since fingerprints and registration hashes change between releases.
 
 The dataset viewer shows the reaction ID, reaction SMILES, and identifiers of the projections, and the structures in full.
@@ -83,8 +84,11 @@ corpus = execute.Corpus(
     artifacts.structures_pattern,
     pivots_dir=str(artifacts.pivots),
     occurrences_dir=str(artifacts.occurrences),
+    arrivals_pattern=artifacts.arrivals_pattern,
 )
 ```
+
+Without `arrivals_pattern`, a query naming `first_commit` is refused, and every other query answers as it would with it.
 
 Pass `revision=` a commit to pin one, or to fetch an earlier build. Each upload's commit message names the ord-data revision it was derived from, and its description names the artifact schema version and RDKit. See the [search README](https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/search/README.md) for queries, and the [artifacts README](https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/artifacts/README.md) for how each artifact is derived and stamped.
 

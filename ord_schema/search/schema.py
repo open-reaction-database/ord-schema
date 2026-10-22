@@ -24,7 +24,7 @@ against, which is a guess it will sometimes get wrong silently. They are read fr
 field's own metadata, so this stays a rendering of the schema and nothing else.
 
 The rendering is generated from ``query.SCHEMA`` -- the projection's columns, the
-``dataset_id`` the executor supplies, and the ``first_commit`` the first_commits
+``dataset_id`` the executor supplies, and the ``first_commit`` the arrivals
 artifacts hold -- rather than written by hand, because the projection schema is itself
 generated from the proto descriptors: a field added upstream becomes a column with
 nobody deciding it should, and a hand-written description would silently fall behind

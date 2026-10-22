@@ -946,10 +946,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--projections", required=True, help="Glob for projections")
     parser.add_argument("--structures", required=True, help="Glob for structures")
     parser.add_argument(
-        "--first_commits",
+        "--arrivals",
         default=None,
         help=(
-            "Glob for the first_commits artifacts. Without it a query naming "
+            "Glob for the arrivals artifacts. Without it a query naming "
             "first_commit is refused"
         ),
     )
@@ -1025,7 +1025,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         require_current=True,
         pivots_dir=args.pivots,
         occurrences_dir=args.occurrences,
-        first_commits_pattern=args.first_commits,
+        arrivals_pattern=args.arrivals,
         # A path the directory left out would be read from a pivot or the projection
         # instead, and the check would pass a tree it never read.
         require_occurrences=args.occurrences is not None,

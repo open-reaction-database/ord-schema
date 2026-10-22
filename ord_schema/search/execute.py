@@ -110,8 +110,8 @@ from rdkit.Chem import rdSubstructLibrary
 
 from ord_schema import parquet, resolvers
 from ord_schema.artifacts import (
+    arrivals,
     base,
-    first_commits,
     history,
     occurrences,
     pivot,
@@ -482,9 +482,9 @@ def _fingerprint(records: Iterable[tuple[Any, ...]]) -> str:
 
     Args:
         records: One per artifact in the corpus, in any order: its stamps as a tuple,
-            and for a first_commits artifact the walk of ord-data's history it read as
+            and for an arrivals artifact the walk of ord-data's history it read as
             well. Each artifact paired with a projection belongs here: the structures
-            artifact answers every structure predicate and the first_commits artifact
+            artifact answers every structure predicate and the arrivals artifact
             every question about when a reaction arrived, and each is derived
             separately, so a corpus whose partners were rebuilt can answer differently
             with its projections untouched.
@@ -507,7 +507,7 @@ def _pair(
     projection_pattern: str,
     structures_pattern: str,
     require_current: bool,
-    first_commits_pattern: str | None = None,
+    arrivals_pattern: str | None = None,
 ) -> tuple[list[tuple[str, str, str, str | None]], str, dict[str, str]]:
     """Returns (projection, structures, source, dataset ID) tuples, verified by stamps.
 
@@ -515,7 +515,7 @@ def _pair(
         projection_pattern: Glob matching the projection base.
         structures_pattern: Glob matching the structures base.
         require_current: Refuse artifacts not written by the current versions.
-        first_commits_pattern: Glob matching the first_commits artifacts, or None for
+        arrivals_pattern: Glob matching the arrivals artifacts, or None for
             a corpus that holds none.
 
     Returns:
@@ -524,14 +524,14 @@ def _pair(
         what pairs a pivot with the offset this corpus gave its projection -- and the
         dataset ID the projection's stamps record, or None where its source recorded
         none. Also the fingerprint over the stamps this already read to verify them,
-        and each source's first_commits artifact, empty where the corpus holds none.
+        and each source's arrivals artifact, empty where the corpus holds none.
 
     Raises:
         PairingError: If no projection matches, if any side lacks a column this library
             reads, or if any side states a dataset another does not, since a
             projection's IDs index its own partner's molecules and nobody else's, and a
             first commit asked of a dataset missing one would read as never having
-            arrived. Given ``first_commits_pattern``, also if it matches nothing, or
+            arrived. Given ``arrivals_pattern``, also if it matches nothing, or
             under ``require_current`` if an artifact was derived from another walk of
             ord-data's history.
     """
@@ -550,39 +550,37 @@ def _pair(
             "projections and structures artifacts do not pair up; these have no "
             f"counterpart derived from the same source dataset: {orphans}"
         )
-    arrivals: dict[str, tuple[str, base.Stamps]] = {}
-    if first_commits_pattern is not None:
-        arrivals = _index(
-            first_commits_pattern,
-            first_commits.ARTIFACT,
-            first_commits.SCHEMA,
+    arrival_files: dict[str, tuple[str, base.Stamps]] = {}
+    if arrivals_pattern is not None:
+        arrival_files = _index(
+            arrivals_pattern,
+            arrivals.ARTIFACT,
+            arrivals.SCHEMA,
             require_current,
         )
-        if not arrivals:
-            raise PairingError(
-                f"no first_commits artifacts matched: {first_commits_pattern}"
-            )
-        unpaired = projections.keys() ^ arrivals.keys()
+        if not arrival_files:
+            raise PairingError(f"no arrivals artifacts matched: {arrivals_pattern}")
+        unpaired = projections.keys() ^ arrival_files.keys()
         if unpaired:
             # Every dataset or none: a semi-join on a dataset with no first commits
             # answers a negated question as though its reactions matched.
-            orphans = sorted((projections | arrivals)[key][0] for key in unpaired)
+            orphans = sorted((projections | arrival_files)[key][0] for key in unpaired)
             raise PairingError(
-                "projections and first_commits artifacts do not pair up; these have no "
+                "projections and arrivals artifacts do not pair up; these have no "
                 f"counterpart derived from the same source dataset: {orphans}"
             )
-    # The walk of ord-data's history each first_commits artifact read, which its other
+    # The walk of ord-data's history each arrivals artifact read, which its other
     # stamps do not record: rebuilt from another, it answers differently under them.
-    walks = {key: history.read_stamp(path) for key, (path, _) in arrivals.items()}
+    walks = {key: history.read_stamp(path) for key, (path, _) in arrival_files.items()}
     if require_current:
         stale = sorted(
-            arrivals[key][0]
+            arrival_files[key][0]
             for key, walk in walks.items()
             if walk is None or walk[0] != history.VERSION
         )
         if stale:
             raise PairingError(
-                "these first_commits artifacts were not derived from a version "
+                "these arrivals artifacts were not derived from a version "
                 f"{history.VERSION} walk of ord-data's history; derive them again "
                 f"first: {stale}"
             )
@@ -604,11 +602,11 @@ def _pair(
             ),
             *(
                 (*dataclasses.astuple(stamps), walks[key])
-                for key, (_, stamps) in arrivals.items()
+                for key, (_, stamps) in arrival_files.items()
             ),
         ]
     )
-    return pairs, fingerprint, {key: path for key, (path, _) in arrivals.items()}
+    return pairs, fingerprint, {key: path for key, (path, _) in arrival_files.items()}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -825,7 +823,7 @@ def _relations_read(sql: str, looked_up: dict[str, str]) -> str:
     if _reads_history(sql):
         # Joined or semi-joined, the SQL reads the reactions in a FROM; alone, never.
         alone = re.search(rf"\bFROM {query.TABLE}\b", sql) is None
-        reads.append("the first commits alone" if alone else "the first commits")
+        reads.append("the arrivals alone" if alone else "the arrivals")
     # Matched as whole words, since one level's view name can begin another's:
     # pivot_outcomes_products is a prefix of pivot_outcomes_products_measurements.
     pivoted = sorted(
@@ -839,7 +837,7 @@ def _relations_read(sql: str, looked_up: dict[str, str]) -> str:
 
 
 def _reads_history(sql: str) -> bool:
-    """Returns whether compiled SQL reads the first commits, matched as a whole word."""
+    """Returns whether compiled SQL reads the arrivals, matched as a whole word."""
     return re.search(rf"\b{query.HISTORY_TABLE}\b", sql) is not None
 
 
@@ -1095,7 +1093,7 @@ class Corpus:
         require_pivots: bool = False,
         occurrences_dir: str | None = None,
         require_occurrences: bool = False,
-        first_commits_pattern: str | None = None,
+        arrivals_pattern: str | None = None,
         memory_limit: str | None = None,
         warm: bool = True,
         max_rows: int | None = DEFAULT_MAX_ROWS,
@@ -1146,11 +1144,11 @@ class Corpus:
                 cover every indexed path, rather than running without an index. Needs
                 an ``occurrences_dir``. What it costs is a footer read per artifact at
                 startup.
-            first_commits_pattern: Glob matching the first_commits artifacts, which hold
+            arrivals_pattern: Glob matching the arrivals artifacts, which hold
                 when each reaction first reached ord-data. Given one, every projection
                 has to pair with one, and a query naming ``first_commit`` reads them;
                 no other query does. Without one, such a query is refused. Derived by
-                ``ord_schema.artifacts.scripts.derive_first_commits``.
+                ``ord_schema.artifacts.scripts.derive_arrivals``.
             memory_limit: What DuckDB may hold, spelled as it spells sizes: ``6500MiB``,
                 ``8GB``. Left unset, DuckDB takes about 80% of the machine, or of the
                 container's cap, which it does read. That default suits a process that
@@ -1189,7 +1187,7 @@ class Corpus:
         Raises:
             PairingError: If any pattern matches nothing, a file on one side has no
                 partner on another, a pair's stamps disagree about the source dataset,
-                a first_commits artifact holds a different count of reactions from its
+                an arrivals artifact holds a different count of reactions from its
                 projection,
                 a projection carries a structure ID its structures artifact does not
                 hold or records no statistics bounding them, or -- with
@@ -1199,7 +1197,7 @@ class Corpus:
                 projection's source is not among them, or one restates a dataset no
                 projection does. With ``warm``, also whatever publishing the occurrence
                 index and building the substructure library refuse: a corpus stating a
-                reaction twice, first commits naming a reaction other than its own or
+                reaction twice, arrivals naming a reaction other than its own or
                 leaving a field NULL, one whose occurrence artifacts do not reach every
                 structure it holds, one whose IDs are not every integer from zero, or
                 pivot or occurrence artifacts that belong to another corpus or carry a
@@ -1241,12 +1239,12 @@ class Corpus:
         self._unique_checked = False
         self._duplicated: str | None = None
         self._unique_lock = threading.Lock()
-        # Whether the first commits name exactly the corpus's reactions, settled at open
+        # Whether the arrivals name exactly the corpus's reactions, settled at open
         # or by the first query reading them; see _require_one_first_commit_each. A
         # refusal is kept for the reason _refused is.
-        self._first_commits_checked = False
-        self._first_commits_refused: str | None = None
-        self._first_commits_lock = threading.Lock()
+        self._arrivals_checked = False
+        self._arrivals_refused: str | None = None
+        self._arrivals_lock = threading.Lock()
         # Recent match sets, most recently used last; see _matches.
         self._matched: collections.OrderedDict[_MatchKey, str] = (
             collections.OrderedDict()
@@ -1265,13 +1263,13 @@ class Corpus:
                 "require_occurrences was set without an occurrences_dir, so there is "
                 "nowhere to look for what it would require"
             )
-        pairs, self._fingerprint, arrivals = _pair(
+        pairs, self._fingerprint, arrival_files = _pair(
             projection_pattern,
             structures_pattern,
             require_current,
-            first_commits_pattern,
+            arrivals_pattern,
         )
-        self._history = bool(arrivals)
+        self._history = bool(arrival_files)
         # The fingerprint digests only the artifacts' stamps, which name the sources
         # too: a source pairs only with the projection whose stamps record its hash.
         self._sources = (
@@ -1317,7 +1315,10 @@ class Corpus:
                         str(pathlib.Path(source.path).parent)
                         for source in self._sources or ()
                     ),
-                    *(str(pathlib.Path(path).parent) for path in arrivals.values()),
+                    *(
+                        str(pathlib.Path(path).parent)
+                        for path in arrival_files.values()
+                    ),
                     *(
                         directory
                         for directory in (pivots_dir, occurrences_dir)
@@ -1326,8 +1327,8 @@ class Corpus:
                 ],
             )
             self._total, self._searchable = self._prepare(pairs)
-            if arrivals:
-                self._prepare_history(pairs, arrivals)
+            if arrival_files:
+                self._prepare_history(pairs, arrival_files)
             if self._sources is not None:
                 self._prepare_sources(self._sources)
             if require_pivots:
@@ -1346,11 +1347,11 @@ class Corpus:
         """Publishes the index and builds the library at open rather than on a query.
 
         Checks that the corpus states each reaction once whether or not it holds any
-        artifact, and that its first commits name exactly those reactions, so a corpus
-        a pivot, the index, or the first commits would refuse is refused at open.
+        artifact, and that its arrivals name exactly those reactions, so a corpus a
+        pivot, the index, or the arrivals would refuse is refused at open.
 
         Raises:
-            PairingError: Whatever the duplicate check, the first commits' check, the
+            PairingError: Whatever the duplicate check, the arrivals' check, the
                 index, or the library refuses; see ``_require_unique_reactions``,
                 ``_require_one_first_commit_each``, ``_occurrences``, and ``_library``.
         """
@@ -1363,7 +1364,7 @@ class Corpus:
     def _require_unique_reactions(self) -> None:
         """Refuses a corpus stating a reaction more than once, checked once.
 
-        A pivot, the occurrence index, and the first commits all find reactions by ID:
+        A pivot, the occurrence index, and the arrivals all find reactions by ID:
         a semi-join on ``reaction_id`` answers for every row carrying that ID, and a
         join repeats each row once per copy. Two files stating the
         same reaction pair cleanly -- what pairing checks is that each projection has
@@ -1395,26 +1396,26 @@ class Corpus:
             if duplicated is not None:
                 self._duplicated = (
                     f"reaction {duplicated[0]} is stated by {duplicated[1]} rows of "
-                    "the corpus, and the pivots, the occurrence index, and the first "
-                    "commits find reactions by ID, so one copy would answer for the "
+                    "the corpus, and the pivots, the occurrence index, and the "
+                    "arrivals find reactions by ID, so one copy would answer for the "
                     "other; glob one artifact per reaction"
                 )
                 raise PairingError(self._duplicated)
             self._unique_checked = True
 
     def _require_one_first_commit_each(self) -> None:
-        """Refuses first commits other than one whole commit per reaction, checked once.
+        """Refuses arrivals that are not one whole commit per reaction, checked once.
 
-        Pairing holds each first_commits artifact to its projection's count of rows,
+        Pairing holds each arrivals artifact to its projection's count of rows,
         which an artifact edited after it was written keeps while naming other
-        reactions. Read alone, the first commits would then count a reaction the corpus
+        reactions. Read alone, the arrivals would then count a reaction the corpus
         does not hold, or one twice; semi-joined, a reaction with none would read as
         never having arrived. With the corpus stating each reaction once and the counts
         equal, a first commit for every reaction leaves none over, so an anti-join
         settles it. A field left NULL, which no derivation writes, would let the
         routes disagree: a ``not`` over it holds through a semi-join and fails on a row
         carrying the field. Costs a scan of both relations' IDs, a hash table over the
-        first commits', and a scan of the first commits.
+        arrivals', and a scan of the arrivals.
 
         Raises:
             PairingError: If a reaction is stated more than once, as
@@ -1423,18 +1424,17 @@ class Corpus:
                 does not change under an open ``Corpus``.
         """
         self._require_unique_reactions()
-        with self._first_commits_lock:
-            if self._first_commits_refused is not None:
-                raise PairingError(self._first_commits_refused)
-            if self._first_commits_checked:
+        with self._arrivals_lock:
+            if self._arrivals_refused is not None:
+                raise PairingError(self._arrivals_refused)
+            if self._arrivals_checked:
                 return
             fields = [
-                field.name
-                for field in first_commits.SCHEMA.field(first_commits.COLUMN).type
+                field.name for field in arrivals.SCHEMA.field(arrivals.COLUMN).type
             ]
             # A NULL first_commit reads as NULL in every field.
             left_out = " OR ".join(
-                f"{first_commits.COLUMN}.{name} IS NULL" for name in fields
+                f"{arrivals.COLUMN}.{name} IS NULL" for name in fields
             )
             # Its own cursor: this runs while searches are in flight.
             cursor = self._connection.cursor()
@@ -1445,7 +1445,7 @@ class Corpus:
                     "ORDER BY reaction_id LIMIT 1"
                 ).fetchone()
                 partial = cursor.execute(
-                    f"SELECT reaction_id, {first_commits.COLUMN} "  # noqa: S608
+                    f"SELECT reaction_id, {arrivals.COLUMN} "  # noqa: S608
                     f"FROM {query.HISTORY_TABLE} WHERE {left_out} "
                     "ORDER BY reaction_id LIMIT 1"
                 ).fetchone()
@@ -1454,7 +1454,7 @@ class Corpus:
             if missing is not None:
                 refusal = (
                     f"reaction {missing[0]} has no first commit, though the "
-                    "first_commits artifacts hold as many rows as the projections, so "
+                    "arrivals artifacts hold as many rows as the projections, so "
                     "some name another reaction; derive them from these projections "
                     "again"
                 )
@@ -1466,12 +1466,12 @@ class Corpus:
                 refusal = (
                     f"reaction {reaction_id} has a first commit without its "
                     f"{', '.join(absent)}, which no derivation leaves out; derive the "
-                    "first_commits artifacts again"
+                    "arrivals artifacts again"
                 )
             else:
-                self._first_commits_checked = True
+                self._arrivals_checked = True
                 return
-            self._first_commits_refused = refusal
+            self._arrivals_refused = refusal
             raise PairingError(refusal)
 
     def _prepare(
@@ -1582,7 +1582,9 @@ class Corpus:
         return total, searchable
 
     def _prepare_history(
-        self, pairs: list[tuple[str, str, str, str | None]], arrivals: dict[str, str]
+        self,
+        pairs: list[tuple[str, str, str, str | None]],
+        arrival_files: dict[str, str],
     ) -> None:
         """Publishes ``query.HISTORY_TABLE``: each reaction's first commit to ord-data.
 
@@ -1591,7 +1593,7 @@ class Corpus:
 
         Args:
             pairs: The corpus's projections, paired by source.
-            arrivals: Each source's first_commits artifact.
+            arrival_files: Each source's arrivals artifact.
 
         Raises:
             PairingError: If an artifact holds a different count of reactions from its
@@ -1604,21 +1606,22 @@ class Corpus:
             # short of its projection leaves reactions with no first commit.
             with pq.ParquetFile(projected) as artifact:
                 expected = artifact.metadata.num_rows
-            with pq.ParquetFile(arrivals[source]) as artifact:
+            with pq.ParquetFile(arrival_files[source]) as artifact:
                 count = artifact.metadata.num_rows
             if count != expected:
                 raise PairingError(
-                    f"{arrivals[source]} holds {count} first commits but {projected} "
-                    f"holds {expected} reactions; derive it from this projection again"
+                    f"{arrival_files[source]} holds {count} first commits but "
+                    f"{projected} holds {expected} reactions; derive it from this "
+                    "projection again"
                 )
             stated += count
-        files = _sql_paths(arrivals[pair[2]] for pair in pairs)
+        files = _sql_paths(arrival_files[pair[2]] for pair in pairs)
         # S608: the relation name is this module's constant and the paths this
         # process's own glob results, quoted with their single quotes escaped.
         self._connection.execute(
             f"""
             CREATE VIEW {query.HISTORY_TABLE} AS
-            SELECT reaction_id, {first_commits.COLUMN}
+            SELECT reaction_id, {arrivals.COLUMN}
             FROM read_parquet({files})
             """  # noqa: S608
         )
@@ -1628,7 +1631,7 @@ class Corpus:
         assert held is not None  # An aggregate over any relation returns one row.
         if held[0] != stated:
             raise PairingError(
-                f"the first_commits artifacts hold {stated} rows but only {held[0]} "
+                f"the arrivals artifacts hold {stated} rows but only {held[0]} "
                 "were read; a path did not survive read_parquet"
             )
 
@@ -2725,7 +2728,7 @@ class Corpus:
             PairingError: If the corpus IDs do not come out one unbroken run; if the
                 occurrence index refuses the corpus -- a reaction stated by more than
                 one row, or a structure no indexed path reaches; or, for a query
-                reading the first commits, if they name a reaction other than the
+                reading the arrivals, if they name a reaction other than the
                 corpus's own or leave a field NULL.
             TimeoutError: If the search exceeds ``timeout_seconds``, naming the phase
                 that was running when the bound passed.
@@ -2775,7 +2778,7 @@ class Corpus:
             logger.info("the corpus bounds this query at %d rows", compiled.limit)
         logger.info("this query reads %s", _relations_read(compiled.sql, looked_up))
         if _reads_history(compiled.sql):
-            # The first commits are found by reaction ID, as a pivot's elements are,
+            # The arrivals are found by reaction ID, as a pivot's elements are,
             # and read alone they stand for the reactions.
             self._require_one_first_commit_each()
         cursor = self._connection.cursor()

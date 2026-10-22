@@ -42,7 +42,7 @@ import pyarrow.parquet as pq
 from ord_schema import atomic_io
 from ord_schema.artifacts import base, history, projection
 
-ARTIFACT = "first_commits"
+ARTIFACT = "arrivals"
 
 # The column a query names, as ``first_commit.timestamp``.
 COLUMN = "first_commit"
@@ -71,7 +71,7 @@ def is_current(
     return base.is_current(path, ARTIFACT, source_md5, SCHEMA) and index.covers(path)
 
 
-def write_first_commits(
+def write_arrivals(
     source: str | os.PathLike[str],
     output: str | os.PathLike[str],
     *,
@@ -81,7 +81,7 @@ def write_first_commits(
     compression: str = "zstd",
     row_group_size: int = 100_000,
 ) -> int:
-    """Derives a first_commits artifact from a projection and writes it.
+    """Derives an arrivals artifact from a projection and writes it.
 
     Only the projection's ``reaction_id`` column is read. The output is published
     atomically, so a failure leaves any existing artifact untouched.
@@ -115,8 +115,8 @@ def write_first_commits(
     parent = base.load_stamps(source)
     if parent.artifact != projection.ARTIFACT:
         raise ValueError(
-            f"{source} is a {parent.artifact}, not a {projection.ARTIFACT}; the "
-            "first_commits artifact looks up a projection's reactions"
+            f"{source} holds {parent.artifact}, not a {projection.ARTIFACT}; the "
+            "arrivals artifact looks up a projection's reactions"
         )
     # derive_tree refuses stale parents, but this writer is public and its output
     # inherits the dataset hash, so it checks again.
@@ -129,13 +129,13 @@ def write_first_commits(
     if source_dataset_id is None:
         source_dataset_id = parent.source_dataset_id
     reaction_ids = pq.read_table(source, columns=["reaction_id"]).column(0).to_pylist()
-    arrivals = index.lookup(reaction_ids)
-    unknown = sorted(set(reaction_ids) - arrivals.keys())
+    commits = index.lookup(reaction_ids)
+    unknown = sorted(set(reaction_ids) - commits.keys())
     if unknown:
         # A null here would read as a reaction ord-data never held, when the index is
         # what is short.
         raise ValueError(
-            f"{source}: {len(unknown)} reactions are not in the first-commits index "
+            f"{source}: {len(unknown)} reactions are not in the arrivals index "
             f"walked to {index.head}, among them {unknown[:3]}; walk ord-data to the "
             "commit this dataset was read from"
         )
@@ -144,7 +144,7 @@ def write_first_commits(
         {
             "reaction_id": pa.array(reaction_ids, pa.string()),
             COLUMN: pa.array(
-                [arrivals[reaction_id] for reaction_id in reaction_ids], history.TYPE
+                [commits[reaction_id] for reaction_id in reaction_ids], history.TYPE
             ),
         },
         schema=SCHEMA,
