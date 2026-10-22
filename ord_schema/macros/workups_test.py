@@ -67,6 +67,13 @@ def test_drying_agent():
     validations.validate_message(workup)
 
 
+def test_drying_agent_records_cxsmiles_as_cxsmiles():
+    workup = workups.drying_agent("C[C@H](N)C(=O)O |&1:1|")
+    identifier = workup.input.components[0].identifiers[0]
+    assert identifier.type == reaction_pb2.CompoundIdentifier.CXSMILES
+    assert not validations.validate_message(workup).warnings
+
+
 @pytest.mark.parametrize("keep_phase", ["filtrate", "solid"])
 def test_filtration(keep_phase):
     workup = workups.filtration(keep_phase=keep_phase)

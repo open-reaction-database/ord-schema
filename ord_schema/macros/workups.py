@@ -45,7 +45,7 @@ reaction.workups.MergeFrom([
 
 from collections.abc import Iterable
 
-from ord_schema import units
+from ord_schema import message_helpers, units
 from ord_schema.proto import reaction_pb2
 
 UNITS_RESOLVER = units.UnitResolver()
@@ -76,10 +76,16 @@ def separate_phases(keep_phase: str) -> reaction_pb2.ReactionWorkup:
 
 
 def drying_agent(agent_smiles: str) -> reaction_pb2.ReactionWorkup:
-    """Create a workup representing addition of a drying agent."""
+    """Create a workup representing addition of a drying agent.
+
+    agent_smiles is recorded as CXSMILES if it has an extension block.
+    """
     workup = reaction_pb2.ReactionWorkup(type="DRY_WITH_MATERIAL")
     component = workup.input.components.add()
-    component.identifiers.add(value=agent_smiles, type="SMILES")
+    component.identifiers.add(
+        value=agent_smiles,
+        type=message_helpers.smiles_identifier_type(agent_smiles),
+    )
     component.reaction_role = reaction_pb2.ReactionRole.WORKUP
     return workup
 

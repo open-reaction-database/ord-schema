@@ -27,12 +27,12 @@ import anthropic
 import httpx
 import pyarrow as pa
 import pytest
-from anthropic.types import TextBlock, ToolUseBlock
+from anthropic.types import TextBlock, ThinkingBlock, ToolUseBlock
 
 from ord_schema import parquet
 from ord_schema.artifacts import projection, structures
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.search import execute, nl, nl_log
+from ord_schema.search import execute, nl, nl_log, placeholders
 
 
 @pytest.fixture(scope="module")
@@ -65,7 +65,9 @@ def corpus(tmp_path_factory):
     structured.parent.mkdir(parents=True, exist_ok=True)
     structures.write_structures(projected, structured)
     with execute.Corpus(
-        str(projected), str(structured), resolver={}.__getitem__
+        str(projected),
+        str(structured),
+        resolver={"pyridine": "C1=CC=NC=C1"}.__getitem__,
     ) as value:
         yield value
 
@@ -87,11 +89,19 @@ class _Refusal:
     reason: str
 
 
+@dataclasses.dataclass(frozen=True)
+class _SafetyRefusal:
+    """A canned decline from the model's safety classifiers."""
+
+    category: str
+
+
 class _StubClient:
     """Returns canned responses in order, and records the requests it was given.
 
     A string entry becomes a text response, a dict becomes a ``build_query`` tool call,
-    and an exception is raised as though the API had raised it.
+    a list is the response's content as given, and an exception is raised as though the
+    API had raised it.
     """
 
     def __init__(self, *responses):
@@ -110,23 +120,38 @@ class _StubClient:
             cache_creation_input_tokens=0,
             cache_read_input_tokens=0,
         )
-        if isinstance(payload, str):
-            block: TextBlock | ToolUseBlock = TextBlock(type="text", text=payload)
-            stop = "end_turn"
+        if isinstance(payload, _SafetyRefusal):
+            return types.SimpleNamespace(
+                content=[],
+                usage=usage,
+                stop_reason="refusal",
+                stop_details=types.SimpleNamespace(category=payload.category),
+            )
+        if isinstance(payload, list):
+            content = payload
+        elif isinstance(payload, str):
+            content = [TextBlock(type="text", text=payload)]
         elif isinstance(payload, _Refusal):
-            block = ToolUseBlock(
-                type="tool_use",
-                id="toolu_stub",
-                name="cannot_answer",
-                input={"reason": payload.reason},
-            )
-            stop = "tool_use"
+            content = [
+                ToolUseBlock(
+                    type="tool_use",
+                    id="toolu_stub",
+                    name="cannot_answer",
+                    input={"reason": payload.reason},
+                )
+            ]
         else:
-            block = ToolUseBlock(
-                type="tool_use", id="toolu_stub", name="build_query", input=payload
-            )
-            stop = "tool_use"
-        return types.SimpleNamespace(content=[block], usage=usage, stop_reason=stop)
+            content = [
+                ToolUseBlock(
+                    type="tool_use", id="toolu_stub", name="build_query", input=payload
+                )
+            ]
+        stop = (
+            "tool_use"
+            if any(isinstance(block, ToolUseBlock) for block in content)
+            else "end_turn"
+        )
+        return types.SimpleNamespace(content=content, usage=usage, stop_reason=stop)
 
 
 def _stub(*responses) -> Any:
@@ -185,6 +210,21 @@ def test_a_tree_returned_as_a_json_string_is_still_understood():
     # string rather than as an object.
     client = _stub({"where": json.dumps(_SOLVENT)})
     assert _where(nl.translate("solvent reactions", client=client)).op == "exists"
+
+
+def test_a_tree_closed_with_a_brace_too_many_is_still_understood():
+    # Haiku 5.5 often closes an encoded predicate with the outer query's brace too.
+    client = _stub({"where": json.dumps(_SOLVENT) + "}"})
+    assert _where(nl.translate("solvent reactions", client=client)).op == "exists"
+    assert len(client.requests) == 1
+
+
+def test_a_string_with_more_than_closers_after_it_stays_a_string():
+    # Only stray closers are dropped; anything else after the value means the string
+    # was not an encoded value at all.
+    assert nl._coerce('{"a": 1} trailing') == '{"a": 1} trailing'
+    assert nl._coerce("aspirin") == "aspirin"
+    assert nl._coerce('{"a": "[Pd]"}]}') == {"a": "[Pd]"}
 
 
 def test_a_tree_returned_as_an_object_is_understood_too():
@@ -282,10 +322,94 @@ def test_an_unreachable_model_is_named_as_one():
         nl.translate("solvent reactions", client=client)
 
 
-def test_a_response_with_no_tool_call_is_refused():
-    client = _stub("I would rather chat about the weather.")
+def test_a_response_with_no_tool_call_is_handed_back_once():
+    # No tool is forced, so a turn in prose is possible and gets the repair turn.
+    client = _stub("Pyridine is a common solvent.", {"where": _SOLVENT})
+    assert _where(nl.translate("solvent reactions", client=client)).op == "exists"
+    reminder = client.requests[1]["messages"][-1]["content"]
+    assert "build_query" in reminder
+    assert "cannot_answer" in reminder
+
+
+def test_a_repair_after_a_reply_in_prose_counts_both_turns():
+    # One attempt, since the first turn wrote no query; the turns are what say a repair
+    # ran, and the log reads "repaired" from them.
+    client = _stub("Pyridine is a common solvent.", {"where": _SOLVENT})
+    translated = nl.translate("solvent reactions", client=client)
+    assert len(translated.attempts) == 1
+    assert translated.turns == 2
+
+
+def test_a_first_try_is_one_turn():
+    assert (
+        nl.translate("solvent reactions", client=_stub({"where": _SOLVENT})).turns == 1
+    )
+
+
+def test_a_failure_carries_the_turns_it_took():
+    client = _stub("I would rather chat.", _Refusal("no"))
+    with pytest.raises(nl.UnanswerableError) as raised:
+        nl.translate("solvent reactions", client=client)
+    assert raised.value.turns == 2
+    assert not raised.value.attempted
+
+
+def test_a_second_response_with_no_tool_call_raises():
+    client = _stub("I would rather chat.", "Still chatting.")
     with pytest.raises(nl.MalformedQueryError, match="no query"):
         nl.translate("solvent reactions", client=client)
+    assert len(client.requests) == 2
+
+
+def test_a_response_with_no_tool_call_raises_when_repair_is_off():
+    client = _stub("I would rather chat about the weather.")
+    with pytest.raises(nl.MalformedQueryError, match="no query") as raised:
+        nl.translate("solvent reactions", client=client, repair=False)
+    assert len(client.requests) == 1
+    # Paid for, though it built nothing to record as an attempt.
+    assert raised.value.usage.output == 1
+    assert not raised.value.attempts
+
+
+def test_the_repair_replays_the_whole_turn():
+    # A model that thinks needs its thinking back beside the tool call it led to.
+    thinking = ThinkingBlock(type="thinking", thinking="", signature="sig")
+    rejected = ToolUseBlock(
+        type="tool_use", id="toolu_stub", name="build_query", input={"where": _BAD_PATH}
+    )
+    client = _stub([thinking, rejected], {"where": _SOLVENT})
+    nl.translate("aspirin reactions", client=client)
+    assert client.requests[1]["messages"][1] == {
+        "role": "assistant",
+        "content": [thinking, rejected],
+    }
+
+
+def test_effort_is_sent_only_when_asked_for():
+    # Models without effort levels reject the parameter, so the default omits it.
+    client = _stub({"where": _SOLVENT}, {"where": _SOLVENT})
+    nl.translate("solvent reactions", client=client)
+    nl.translate("solvent reactions", client=client, effort="low")
+    assert "output_config" not in client.requests[0]
+    assert client.requests[1]["output_config"] == {"effort": "low"}
+
+
+def test_the_answer_call_takes_an_effort_too():
+    client = _stub("Two reactions.")
+    nl.answer(
+        "how many?", pa.table({"reaction_id": ["a", "b"]}), client=client, effort="low"
+    )
+    assert client.requests[0]["output_config"] == {"effort": "low"}
+
+
+def test_a_safety_refusal_is_named_as_one():
+    client = _stub(_SafetyRefusal("bio"))
+    with pytest.raises(nl.ModelRefusedError, match="bio") as raised:
+        nl.translate("solvent reactions", client=client)
+    # Nothing a repair could fix, so it is not handed back.
+    assert len(client.requests) == 1
+    assert nl.outcome_of(raised.value) == nl_log.Outcome.REFUSED
+    assert not issubclass(nl.ModelRefusedError, nl.UnanswerableError)
 
 
 def test_the_summary_states_the_row_count():
@@ -329,6 +453,22 @@ def test_ask_returns_the_query_it_ran(corpus):
     assert _predicate(answer.query).op == "exists"
     assert answer.table.num_rows == corpus.search(answer.query).num_rows
     assert answer.text == "Two reactions, both with pyridine."
+    assert answer.resolved == {}
+
+
+def test_ask_says_what_each_compound_resolved_to(corpus):
+    # The query keeps the name the model wrote; the structure searched for sits beside
+    # it, so a reader can see what the name became.
+    where = {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {"op": "same_compound", "path": "smiles", "compound": "pyridine"},
+    }
+    client = _stub({"where": where}, "One reaction used pyridine.")
+    answer = nl.ask("reactions using pyridine", corpus, client=client)
+    assert _predicate(answer.query).where.compound == "pyridine"
+    assert answer.resolved == {"pyridine": "c1ccncc1"}
+    assert answer.table.num_rows == 1
 
 
 def test_ask_passes_the_timeout_through(corpus, monkeypatch):
@@ -380,7 +520,9 @@ def test_a_refusal_is_not_repaired():
     assert len(client.requests) == 1
 
 
-def test_both_tools_are_offered_and_one_is_required():
+def test_both_tools_are_offered_and_neither_is_forced():
+    # Newer models refuse a forced tool_choice; one call at most leaves a repair one
+    # tool_use to answer.
     client = _stub({"where": _SOLVENT})
     nl.translate("solvent reactions", client=client)
     request = client.requests[0]
@@ -388,7 +530,7 @@ def test_both_tools_are_offered_and_one_is_required():
         "build_query",
         "cannot_answer",
     ]
-    assert request["tool_choice"] == {"type": "any"}
+    assert request["tool_choice"] == {"type": "auto", "disable_parallel_tool_use": True}
 
 
 def test_declining_is_told_apart_from_failing():
@@ -400,8 +542,8 @@ def test_declining_is_told_apart_from_failing():
 
 def test_a_query_that_asks_nothing_is_handed_back():
     # An empty query compiles and returns the corpus, which reads as an answer rather
-    # than as the failure it is. Opus writes one for "reactions with no solvent at
-    # all" about two times in three.
+    # than as the failure it is. Opus often writes one for "reactions with no solvent
+    # at all".
     client = _stub({}, {"where": _SOLVENT})
     result = nl.translate("reactions with no solvent at all", client=client)
     assert _where(result) is not None
@@ -460,6 +602,20 @@ def test_a_malformed_failure_reports_the_attempts_it_paid_for():
         nl.translate("solvent reactions", client=client)
     assert len(caught.value.attempts) == 2
     assert all(attempt.error for attempt in caught.value.attempts)
+
+
+def test_ask_records_the_effort_and_the_turns(corpus):
+    sink = _CollectingSink()
+    nl.ask(
+        "solvent reactions",
+        corpus,
+        client=_stub("Prose first.", {"where": _SOLVENT}, "One reaction."),
+        effort="low",
+        sink=sink,
+    )
+    (event,) = sink.events
+    assert event["effort"] == "low"
+    assert event["turns"] == 2
 
 
 def test_ask_records_the_question_and_what_it_became(corpus):
@@ -578,6 +734,44 @@ def test_a_declined_question_is_priced_even_though_it_built_nothing(corpus):
     assert event["usage"]["input"] == 1
 
 
+def test_a_record_says_what_each_compound_resolved_to(corpus):
+    # The record keeps the query as the model wrote it, naming the compound, and a
+    # resolver can answer differently later; the structure searched is what reproduces
+    # the answer.
+    sink = _CollectingSink()
+    where = {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {"op": "same_compound", "path": "smiles", "compound": "pyridine"},
+    }
+    client = _stub({"where": where}, "One reaction used pyridine.")
+    nl.ask("reactions using pyridine", corpus, client=client, sink=sink)
+    nl.ask(
+        "solvent reactions",
+        corpus,
+        client=_stub({"where": _SOLVENT}, "Two."),
+        sink=sink,
+    )
+    named, unnamed = sink.events
+    assert json.loads(named["resolved"]) == {"pyridine": "c1ccncc1"}
+    assert unnamed["resolved"] == "{}"
+
+
+def test_a_search_whose_description_failed_still_records_its_names(corpus):
+    sink = _CollectingSink()
+    where = {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {"op": "same_compound", "path": "smiles", "compound": "pyridine"},
+    }
+    client = _stub({"where": where}, _status_error(429))
+    with pytest.raises(nl.ModelRateLimitedError):
+        nl.ask("reactions using pyridine", corpus, client=client, sink=sink)
+    (event,) = sink.events
+    assert event["row_count"] == 1
+    assert json.loads(event["resolved"]) == {"pyridine": "c1ccncc1"}
+
+
 def test_a_question_that_matched_nothing_is_recorded_as_empty(corpus):
     sink = _CollectingSink()
     where = {"op": "eq", "path": "reaction_id", "value": {"literal": "ord-nope"}}
@@ -599,6 +793,7 @@ def test_a_failed_ask_is_still_recorded(corpus):
     assert event["outcome"] == nl_log.Outcome.MALFORMED
     assert len(json.loads(event["attempts"])) == 2
     assert event["row_count"] is None
+    assert event["resolved"] is None
 
 
 def test_a_declined_question_records_whether_a_query_came_first(corpus):
@@ -611,3 +806,188 @@ def test_a_declined_question_records_whether_a_query_came_first(corpus):
     assert event["declined_reason"] == "values are literals, never other columns"
     # No attempt: the model read the question rather than backing off after a refusal.
     assert json.loads(event["attempts"]) == []
+
+
+# Placeholders
+
+_PYRIDINE = placeholders.Placeholder(
+    format=placeholders.StructureFormat.COMPOUND_SMILES, text="c1ccncc1"
+)
+
+
+def _uses(slot: dict) -> dict:
+    """Returns a query for reactions with an input matching a structure predicate."""
+    return {"where": {"op": "exists", "path": "inputs.components", "where": slot}}
+
+
+def test_placeholders_follow_the_question():
+    client = _stub(_uses({"op": "same_compound", "path": "smiles", "compound": "@A"}))
+    nl.translate("reactions using @A", structures={"@A": _PYRIDINE}, client=client)
+    assert client.requests[0]["messages"][0]["content"] == (
+        "reactions using @A\n\nPlaceholders in this question:\n@A is a compound SMILES."
+    )
+
+
+def test_a_question_without_placeholders_is_sent_alone():
+    client = _stub({"where": _SOLVENT})
+    nl.translate("reactions run in a solvent", client=client)
+    assert client.requests[0]["messages"][0]["content"] == "reactions run in a solvent"
+
+
+def test_a_placeholder_is_substituted_and_the_attempt_keeps_it():
+    # The query names the structure outright, so it runs again as it stands; the
+    # attempt keeps what the model wrote, which is what prompt work reads.
+    client = _stub(_uses({"op": "same_compound", "path": "smiles", "compound": "@A"}))
+    translated = nl.translate(
+        "reactions using @A", structures={"@A": _PYRIDINE}, client=client
+    )
+    clause = _where(translated).where
+    assert (clause.smiles, clause.compound) == ("c1ccncc1", None)
+    assert translated.attempts[0].translation["where"]["where"]["compound"] == "@A"
+
+
+def test_a_format_the_predicate_refuses_is_handed_back():
+    pattern = placeholders.Placeholder(
+        format=placeholders.StructureFormat.COMPOUND_SMARTS, text="c[Br,I]"
+    )
+    client = _stub(
+        _uses(
+            {"op": "similarity", "path": "smiles", "compound": "@B", "threshold": 0.6}
+        ),
+        _uses({"op": "substructure", "path": "smiles", "compound": "@B"}),
+    )
+    translated = nl.translate(
+        "inputs like @B", structures={"@B": pattern}, client=client
+    )
+    error = translated.attempts[0].error
+    assert error is not None
+    assert "@B is a compound SMARTS, which similarity does not take" in error
+    assert translated.turns == 2
+
+
+def test_an_unbound_placeholder_never_reaches_the_resolver(corpus):
+    # The corpus's resolver knows only pyridine, so a placeholder looked up as a name
+    # would fail differently: as an unresolved compound, after the search began.
+    unbound = _uses({"op": "same_compound", "path": "smiles", "compound": "@D"})
+    client = _stub(unbound, unbound)
+    with pytest.raises(nl.MalformedQueryError, match="@D is not a placeholder"):
+        nl.ask(
+            "reactions using @A", corpus, structures={"@A": _PYRIDINE}, client=client
+        )
+
+
+def test_a_question_that_fails_the_check_makes_no_call():
+    client = _stub()
+    with pytest.raises(
+        placeholders.PlaceholderError,
+        match="@A is in the question but has no structure",
+    ):
+        nl.translate("reactions using @A", client=client)
+    assert client.requests == []
+
+
+def test_ask_searches_with_the_placeholder(corpus):
+    client = _stub(
+        _uses({"op": "same_compound", "path": "smiles", "compound": "@A"}),
+        "One reaction uses @A.",
+    )
+    answer = nl.ask(
+        "reactions using @A", corpus, structures={"@A": _PYRIDINE}, client=client
+    )
+    assert answer.table.column("reaction_id").to_pylist() == ["ord-nl01"]
+    assert _predicate(answer.query).where.smiles == "c1ccncc1"
+
+
+def test_ask_records_its_structures(corpus):
+    sink = _CollectingSink()
+    client = _stub(
+        _uses({"op": "same_compound", "path": "smiles", "compound": "@A"}),
+        "One reaction uses @A.",
+    )
+    nl.ask(
+        "reactions using @A",
+        corpus,
+        structures={"@A": _PYRIDINE},
+        client=client,
+        sink=sink,
+    )
+    (event,) = sink.events
+    assert json.loads(event["structures"]) == {
+        "@A": {"format": "compound_smiles", "text": "c1ccncc1"}
+    }
+
+
+def test_ask_without_placeholders_records_no_structures(corpus):
+    sink = _CollectingSink()
+    client = _stub({"where": _SOLVENT}, "Two reactions.")
+    nl.ask("solvent reactions", corpus, client=client, sink=sink)
+    (event,) = sink.events
+    assert event["structures"] is None
+
+
+def test_a_reply_with_an_unhashable_op_is_handed_back():
+    # Substitution walks the reply before the grammar sees it, so a shape the grammar
+    # would refuse has to reach the repair turn rather than raise from the walk.
+    client = _stub({"where": {"op": ["same_compound"]}}, {"where": _SOLVENT})
+    translated = nl.translate("solvent reactions", client=client)
+    assert translated.turns == 2
+    assert _where(translated).op == "exists"
+
+
+def test_a_rejection_never_shows_a_placeholder_s_text():
+    # The grammar's report quotes the node it refused, which holds the substituted
+    # text; the repair turn shows the placeholder instead.
+    aspirin = placeholders.Placeholder(
+        format=placeholders.StructureFormat.COMPOUND_SMILES,
+        text="CC(=O)Oc1ccccc1C(=O)O",
+    )
+    client = _stub(
+        {"where": {"op": "same_compound", "compound": "@A"}},
+        _uses({"op": "same_compound", "path": "smiles", "compound": "@A"}),
+    )
+    translated = nl.translate(
+        "reactions using @A", structures={"@A": aspirin}, client=client
+    )
+    error = translated.attempts[0].error
+    assert error is not None
+    assert "path" in error
+    repair = json.dumps(client.requests[1]["messages"][-1])
+    assert "Oc1ccccc1" not in repair
+    assert "Oc1ccccc1" not in error
+
+
+def test_a_compiler_rejection_with_placeholders_keeps_its_suggestion():
+    # The compiler's suggestion is what makes a repair worth paying for, and a question
+    # with placeholders keeps it.
+    placeholder_clause = {"op": "same_compound", "path": "smiles", "compound": "@A"}
+    client = _stub(
+        {
+            "where": {
+                "op": "and",
+                "clauses": [_BAD_PATH, _uses(placeholder_clause)["where"]],
+            }
+        },
+        _uses(placeholder_clause),
+    )
+    translated = nl.translate(
+        "reactions using @A", structures={"@A": _PYRIDINE}, client=client
+    )
+    sent = client.requests[1]["messages"][-1]["content"][0]
+    assert "did you mean" in sent["content"]
+    assert "c1ccncc1" not in sent["content"]
+    assert translated.turns == 2
+
+
+def test_a_rejection_with_placeholders_counts_every_error():
+    client = _stub(
+        {"where": {"op": "similarity", "compound": "@A"}},
+        _uses({"op": "same_compound", "path": "smiles", "compound": "@A"}),
+    )
+    translated = nl.translate(
+        "reactions similar to @A", structures={"@A": _PYRIDINE}, client=client
+    )
+    error = translated.attempts[0].error
+    assert error is not None
+    assert error.startswith("2 validation errors for Query\n")
+    assert "where.similarity.path" in error
+    assert "where.similarity.threshold" in error

@@ -15,7 +15,7 @@ Rules that keep a query answerable:
 - A path that crosses a repeated level must be bound by `exists` or `forall`, and paths
   inside that quantifier are relative to the bound element. So pyridine as a solvent is
   `exists` over `inputs.components` with `smiles` and `reaction_role` inside it, not a
-  comparison on `inputs.components.smiles`.
+  predicate on `inputs.components.smiles`.
 - Two conditions on the *same* element go inside one quantifier. Two conditions on
   *different* elements are two quantifiers. This is the error to watch for, because both
   spellings compile and only one answers the question. "A **desired** product with a
@@ -33,9 +33,23 @@ Rules that keep a query answerable:
   Writing those as two quantifiers side by side — one for the desired product, one for
   the yield — matches a reaction whose desired product has no yield at all, as long as
   some other product does.
-- Name compounds rather than spelling structures: `{"compound": "pyridine"}` resolves to
-  SMILES. Reach for `substructure` with a SMARTS only when the user describes a pattern
-  or a scaffold rather than a molecule.
+- Name compounds rather than spelling structures: a structure predicate takes
+  `"compound": "pyridine"` in place of a SMILES, and the name is resolved when the query
+  runs. A comparison's `value` is always a `literal`, never a compound. Reach for
+  `substructure` with a SMARTS only when the user describes a pattern or a scaffold
+  rather than a molecule.
+- A question can carry structures the user drew or pasted, as placeholders such as `@A`,
+  listed after the question with each one's format. Write a placeholder's name, exactly
+  and alone, where its structure goes: `"compound": "@A"` in `substructure`,
+  `similarity`, `same_compound`, or `same_parent`, and `"smarts": "@E"` in
+  `reaction_smarts`. It is not a compound name, and you never write out the structure it
+  stands for. Pick the predicate from the wording, as for a named compound: `@A` alone
+  is `same_compound`, "containing @A" is `substructure`, "similar to @A" is
+  `similarity`, and "@A, whichever salt" is `same_parent`. A compound SMILES fits all
+  four; a compound SMARTS fits only `substructure`; a reaction SMARTS fits only
+  `reaction_smarts`. A question asking a placeholder for what its format cannot do —
+  "similar to @B" where `@B` is a compound SMARTS — gets `cannot_answer` naming the
+  format, not a different search.
 - `dataset_id` names the dataset a reaction came from, as `ord_dataset-` and 32 hex
   digits. Compare it with `eq` when a question names a dataset, and group by it to count
   or measure per dataset.
@@ -43,7 +57,9 @@ Rules that keep a query answerable:
   configuration. Write a stereocenter only when the question names a configuration —
   "(S)-", "L-", "the R enantiomer" — and set `"chirality": false` when it asks for a
   molecule whatever its configuration: "either enantiomer", "any stereoisomer",
-  "racemic or not".
+  "racemic or not". Given a pattern and told to ignore its stereochemistry, keep the
+  pattern exactly as written and set `"chirality": false`; deleting the marks rewrites
+  `[C@@H]` as `C`, which drops its hydrogen too and matches carbons the pattern excludes.
 - A transformation named by what goes in and what comes out — "amide couplings", "Suzuki
   couplings", "reactions turning an aryl bromide into a biaryl" — is a `reaction_smarts`
   on the reaction itself, never inside a quantifier. Every template has to match: each
@@ -51,7 +67,9 @@ Rules that keep a query answerable:
   template between the arrows a component in any other role, and templates on one side
   match different molecules. Write one template per molecule the question names, group
   two pieces in parentheses, `(C(=O)O.N)`, only when the question puts them in one
-  molecule, and leave atom maps out; they are ignored. A stereocenter in a template is
+  molecule, and leave atom maps out; they are ignored. Each template keeps the atoms
+  that make the group what the question calls it: a boronic acid or ester is `B(O)O`,
+  since a bare `B` also matches a trifluoroborate. A stereocenter in a template is
   respected as in a `substructure`, and `"chirality": false` ignores it.
 
   ```json
@@ -97,6 +115,10 @@ Rules that keep a query answerable:
   A metal named as a catalyst is a `substructure` on the element — `[Pd]`, `[Ni]` —
   rather than a compound identity, since the catalyst is a complex and not the bare
   metal.
+- A functional group with a charge-separated drawing is recorded both ways in the
+  corpus, and a pattern for one misses the other. A nitro group is
+  `[$([N+](=O)[O-]),$(N(=O)=O)]`; write any group like it the same way, one recursive
+  SMARTS covering both drawings.
 - To rank or aggregate by a value under a repeated level, reduce it. A plain path there
   is refused. `where` inside the reduction says which elements count, and its paths are
   relative to the element, as they are inside a quantifier. Reach for it whenever the
@@ -114,11 +136,23 @@ Rules that keep a query answerable:
   different question, and it wants the query's own `where` to say so.
 - Enum columns compare against the spellings listed beside them, which are the value
   names rather than numbers.
-- A `TIMESTAMP` column compares against an ISO date or timestamp written as a string:
-  `{"literal": "2025-01-01"}`. A bare date means that day's midnight, so a year is a
-  half-open pair — `ge` its January 1 and `lt` the next year's. The grammar has no date
-  arithmetic and no notion of today, so a question about "the last five years" or
-  "recently" cannot be written; decline it rather than hardcoding a year.
+- A `timestamp` column is a `DATE`: it compares by day, against a date written as a
+  string, `{"literal": "2025-01-01"}`, and a literal carrying a time of day is refused.
+  `eq` matches every time on that day, `le` takes the whole day in and `gt` leaves it out,
+  and a year is a half-open pair — `ge` its January 1 and `lt` the next year's. The
+  grammar has no date arithmetic and no notion of today, so a question about "the last
+  five years" or "recently" cannot be written; decline it rather than hardcoding a year.
+  A question about a time of day cannot be written either. When a reaction was recorded
+  is `provenance.record_created.time.timestamp`, which its depositor wrote; when it was
+  carried out is `provenance.experiment_start.timestamp`. When it entered ORD's public
+  corpus, merged into the ord-data repository, is `first_commit.timestamp`, read from
+  that repository's history rather than from the record. `first_commit.dataset_id` is
+  the dataset it first appeared in, which can differ from `dataset_id`, the one holding
+  it now.
+- `min` and `max` take a `DATE` column as well as a number, as a measure or as a
+  reduction, and answer the earliest or latest day; `sum` and `avg` take numbers
+  only. A record's edits are a repeated level, so the last day a reaction was modified
+  is `{"reduce": "max", "path": "provenance.record_modified.time.timestamp"}`.
 - "The most common X", "how many of each X", and anything else that groups by something
   under a repeated level needs `aggregate.over`, which makes the rows the elements of
   that level rather than reactions. `group_by` and measure paths are then relative to
@@ -136,7 +170,12 @@ Rules that keep a query answerable:
    "order_by": [{"key": "reactions", "descending": true}], "limit": 3}
   ```
 
-- Prefer the smallest query that answers the question, and set `limit` when the user asks
-  for a particular number of results.
+- Prefer the smallest query that answers the question. A question naming reactions —
+  "reactions run above 350 K", "which reactions use pyridine" — asks for the reactions
+  themselves, so it has no `aggregate`; aggregate only when it asks how many, an
+  average, or another measure. Measure what the question asks for and nothing beside
+  it: "the average setpoint" is one `avg`, not an average with a count next to it, and
+  "how many" is one count. Set `limit` only when the user asks for a particular number
+  of results: "which reactions" wants all of them, and the caller bounds the answer.
 
 The corpus schema, as an indented type tree in DuckDB's types:

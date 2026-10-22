@@ -48,7 +48,7 @@ from pandas.testing import assert_frame_equal
 from pydantic import BaseModel, model_validator
 
 from ord_schema.logging import get_logger
-from ord_schema.search import execute, nl, nl_log, query
+from ord_schema.search import execute, nl, nl_log, placeholders, query
 
 logger = get_logger(__name__)
 
@@ -76,12 +76,20 @@ class EvalCase(BaseModel):
         compiles: Whether the question should translate at all. False marks one the
             grammar cannot express, which the layer must refuse rather than fudge, and
             which therefore has no reference.
+        structures: Each placeholder the question writes, mapped to the structure
+            it stands for, as a person's interface would send them.
     """
 
     question: str
     why: str
     reference: dict[str, Any] | None = None
     compiles: bool = True
+    structures: dict[str, placeholders.Placeholder] = {}
+
+    @model_validator(mode="after")
+    def _placeholders_fit_the_question(self) -> "EvalCase":
+        placeholders.check(self.question, self.structures)
+        return self
 
     @model_validator(mode="after")
     def _expressible_cases_have_a_reference(self) -> "EvalCase":
@@ -161,7 +169,12 @@ def _frame(table: pa.Table, columns: pd.Index, *, ordered: bool) -> pd.DataFrame
 
 
 def score_measures(
-    case: EvalCase, returned: pa.Table, expected: pa.Table, *, ordered: bool
+    case: EvalCase,
+    returned: pa.Table,
+    expected: pa.Table,
+    *,
+    ordered: bool,
+    groups: int | None = None,
 ) -> CaseResult:
     """Returns whether a translation measured what the reference measures.
 
@@ -172,6 +185,10 @@ def score_measures(
         ordered: Whether the reference sorts, in which case the sequence has to match
             and not only the rows. A question asking for the highest of something is
             answered wrongly by the right rows in the wrong order.
+        groups: How many leading columns are group_by paths, where the reference
+            aggregates; None where it only sorts. A row whose every measure is null is
+            dropped from both sides: a group with no value states nothing, so keeping
+            it and narrowing it away are the same answer.
 
     Returns:
         The result. Values compare within pandas' default relative tolerance, which is
@@ -188,11 +205,18 @@ def score_measures(
             ),
         )
     columns = expected.to_pandas().columns
+    measures = [] if groups is None else list(columns[groups:])
+
+    def comparable(table: pa.Table) -> pd.DataFrame:
+        """Returns the table relabeled, ordered, and without its empty groups."""
+        frame = _frame(table, columns, ordered=ordered)
+        if not measures:
+            return frame
+        return frame[frame[measures].notna().any(axis=1)].reset_index(drop=True)
+
     try:
         assert_frame_equal(
-            _frame(returned, columns, ordered=ordered),
-            _frame(expected, columns, ordered=ordered),
-            check_dtype=False,
+            comparable(returned), comparable(expected), check_dtype=False
         )
     except AssertionError as difference:
         first = str(difference).strip().splitlines()[0]
@@ -262,7 +286,17 @@ def _score_against_reference(
             case, passed=False, detail=f"the reference query failed: {error}"
         )
     if reference.aggregate is not None or reference.order_by:
-        return score_measures(case, table, expected, ordered=bool(reference.order_by))
+        return score_measures(
+            case,
+            table,
+            expected,
+            ordered=bool(reference.order_by),
+            groups=(
+                None
+                if reference.aggregate is None
+                else len(reference.aggregate.group_by)
+            ),
+        )
     if "reaction_id" not in table.schema.names:
         # The reference asks which reactions; a translation that grouped them answered
         # a different question, and there is nothing to compare it against.
@@ -285,6 +319,7 @@ def run_case(
     client: anthropic.Anthropic,
     model: str,
     repair: bool,
+    effort: str | None = None,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     sink: nl_log.Sink | None = None,
     session_id: str | None = None,
@@ -297,6 +332,7 @@ def run_case(
         client: Anthropic client.
         model: Which model translates.
         repair: Whether a failure gets the repair turn.
+        effort: How much the model thinks, or None for the model's default.
         timeout_seconds: Bounds the search, so a case that translates into something
             slow fails the run rather than stopping it.
         sink: Where each case's record goes; nothing is recorded if omitted. A run is
@@ -328,11 +364,13 @@ def run_case(
             nl_log.Ask(
                 question=case.question,
                 model=model,
+                effort=effort,
                 corpus_fingerprint=corpus.fingerprint,
                 prompt_fingerprint=nl.prompt_fingerprint(),
                 outcome=outcome,
                 source=SOURCE,
                 session_id=session_id,
+                structures=placeholders.dump(case.structures),
                 **fields,
             ),
         )
@@ -342,12 +380,18 @@ def run_case(
     # went wrong.
     try:
         translated = nl.translate(
-            case.question, client=client, model=model, repair=repair
+            case.question,
+            structures=case.structures,
+            client=client,
+            model=model,
+            effort=effort,
+            repair=repair,
         )
     except nl.UnanswerableError as error:
         record(
             nl_log.Outcome.DECLINED,
             attempts=error.attempts,
+            turns=error.turns,
             declined_reason=str(error),
             usage=error.usage,
             translate_ms=error.elapsed_ms,
@@ -360,18 +404,23 @@ def run_case(
                 case, passed=False, detail=f"built a query, then declined: {error}"
             )
         return CaseResult(case, passed=not case.compiles, detail=f"declined: {error}")
-    except nl.MalformedQueryError as error:
+    except (nl.ModelRefusedError, nl.MalformedQueryError) as error:
         record(
-            nl_log.Outcome.MALFORMED,
+            nl.outcome_of(error),
             attempts=error.attempts,
+            turns=error.turns,
             error=str(error),
             usage=error.usage,
             translate_ms=error.elapsed_ms,
         )
         # Never a pass, whatever the case expects. A model that built a query for an
         # inexpressible question reached the right verdict by the wrong road, and
-        # counting that as a refusal would hide the day it starts answering instead.
-        return CaseResult(case, passed=False, detail=f"did not compile: {error}")
+        # counting that as a refusal would hide the day it starts answering instead. A
+        # safety refusal fails too, rather than going unmeasured: the question was
+        # turned away, which is what a reader asking it would see.
+        refused = isinstance(error, nl.ModelRefusedError)
+        detail = str(error) if refused else f"did not compile: {error}"
+        return CaseResult(case, passed=False, detail=detail)
     try:
         table = corpus.search(translated.query, timeout_seconds=timeout_seconds)
     except Exception as error:  # noqa: BLE001
@@ -381,6 +430,7 @@ def run_case(
         record(
             nl.outcome_of(error),
             attempts=translated.attempts,
+            turns=translated.turns,
             error=str(error),
             usage=translated.usage,
             translate_ms=translated.elapsed_ms,
@@ -389,7 +439,9 @@ def run_case(
     record(
         nl_log.Outcome.ANSWERED if table.num_rows else nl_log.Outcome.EMPTY,
         attempts=translated.attempts,
+        turns=translated.turns,
         row_count=table.num_rows,
+        resolved=execute.resolutions(table),
         usage=translated.usage,
         translate_ms=translated.elapsed_ms,
     )
@@ -435,7 +487,18 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--projections", required=True, help="Glob for projections")
     parser.add_argument("--structures", required=True, help="Glob for structures")
+    parser.add_argument(
+        "--arrivals",
+        default=None,
+        help="Glob for arrivals artifacts; without it first_commit is refused",
+    )
     parser.add_argument("--model", default=nl.DEFAULT_MODEL, help="Model to translate")
+    parser.add_argument(
+        "--effort",
+        choices=nl.EFFORTS,
+        default=None,
+        help="How much the model thinks; the model's own default when omitted",
+    )
     parser.add_argument("--cases", type=pathlib.Path, default=CASES, help="Cases file")
     parser.add_argument(
         "--no-repair",
@@ -448,14 +511,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         help="Directory of derived pivot artifacts, read rather than built",
     )
     parser.add_argument(
-        "--pivot-budget-bytes",
-        type=int,
-        default=0,
-        help=(
-            "What pivots built in process may hold. Zero by default: a run is a "
-            "handful of queries, and building a pivot over the whole corpus costs "
-            "minutes to save milliseconds"
-        ),
+        "--occurrences-dir",
+        default=None,
+        help="Directory of derived occurrence index artifacts, read rather than built",
     )
     parser.add_argument(
         "--timeout-seconds",
@@ -487,7 +545,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         args.structures,
         require_current=args.require_current,
         pivots_dir=args.pivots_dir,
-        pivot_budget_bytes=args.pivot_budget_bytes,
+        occurrences_dir=args.occurrences_dir,
+        arrivals_pattern=args.arrivals,
         # Unbounded: a case is scored by comparing the reactions a translation returns
         # against the reference's. Bounded, both sides are arbitrary pages of their
         # match sets -- SQL leaves an unordered LIMIT free to pick any rows -- so two
@@ -500,6 +559,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 corpus,
                 client=client,
                 model=args.model,
+                effort=args.effort,
                 repair=not args.no_repair,
                 timeout_seconds=args.timeout_seconds,
                 sink=sink,
@@ -508,7 +568,10 @@ def main(argv: Sequence[str] | None = None) -> None:
             for case in cases
         ]
     logger.info(
-        "%s on %s", "with repair" if not args.no_repair else "first try", args.model
+        "%s on %s at %s effort",
+        "with repair" if not args.no_repair else "first try",
+        args.model,
+        args.effort or "default",
     )
     print(report(results))
 

@@ -1016,8 +1016,8 @@ def test_rederive_drops_a_row_that_no_longer_derives(
 def test_a_finished_test_leaves_no_database_behind(test_session):
     """Databases this session made are dropped, not merely disconnected from.
 
-    A clone is a full copy -- 11.7 MB for the prepared schema -- so without the drop a
-    run of this package leaves most of a gigabyte in the cluster's data directory.
+    A clone is a full copy of the prepared schema, so without the drop a run of this
+    package leaves a copy per test in the cluster's data directory.
     Nothing else asserts it, and the leak would be invisible until a runner filled up.
 
     Order-independent by construction: every worker has its own cluster, and if teardown

@@ -58,7 +58,7 @@ def load_dataset(
     emptiness, indexing, and slicing over ``reactions`` behave the same, so code
     that only reads needs no change. Materializing every Reaction is the
     exception rather than the default, which matters because published datasets
-    run to millions of rows.
+    can be large.
 
     Other suffixes have no streaming form and read back as a real message.
 

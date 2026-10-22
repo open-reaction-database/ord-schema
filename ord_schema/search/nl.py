@@ -40,7 +40,7 @@ import hashlib
 import json
 import os
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from importlib import resources
 from typing import Any
@@ -54,25 +54,29 @@ from anthropic.types import (
     ToolParam,
     ToolUseBlock,
 )
+from pydantic import ValidationError
 
 from ord_schema.artifacts import pivot as pivot_levels
 from ord_schema.logging import get_logger
-from ord_schema.search import execute, nl_log, query, schema
+from ord_schema.search import execute, nl_log, placeholders, query, schema
 
 logger = get_logger(__name__)
 
 # Haiku translates most questions correctly and costs a fraction of what Opus does; the
 # repair turn is what closes much of the gap. Every entry point takes a model, because
 # which one is worth its price is a question for an eval set rather than for this line.
-DEFAULT_MODEL = "claude-haiku-4-5"
+DEFAULT_MODEL = "claude-haiku-5-5"
 # Read in preference to ANTHROPIC_API_KEY, which a shell holds for whatever else the
 # person at it is doing. A key that answers corpus questions is a deployment's, billed
 # to whoever runs the corpus, and naming it apart keeps a general-purpose key from
 # quietly paying for a search -- and this one from reaching everything that reads the
 # standard name. The SDK's own lookup still applies where this is unset.
 API_KEY_VARIABLE = "ORD_ANTHROPIC_API_KEY"
-MAX_TOKENS = 2048
-ANSWER_MAX_TOKENS = 512
+# Room for thinking as well as the reply: models that think by default count it against
+# the cap, and a cap sized for the tool call alone ends the turn before the call.
+MAX_TOKENS = 16000
+ANSWER_MAX_TOKENS = 4096
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
 
 SYSTEM_PROMPT = (
     (resources.files("ord_schema.search") / "nl_prompt.md").read_text(encoding="utf-8")
@@ -96,7 +100,9 @@ TOOL: ToolParam = {
     "input_schema": query.Query.model_json_schema(),
 }
 # Forcing build_query would leave a model with no way to decline, and a model with no
-# way to decline invents a query rather than refusing. This is that way.
+# way to decline invents a query rather than refusing. This is that way. Neither tool is
+# forced: newer models refuse a forced tool_choice, so the prompt asks for a call and a
+# turn that makes none is handed back the way a query that does not compile is.
 REFUSAL_TOOL: ToolParam = {
     "name": "cannot_answer",
     "description": (
@@ -159,6 +165,8 @@ class NLQueryError(Exception):
 
     Attributes:
         attempts: Every ``build_query`` call made before giving up, in order.
+        turns: How many times the model was asked to translate before giving up, which
+            exceeds the attempts where a turn wrote no query.
         usage: What the whole failed translation cost, including turns that produced no
             attempt.
         elapsed_ms: Wall time spent before the failure.
@@ -168,6 +176,7 @@ class NLQueryError(Exception):
         self,
         *args: object,
         attempts: Sequence[nl_log.Attempt] = (),
+        turns: int = 0,
         usage: nl_log.Usage | None = None,
         elapsed_ms: float = 0.0,
     ) -> None:
@@ -176,11 +185,13 @@ class NLQueryError(Exception):
         Args:
             *args: Passed to ``Exception``.
             attempts: The queries built before giving up.
+            turns: How many times the model was asked.
             usage: What those turns cost.
             elapsed_ms: Wall time spent.
         """
         super().__init__(*args)
         self.attempts = tuple(attempts)
+        self.turns = turns
         self.usage = usage if usage is not None else nl_log.Usage()
         self.elapsed_ms = elapsed_ms
 
@@ -193,6 +204,15 @@ class ModelRateLimitedError(NLQueryError):
     """The model refused the request because the caller is over its rate limit."""
 
 
+class ModelRefusedError(NLQueryError):
+    """The model's safety classifiers declined the request.
+
+    Distinct from ``UnanswerableError``, where the model read the question and found the
+    grammar lacking: here a classifier declined the request before any answer, and the
+    category says which one.
+    """
+
+
 class MalformedQueryError(NLQueryError):
     """The model's query did not compile, and neither did its repair."""
 
@@ -202,7 +222,7 @@ class UnanswerableError(NLQueryError):
 
     Distinct from a malformed query: nothing was wrong with the model's reasoning, and
     retrying will not help. Comparing two columns is the standard case -- a value is a
-    literal or a compound, never another column -- and a layer without a way to say so
+    literal, never another column -- and a layer without a way to say so
     answers with a plausible query that means something else.
     """
 
@@ -228,12 +248,15 @@ class Translation:
             what prompt work runs on, and what pricing a repair turn needs.
         usage: What the whole translation cost.
         elapsed_ms: Wall time spent translating.
+        turns: How many times the model was asked: two where the first turn was
+            handed back, whether or not it wrote a query to record as an attempt.
     """
 
     query: query.Query
     attempts: tuple[nl_log.Attempt, ...]
     usage: nl_log.Usage
     elapsed_ms: float
+    turns: int = 1
 
 
 @dataclasses.dataclass(frozen=True)
@@ -265,6 +288,9 @@ class Answer:
         record_id: What this question was logged as. A caller hands it to the reader so
             a thumb has something to reference; without it the log records feedback
             nobody can attach to a question.
+        resolved: Each compound name the query gives, mapped to the canonical SMILES
+            the search matched it as. The query keeps the name, so this is where a
+            reader sees the structure; empty for a query naming no compound.
     """
 
     question: str
@@ -272,6 +298,7 @@ class Answer:
     table: pa.Table
     text: str
     record_id: str = ""
+    resolved: dict[str, str] = dataclasses.field(default_factory=dict)
 
 
 def get_client() -> anthropic.Anthropic:
@@ -293,6 +320,10 @@ def _coerce(value: Any) -> Any:
     back is the normal path rather than a fallback: it is what both measured models do
     most of the time.
 
+    A model encoding the tree that way often closes it with one brace too many, the
+    outer query's, so closers after a complete value are dropped rather than failing
+    the parse: they add nothing to what the value says.
+
     Args:
         value: Whatever the tool call carried.
 
@@ -301,9 +332,12 @@ def _coerce(value: Any) -> Any:
     """
     if isinstance(value, str):
         try:
-            return _coerce(json.loads(value))
-        except (json.JSONDecodeError, TypeError):
+            decoded, end = json.JSONDecoder().raw_decode(value.strip())
+        except json.JSONDecodeError:
             return value
+        if value.strip()[end:].strip(" \t\n\r}]"):
+            return value
+        return _coerce(decoded)
     if isinstance(value, dict):
         return {key: _coerce(item) for key, item in value.items()}
     if isinstance(value, list):
@@ -373,6 +407,41 @@ def _validated(coerced: Any) -> query.Query:
     return parsed
 
 
+def _rejection(
+    error: ValueError | query.QueryError,
+    structures: Mapping[str, placeholders.Placeholder],
+) -> str:
+    """Returns why a query was refused, in words that show no placeholder's text.
+
+    The rejection goes back to the model, which is never shown a placeholder's text.
+    Pydantic's report quotes the input it refused, which after substitution holds that
+    text, and cuts a long one short, so no replacement can find all of it. A refused
+    query that had placeholders is therefore reported from its errors without their
+    inputs, and any text a message still quotes is written as its placeholder's name.
+
+    Args:
+        error: Why the query was refused.
+        structures: Each placeholder the question writes, mapped to its structure.
+
+    Returns:
+        The error as text: ``str(error)`` for a question with no placeholders.
+    """
+    if not structures:
+        return str(error)
+    if isinstance(error, ValidationError):
+        count = error.error_count()
+        lines = [
+            f"{count} validation error{'' if count == 1 else 's'} for {error.title}"
+        ]
+        for detail in error.errors(include_url=False, include_input=False):
+            lines.append(".".join(str(part) for part in detail["loc"]))
+            lines.append(f"  {detail['msg']} [type={detail['type']}]")
+        message = "\n".join(lines)
+    else:
+        message = str(error)
+    return placeholders.conceal(message, structures)
+
+
 def _spent(response: Any) -> nl_log.Usage:
     """Returns what one response cost.
 
@@ -392,40 +461,89 @@ def _spent(response: Any) -> nl_log.Usage:
     )
 
 
+def _create(client: anthropic.Anthropic, *, effort: str | None, **request: Any) -> Any:
+    """Returns one Messages API response, its failures named as this module's.
+
+    Args:
+        client: Anthropic client.
+        effort: How much the model thinks, or None to leave it to the model's default.
+            Omitted rather than sent as a default, because models without effort levels
+            reject the parameter outright.
+        **request: Everything else the request carries.
+
+    Returns:
+        The response.
+
+    Raises:
+        ModelRefusedError: If the model's safety classifiers declined the request.
+        ModelRateLimitedError: If the caller is over its rate limit.
+        ModelUnavailableError: If the model cannot be reached.
+    """
+    if effort is not None:
+        request["output_config"] = {"effort": effort}
+    try:
+        response = client.messages.create(**request)
+    except anthropic.RateLimitError as error:
+        raise ModelRateLimitedError(str(error)) from error
+    except (anthropic.APIConnectionError, anthropic.APIStatusError) as error:
+        raise ModelUnavailableError(str(error)) from error
+    if response.stop_reason == "refusal":
+        details = getattr(response, "stop_details", None)
+        category = getattr(details, "category", None) or "no category given"
+        raise ModelRefusedError(f"refused: {category}", usage=_spent(response))
+    return response
+
+
+@dataclasses.dataclass(frozen=True)
+class _Turn:
+    """One translation turn.
+
+    Attributes:
+        content: The response's content blocks, replayed verbatim on a repair: a model
+            that thinks needs its thinking blocks back beside the tool call they led to.
+        call: The ``build_query`` call, or None where the turn made no tool call.
+        usage: What the turn cost.
+    """
+
+    content: Any
+    call: ToolUseBlock | None
+    usage: nl_log.Usage
+
+
 def _call(
-    client: anthropic.Anthropic, model: str, messages: list[MessageParam]
-) -> tuple[ToolUseBlock, nl_log.Usage]:
-    """Returns the tool_use block from one forced call, and what it cost.
+    client: anthropic.Anthropic,
+    model: str,
+    messages: list[MessageParam],
+    effort: str | None,
+) -> _Turn:
+    """Returns one translation turn.
 
     Args:
         client: Anthropic client.
         model: Which model to ask.
         messages: The conversation so far.
+        effort: How much the model thinks, or None for the model's default.
 
     Returns:
-        The ``tool_use`` content block and the call's usage.
+        The turn, whose ``call`` is None where the model answered without a tool.
 
     Raises:
         UnanswerableError: If the model calls ``cannot_answer`` instead.
+        ModelRefusedError: If the model's safety classifiers declined the request.
         ModelRateLimitedError: If the caller is over its rate limit.
         ModelUnavailableError: If the model cannot be reached.
-        MalformedQueryError: If the response carries no tool call at all.
     """
-    try:
-        response = client.messages.create(
-            model=model,
-            max_tokens=MAX_TOKENS,
-            system=_SYSTEM,
-            messages=messages,
-            tools=[TOOL, REFUSAL_TOOL],
-            # "any" rather than "tool": the model must call one of them, which leaves
-            # refusing available without leaving prose available.
-            tool_choice={"type": "any"},
-        )
-    except anthropic.RateLimitError as error:
-        raise ModelRateLimitedError(str(error)) from error
-    except (anthropic.APIConnectionError, anthropic.APIStatusError) as error:
-        raise ModelUnavailableError(str(error)) from error
+    response = _create(
+        client,
+        effort=effort,
+        model=model,
+        max_tokens=MAX_TOKENS,
+        system=_SYSTEM,
+        messages=messages,
+        tools=[TOOL, REFUSAL_TOOL],
+        # At most one call, so a repair has exactly one tool_use to answer.
+        tool_choice={"type": "auto", "disable_parallel_tool_use": True},
+    )
     spent = _spent(response)
     for block in response.content:
         if isinstance(block, ToolUseBlock):
@@ -434,42 +552,91 @@ def _call(
                 if isinstance(block.input, dict):
                     reason = str(block.input.get("reason", reason))
                 raise UnanswerableError(reason, usage=spent)
-            return block, spent
-    raise MalformedQueryError("the model returned no query", usage=spent)
+            return _Turn(response.content, block, spent)
+    return _Turn(response.content, None, spent)
+
+
+def _repair(turn: _Turn, rejection: str) -> MessageParam:
+    """Returns the message handing a failed turn back to the model.
+
+    Args:
+        turn: The turn that produced no usable query.
+        rejection: Why: the compiler's error, or that no tool was called.
+
+    Returns:
+        A tool result carrying the error where the turn called ``build_query``, and a
+        plain reminder of the two tools where it answered in prose instead.
+    """
+    if turn.call is None:
+        return {
+            "role": "user",
+            "content": (
+                "Answer by calling build_query with the query, or cannot_answer if "
+                "the grammar cannot express the question."
+            ),
+        }
+    return {
+        "role": "user",
+        "content": [
+            {
+                "type": "tool_result",
+                "tool_use_id": turn.call.id,
+                "is_error": True,
+                "content": (
+                    f"That query was rejected: {rejection}. Call build_query again "
+                    "with it fixed."
+                ),
+            }
+        ],
+    }
 
 
 def translate(
     question: str,
     *,
+    structures: Mapping[str, placeholders.Placeholder] | None = None,
     client: anthropic.Anthropic | None = None,
     model: str = DEFAULT_MODEL,
+    effort: str | None = None,
     repair: bool = True,
 ) -> "Translation":
     """Returns the query a question asks for.
 
     Args:
         question: The question, in English.
+        structures: Each placeholder the question writes, mapped to the structure
+            it stands for. The model is told each one's format and never its
+            text, which is substituted into the query before it is validated.
         client: Anthropic client; one is built from the environment if omitted.
         model: Which model translates.
-        repair: Hand a failure back once, carrying the compiler's error. Turn it off to
-            measure how often a model is right without help.
+        effort: How much the model thinks, one of ``EFFORTS``, or None for the model's
+            default. Models without effort levels reject anything but None.
+        repair: Hand a failure back once, carrying the compiler's error or, where the
+            model called no tool, a reminder to. Turn it off to measure how often a
+            model is right without help.
 
     Returns:
         The query, every ``build_query`` call that led to it, and what they cost.
 
     Raises:
-        MalformedQueryError: If the query does not compile, after the repair turn where
-            one was allowed.
+        MalformedQueryError: If the query does not compile, or the model calls no
+            tool, after the repair turn where one was allowed.
         UnanswerableError: If the model says the grammar cannot express the question.
+        ModelRefusedError: If the model's safety classifiers declined the request.
         ModelRateLimitedError: If the caller is over its rate limit.
         ModelUnavailableError: If the model cannot be reached. Every one of these
             carries the attempts and the usage spent reaching it, because a failed
             translation is a record worth keeping and an exception has no return value.
+        PlaceholderError: If the question and its placeholders do not fit each
+            other, before the model is asked anything.
     """
+    structures = structures or {}
+    placeholders.check(question, structures)
     client = client if client is not None else get_client()
     started = time.monotonic()
     attempts: list[nl_log.Attempt] = []
     spent = nl_log.Usage()
+    turns = 0
 
     def elapsed() -> float:
         return (time.monotonic() - started) * 1000
@@ -477,78 +644,65 @@ def translate(
     def failed(error: NLQueryError) -> NLQueryError:
         """Returns the error with what this translation spent attached to it.
 
-        The error's own usage is added rather than replaced: a turn that declined or
-        returned no tool call carries what it cost and produced no attempt to hold it,
-        so dropping it would leave a refusal looking free.
+        The error's own usage is added rather than replaced: a turn that declined
+        carries what it cost and produced no attempt to hold it, so dropping it would
+        leave a refusal looking free.
         """
         error.attempts = tuple(attempts)
+        error.turns = turns
         error.usage = spent + error.usage
         error.elapsed_ms = elapsed()
         return error
 
-    messages: list[MessageParam] = [{"role": "user", "content": question}]
-    try:
-        block, usage = _call(client, model, messages)
-    except NLQueryError as error:
-        raise failed(error) from error
-    spent += usage
-    coerced = _unwrapped(_coerce(block.input))
-    try:
-        parsed = _validated(coerced)
-    except (ValueError, query.QueryError) as error:
-        attempts.append(nl_log.Attempt(coerced, str(error), usage))
-        if not repair:
-            raise failed(MalformedQueryError(str(error))) from error
-        first = error
-    else:
-        attempts.append(nl_log.Attempt(coerced, None, usage))
-        return Translation(parsed, tuple(attempts), spent, elapsed())
-    logger.info("repairing a query that did not compile: %s", first)
+    def call(messages: list[MessageParam]) -> _Turn:
+        """Returns one turn, counted, its cost added to what this translation spent."""
+        nonlocal spent, turns
+        turns += 1
+        try:
+            turn = _call(client, model, messages, effort)
+        except NLQueryError as error:
+            raise failed(error) from error
+        spent += turn.usage
+        return turn
+
+    def judged(turn: _Turn) -> tuple[query.Query | None, str]:
+        """Returns the turn's query, or why it has none, recording any attempt."""
+        if turn.call is None:
+            # Costed in ``spent``, but no attempt: there is no query to record.
+            return None, "the model returned no query"
+        coerced = _unwrapped(_coerce(turn.call.input))
+        try:
+            parsed = _validated(placeholders.substitute(coerced, structures))
+        except (ValueError, query.QueryError) as error:
+            rejection = _rejection(error, structures)
+            attempts.append(nl_log.Attempt(coerced, rejection, turn.usage))
+            return None, rejection
+        attempts.append(nl_log.Attempt(coerced, None, turn.usage))
+        return parsed, ""
+
+    described = placeholders.describe(structures)
+    content = f"{question}\n\n{described}" if described else question
+    messages: list[MessageParam] = [{"role": "user", "content": content}]
+    first = call(messages)
+    parsed, rejection = judged(first)
+    if parsed is not None:
+        return Translation(parsed, tuple(attempts), spent, elapsed(), turns)
+    if not repair:
+        raise failed(MalformedQueryError(rejection))
+    logger.info("repairing a translation: %s", rejection)
     messages += [
-        {
-            "role": "assistant",
-            "content": [
-                {
-                    "type": "tool_use",
-                    "id": block.id,
-                    "name": block.name,
-                    "input": block.input,
-                }
-            ],
-        },
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "is_error": True,
-                    "content": (
-                        f"That query was rejected: {first}. Call build_query again "
-                        "with it fixed."
-                    ),
-                }
-            ],
-        },
+        {"role": "assistant", "content": first.content},
+        _repair(first, rejection),
     ]
-    try:
-        retry, usage = _call(client, model, messages)
-    except NLQueryError as error:
-        # Declining on the second turn is still the right answer, and the caller gets
-        # the same one. The attempt already recorded is what says the model reached it
-        # by way of a query the compiler refused rather than by reading the question.
-        raise failed(error) from error
-    spent += usage
-    coerced = _unwrapped(_coerce(retry.input))
-    try:
-        parsed = _validated(coerced)
-    except (ValueError, query.QueryError) as error:
+    # Declining on the second turn is still the right answer, and the caller gets the
+    # same one. An attempt already recorded is what says the model reached it by way
+    # of a query the compiler refused rather than by reading the question.
+    parsed, rejection = judged(call(messages))
+    if parsed is None:
         # One repair, never a loop: a model that missed twice with the compiler's own
         # suggestion in hand is not going to find it on the third paid attempt.
-        attempts.append(nl_log.Attempt(coerced, str(error), usage))
-        raise failed(MalformedQueryError(str(error))) from error
-    attempts.append(nl_log.Attempt(coerced, None, usage))
-    return Translation(parsed, tuple(attempts), spent, elapsed())
+        raise failed(MalformedQueryError(rejection))
+    return Translation(parsed, tuple(attempts), spent, elapsed(), turns)
 
 
 def summarize(table: pa.Table, *, rows: int = 5) -> str:
@@ -576,6 +730,7 @@ def answer(
     *,
     client: anthropic.Anthropic | None = None,
     model: str = DEFAULT_MODEL,
+    effort: str | None = None,
 ) -> Description:
     """Returns a sentence or two saying what a result shows.
 
@@ -584,33 +739,32 @@ def answer(
         table: What the search returned.
         client: Anthropic client; one is built from the environment if omitted.
         model: Which model writes the prose.
+        effort: How much the model thinks, or None for the model's default.
 
     Returns:
         The prose and what it cost. The model sees ``summarize(table)`` rather than the
         rows, so it can describe only what the summary states.
 
     Raises:
+        ModelRefusedError: If the model's safety classifiers declined the request.
         ModelRateLimitedError: If the caller is over its rate limit.
         ModelUnavailableError: If the model cannot be reached.
     """
     client = client if client is not None else get_client()
     started = time.monotonic()
-    try:
-        response = client.messages.create(
-            model=model,
-            max_tokens=ANSWER_MAX_TOKENS,
-            system=_ANSWER_SYSTEM,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"Question: {question}\n\nResult:\n{summarize(table)}",
-                }
-            ],
-        )
-    except anthropic.RateLimitError as error:
-        raise ModelRateLimitedError(str(error)) from error
-    except (anthropic.APIConnectionError, anthropic.APIStatusError) as error:
-        raise ModelUnavailableError(str(error)) from error
+    response = _create(
+        client,
+        effort=effort,
+        model=model,
+        max_tokens=ANSWER_MAX_TOKENS,
+        system=_ANSWER_SYSTEM,
+        messages=[
+            {
+                "role": "user",
+                "content": f"Question: {question}\n\nResult:\n{summarize(table)}",
+            }
+        ],
+    )
     return Description(
         text="".join(
             block.text for block in response.content if isinstance(block, TextBlock)
@@ -622,6 +776,7 @@ def answer(
 
 _OUTCOMES: tuple[tuple[type[BaseException], nl_log.Outcome], ...] = (
     (UnanswerableError, nl_log.Outcome.DECLINED),
+    (ModelRefusedError, nl_log.Outcome.REFUSED),
     (MalformedQueryError, nl_log.Outcome.MALFORMED),
     (ModelRateLimitedError, nl_log.Outcome.RATE_LIMITED),
     (ModelUnavailableError, nl_log.Outcome.UNAVAILABLE),
@@ -676,8 +831,10 @@ def ask(
     question: str,
     corpus: execute.Corpus,
     *,
+    structures: Mapping[str, placeholders.Placeholder] | None = None,
     client: anthropic.Anthropic | None = None,
     model: str = DEFAULT_MODEL,
+    effort: str | None = None,
     timeout_seconds: float = 60.0,
     sink: nl_log.Sink | None = None,
     source: str | None = None,
@@ -697,8 +854,11 @@ def ask(
     Args:
         question: The question, in English.
         corpus: The corpus to search.
+        structures: Each placeholder the question writes, mapped to the structure
+            it stands for.
         client: Anthropic client; one is built from the environment if omitted.
         model: Which model translates and describes.
+        effort: How much the model thinks, or None for the model's default.
         timeout_seconds: Passed to the search, so a slow query fails rather than hangs.
         sink: Where the record goes; nothing is recorded if omitted.
         source: Which surface this arrived from -- ``"web"``, ``"eval"``, ``"api"``.
@@ -708,15 +868,19 @@ def ask(
             a rephrasing readable as a correction of the question before it.
 
     Returns:
-        The query that ran, the reactions it found, a description of them, and the
-        identifier the record was written under.
+        The query that ran, the reactions it found, a description of them, the
+        identifier the record was written under, and what each compound the query
+        named was searched as.
 
     Raises:
         MalformedQueryError: If translation produces nothing that compiles.
         UnanswerableError: If the grammar cannot express the question.
+        ModelRefusedError: If the model's safety classifiers declined the request.
         ModelRateLimitedError: If the caller is over its rate limit.
         ModelUnavailableError: If the model cannot be reached.
         ValueError: If a compound the query names cannot be resolved.
+        PlaceholderError: If the question and its placeholders do not fit each
+            other, before the model is asked anything; nothing is recorded.
         TimeoutError: If the search exceeds ``timeout_seconds``.
         QueryError: If the compiled query cannot be run against these artifacts.
         PairingError: If the corpus and its structures do not line up.
@@ -739,6 +903,7 @@ def ask(
             nl_log.Ask(
                 question=question,
                 model=model,
+                effort=effort,
                 corpus_fingerprint=corpus_fingerprint,
                 prompt_fingerprint=translator,
                 outcome=outcome,
@@ -746,16 +911,24 @@ def ask(
                 session_id=session_id,
                 record_id=record_id,
                 timestamp=timestamp,
+                structures=placeholders.dump(structures or {}),
                 **fields,
             ),
         )
 
     try:
-        translated = translate(question, client=client, model=model)
+        translated = translate(
+            question,
+            structures=structures,
+            client=client,
+            model=model,
+            effort=effort,
+        )
     except NLQueryError as error:
         record(
             outcome_of(error),
             attempts=error.attempts,
+            turns=error.turns,
             declined_reason=(
                 str(error) if isinstance(error, UnanswerableError) else None
             ),
@@ -771,6 +944,7 @@ def ask(
         record(
             outcome_of(error),
             attempts=translated.attempts,
+            turns=translated.turns,
             error=str(error),
             usage=translated.usage,
             translate_ms=translated.elapsed_ms,
@@ -778,13 +952,16 @@ def ask(
         )
         raise
     search_ms = (time.monotonic() - started) * 1000
+    resolved = execute.resolutions(table)
     try:
-        described = answer(question, table, client=client, model=model)
+        described = answer(question, table, client=client, model=model, effort=effort)
     except NLQueryError as error:
         record(
             outcome_of(error),
             attempts=translated.attempts,
+            turns=translated.turns,
             row_count=table.num_rows,
+            resolved=resolved,
             error=str(error),
             usage=translated.usage + error.usage,
             translate_ms=translated.elapsed_ms,
@@ -794,7 +971,9 @@ def ask(
     record(
         nl_log.Outcome.ANSWERED if table.num_rows else nl_log.Outcome.EMPTY,
         attempts=translated.attempts,
+        turns=translated.turns,
         row_count=table.num_rows,
+        resolved=resolved,
         answer_text=described.text,
         usage=translated.usage + described.usage,
         translate_ms=translated.elapsed_ms,
@@ -807,4 +986,5 @@ def ask(
         table=table,
         text=described.text,
         record_id=record_id,
+        resolved=resolved,
     )

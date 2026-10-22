@@ -16,8 +16,8 @@ r"""Derives occurrence artifacts from pivots, one per structure-bearing path.
 
 A structure query finds the reactions holding a match by semi-joining a relation of one
 row per structure occurrence; see ``ord_schema.artifacts.occurrences`` for the shape and
-why it holds dataset-local IDs. Built in process that relation is 1.19 GiB and a minute
-over ORD, and wants several gigabytes of DuckDB memory to assemble, so it belongs here.
+why it holds dataset-local IDs. A corpus reads that relation as a view over these
+artifacts and builds nothing of its own, so a corpus without them has no index.
 
 Each indexed path gets its own subdirectory, mirroring the pivots it descends from::
 
@@ -36,10 +36,11 @@ The pivots for the levels those paths range within have to exist first --
 ``derive_pivots.py --levels`` names them, and ``--print_levels`` here prints exactly
 that list. Deriving from the pivot rather than from the projection is what keeps the two
 from disagreeing about which elements exist: the occurrences are that artifact projected
-down to three columns.
+down to two columns.
 
-Artifacts whose footer already records the current source content, library version, and
-artifact version are skipped, so re-running is cheap; --force rewrites them anyway.
+Artifacts whose footer already records the current source content, artifact schema
+version, and RDKit version are skipped, so re-running is cheap; --force rewrites them
+anyway.
 
 These are errors: an --output_dir that would write over any input, a path this schema
 does not carry a structure at, a pivot that is stale or holds another level, a run that
@@ -183,9 +184,7 @@ def main(args: argparse.Namespace) -> None:
         level = occurrences.PATHS[path][0].path
         # --pivots_dir is a directory someone named, not a pattern they wrote, so a
         # bracket or a star in it is part of the name: escaped, it matches that tree
-        # rather than a sibling fitting the character class. The root goes separately
-        # because glob_root reads the escape as the wildcard it is spelled with, and
-        # would stop the mirror short of it.
+        # rather than a sibling fitting the character class.
         root = pathlib.Path(args.pivots_dir) / level
         pattern = f"{glob.escape(str(root))}/**/*.parquet"
         directory = pathlib.Path(args.output_dir) / path
@@ -219,7 +218,7 @@ def main(args: argparse.Namespace) -> None:
         for name, held in mismatched:
             logger.error("%s: holds %s, not %s", name, held or "no path", path)
         if mismatched:
-            # Every indexed path writes the same three columns, so a file filed under
+            # Every indexed path writes the same two columns, so a file filed under
             # the wrong one passes the currency check: same artifact name, same source
             # hash, same versions, same columns. It is then skipped by every later run
             # and read as this path's occurrences ever after, answering a quantifier
@@ -261,7 +260,7 @@ def main(args: argparse.Namespace) -> None:
     behind = base.left_behind(
         args.output_dir,
         occurrences.ARTIFACT,
-        # One schema for every path: the three columns are the same wherever a
+        # One schema for every path: the two columns are the same wherever a
         # structure sits, so nothing on disk is short one until this schema grows.
         dict.fromkeys(occurrences.PATHS, occurrences.SCHEMA),
         occurrences.artifact_paths,

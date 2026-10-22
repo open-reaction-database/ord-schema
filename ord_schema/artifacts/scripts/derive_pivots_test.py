@@ -448,49 +448,6 @@ def test_an_artifact_missing_an_ordinal_is_derived_again(projected):
     assert "product_index" in pq.read_schema(written).names
 
 
-def test_a_corpus_deriving_pivots_also_derives_an_artifact_missing_an_ordinal(
-    projected,
-):
-    # The script and the Corpus write into one tree, so they have to agree on which
-    # artifacts are current; one of them accepting a column-short artifact the other
-    # rebuilds would leave the answer to whichever ran last.
-    derive_structures.main(
-        derive_structures.parse_args(
-            [
-                f"--input_pattern={projected / 'projections' / '*' / '*.parquet'}",
-                f"--output_dir={projected / 'structures'}",
-            ]
-        )
-    )
-    _run(projected, "--levels", "workups")
-    written = projected / "pivots" / "workups" / "aa" / "ord_dataset-aa.parquet"
-    _drop_column(written, "workup_index")
-    with execute.Corpus(
-        str(projected / "projections" / "*" / "*.parquet"),
-        str(projected / "structures" / "*" / "*.parquet"),
-        resolver={}.__getitem__,
-        pivots_dir=str(projected / "pivots"),
-        derive_pivots=True,
-        warm=False,
-    ) as corpus:
-        corpus.search(
-            query.Query.model_validate(
-                {
-                    "where": {
-                        "op": "exists",
-                        "path": "workups",
-                        "where": {
-                            "op": "eq",
-                            "path": "type",
-                            "value": {"literal": "EXTRACTION"},
-                        },
-                    }
-                }
-            )
-        )
-    assert "workup_index" in pq.read_schema(written).names
-
-
 def test_a_level_whose_artifacts_cannot_be_found_is_an_error(projected, monkeypatch):
     # Without this, no artifacts found means none of them hold rows, and the run
     # announces that the level is empty everywhere -- the report this exists to make,

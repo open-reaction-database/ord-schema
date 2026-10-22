@@ -74,9 +74,9 @@ STRUCTURAL_IDENTIFIER_TYPE_NAMES = frozenset(
 #
 # The cached value is a string, never the Mol: an RDKit Mol is mutable, so
 # handing the same one to every caller would let any of them corrupt the entry.
-# Bounded because a large dataset's distinct set does not saturate (uspto grows
-# by ~1.3 new molecules per reaction); this holds strings, so the ceiling is
-# tens of MB.
+# Bounded because a large dataset's distinct set does not saturate (uspto keeps
+# adding new molecules as it grows); this holds strings, so the ceiling stays
+# small.
 #
 # Entries assume RDKit parses and writes the same way for the life of the process.
 # A caller that flips a global mid-run (Chem.SetUseLegacyStereoPerception and the
@@ -152,7 +152,8 @@ def build_compound(
     """Builds a Compound message with the most common fields.
 
     Args:
-        smiles: Text compound SMILES.
+        smiles: Text compound SMILES, recorded as CXSMILES if it has an extension
+            block.
         name: Text compound name.
         amount: Text amount string, e.g. '1.25 g'.
         role: Text reaction role. Must match a value in ReactionRoleType.
@@ -173,7 +174,7 @@ def build_compound(
     """
     compound = reaction_pb2.Compound()
     if smiles:
-        compound.identifiers.add(value=smiles, type="SMILES")
+        compound.identifiers.add(value=smiles, type=smiles_identifier_type(smiles))
     if name:
         compound.identifiers.add(value=name, type="NAME")
     if amount:
@@ -578,6 +579,21 @@ def split_cxsmiles_extension(value: str) -> tuple[str, str | None]:
     return value, None
 
 
+def smiles_identifier_type(smiles: str) -> str:
+    """Returns the CompoundIdentifier type a SMILES value belongs under.
+
+    Validation warns about an extension block recorded under SMILES.
+
+    Args:
+        smiles: A SMILES or CXSMILES string.
+
+    Returns:
+        ``"CXSMILES"`` if the value has an extension block, otherwise ``"SMILES"``.
+    """
+    _, extension = split_cxsmiles_extension(smiles)
+    return "CXSMILES" if extension else "SMILES"
+
+
 def mol_from_compound(
     compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
     return_identifier: bool = False,
@@ -839,19 +855,14 @@ def _add_structural_identifier(
 ) -> None:
     """Adds a canonical structural identifier for ``mol``, typed to match its value.
 
-    The type follows the value rather than being fixed at SMILES: a value carrying an
-    extension block is a CXSMILES, and recording it as SMILES is what
-    ``_check_cxsmiles_type`` warns about.
-
     Args:
         component: Compound or ProductCompound to add the identifier to.
         mol: RDKit Mol to write.
     """
     smiles = canonical_smiles(mol)
-    _, extension = split_cxsmiles_extension(smiles)
     component.identifiers.add(
         value=smiles,
-        type="CXSMILES" if extension else "SMILES",
+        type=smiles_identifier_type(smiles),
         details=_EXTRACTED_FROM_REACTION_SMILES,
     )
 

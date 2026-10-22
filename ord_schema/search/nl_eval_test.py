@@ -63,17 +63,18 @@ class _StubClient:
         self._name = name
         self._payload = payload
         self.messages = self
+        self.requests: list[dict[str, Any]] = []
 
     def create(self, **kwargs: Any) -> Any:
         """Returns the canned response.
 
         Args:
-            **kwargs: The request, which the stub ignores.
+            **kwargs: The request, which the stub records.
 
         Returns:
             A response carrying one ``tool_use`` block.
         """
-        del kwargs
+        self.requests.append(kwargs)
         block = ToolUseBlock(
             type="tool_use", id="toolu_stub", name=self._name, input=self._payload
         )
@@ -124,6 +125,41 @@ class _SequenceClient:
         )
         return types.SimpleNamespace(
             content=[block], usage=usage, stop_reason="tool_use"
+        )
+
+
+class _RefusingClient:
+    """Declines every request the way the model's safety classifiers do.
+
+    Attributes:
+        messages: Itself, so ``client.messages.create`` reaches ``create``.
+    """
+
+    def __init__(self) -> None:
+        """Initializes the stub."""
+        self.messages = self
+
+    def create(self, **kwargs: Any) -> Any:
+        """Returns a refusal.
+
+        Args:
+            **kwargs: The request, which the stub ignores.
+
+        Returns:
+            A response with no content and a refusal stop reason.
+        """
+        del kwargs
+        usage = types.SimpleNamespace(
+            input_tokens=1,
+            output_tokens=1,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=0,
+        )
+        return types.SimpleNamespace(
+            content=[],
+            usage=usage,
+            stop_reason="refusal",
+            stop_details=types.SimpleNamespace(category="bio"),
         )
 
 
@@ -258,6 +294,30 @@ def test_measuring_a_different_number_of_columns_fails():
     assert "measured 2 columns where the reference measures 3" in result.detail
 
 
+def test_a_group_with_no_value_may_be_kept_or_dropped():
+    # "The highest yield each dataset reports" over a dataset reporting none is a null
+    # either way; narrowing to datasets with a yield first is the same answer.
+    expected = pa.table({"dataset_id": ["a", "b"], "best": [90.0, None]})
+    returned = pa.table({"dataset_id": ["a"], "best": [90.0]})
+    assert nl_eval.score_measures(
+        _CASE, returned, expected, ordered=False, groups=1
+    ).passed
+
+
+def test_a_group_with_a_value_cannot_be_dropped():
+    expected = pa.table({"dataset_id": ["a", "b"], "best": [90.0, 40.0]})
+    returned = pa.table({"dataset_id": ["a"], "best": [90.0]})
+    assert not nl_eval.score_measures(
+        _CASE, returned, expected, ordered=False, groups=1
+    ).passed
+
+
+def test_a_sorted_question_without_an_aggregate_keeps_its_null_rows():
+    expected = pa.table({"value": [90.0, None]})
+    returned = pa.table({"value": [90.0]})
+    assert not nl_eval.score_measures(_CASE, returned, expected, ordered=True).passed
+
+
 def test_an_integer_count_and_a_double_one_are_the_same_answer():
     result = nl_eval.score_measures(
         _CASE,
@@ -291,6 +351,11 @@ def test_every_shipped_reference_compiles():
                     pivot.table_name(path) if path in pivot.LEVELS else None
                 ),
             )
+
+
+def test_the_shipped_cases_include_placeholders():
+    cases = nl_eval.load_cases()
+    assert sum(bool(case.structures) for case in cases) == 8
 
 
 def test_a_case_the_grammar_cannot_express_is_marked_as_such():
@@ -376,6 +441,43 @@ def test_an_expressible_question_that_does_not_compile_fails():
 
 def test_declining_an_expressible_question_fails():
     assert not _run(_CASE, _StubClient("cannot_answer", {"reason": "gave up"})).passed
+
+
+def test_a_safety_refusal_fails_the_case_and_is_recorded(tmp_path):
+    # A reader asking this question would be turned away, so the case fails rather
+    # than going unmeasured the way a rate limit does.
+    sink = nl_log.JsonlSink(tmp_path / "run.jsonl")
+    result = nl_eval.run_case(
+        _CASE,
+        cast(execute.Corpus, _StubCorpus()),
+        client=cast(Any, _RefusingClient()),
+        model="stub",
+        repair=True,
+        sink=sink,
+    )
+    assert not result.passed
+    assert "bio" in result.detail
+    (line,) = (tmp_path / "run.jsonl").read_text(encoding="utf-8").splitlines()
+    assert json.loads(line)["outcome"] == nl_log.Outcome.REFUSED
+
+
+def test_a_case_records_the_effort_and_the_turns(tmp_path):
+    # Scores, costs, and times at two effort levels are different measurements, and a
+    # run's records are what tells them apart afterwards.
+    sink = nl_log.JsonlSink(tmp_path / "run.jsonl")
+    nl_eval.run_case(
+        _INEXPRESSIBLE,
+        cast(execute.Corpus, _StubCorpus()),
+        client=cast(Any, _StubClient("cannot_answer", {"reason": "no comparison"})),
+        model="stub",
+        effort="low",
+        repair=False,
+        sink=sink,
+    )
+    (line,) = (tmp_path / "run.jsonl").read_text(encoding="utf-8").splitlines()
+    event = json.loads(line)
+    assert event["effort"] == "low"
+    assert event["turns"] == 1
 
 
 def test_a_run_records_its_cases(tmp_path):
@@ -488,6 +590,50 @@ def test_a_query_built_for_an_inexpressible_question_is_recorded(tmp_path):
     assert event["source"] == "eval"
 
 
+class _NamingCorpus(_StubCorpus):
+    """Answers as a search whose query named pyridine, stamping what it resolved to."""
+
+    def search(self, translated: Any, **kwargs: Any) -> pa.Table:
+        """Returns the canned result, stamped with its resolutions.
+
+        Args:
+            translated: The query, which the stub ignores.
+            **kwargs: Bounds the stub ignores.
+
+        Returns:
+            A one-row table carrying ``execute.RESOLVED``.
+        """
+        stamp = json.dumps({"pyridine": "c1ccncc1"}).encode()
+        return (
+            super()
+            .search(translated, **kwargs)
+            .replace_schema_metadata({execute.RESOLVED: stamp})
+        )
+
+
+@pytest.mark.parametrize(
+    ("corpus", "expected"),
+    [(_NamingCorpus(), {"pyridine": "c1ccncc1"}), (_StubCorpus(), {})],
+)
+def test_a_case_records_what_each_compound_resolved_to(tmp_path, corpus, expected):
+    # An eval run is replayed months later against whatever the resolver says then, so
+    # its record has to keep the structures it searched as much as a served one does.
+    sink = nl_log.JsonlSink(tmp_path / "run.jsonl")
+    nl_eval.run_case(
+        _INEXPRESSIBLE,
+        cast(execute.Corpus, corpus),
+        client=cast(
+            Any,
+            _StubClient("build_query", {"where": {"op": "not_null", "path": "smiles"}}),
+        ),
+        model="stub",
+        repair=False,
+        sink=sink,
+    )
+    (line,) = (tmp_path / "run.jsonl").read_text(encoding="utf-8").splitlines()
+    assert json.loads(json.loads(line)["resolved"]) == expected
+
+
 def test_a_run_without_a_sink_records_nothing(tmp_path):
     result = _run(_CASE, _StubClient("build_query", _BAD_PATH))
     assert not result.passed
@@ -514,3 +660,50 @@ def test_a_case_is_scored_over_every_match(monkeypatch):
     with pytest.raises(_RecordedError):
         nl_eval.main(["--projections=x", "--structures=y"])
     assert seen["max_rows"] is None
+
+
+# Placeholders
+
+
+def test_a_case_carries_its_placeholders_to_the_model_and_the_record(tmp_path):
+    case = nl_eval.EvalCase.model_validate(
+        {
+            "question": "which reactions use @A as a solvent?",
+            "why": "a compound SMILES placeholder",
+            "structures": {"@A": {"format": "compound_smiles", "text": "c1ccncc1"}},
+            "reference": {"where": {"op": "not_null", "path": "reaction_id"}},
+        }
+    )
+    client = _StubClient(
+        "build_query",
+        {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {"op": "same_compound", "path": "smiles", "compound": "@A"},
+            }
+        },
+    )
+    sink = nl_log.JsonlSink(tmp_path / "run.jsonl")
+    nl_eval.run_case(
+        case,
+        cast(execute.Corpus, _StubCorpus()),
+        client=cast(Any, client),
+        model="stub",
+        repair=False,
+        sink=sink,
+    )
+    assert client.requests[0]["messages"][0]["content"].endswith(
+        "Placeholders in this question:\n@A is a compound SMILES."
+    )
+    (record,) = [
+        json.loads(line) for line in (tmp_path / "run.jsonl").read_text().splitlines()
+    ]
+    assert json.loads(record["structures"]) == {
+        "@A": {"format": "compound_smiles", "text": "c1ccncc1"}
+    }
+
+
+def test_a_case_whose_placeholders_do_not_fit_its_question_is_refused():
+    with pytest.raises(ValueError, match="@B is in the question but has no structure"):
+        nl_eval.EvalCase(question="reactions using @B", why="x", compiles=False)

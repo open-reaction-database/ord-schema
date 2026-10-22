@@ -72,7 +72,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
@@ -123,7 +123,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
@@ -175,7 +175,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -212,7 +212,7 @@ jobs:
           # buf reads both baselines out of the local clone, which needs the full fetch: a
           # shallow checkout has neither main's history nor the release tags.
           fetch-depth: 0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
       - name: Install buf
@@ -231,88 +231,14 @@ jobs:
       - name: Check for breaking schema changes since the last release
         # The check above compares a change with main, so it cannot see a break already on
         # main -- one whose breaking.ignore_only entry a later change dropped, for instance.
-        # This compares with the newest release tag, which is the schema PyPI, npm, and the
-        # BSR serve: publish.yml's push_proto job picks the tag it pushes the same way. The
-        # tag is printed because a release cut while a pull request is open moves it.
+        # This compares with the newest release tag, which is the schema PyPI and the BSR
+        # serve: publish.yml's push_proto job picks the tag it pushes the same way. The tag
+        # is printed because a release cut while a pull request is open moves it.
         if: ${{ !cancelled() }}
         run: |
           tag="$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
           echo "Comparing against ${tag}"
           node_modules/.bin/buf breaking --against ".git#tag=${tag}"
-
-  test_js:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '24'
-      - name: Test NPM package
-        run: |
-          cd js/ord-schema
-          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
-          npm test
-      - name: Load the installed NPM package
-        run: |
-          # The generated files reach each other through ../../ord-schema/proto/, which resolves
-          # only while the package sits in a directory named ord-schema. Jest runs against the
-          # source tree, so this loads the packed package from node_modules as consumers do.
-          package="$(cd js/ord-schema && npm pack --pack-destination "${RUNNER_TEMP}" | tail -n 1)"
-          mkdir "${RUNNER_TEMP}/consumer"
-          cd "${RUNNER_TEMP}/consumer"
-          npm init -y
-          # The google-protobuf types the declarations import come from the package's own
-          # dependencies; tsc below fails with TS7016 when they are missing.
-          npm install "${RUNNER_TEMP}/${package}" typescript@5.8.3
-          node -e "
-            const ord = require('ord-schema');
-            const dataset = new ord.Dataset();
-            dataset.addReactions(new ord.Reaction());
-            if (ord.Dataset.deserializeBinary(dataset.serializeBinary()).getReactionsList().length !== 1) {
-              process.exit(1);
-            }
-          "
-          # Node's ESM loader sees only the names index.js lists, and the declarations promise
-          # every name require returns, so each one has to import by name.
-          node --input-type=module -e "
-            import { createRequire } from 'node:module';
-            import * as ord from 'ord-schema';
-            const names = Object.keys(createRequire(import.meta.url)('ord-schema'));
-            const missing = names.filter((name) => !(name in ord));
-            if (missing.length > 0) {
-              console.error('not importable by name from ESM:', missing.join(', '));
-              process.exit(1);
-            }
-          "
-          # The declarations also reach each other through ../../ord-schema/proto/. Under
-          # skipLibCheck an import that does not resolve turns the types into any without an
-          # error, so tsc checks the package's own declarations here: deep imports, named
-          # imports from the entry point, and a default import used as a namespace in value
-          # and type positions.
-          cat > consumer.ts <<'EOF'
-          import ord, { Dataset as EntryDataset, Reaction as EntryReaction } from 'ord-schema';
-          import { Dataset } from 'ord-schema/proto/dataset_pb';
-          import { Reaction } from 'ord-schema/proto/reaction_pb';
-          const reactions: Reaction[] = new Dataset().getReactionsList();
-          const entryReactions: EntryReaction[] = new EntryDataset().getReactionsList();
-          const reaction: ord.Reaction = ord.Reaction.deserializeBinary(new Uint8Array());
-          console.log(reactions.length, entryReactions.length, reaction.getIdentifiersList().length);
-          EOF
-          npx tsc --noEmit --strict --target es2022 --module esnext --moduleResolution bundler \
-            consumer.ts
-
-      - name: Test the protobufjs bundle
-        # Runs against the oldest protobufjs package.json allows, the runtime the bundle's map-key
-        # guard has to work with. The bundle imports "protobufjs/minimal", which bundlers resolve
-        # and Node's ESM loader does not, so the test goes through esbuild, as consumers load it.
-        run: |
-          cd js/ord-schema-protobufjs
-          floor="$(node -p "require('./package.json').dependencies.protobufjs.replace(/^\^/, '')")"
-          npm install --no-save --ignore-scripts --no-audit --no-fund --loglevel=error \
-            "protobufjs@${floor}"
-          npx --yes esbuild@0.28.2 test/map_keys.mjs --bundle --platform=node --format=esm \
-            --log-level=warning --outfile="${RUNNER_TEMP}/map_keys.mjs"
-          node "${RUNNER_TEMP}/map_keys.mjs"
 
   test_publish:
     runs-on: ubuntu-latest
@@ -321,14 +247,9 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           python-version: '3.11'
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          # Trusted publishing requires Node >= 22.14 and npm >= 11.5.1 (https://docs.npmjs.com/trusted-publishers)
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
       - name: Bump patch without commit (for publish dry-runs)
         run: |
           uv pip install --system bump-my-version==1.5.1
@@ -346,15 +267,3 @@ jobs:
           # twine check covers the description and core metadata fields, but not PyPI's refusal
           # of direct (URL) dependencies, which otherwise fails at upload time in publish.yml.
           python .github/scripts/check_direct_dependencies.py dist/*
-      - name: Test javascript
-        run: |
-          cd js/ord-schema
-          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
-          npm run build
-          npm publish --dry-run
-      - name: Test javascript (protobufjs)
-        run: |
-          cd js/ord-schema-protobufjs
-          npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
-          npm run build
-          npm publish --dry-run

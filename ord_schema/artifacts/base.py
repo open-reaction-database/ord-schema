@@ -35,18 +35,13 @@ already uses for source datasets:
 
 * ``ord.artifact`` -- which artifact this is, so a reader can tell one from another
   without inspecting the schema.
-* ``ord.artifact_lineage`` -- this artifact's version and every ancestor's, as one
-  string. Per artifact, because the derivations cost wildly different amounts and a
-  shared version charged the most expensive rebuild for a change to the cheapest. The
-  whole chain rather than the artifact's own version, because what a version has to
-  invalidate is everything built *from* it: occurrences derived from a pivot derived
-  from a projection go stale when any of the three is redefined, and a stamp naming only
-  one of them cannot say so.
+* ``ord.artifact_schema_version`` -- the version of the schema the artifact was
+  derived to: its columns and what each holds. One for every artifact, because they
+  are published and fetched as one build.
 * ``ord.source_md5`` -- the content of the source dataset it restates. An artifact
   derived from another artifact passes this through rather than hashing its parent, so
   every artifact names the dataset it reflects however many derivations away it sits,
   and one comparison answers "is this current for that dataset?"
-* ``ord.ord_schema_version`` -- what derived it.
 * ``ord.rdkit_version`` -- the RDKit that derived it. Every artifact leans on RDKit --
   canonical SMILES in the projection, fingerprints in the structures artifact -- and
   RDKit releases have changed both canonicalization and pattern fingerprints, either of
@@ -56,17 +51,23 @@ already uses for source datasets:
 * ``ord.source_dataset_id`` -- the source's ID, written only when the source records
   one, and so the only key not required to read stamps back.
 
-``is_current`` requires the artifact name, the source content, the library version, the
-artifact lineage, and the RDKit version to all match, since any of the five changing can
+``is_current`` requires the artifact name, the source content, the artifact schema
+version, and the RDKit version to all match, since any of the four changing can
 change a value or mean the file answers a different question.
+
+No key names the ord-schema release. A release need not change any artifact, and a
+development build reports the last release's number, so a release stamp says nothing
+about whether a file is current -- ``ord.artifact_schema_version`` is what says the
+columns moved -- while making a rebuild of an unchanged artifact write different
+bytes, which an upload then carries as a change.
 """
 
 import dataclasses
 import glob
 import os
 import pathlib
+import re
 from collections.abc import Callable, Collection, Mapping
-from importlib import metadata
 from typing import Protocol
 
 import pyarrow as pa
@@ -78,80 +79,30 @@ from ord_schema.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Bumped when an artifact's definition changes -- a column's meaning, how it is
-# populated, or a shared helper that feeds it. Per artifact, because a re-derive is not
-# one price: measured over the source that is 96% of ORD, a projection is 34.6 minutes
-# and its structures 29.6, while the occurrences at every indexed path are 1.9 seconds.
-# Sharing one version across them would charge the 81-minute rebuild for a change to the
-# 1.9-second artifact.
-ARTIFACT_VERSIONS = {
-    "projection": "1",
-    "structures": "1",
-    "pivot": "1",
-    "occurrences": "1",
-}
+# A bracket holding a single wildcard character, the way glob.escape writes one, matches
+# that character alone.
+_ESCAPED_WILDCARD = re.compile(r"\[([*?\[])\]")
 
-# What each artifact is derived from, or None where it is derived from a source dataset.
-# Here rather than in the artifact modules because a version has to invalidate what was
-# built *from* it, which is a fact about the chain rather than about either end: a
-# projection bump has to reach the occurrences three derivations down, and neither
-# module knows the other exists.
-DERIVED_FROM: dict[str, str | None] = {
-    "projection": None,
-    "structures": "projection",
-    "pivot": "projection",
-    "occurrences": "pivot",
-}
-
-
-def lineage(artifact: str) -> str:
-    """Returns an artifact's version and every ancestor's, as one comparable string.
-
-    What is stamped, so that a bump anywhere up the chain makes a file stale. Stamping
-    only the artifact's own version would leave the occurrences current when the pivot
-    they came from was redefined; stamping only the parent's would leave them current
-    when the *projection* under that pivot was, which is the case a chain of three makes
-    reachable.
-
-    Args:
-        artifact: Artifact name, a key of ``ARTIFACT_VERSIONS``.
-
-    Returns:
-        The chain from this artifact to its root, e.g. ``occurrences=1,pivot=1,
-        projection=1``.
-
-    Raises:
-        KeyError: If ``artifact`` is not one this library derives, which is a typo
-            rather than a condition to handle.
-        ValueError: If ``DERIVED_FROM`` describes a cycle. Bounded rather than walked to
-            exhaustion because this runs on every artifact written and every currency
-            check made, and a typo in a four-line literal should not hang all of them.
-    """
-    parts = []
-    name: str | None = artifact
-    for _ in range(len(ARTIFACT_VERSIONS)):
-        if name is None:
-            return ",".join(parts)
-        parts.append(f"{name}={ARTIFACT_VERSIONS[name]}")
-        name = DERIVED_FROM[name]
-    raise ValueError(
-        f"the chain from {artifact} visits {len(parts)} artifacts without reaching a "
-        f"source dataset, so DERIVED_FROM has a cycle: {' -> '.join(parts)}"
-    )
+# Bumped when a reader built for one schema would misread an artifact derived to
+# another: a column renamed, removed, or given a different meaning. A change a reader of
+# either reads correctly leaves it alone -- a column added, which ``missing_columns``
+# sees, or values improved by a fixed normalization, which is derived again with --force
+# and published in place. base_test pins what each artifact holds, so a change to it
+# fails there until someone decides which kind it is. One schema for every artifact,
+# because they are published and fetched as one build.
+ARTIFACT_SCHEMA_VERSION = "1"
 
 
 _META_ARTIFACT = "ord.artifact"
-_META_ARTIFACT_LINEAGE = "ord.artifact_lineage"
+_META_ARTIFACT_SCHEMA_VERSION = "ord.artifact_schema_version"
 _META_RDKIT_VERSION = "ord.rdkit_version"
 _META_SOURCE_DATASET_ID = "ord.source_dataset_id"
 _META_SOURCE_MD5 = "ord.source_md5"
-_META_ORD_SCHEMA_VERSION = "ord.ord_schema_version"
 
 _REQUIRED = (
     _META_ARTIFACT,
-    _META_ARTIFACT_LINEAGE,
+    _META_ARTIFACT_SCHEMA_VERSION,
     _META_SOURCE_MD5,
-    _META_ORD_SCHEMA_VERSION,
 )
 
 
@@ -166,8 +117,7 @@ class Stamps:
     artifact: str
     source_dataset_id: str | None
     source_md5: str
-    ord_schema_version: str
-    artifact_lineage: str
+    artifact_schema_version: str
     rdkit_version: str | None = None
 
 
@@ -205,14 +155,13 @@ def current_stamps(
         source_md5: Hash of the source, from ``parquet.DatasetView.md5``.
 
     Returns:
-        Stamps carrying the current library version and the artifact's lineage.
+        Stamps carrying the artifact schema version and the RDKit version in use.
     """
     return Stamps(
         artifact=artifact,
         source_dataset_id=source_dataset_id,
         source_md5=source_md5,
-        ord_schema_version=metadata.version("ord-schema"),
-        artifact_lineage=lineage(artifact),
+        artifact_schema_version=ARTIFACT_SCHEMA_VERSION,
         rdkit_version=rdBase.rdkitVersion,
     )
 
@@ -221,9 +170,8 @@ def to_metadata(value: Stamps) -> dict[str, str]:
     """Returns ``value`` as Parquet footer key-value metadata."""
     result = {
         _META_ARTIFACT: value.artifact,
-        _META_ARTIFACT_LINEAGE: value.artifact_lineage,
+        _META_ARTIFACT_SCHEMA_VERSION: value.artifact_schema_version,
         _META_SOURCE_MD5: value.source_md5,
-        _META_ORD_SCHEMA_VERSION: value.ord_schema_version,
     }
     if value.source_dataset_id is not None:
         result[_META_SOURCE_DATASET_ID] = value.source_dataset_id
@@ -246,7 +194,22 @@ def load_stamps(path: str | os.PathLike[str]) -> Stamps:
             dataset rather than a derived artifact.
     """
     with pq.ParquetFile(path) as parquet_file:
-        raw = parquet_file.schema_arrow.metadata or {}
+        return stamps_from_metadata(parquet_file.schema_arrow.metadata or {})
+
+
+def stamps_from_metadata(raw: Mapping[bytes, bytes]) -> Stamps:
+    """Reads stamps from Parquet footer key-value metadata, for a file read elsewhere.
+
+    Args:
+        raw: The footer's key-value metadata.
+
+    Returns:
+        The stamps recorded when the artifact was written.
+
+    Raises:
+        ValueError: If ``raw`` is missing a required stamp, e.g. because it is a source
+            dataset's footer rather than a derived artifact's.
+    """
     values = {}
     for key in _REQUIRED:
         value = raw.get(key.encode())
@@ -264,8 +227,7 @@ def load_stamps(path: str | os.PathLike[str]) -> Stamps:
             source_dataset_id.decode() if source_dataset_id is not None else None
         ),
         source_md5=values[_META_SOURCE_MD5],
-        ord_schema_version=values[_META_ORD_SCHEMA_VERSION],
-        artifact_lineage=values[_META_ARTIFACT_LINEAGE],
+        artifact_schema_version=values[_META_ARTIFACT_SCHEMA_VERSION],
         rdkit_version=rdkit_version.decode() if rdkit_version is not None else None,
     )
 
@@ -366,9 +328,10 @@ def is_current(
 ) -> bool:
     """Returns whether ``path`` holds ``artifact`` derived from ``source_md5`` by us.
 
-    All of the source content, the library version, the artifact lineage, and the
-    RDKit version must match; any of them changing can change a value. A missing,
-    unreadable, or wrong-artifact file is not current.
+    All of the source content, the artifact schema version, and the RDKit version must
+    match;
+    any of them changing can change a value. A missing, unreadable, or wrong-artifact
+    file is not current.
 
     Args:
         path: Path to check. Need not exist.
@@ -404,15 +367,12 @@ def stamps_are_current(value: Stamps, artifact: str) -> bool:
         artifact: Artifact name the file is expected to hold.
 
     Returns:
-        Whether the artifact name, the library version, the artifact lineage, and the
-        RDKit version all match. A file with no RDKit stamp is not current -- and a
-        lineage mismatch covers a redefinition of this artifact or of anything it was
-        derived from.
+        Whether the artifact name, the artifact schema version, and the RDKit version
+        all match. A file with no RDKit stamp is not current.
     """
     return (
         value.artifact == artifact
-        and value.ord_schema_version == metadata.version("ord-schema")
-        and value.artifact_lineage == lineage(artifact)
+        and value.artifact_schema_version == ARTIFACT_SCHEMA_VERSION
         and value.rdkit_version == rdBase.rdkitVersion
     )
 
@@ -470,19 +430,24 @@ def glob_root(pattern: str) -> pathlib.PurePath:
     naming a single file has no wildcard to stop at, so its own last component is the
     file rather than a directory and the root is the directory holding it.
 
+    A bracket holding only ``*``, ``?``, or ``[`` matches that character alone, which
+    is how ``glob.escape`` writes a directory name that contains one, so such a bracket
+    is read as the character: ``glob.escape("data[1]") + "/*/x.parquet"`` has the root
+    ``data[1]``.
+
     Args:
         pattern: Glob pattern, with ``*``, ``?``, or ``[`` marking the first wildcard.
 
     Returns:
-        The wildcard-free leading directories, or ``.`` when the pattern names no
-        directory or begins with a wildcard.
+        The wildcard-free leading directories, unescaped, or ``.`` when the pattern
+        names no directory or begins with a wildcard.
     """
     parts = pathlib.PurePath(pattern).parts
     fixed = []
     for part in parts:
-        if any(char in part for char in "*?["):
+        if any(char in _ESCAPED_WILDCARD.sub("", part) for char in "*?["):
             break
-        fixed.append(part)
+        fixed.append(_ESCAPED_WILDCARD.sub(r"\1", part))
     else:
         fixed = fixed[:-1]
     return pathlib.PurePath(*fixed)
@@ -502,10 +467,8 @@ def output_path(
         pattern: The glob it matched, whose wildcard-free prefix the output mirrors from
             when ``root`` is not given.
         output_dir: Directory to write beneath.
-        root: The directory to mirror from, for a caller that has one. A caller building
-            a pattern around a directory name has to escape it, and an escaped ``[`` is
-            a character class as far as ``glob_root`` can tell -- so the prefix it finds
-            stops short and the mirror carries the source layout twice.
+        root: The directory to mirror from, for a caller that has one; otherwise
+            ``glob_root(pattern)``.
 
     Returns:
         Where ``source``'s artifact goes.
@@ -637,6 +600,7 @@ def derive_tree(
     force: bool = False,
     parent_artifact: str | None = None,
     root: str | os.PathLike[str] | None = None,
+    current: Callable[[pathlib.Path], bool] | None = None,
 ) -> tuple[int, int, int]:
     """Derives one artifact per file matching ``input_pattern``.
 
@@ -660,6 +624,9 @@ def derive_tree(
         root: The directory outputs mirror from, for a caller that has one rather than a
             pattern. Defaults to ``input_pattern``'s wildcard-free leading directories,
             which is what a caller who wrote the pattern means by it.
+        current: A further test an existing artifact has to pass to be skipped, for a
+            writer reading an input the stamps do not describe. Given the artifact's
+            path; False derives it again.
 
     Returns:
         ``(written, skipped, ignored)`` counts: artifacts derived, artifacts already
@@ -722,7 +689,11 @@ def derive_tree(
         source_md5, source_dataset_id = _parent_provenance(
             source, parent_artifact, parent_stamps[source]
         )
-        if not force and is_current(destination, artifact, source_md5, schema):
+        if (
+            not force
+            and is_current(destination, artifact, source_md5, schema)
+            and (current is None or current(destination))
+        ):
             logger.info("%s is current; skipping", destination)
             skipped += 1
             continue

@@ -15,6 +15,7 @@
 """Tests for ord_schema.artifacts.projection."""
 
 import pathlib
+import time
 from datetime import datetime
 from types import SimpleNamespace
 from typing import cast
@@ -25,7 +26,7 @@ import pytest
 from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from rdkit import Chem
 
-from ord_schema import parquet
+from ord_schema import parquet, validations
 from ord_schema.artifacts import base, projection
 from ord_schema.proto import reaction_pb2
 
@@ -361,6 +362,26 @@ def test_write_projection_round_trips(tmp_path):
     assert table.column("reaction_id").to_pylist() == ["ord-1", "ord-2"]
 
 
+def test_write_projection_keeps_each_time_s_wall_clock_and_offset(tmp_path):
+    values = ["2026-11-01T23:30:00-05:00", "2026-11-01T23:30:00", "2026-11-01"]
+    reactions = []
+    for index, value in enumerate(values):
+        reaction = _reaction(f"ord-{index}")
+        reaction.provenance.record_created.time.value = value
+        reactions.append(reaction)
+    output = tmp_path / "projection.parquet"
+    projection.write_projection(_source(tmp_path, reactions), output)
+    rows = pq.read_table(output, columns=["provenance"]).column("provenance")
+    times = [row["record_created"]["time"] for row in rows.to_pylist()]
+    assert [time["value"] for time in times] == values
+    assert [time[projection.TIMESTAMP_COLUMN] for time in times] == [
+        datetime(2026, 11, 1, 23, 30),
+        datetime(2026, 11, 1, 23, 30),
+        datetime(2026, 11, 1),
+    ]
+    assert [time[projection.UTC_OFFSET_COLUMN] for time in times] == [-300, None, None]
+
+
 def test_write_projection_reads_the_reaction_id_column(tmp_path):
     # Only a file built outside DatasetWriter can disagree, since the writer fills the
     # column from the message; the projection has to notice rather than pick one.
@@ -414,13 +435,47 @@ def test_write_projection_covers_every_row_group(tmp_path):
     ]
 
 
+def test_write_projection_row_groups_are_its_own(tmp_path):
+    # The footer holds every leaf's statistics for every row group, so a projection
+    # that wrote one row group per source row group would carry the source writer's
+    # row-group count into every scan's footer parse, whatever row_group_size asked.
+    source = _source(
+        tmp_path, [_reaction(f"ord-{index}") for index in range(7)], row_group_size=2
+    )
+    assert parquet.DatasetView(source).num_row_groups == 4
+    output = tmp_path / "projection.parquet"
+    assert projection.write_projection(source, output, row_group_size=3) == 7
+    with pq.ParquetFile(output) as projected:
+        assert [
+            projected.metadata.row_group(index).num_rows
+            for index in range(projected.num_row_groups)
+        ] == [3, 3, 1]
+    assert pq.read_table(output).column("reaction_id").to_pylist() == [
+        f"ord-{index}" for index in range(7)
+    ]
+
+
+@pytest.mark.parametrize("row_group_size", [0, -1])
+def test_write_projection_refuses_a_row_group_size_no_row_can_fill(
+    tmp_path, row_group_size
+):
+    # A full row group is one holding at least row_group_size rows, which every row
+    # satisfies at zero or below: the writer would flush after each one, writing the
+    # one-row groups the parameter exists to avoid, with no error anywhere.
+    source = _source(tmp_path, [_reaction()])
+    output = tmp_path / "projection.parquet"
+    with pytest.raises(ValueError, match="which no row group can hold"):
+        projection.write_projection(source, output, row_group_size=row_group_size)
+    assert not output.exists()
+
+
 def test_write_projection_stamps_the_footer(tmp_path):
     source = _source(tmp_path, [_reaction()])
     output = tmp_path / "projection.parquet"
     projection.write_projection(source, output)
     stamps = base.load_stamps(output)
     assert stamps.artifact == projection.ARTIFACT
-    assert stamps.artifact_lineage == base.lineage(projection.ARTIFACT)
+    assert stamps.artifact_schema_version == base.ARTIFACT_SCHEMA_VERSION
     assert stamps.source_dataset_id == "ord_dataset-1"
 
 
@@ -667,7 +722,7 @@ def test_structure_ids_span_source_row_groups(tmp_path):
         tmp_path, [_reaction(f"ord-{i:04d}") for i in range(3)], row_group_size=1
     )
     output = tmp_path / "projection.parquet"
-    projection.write_projection(source, output)
+    projection.write_projection(source, output, row_group_size=1)
     with pq.ParquetFile(output) as projected:
         assert projected.num_row_groups == 3
         for row_group in range(projected.num_row_groups):
@@ -692,19 +747,103 @@ def test_structure_ids_span_source_row_groups(tmp_path):
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        # Every shape the corpus records, with its share of ORD beside it.
-        ("2022-01-01 00:00:00.0", datetime(2022, 1, 1)),  # 1,771,416
-        ("2025-06-30T05:22:18", datetime(2025, 6, 30, 5, 22, 18)),  # 48,498
-        ("2/25/2021, 1:05:42 PM", datetime(2021, 2, 25, 13, 5, 42)),  # 20,745
-        ("18/08/2024 02:10:09", datetime(2024, 8, 18, 2, 10, 9)),  # 1,430
-        ("2024-07-30", datetime(2024, 7, 30)),  # 1,241
-        ("Thu Jul 18 18:22:17 2024", datetime(2024, 7, 18, 18, 22, 17)),  # 48
+        # Every shape the corpus records.
+        ("2022-01-01 00:00:00.0", datetime(2022, 1, 1)),
+        ("2025-06-30T05:22:18", datetime(2025, 6, 30, 5, 22, 18)),
+        ("2/25/2021, 1:05:42 PM", datetime(2021, 2, 25, 13, 5, 42)),
+        ("18/08/2024 02:10:09", datetime(2024, 8, 18, 2, 10, 9)),
+        ("2024-07-30", datetime(2024, 7, 30)),
+        ("Thu Jul 18 18:22:17 2024", datetime(2024, 7, 18, 18, 22, 17)),
         ("not a date", None),
         ("", None),
     ],
 )
 def test_every_recorded_date_shape_parses(value, expected):
     assert projection.parse_timestamp(value) == (expected if value else None)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("2024-07-06T23:25:41Z", datetime(2024, 7, 6, 23, 25, 41)),
+        ("2024-07-06T23:25:41+00:00", datetime(2024, 7, 6, 23, 25, 41)),
+        # The date written, though the UTC instant falls on the day before.
+        ("2024-01-02T00:30:00+09:00", datetime(2024, 1, 2, 0, 30)),
+        ("2024-07-06T23:25:41.780701-05:00", datetime(2024, 7, 6, 23, 25, 41, 780701)),
+        ("2024-07-06T23:25:41.5+05:30", datetime(2024, 7, 6, 23, 25, 41, 500000)),
+    ],
+)
+def test_a_time_with_an_offset_projects_as_written(value, expected):
+    # A slash-date convention has nothing to decide for an ISO value.
+    for day_first in (None, True, False):
+        assert projection.parse_timestamp(value, day_first=day_first) == expected
+
+
+@pytest.fixture
+def away_from_utc(monkeypatch):
+    """Sets the process's local zone to one where reading a time as local moves it."""
+    if not hasattr(time, "tzset"):
+        pytest.skip("time.tzset, which applies a TZ change, is Unix-only")
+    monkeypatch.setenv("TZ", "Asia/Tokyo")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
+@pytest.mark.usefixtures("away_from_utc")
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("2024-07-06T23:25:41", datetime(2024, 7, 6, 23, 25, 41)),
+        ("2024-07-06T23:25:41.5", datetime(2024, 7, 6, 23, 25, 41, 500000)),
+    ],
+)
+def test_a_time_without_an_offset_projects_as_written(value, expected):
+    assert projection.parse_timestamp(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2024-07-06",
+        "2024-07-06T23:25:41",
+        "2024-07-06T23:25:41Z",
+        "2024-07-06T23:25:41.5-05:00",
+        # The ends of the range datetime holds in UTC.
+        "0001-01-01T01:00:00+01:00",
+        "9999-12-31T18:59:59.999999-05:00",
+    ],
+)
+def test_every_value_validation_accepts_has_a_timestamp(value):
+    message = reaction_pb2.DateTime(value=value)
+    assert not validations.validate_message(message, raise_on_error=False).errors
+    assert projection.parse_timestamp(value) is not None
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("2024-07-06T23:25:41Z", 0),
+        ("2024-07-06T23:25:41+00:00", 0),
+        ("2024-01-02T00:30:00+09:00", 540),
+        ("2024-07-06T23:25:41.780701-05:00", -300),
+        ("2024-07-06T23:25:41.5+05:30", 330),
+        # The record names no offset, so there is none to keep.
+        ("2024-07-06T23:25:41", None),
+        ("2024-07-06", None),
+        ("Fri Oct 22 22:19:55 2021", None),
+        ("not a date", None),
+    ],
+)
+def test_the_utc_offset_is_kept_in_minutes_east(value, expected):
+    assert projection.parse_utc_offset(value) == expected
+
+
+def test_the_utc_offset_column_is_a_small_integer():
+    time = projection.SCHEMA.field("provenance").type.field("record_created")
+    datetime_type = time.type.field("time").type
+    assert datetime_type.field(projection.UTC_OFFSET_COLUMN).type == pa.int16()
 
 
 def test_an_unambiguous_slash_date_needs_no_convention():
@@ -767,6 +906,17 @@ def test_a_projected_date_carries_both_the_text_and_the_instant():
     recorded = row["provenance"]["record_created"]["time"]
     assert recorded["value"] == "2025-06-30T05:22:18"
     assert recorded[projection.TIMESTAMP_COLUMN] == datetime(2025, 6, 30, 5, 22, 18)
+    assert recorded[projection.UTC_OFFSET_COLUMN] is None
+
+
+def test_a_projected_time_keeps_its_wall_clock_and_its_offset():
+    reaction = reaction_pb2.Reaction()
+    reaction.provenance.record_created.time.value = "2026-11-01T23:30:00-05:00"
+    row = projection.message_row(reaction)
+    recorded = row["provenance"]["record_created"]["time"]
+    assert recorded["value"] == "2026-11-01T23:30:00-05:00"
+    assert recorded[projection.TIMESTAMP_COLUMN] == datetime(2026, 11, 1, 23, 30)
+    assert recorded[projection.UTC_OFFSET_COLUMN] == -300
 
 
 def test_a_projected_date_the_shapes_do_not_cover_is_null():
@@ -776,18 +926,20 @@ def test_a_projected_date_the_shapes_do_not_cover_is_null():
     recorded = row["provenance"]["record_created"]["time"]
     assert recorded["value"] == "sometime last spring"
     assert recorded[projection.TIMESTAMP_COLUMN] is None
+    assert recorded[projection.UTC_OFFSET_COLUMN] is None
 
 
 def test_a_recorded_verdict_beats_what_the_values_alone_witness():
-    # The table holds evidence a value cannot carry, so it decides where it names the
-    # dataset -- and 11 of the 13 datasets no value settles are in it.
-    ambiguous = ["07/06/2024, 23:25:41"]
+    # _DAY_FIRST holds evidence a value cannot carry, so it decides where it names the
+    # dataset -- here a co-submitted sibling, for a dataset whose own values settle
+    # nothing.
+    ambiguous = ["09/10/2024, 17:25:29"]
     assert projection.day_first_dates(ambiguous) is None
     assert (
         projection.slash_orientation(
-            "ord_dataset-d92976309c3a48a3a64a4cf5e7048086", ambiguous
+            "ord_dataset-2be11f57f3304e678ea8469baf6dd1bc", ambiguous
         )
-        is False
+        is True
     )
 
 
@@ -799,8 +951,7 @@ def test_a_dataset_nobody_has_looked_at_falls_back_to_its_own_values():
 
 
 def test_an_unlisted_dataset_with_no_witness_reads_month_first():
-    # Month first is what every settled dataset outside _DAY_FIRST reads, and the two
-    # that nothing settles are named by _UNDECIDED rather than left to this.
+    # Month first is what every settled dataset outside _DAY_FIRST reads.
     assert projection.slash_orientation("ord_dataset-new", ["07/06/2024"]) is False
 
 
@@ -809,12 +960,6 @@ def test_a_source_with_no_dataset_id_is_never_given_the_default():
     # source recording no ID can never be named, so its guess would be permanent.
     assert projection.slash_orientation(None, ["07/06/2024"]) is None
     assert projection.slash_orientation(None, ["2/25/2021"]) is False
-
-
-def test_the_two_dataset_lists_are_disjoint():
-    # A dataset in both would read as undecided, and nothing else would say that the
-    # evidence naming it day first and the evidence settling nothing disagree.
-    assert not projection._DAY_FIRST & projection._UNDECIDED
 
 
 def test_a_witness_contradicting_the_recorded_verdict_is_an_error():
@@ -826,14 +971,24 @@ def test_a_witness_contradicting_the_recorded_verdict_is_an_error():
         )
 
 
-def test_the_datasets_no_evidence_settles_are_left_out():
-    # Their submitters have been asked; until they answer, an ambiguous date projects
-    # null rather than freezing a guess into the artifact.
-    for open_dataset in (
-        "ord_dataset-5c9a10329a8a48968d18879a48bb8ab2",
-        "ord_dataset-5e8318f0dda04b398c14f4c3adfeb32c",
-    ):
-        assert open_dataset not in projection._DAY_FIRST
-        assert (
-            projection.slash_orientation(open_dataset, ["08/05/2024, 11:33:06"]) is None
-        )
+@pytest.mark.parametrize(
+    ("dataset_id", "value", "expected"),
+    [
+        (
+            "ord_dataset-5c9a10329a8a48968d18879a48bb8ab2",
+            "08/05/2024, 11:33:06",
+            datetime(2024, 5, 8, 11, 33, 6),
+        ),
+        (
+            "ord_dataset-5e8318f0dda04b398c14f4c3adfeb32c",
+            "05/12/2024, 15:29:23",
+            datetime(2024, 12, 5, 15, 29, 23),
+        ),
+    ],
+)
+def test_a_submitter_settled_dataset_reads_day_first(dataset_id, value, expected):
+    # No value in either dataset settles the order; the submitter dated both on their
+    # submission pull requests, ord-data#212 and ord-data#218.
+    day_first = projection.slash_orientation(dataset_id, [value])
+    assert day_first is True
+    assert projection.parse_timestamp(value, day_first=day_first) == expected

@@ -96,8 +96,9 @@ To release, run the [Publish workflow](../../actions/workflows/publish.yml) from
 
 `major` bumps are intentionally disabled for now; the project stays on the `0.x` series.
 
-The workflow bumps the version, builds and publishes to PyPI and npm, pushes the version-bump commit
-and tag to `main`, and creates a GitHub release with generated notes.
+The workflow bumps the version, builds and publishes to PyPI, pushes the version-bump commit and tag
+to `main`, creates a GitHub release with generated notes, and pushes the release's schema to the
+[Buf Schema Registry](https://buf.build/open-reaction-database/ord-schema).
 
 ## Terms of Use
 

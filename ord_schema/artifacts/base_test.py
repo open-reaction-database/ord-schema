@@ -14,18 +14,30 @@
 
 """Tests for ord_schema.artifacts.base."""
 
+import collections
 import dataclasses
 import glob
+import hashlib
+import importlib.metadata
+import json
 import pathlib
-from importlib import metadata
+from datetime import datetime
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 from rdkit import rdBase
 
-from ord_schema import parquet
-from ord_schema.artifacts import base, projection, structures
+from ord_schema import message_helpers, parquet
+from ord_schema.artifacts import (
+    arrivals,
+    base,
+    history,
+    occurrences,
+    pivot,
+    projection,
+    structures,
+)
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -34,25 +46,15 @@ def _write(path, metadata):
     pq.write_table(pa.table({"x": [1]}, schema=schema), path)
 
 
-def _current_metadata(**overrides):
-    """Stamps a parent this library considers current, which a chain requires."""
-    return _valid_metadata(
-        **{"ord.ord_schema_version": metadata.version("ord-schema"), **overrides}
-    )
-
-
 def _valid_metadata(**overrides):
     metadata = {
         "ord.artifact": "structures",
         "ord.source_md5": "0" * 32,
-        "ord.ord_schema_version": "9.9.9",
         "ord.rdkit_version": rdBase.rdkitVersion,
         "ord.source_dataset_id": "ord_dataset-1",
+        "ord.artifact_schema_version": base.ARTIFACT_SCHEMA_VERSION,
     }
     metadata.update(overrides)
-    # Derived from whichever artifact the caller asked for, so a test that overrides one
-    # does not silently get another's chain and pass for the wrong reason.
-    metadata.setdefault("ord.artifact_lineage", base.lineage(metadata["ord.artifact"]))
     return metadata
 
 
@@ -62,8 +64,21 @@ def _valid_metadata(**overrides):
 def test_stamps_carries_the_current_versions():
     value = base.current_stamps("structures", "ord_dataset-1", "abc")
     assert value.artifact == "structures"
-    assert value.artifact_lineage == base.lineage("structures")
-    assert value.ord_schema_version
+    assert value.artifact_schema_version == base.ARTIFACT_SCHEMA_VERSION
+    assert value.rdkit_version == rdBase.rdkitVersion
+
+
+def test_to_metadata_names_no_library_release():
+    # A release need not change any artifact, so a key naming one would make a rebuild
+    # of an unchanged artifact write different bytes.
+    stamps = base.current_stamps("structures", "ord_dataset-1", "abc")
+    assert set(base.to_metadata(stamps)) == {
+        "ord.artifact",
+        "ord.artifact_schema_version",
+        "ord.source_md5",
+        "ord.source_dataset_id",
+        "ord.rdkit_version",
+    }
 
 
 def test_to_metadata_omits_a_missing_dataset_id():
@@ -93,9 +108,8 @@ def test_load_stamps_tolerates_a_missing_dataset_id(tmp_path):
     "missing",
     [
         "ord.artifact",
-        "ord.artifact_lineage",
+        "ord.artifact_schema_version",
         "ord.source_md5",
-        "ord.ord_schema_version",
     ],
 )
 def test_load_stamps_names_every_missing_key(tmp_path, missing):
@@ -132,20 +146,25 @@ def test_is_artifact_refuses_to_call_an_unreadable_file_a_source(tmp_path):
         base.is_artifact(path)
 
 
-def test_is_current_requires_every_stamp_to_match(tmp_path, monkeypatch):
+def test_is_current_requires_every_compared_stamp_to_match(tmp_path, monkeypatch):
     # Each of these alone can change a projected value, so each alone must force a
-    # rebuild; a check that quietly stopped working would serve obsolete base.
+    # rebuild; a check that quietly stopped working would serve obsolete artifacts.
     path = tmp_path / "artifact.parquet"
-    _write(path, _valid_metadata(**{"ord.ord_schema_version": "9.9.9"}))
-    monkeypatch.setattr(base.metadata, "version", lambda _: "9.9.9")
+    _write(path, _valid_metadata())
     assert base.is_current(path, "structures", "0" * 32)
-    monkeypatch.setattr(base.metadata, "version", lambda _: "9.9.10")
+    assert not base.is_current(path, "structures", "1" * 32)
+    monkeypatch.setattr(base, "ARTIFACT_SCHEMA_VERSION", "99")
     assert not base.is_current(path, "structures", "0" * 32)
-    monkeypatch.setattr(base.metadata, "version", lambda _: "9.9.9")
-    monkeypatch.setattr(
-        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"structures": "99"}
-    )
-    assert not base.is_current(path, "structures", "0" * 32)
+
+
+def test_a_footer_key_the_stamps_do_not_define_leaves_an_artifact_current(tmp_path):
+    # A release number in the footer is read past rather than compared: a release need
+    # not change any artifact, and ARTIFACT_SCHEMA_VERSION is what says the columns
+    # moved.
+    path = tmp_path / "artifact.parquet"
+    _write(path, _valid_metadata(**{"ord.ord_schema_version": "0.0.1"}))
+    assert base.is_current(path, "structures", "0" * 32)
+    assert base.stamps_are_current(base.load_stamps(path), "structures")
 
 
 # Output paths
@@ -160,6 +179,15 @@ def test_is_current_requires_every_stamp_to_match(tmp_path, monkeypatch):
         # No wildcard: the last component is the file, so the root holds it.
         ("data/aa/one.parquet", "data/aa"),
         ("one.parquet", ""),
+        # glob.escape writes a wildcard character as a bracket holding only it, which
+        # matches that character alone, so the root reads it as the character.
+        (glob.escape("data[1]") + "/*/*.parquet", "data[1]"),
+        (glob.escape("a*b?c") + "/x/*.parquet", "a*b?c/x"),
+        (glob.escape("data[1]/aa/one.parquet"), "data[1]/aa"),
+        # A bracket matching more than one character is still a wildcard, including one
+        # that holds an escape-shaped run.
+        ("data/[ab]/*.parquet", "data"),
+        ("data/[a[*]/x.parquet", "data"),
     ],
 )
 def test_glob_root(pattern, expected):
@@ -179,18 +207,19 @@ def test_output_path_for_an_exact_filename_writes_into_the_directory():
     ) == pathlib.Path("structures/one.parquet")
 
 
-def test_an_explicit_root_mirrors_from_where_the_caller_says():
-    # A caller building a pattern around a directory name has to escape it, and the
-    # escape is spelled with the wildcard it is escaping: glob_root stops at "data[[]1]"
-    # and mirrors the source layout a second time beneath output_dir. The caller knows
-    # the directory it meant, so it says so rather than spelling it as a pattern.
+def test_output_path_mirrors_from_an_escaped_directory_name():
     pattern = glob.escape("data[1]/aa") + "/*.parquet"
-    source = "data[1]/aa/ord_dataset-x.parquet"
-    assert base.output_path(source, pattern, "structures") == pathlib.Path(
-        "structures/data[1]/aa/ord_dataset-x.parquet"
-    )
     assert base.output_path(
-        source, pattern, "structures", root="data[1]/aa"
+        "data[1]/aa/ord_dataset-x.parquet", pattern, "structures"
+    ) == pathlib.Path("structures/ord_dataset-x.parquet")
+
+
+def test_an_explicit_root_mirrors_from_where_the_caller_says():
+    assert base.output_path(
+        "data/aa/ord_dataset-x.parquet",
+        "data/*/*.parquet",
+        "structures",
+        root="data/aa",
     ) == pathlib.Path("structures/ord_dataset-x.parquet")
 
 
@@ -242,6 +271,33 @@ def test_derive_tree_writes_one_artifact_per_source(tmp_path):
     )
     assert (written, skipped, ignored) == (2, 0, 0)
     assert {path.parent.name for path in written_paths} == {"aa", "bb"}
+
+
+def test_derive_tree_mirrors_from_a_directory_whose_name_holds_a_wildcard(tmp_path):
+    data = tmp_path / "data[1]"
+    for name in ("aa", "bb"):
+        (data / name).mkdir(parents=True)
+        _fake_source(data / name / "source.parquet")
+    written_paths = []
+
+    def _write_one(source, output, *, source_md5, source_dataset_id):
+        del source, source_md5, source_dataset_id  # Unused.
+        written_paths.append(pathlib.Path(output))
+        pathlib.Path(output).write_bytes(b"")
+        return 1
+
+    output_dir = tmp_path / "out"
+    written, _, _ = base.derive_tree(
+        glob.escape(str(data)) + "/*/*.parquet",
+        str(output_dir),
+        artifact="structures",
+        write=_write_one,
+    )
+    assert written == 2
+    assert {path.parent for path in written_paths} == {
+        output_dir / "aa",
+        output_dir / "bb",
+    }
 
 
 def test_derive_tree_derives_a_source_reached_twice_only_once(tmp_path):
@@ -372,11 +428,43 @@ def test_derive_tree_skips_current_artifacts_unless_forced(tmp_path, monkeypatch
     assert len(calls) == 1
 
 
+def test_derive_tree_derives_again_what_the_caller_finds_out_of_date(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "aa").mkdir()
+    _fake_source(tmp_path / "aa" / "source.parquet")
+    calls = []
+
+    def _write_one(source, output, *, source_md5, source_dataset_id):
+        del source, source_md5, source_dataset_id  # Unused.
+        calls.append(output)
+        pathlib.Path(output).write_bytes(b"")
+        return 1
+
+    monkeypatch.setattr(base, "is_current", lambda *args: True)
+    assert base.derive_tree(
+        str(tmp_path / "*" / "*.parquet"),
+        str(tmp_path / "out"),
+        artifact="structures",
+        write=_write_one,
+        current=lambda path: True,
+    ) == (0, 1, 0)
+    asked = []
+    assert base.derive_tree(
+        str(tmp_path / "*" / "*.parquet"),
+        str(tmp_path / "out"),
+        artifact="structures",
+        write=_write_one,
+        current=lambda path: asked.append(path) or False,
+    ) == (1, 0, 0)
+    assert asked == calls == [tmp_path / "out" / "aa" / "source.parquet"]
+
+
 def test_derive_tree_reads_the_named_parent_artifact(tmp_path):
     (tmp_path / "aa").mkdir()
     _write(
         tmp_path / "aa" / "projected.parquet",
-        _current_metadata(**{"ord.artifact": "projection", "ord.source_md5": "a" * 32}),
+        _valid_metadata(**{"ord.artifact": "projection", "ord.source_md5": "a" * 32}),
     )
     seen = []
 
@@ -402,7 +490,7 @@ def test_derive_tree_ignores_a_source_dataset_when_a_parent_artifact_is_named(tm
     _fake_source(tmp_path / "aa" / "source.parquet")
     _write(
         tmp_path / "aa" / "projected.parquet",
-        _current_metadata(**{"ord.artifact": "projection"}),
+        _valid_metadata(**{"ord.artifact": "projection"}),
     )
     written_paths = []
 
@@ -445,10 +533,8 @@ def test_derive_tree_refuses_a_stale_parent(tmp_path, monkeypatch):
     # when the projection is rebuilt -- so nothing would ever mark it stale again.
     (tmp_path / "aa").mkdir()
     parent = tmp_path / "aa" / "projected.parquet"
-    _write(parent, _current_metadata(**{"ord.artifact": "projection"}))
-    monkeypatch.setattr(
-        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"projection": "next"}
-    )
+    _write(parent, _valid_metadata(**{"ord.artifact": "projection"}))
+    monkeypatch.setattr(base, "ARTIFACT_SCHEMA_VERSION", "next")
     with pytest.raises(ValueError, match="stale projection"):
         base.derive_tree(
             str(tmp_path / "*" / "*.parquet"),
@@ -467,7 +553,7 @@ def test_derive_tree_refuses_to_write_over_a_file_it_did_not_derive(tmp_path):
     (tmp_path / "projections").mkdir()
     _write(
         tmp_path / "projections" / "ds.parquet",
-        _current_metadata(**{"ord.artifact": "projection"}),
+        _valid_metadata(**{"ord.artifact": "projection"}),
     )
     (tmp_path / "data").mkdir()
     source = tmp_path / "data" / "ds.parquet"
@@ -490,7 +576,7 @@ def test_derive_tree_still_rewrites_its_own_artifacts(tmp_path):
     (tmp_path / "projections").mkdir()
     _write(
         tmp_path / "projections" / "ds.parquet",
-        _current_metadata(**{"ord.artifact": "projection"}),
+        _valid_metadata(**{"ord.artifact": "projection"}),
     )
     (tmp_path / "structures").mkdir()
     _write(tmp_path / "structures" / "ds.parquet", _valid_metadata())
@@ -514,12 +600,12 @@ def test_derive_tree_rewrites_an_artifact_stamped_by_an_older_library(tmp_path):
     (tmp_path / "projections").mkdir()
     _write(
         tmp_path / "projections" / "ds.parquet",
-        _current_metadata(**{"ord.artifact": "projection"}),
+        _valid_metadata(**{"ord.artifact": "projection"}),
     )
     (tmp_path / "structures").mkdir()
     superseded = _valid_metadata()
-    del superseded["ord.artifact_lineage"]
-    superseded["ord.artifact_version"] = "1"
+    del superseded["ord.artifact_schema_version"]
+    superseded["ord.artifact_lineage"] = "structures=1,projection=1"
     _write(tmp_path / "structures" / "ds.parquet", superseded)
     written, skipped, ignored = base.derive_tree(
         str(tmp_path / "projections" / "*.parquet"),
@@ -558,81 +644,213 @@ def test_an_artifact_with_no_rdkit_stamp_reads_stale():
     assert not base.stamps_are_current(value, "structures")
 
 
-# Per-artifact versions
+# Every artifact this library derives.
+_ARTIFACTS = frozenset(
+    {
+        projection.ARTIFACT,
+        structures.ARTIFACT,
+        arrivals.ARTIFACT,
+        pivot.ARTIFACT,
+        occurrences.ARTIFACT,
+    }
+)
 
 
-def test_a_lineage_names_the_artifact_and_every_ancestor():
-    assert base.lineage("projection") == "projection=1"
-    assert base.lineage("structures") == "structures=1,projection=1"
-    assert base.lineage("occurrences") == "occurrences=1,pivot=1,projection=1"
+# The artifact schema version
 
 
-def test_every_artifact_reaches_a_source_dataset():
-    # The two tables have to agree about which artifacts exist, and every chain has to
-    # terminate: lineage runs for every artifact written and every currency check made.
-    assert set(base.DERIVED_FROM) == set(base.ARTIFACT_VERSIONS)
-    assert {
-        parent for parent in base.DERIVED_FROM.values() if parent is not None
-    } <= set(base.ARTIFACT_VERSIONS)
-    roots = {name for name, parent in base.DERIVED_FROM.items() if parent is None}
-    for artifact in base.ARTIFACT_VERSIONS:
-        # Named by the root rather than by its version, which would make this fail on
-        # the next bump of an artifact it is not about.
-        last = base.lineage(artifact).split(",")[-1].split("=")[0]
-        assert last in roots, artifact
+def test_a_schema_bump_makes_every_artifact_stale(tmp_path, monkeypatch):
+    # One schema for every artifact: a build is published and fetched as a unit, so a
+    # bump reaches all four rather than only the artifact whose columns moved.
+    paths = {artifact: tmp_path / f"{artifact}.parquet" for artifact in _ARTIFACTS}
+    for artifact, path in paths.items():
+        _write(path, _valid_metadata(**{"ord.artifact": artifact}))
+        assert base.is_current(path, artifact, "0" * 32), artifact
+    monkeypatch.setattr(base, "ARTIFACT_SCHEMA_VERSION", "2")
+    for artifact, path in paths.items():
+        assert not base.is_current(path, artifact, "0" * 32), artifact
 
 
-@pytest.mark.timeout(15)
-def test_a_cycle_is_refused_rather_than_walked_forever(monkeypatch):
-    # An infinite loop where an error belongs: a typo in a four-line literal would
-    # otherwise hang every write and every currency check rather than saying so.
-    #
-    # Bounded by the marker, because the failure this guards against is a hang: without
-    # it a regression stops CI rather than failing it, and the run has to be killed by
-    # hand to find out which test never came back.
-    monkeypatch.setattr(
-        base, "DERIVED_FROM", base.DERIVED_FROM | {"projection": "occurrences"}
+# What each artifact holds when derived from the fixtures below, pinned beside the
+# schema version it was derived under. The stamps compare ARTIFACT_SCHEMA_VERSION and
+# nothing else about this library, so a change to what an artifact holds reads as
+# current everywhere; this is where that change surfaces for the decision. A change a
+# reader of the pinned schema would misread bumps ARTIFACT_SCHEMA_VERSION. One it
+# reads correctly -- a normalization fixed, a column added -- is derived again (with
+# --force where the stamps still read current) and published in place.
+_GOLDEN_SCHEMA_VERSION = "1"
+_GOLDEN_OUTPUT = {
+    "projection": "c2433bce97d33545cb8d828d216550da9631d8c704e7103da840fbd926845dd8",
+    "structures": "3c397cfc3ba2b8e0debd9b725ada6d119551e42aa7c20bf9791983e679ce7158",
+    "arrivals": "d30f6710e8fbf5f2b1d11793c4de66b8d7b3bc3195e9fd83771627ad78f0d432",
+    "pivot": "c5e0ba5aa7a58a7e3839ddae0dfea32bcb518704b5f63959b1b40e710140b693",
+    "occurrences": "d0617c0972b1c054c5f4507760cc53e055eb5cfd1336b0279e700a3c0a8c1118",
+}
+# The RDKit those hashes were derived under. An RDKit upgrade can change canonical
+# SMILES and fingerprints, but ord.rdkit_version already makes every artifact stale
+# then, so its hashes move without a schema bump.
+_GOLDEN_RDKIT = "2026.03.5"
+
+# One reaction setting nearly every field, and 80 real ones with slash-format dates.
+_GOLDEN_FIXTURES = ("full.pbtxt", "ord-nielsen-example.pbtxt")
+
+# Footer keys recording who derived a file rather than what it holds: the RDKit and the
+# schema, pinned on their own above, the hash of how the fixture happened to serialize,
+# and the index of first commits an arrivals artifact read, whose values its rows
+# carry. The rest -- the artifact name, the pivot or occurrence path a reader checks a
+# file against -- are part of what the artifact says.
+_PROVENANCE_KEYS = frozenset(
+    {
+        b"ord.rdkit_version",
+        b"ord.artifact_schema_version",
+        b"ord.source_md5",
+        b"ord.arrivals_version",
+        b"ord.arrivals_head",
+    }
+)
+
+
+def _content_hash(paths: list[pathlib.Path]) -> str:
+    """Returns a hash of the footer, columns, and rows the artifacts at ``paths`` hold.
+
+    Provenance stamps are left out (see ``_PROVENANCE_KEYS``); Parquet encoding is left
+    out by hashing decoded rows; and row order is left out by sorting them, so the
+    digest pins what the artifacts hold. The order they hold it in is pinned by the
+    pivot and occurrence tests, and the bytes by a rebuild below.
+
+    Args:
+        paths: Artifact files, in a fixed order.
+
+    Returns:
+        A SHA-256 hex digest.
+    """
+    digest = hashlib.sha256()
+    for path in paths:
+        table = pq.read_table(path)
+        footer = sorted(
+            (key, value)
+            for key, value in (table.schema.metadata or {}).items()
+            if key not in _PROVENANCE_KEYS
+        )
+        digest.update(repr(footer).encode())
+        digest.update(str(table.schema.remove_metadata()).encode())
+        for row in sorted(
+            json.dumps(row, sort_keys=True, default=repr) for row in table.to_pylist()
+        ):
+            digest.update(row.encode())
+    return digest.hexdigest()
+
+
+def _derive_fixtures(root: pathlib.Path) -> dict[str, list[pathlib.Path]]:
+    """Derives every artifact from the golden fixtures beneath ``root``.
+
+    Args:
+        root: An empty directory to write the sources and artifacts beneath.
+
+    Returns:
+        Each artifact's files, in a fixed order.
+    """
+    testdata = pathlib.Path(__file__).parents[1] / "orm" / "testdata"
+    derived: dict[str, list[pathlib.Path]] = collections.defaultdict(list)
+    for position, name in enumerate(_GOLDEN_FIXTURES):
+        source = root / "data" / f"{name}.parquet"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        parquet.save_dataset(
+            message_helpers.load_message(str(testdata / name), dataset_pb2.Dataset),
+            source,
+        )
+        projected = root / "projections" / source.name
+        projected.parent.mkdir(parents=True, exist_ok=True)
+        projection.write_projection(source, projected)
+        derived["projection"].append(projected)
+        structured = root / "structures" / source.name
+        structured.parent.mkdir(parents=True, exist_ok=True)
+        structures.write_structures(projected, structured)
+        derived["structures"].append(structured)
+        # Each fixture first reached ord-data at a commit of its own, with an offset
+        # each side of UTC, so the pin covers both signs.
+        sha = f"{position + 1:040x}"
+        index = history.Index(
+            pa.Table.from_pylist(
+                [
+                    {
+                        "reaction_id": reaction_id,
+                        "sha": sha,
+                        "timestamp": datetime(2021, 7, 28 + position, 14, 7, 53),
+                        "utc_offset_minutes": -420 if position else 60,
+                        "dataset_id": f"ord_dataset-{position}",
+                    }
+                    for reaction_id in parquet.DatasetView(source).iter_reaction_ids()
+                ],
+                schema=history.INDEX_SCHEMA,
+            ),
+            [sha],
+        )
+        arrived = root / "arrivals" / source.name
+        arrived.parent.mkdir(parents=True, exist_ok=True)
+        arrivals.write_arrivals(projected, arrived, index=index)
+        derived["arrivals"].append(arrived)
+        for level in sorted(pivot.LEVELS):
+            pivoted = root / "pivots" / level / source.name
+            pivoted.parent.mkdir(parents=True, exist_ok=True)
+            pivot.write_pivot(projected, pivoted, level_path=level)
+            derived["pivot"].append(pivoted)
+        for path, (level, *_) in sorted(occurrences.PATHS.items()):
+            indexed = root / "occurrences" / path / source.name
+            indexed.parent.mkdir(parents=True, exist_ok=True)
+            occurrences.write_occurrences(
+                root / "pivots" / level.path / source.name, indexed, path=path
+            )
+            derived["occurrences"].append(indexed)
+    return derived
+
+
+@pytest.fixture(scope="module")
+def golden_output(tmp_path_factory) -> dict[str, str]:
+    """Derives every artifact from the fixtures and hashes each artifact's files."""
+    derived = _derive_fixtures(tmp_path_factory.mktemp("golden"))
+    return {artifact: _content_hash(paths) for artifact, paths in derived.items()}
+
+
+def test_a_rebuild_under_another_release_writes_the_same_bytes(tmp_path, monkeypatch):
+    # What lets an upload drop the files a build left unchanged: a release need not
+    # change any artifact, so nothing it reports about itself may reach the bytes.
+    first = _derive_fixtures(tmp_path / "first")
+    monkeypatch.setattr(importlib.metadata, "version", lambda name: "0.0.1")
+    second = _derive_fixtures(tmp_path / "second")
+    assert first.keys() == second.keys() == _ARTIFACTS
+    for artifact, paths in first.items():
+        assert len(paths) == len(second[artifact])
+        for path, rebuilt in zip(paths, second[artifact], strict=True):
+            assert path.read_bytes() == rebuilt.read_bytes(), path
+
+
+def test_every_artifact_has_pinned_output():
+    assert set(_GOLDEN_OUTPUT) == _ARTIFACTS
+
+
+@pytest.mark.parametrize("artifact", sorted(_GOLDEN_OUTPUT))
+def test_an_artifact_holds_what_its_schema_pins(artifact, golden_output):
+    expected = _GOLDEN_OUTPUT[artifact]
+    found = golden_output[artifact]
+    pin = f"_GOLDEN_OUTPUT[{artifact!r}] = {found!r}"
+    assert _GOLDEN_SCHEMA_VERSION == base.ARTIFACT_SCHEMA_VERSION, (
+        "ARTIFACT_SCHEMA_VERSION was bumped; set _GOLDEN_SCHEMA_VERSION = "
+        f"{base.ARTIFACT_SCHEMA_VERSION!r} and pin each artifact's output again"
     )
-    with pytest.raises(ValueError, match="has a cycle"):
-        base.lineage("occurrences")
-
-
-def test_bumping_an_artifact_leaves_what_it_was_derived_from_alone(monkeypatch):
-    # The whole point of splitting the version. Occurrences are 1.9 seconds to derive
-    # and the projection under them 34.6 minutes, so a change to the cheap one must not
-    # charge the expensive one.
-    before = base.lineage("projection")
-    monkeypatch.setattr(
-        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"occurrences": "2"}
+    if found != expected and rdBase.rdkitVersion != _GOLDEN_RDKIT:
+        pytest.fail(
+            f"RDKit is {rdBase.rdkitVersion}, not the {_GOLDEN_RDKIT} these hashes "
+            "were derived under, and every artifact already reads stale through "
+            f"ord.rdkit_version: set _GOLDEN_RDKIT = {rdBase.rdkitVersion!r} and "
+            f"{pin}, with no schema bump."
+        )
+    assert found == expected, (
+        f"the {artifact} artifact derived from the fixtures changed, and artifacts "
+        "already derived still read as current. Bump ARTIFACT_SCHEMA_VERSION if a "
+        "reader of the current schema would misread the new files; otherwise derive "
+        f"them again with --force. Then {pin}."
     )
-    assert base.lineage("projection") == before
-    assert base.lineage("pivot") == "pivot=1,projection=1"
-    assert base.lineage("occurrences") == "occurrences=2,pivot=1,projection=1"
-
-
-def test_bumping_an_artifact_reaches_everything_derived_from_it(monkeypatch):
-    # And the other half: a projection redefined has to invalidate the occurrences three
-    # derivations down, which a stamp naming only the artifact's own version cannot say
-    # and one naming only its parent's cannot either.
-    monkeypatch.setattr(
-        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"projection": "2"}
-    )
-    assert base.lineage("occurrences") == "occurrences=1,pivot=1,projection=2"
-    assert base.lineage("structures") == "structures=1,projection=2"
-
-
-def test_a_grandparent_bump_makes_a_grandchild_stale(tmp_path, monkeypatch):
-    # The case a direct-parent stamp misses: occurrences record the pivot they came
-    # from, and a projection bump moves neither the occurrences' own version nor the
-    # pivot's, so nothing but the lineage can see it.
-    path = tmp_path / "artifact.parquet"
-    _write(path, _valid_metadata(**{"ord.artifact": "occurrences"}))
-    monkeypatch.setattr(base.metadata, "version", lambda _: "9.9.9")
-    assert base.is_current(path, "occurrences", "0" * 32)
-    monkeypatch.setattr(
-        base, "ARTIFACT_VERSIONS", base.ARTIFACT_VERSIONS | {"projection": "2"}
-    )
-    assert not base.is_current(path, "occurrences", "0" * 32)
 
 
 def test_missing_columns_sees_a_field_added_inside_a_struct(tmp_path):

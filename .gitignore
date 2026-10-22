@@ -25,9 +25,8 @@ coverage*
 /dist
 # Folder tracking files
 .DS_Store
-# Node, and the webpack bundles the js/ packages build.
+# buf, which npm ci installs from package-lock.json.
 node_modules/
-js/*/dist/
 
 # Claude/working planning docs (local only)
 *_PLAN.md

@@ -41,6 +41,7 @@ import dataclasses
 import glob
 import hashlib
 import json
+import math
 import pathlib
 import random
 from collections.abc import Iterable, Sequence
@@ -589,6 +590,15 @@ def _check_round_trip(
         view = parquet.DatasetView(sources[dataset_id])
         stored = pq.read_table(projections[dataset_id]).to_pylist()
         positions = chooser.sample(range(len(stored)), min(rows, len(stored)))
+        # Which way the dataset writes slash dates is settled across all of it, so one
+        # row re-projects under the answer the projection read for the whole dataset.
+        try:
+            day_first = projection.dataset_slash_orientation(dataset_id, view)
+        except ValueError as error:
+            # The dataset's own dates contradict _DAY_FIRST, so it cannot be projected:
+            # a finding, like a row that does not project.
+            differing.append(f"{dataset_id} does not project: {error}")
+            continue
         for position in positions:
             row = stored[position]
             reaction = view.reactions[position]
@@ -596,13 +606,15 @@ def _check_round_trip(
             try:
                 # structure_id is assigned in first-seen order across a whole dataset,
                 # so one row cannot reproduce it; the projection's own tests cover it.
-                expected = projection.reaction_row(reaction, row["reaction_id"])
+                expected = projection.reaction_row(
+                    reaction, row["reaction_id"], day_first=day_first
+                )
             except ValueError as error:
                 # Projecting refuses a row whose ID disagrees with the reaction it
                 # stores. That is the check finding something, not the check breaking.
                 differing.append(f"{dataset_id}[{position}] does not project: {error}")
                 continue
-            if _without_structure_ids(expected) != _without_structure_ids(row):
+            if not _same(_without_structure_ids(expected), _without_structure_ids(row)):
                 differing.append(f"{dataset_id}[{position}] {row['reaction_id']}")
     return Finding(
         "sampled reactions re-project to what is stored",
@@ -636,6 +648,35 @@ def _without_structure_ids(value: Any) -> Any:
         # where a component's structure_id lives.
         return tuple(_without_structure_ids(item) for item in value)
     return value
+
+
+def _same(expected: Any, stored: Any) -> bool:
+    """Returns whether a re-projected value equals the stored one, NaN matching NaN.
+
+    A float a depositor recorded as NaN projects to NaN, and NaN equals nothing, itself
+    included, so plain equality calls every row holding one unfaithful.
+
+    Args:
+        expected: A re-projected row, or any part of one.
+        stored: The same part of the stored row.
+
+    Returns:
+        Whether the two hold the same values, compared down through dicts, lists, and
+        the (key, value) pairs a map column reads back as.
+    """
+    if isinstance(expected, float) and isinstance(stored, float):
+        return expected == stored or (math.isnan(expected) and math.isnan(stored))
+    if isinstance(expected, dict) and isinstance(stored, dict):
+        return expected.keys() == stored.keys() and all(
+            _same(item, stored[key]) for key, item in expected.items()
+        )
+    if isinstance(expected, (list, tuple)) and isinstance(stored, (list, tuple)):
+        return (
+            type(expected) is type(stored)
+            and len(expected) == len(stored)
+            and all(map(_same, expected, stored))
+        )
+    return expected == stored
 
 
 def measure(corpus: execute.Corpus, *, timeout_seconds: float) -> dict[str, Any]:
@@ -905,6 +946,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--projections", required=True, help="Glob for projections")
     parser.add_argument("--structures", required=True, help="Glob for structures")
     parser.add_argument(
+        "--arrivals",
+        default=None,
+        help=(
+            "Glob for the arrivals artifacts. Without it a query naming "
+            "first_commit is refused"
+        ),
+    )
+    parser.add_argument(
         "--sources",
         default=None,
         help="Glob for the source datasets. Without it the fidelity checks are skipped",
@@ -937,18 +986,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="What one query may take before it fails",
     )
     parser.add_argument(
-        "--pivot-budget-bytes",
-        type=int,
-        default=0,
-        help="What pivots built in process may hold; zero builds none",
-    )
-    parser.add_argument(
         "--pivots",
         default=None,
         help=(
             "Directory holding pivot artifacts. Without it a reduction reads the "
             "projection's lists, which answers the same but leaves the pivoted route "
             "unmeasured"
+        ),
+    )
+    parser.add_argument(
+        "--occurrences",
+        default=None,
+        help=(
+            "Directory holding occurrence artifacts, which must cover every indexed "
+            "path. Without it the corpus has no occurrence index and answers a "
+            "structure predicate from the pivots or the projection, which answers "
+            "the same but leaves the artifacts unread"
         ),
     )
     args = parser.parse_args(argv)
@@ -970,8 +1023,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.projections,
         args.structures,
         require_current=True,
-        pivot_budget_bytes=args.pivot_budget_bytes,
         pivots_dir=args.pivots,
+        occurrences_dir=args.occurrences,
+        arrivals_pattern=args.arrivals,
+        # A path the directory left out would be read from a pivot or the projection
+        # instead, and the check would pass a tree it never read.
+        require_occurrences=args.occurrences is not None,
         # Unbounded: a baseline is a count and a digest over every matching reaction,
         # and under the corpus's own default it would be a digest over an arbitrary
         # page of them -- which compares unequal against the recorded one and reports a

@@ -21,7 +21,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ord-schema"
-version = "0.9.0"
+version = "0.9.6"
 description = "Schema for the Open Reaction Database"
 readme = "README.md"
 license = "Apache-2.0"
@@ -41,7 +41,6 @@ dependencies = [
     "pandas>=1.0.4",
     "protobuf>=4.22.3,<6",
     "pyarrow>=14",
-    "python-dateutil>=1.10.0",
     # 2025.03.1 introduced Chem.ValenceType and deprecated Atom.GetExplicitValence,
     # which set_dative_bonds calls the replacement for; 2025.03.4 is the first release
     # with CPython 3.14 wheels, and this package claims to support 3.14, so a floor
@@ -84,6 +83,10 @@ docs = [
     "sphinx-tabs>=3.4.0",
 ]
 examples = [
+    # The Granda notebook downloads its dataset from the ord-data mirror with
+    # ord_schema.huggingface.fetch_dataset. Through the extra rather than its own pin, so
+    # the module it imports gets the huggingface-hub floor that module needs.
+    "ord-schema[huggingface]",
     "matplotlib>=3.3.4",
     "scikit-learn>=0.24.1",
     # TensorFlow ships no CPython 3.14 wheels as of 2.21.0, and one notebook needs it.
@@ -91,17 +94,24 @@ examples = [
     # it keep their coverage on a version this package says it supports.
     "tensorflow>=2.4.1; python_version < '3.14'",
 ]
-# Optional: only ord_schema.huggingface (fetch_dataset) needs this; it downloads
-# datasets from the Hugging Face ord-data mirror and drags in a heavy chain
-# (typer, fsspec, the hf-xet native binary), so it is not a default dependency.
+# Optional: only ord_schema.huggingface and the upload_artifacts script need this; they
+# download datasets and derived artifacts from Hugging Face and publish artifacts there,
+# and it drags in a heavy chain (typer, fsspec, the hf-xet native binary), so it is not
+# a default dependency.
 huggingface = [
-    "huggingface-hub>=0.20",
+    # 0.23 is the first release whose local_dir downloads are real files rather than
+    # links into the cache, and a Corpus confined to its own directories refuses a link
+    # that leads out of them. 0.24 is the first whose create_commit drops unchanged
+    # files, so an upload_artifacts commit adding one dataset carries only its files.
+    "huggingface-hub>=0.24",
 ]
 # Optional: the ord_schema.orm subpackage maps the schema into a relational
 # (SQLAlchemy + PostgreSQL) database. Not needed to parse/validate datasets.
 orm = [
     "inflection>=0.5.1",
     "psycopg[binary,pool]>=3",
+    # ord_schema.orm.database parses free-text provenance times with it.
+    "python-dateutil>=1.10.0",
     "sqlalchemy>=2",
     # UUIDv7 surrogate primary keys: time-sortable (index locality) and client-generatable
     # (no server round-trip / sequence reservation for bulk COPY loads). Backports uuid7()

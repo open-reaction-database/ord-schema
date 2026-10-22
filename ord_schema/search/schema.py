@@ -15,22 +15,21 @@
 """The projection schema, rendered for a model that has to write SQL against it.
 
 A model cannot query columns it has not been told about, so the whole schema goes in the
-prompt. It is small enough to: 442 leaves render as 537 lines and roughly 5,400 tokens,
-which is why translation can stay a single forced tool call instead of a retrieval loop
-over column metadata.
+prompt. It is small enough to fit whole, which is why translation can stay a single
+forced tool call instead of a retrieval loop over column metadata.
 
 An enum projects as its value *name*, so each enum column carries its members beside
 it. Without them a model has the column and no way to learn the spelling it must compare
 against, which is a guess it will sometimes get wrong silently. They are read from the
 field's own metadata, so this stays a rendering of the schema and nothing else.
 
-The rendering is generated from ``query.SCHEMA`` -- the projection's columns plus the
-``dataset_id`` the executor supplies -- rather than written by hand, because the
-projection schema is itself generated from the proto descriptors: a field added upstream
-becomes a column with nobody deciding it should, and a hand-written description would
-silently fall behind it. ``ord_schema.search.sql`` validates against the same schema
-object, so the columns a model is told about and the columns its query is checked
-against cannot disagree.
+The rendering is generated from ``query.SCHEMA`` -- the projection's columns, the
+``dataset_id`` the executor supplies, and the ``first_commit`` the arrivals
+artifacts hold -- rather than written by hand, because the projection schema is itself
+generated from the proto descriptors: a field added upstream becomes a column with
+nobody deciding it should, and a hand-written description would silently fall behind
+it. ``ord_schema.search.sql`` validates against the same definitions, so the columns a
+model is told about and the columns its query is checked against cannot disagree.
 
 Types are named in DuckDB's vocabulary rather than Arrow's, since DuckDB is the dialect
 the model writes. Units are already in the column names -- ``setpoint_kelvin``,
@@ -45,35 +44,38 @@ from ord_schema.search import query
 # Arrow leaf types the projection can hold, in DuckDB's names. Deliberately not a
 # fallback to ``str(dtype)``: a type the projection gains later should surface here as a
 # KeyError rather than reach a prompt as an Arrow spelling no DuckDB query can use.
+# Keyed by ``query.queried_type``, the type a query reads each leaf as, so a timestamp
+# is named DATE: the compiler compares it by day and refuses a literal carrying a time.
 _SCALARS: dict[pa.DataType, str] = {
     pa.string(): "VARCHAR",
     pa.binary(): "BLOB",
     pa.bool_(): "BOOLEAN",
     pa.float32(): "FLOAT",
     pa.float64(): "DOUBLE",
+    pa.int16(): "SMALLINT",
     pa.int32(): "INTEGER",
     pa.int64(): "BIGINT",
     pa.uint32(): "UINTEGER",
     pa.uint64(): "UBIGINT",
-    pa.timestamp("us"): "TIMESTAMP",
+    pa.date32(): "DATE",
 }
 
 _INDENT = "  "
 
 
 def _scalar_name(dtype: pa.DataType) -> str:
-    """Returns the DuckDB name for a leaf type.
+    """Returns the DuckDB name for a leaf type, as a query reads it.
 
     Args:
         dtype: Arrow type of a leaf column.
 
     Returns:
-        The DuckDB type name.
+        The DuckDB name of ``query.queried_type(dtype)``: DATE for a timestamp.
 
     Raises:
         KeyError: If the projection holds a leaf type this module does not name.
     """
-    return _SCALARS[dtype]
+    return _SCALARS[query.queried_type(dtype)]
 
 
 def _render(field: pa.Field, depth: int, lines: list[str]) -> None:

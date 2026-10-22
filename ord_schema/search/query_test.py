@@ -15,6 +15,8 @@
 """Tests for ord_schema.search.query."""
 
 import datetime
+import json
+import re
 import warnings
 
 import duckdb
@@ -98,12 +100,11 @@ def test_a_comparison_compiles_to_a_scalar_test():
         "WHERE conditions.temperature.setpoint_kelvin > $literal_0"
     )
     assert compiled.literals == {"literal_0": 300.0}
-    assert compiled.compounds == ()
 
 
 def test_exists_compiles_to_a_list_lambda_never_to_unnest():
     # The whole reason the model does not write SQL: the fast idiom is the only one the
-    # compiler can emit, so the 27-200x cliff is unreachable rather than discouraged.
+    # compiler can emit, so the UNNEST cliff is unreachable rather than discouraged.
     compiled = _compile(
         {
             "where": {
@@ -211,19 +212,28 @@ def test_co_membership_and_mere_co_occurrence_compile_differently():
     assert either.sql.count("list_filter") == 2
 
 
-def test_compounds_are_bound_not_spelled():
-    compiled = _compile(
-        {
-            "where": {
-                "op": "exists",
-                "path": "inputs.components",
-                "where": {"op": "eq", "path": "smiles", "value": {"compound": "thf"}},
-            }
-        }
+@pytest.mark.parametrize(
+    ("op", "path", "suggested"),
+    [
+        ("eq", "smiles", "smiles"),
+        ("ne", "inputs.components.smiles", "inputs.components.smiles"),
+        ("contains", "name", "smiles"),
+    ],
+)
+def test_a_compound_is_never_a_comparison_s_value(op, path, suggested):
+    # Equal spellings are not what makes two compounds the same, so the refusal names
+    # the predicate that asks the question -- a model repairing its query from the
+    # message alone would otherwise rewrite the name as a literal and match nothing.
+    with pytest.raises(ValidationError) as raised:
+        query.Query.model_validate(
+            {"where": {"op": op, "path": path, "value": {"compound": "thf"}}}
+        )
+    message = str(raised.value)
+    assert "never a compound" in message
+    assert (
+        f'{{"op": "same_compound", "path": "{suggested}", "compound": "thf"}}'
+        in message
     )
-    assert "$thf" in compiled.sql
-    assert compiled.compounds == ("thf",)
-    assert _run(compiled, {"thf": "C1CCOC1"}) == []
 
 
 def test_the_dataset_a_reaction_came_from_is_queryable():
@@ -272,8 +282,8 @@ _DATES = pa.schema([pa.field("reaction_id", pa.string()), pa.field("day", pa.dat
         ("conditions.conditions_are_dynamic", True, True, projection.SCHEMA),
         (
             "provenance.record_created.time.timestamp",
-            "2025-01-01T12:30:00",
-            datetime.datetime(2025, 1, 1, 12, 30),
+            "2025-01-01",
+            datetime.date(2025, 1, 1),
             projection.SCHEMA,
         ),
         ("day", "2025-01-01", datetime.date(2025, 1, 1), _DATES),
@@ -282,7 +292,7 @@ _DATES = pa.schema([pa.field("reaction_id", pa.string()), pa.field("day", pa.dat
 def test_every_literal_is_bound_as_a_value_of_its_own_type(
     path, literal, bound, schema
 ):
-    # A number, a boolean, or an instant spelled into the SQL is one more place the
+    # A number, a boolean, or a day spelled into the SQL is one more place the
     # model's input becomes the statement's text; bound, it never is.
     compiled = query.compile_query(
         query.Query.model_validate(
@@ -295,58 +305,6 @@ def test_every_literal_is_bound_as_a_value_of_its_own_type(
     assert str(literal) not in compiled.sql
     assert "300" not in compiled.sql
     assert "TRUE" not in compiled.sql
-
-
-def test_a_compound_named_like_a_literal_parameter_is_refused():
-    literal = {"op": "eq", "path": "reaction_id", "value": {"literal": "ord-1"}}
-    with pytest.raises(query.QueryError, match="collide"):
-        _compile(
-            {
-                "where": {
-                    "op": "and",
-                    "clauses": [
-                        literal,
-                        {
-                            "op": "exists",
-                            "path": "inputs.components",
-                            "where": {
-                                "op": "eq",
-                                "path": "smiles",
-                                "value": {"compound": "literal_0"},
-                            },
-                        },
-                    ],
-                }
-            }
-        )
-
-
-def test_a_compound_in_an_ordering_is_checked_for_collisions_too():
-    # An ordering compiles after the where, so a check made between the two would see
-    # the where's structure parameter and miss the ordering's compound.
-    with pytest.raises(query.QueryError, match="collide"):
-        _compile(
-            {
-                "where": {
-                    "op": "exists",
-                    "path": "inputs.components",
-                    "where": _substructure(),
-                },
-                "order_by": [
-                    {
-                        "key": {
-                            "reduce": "count",
-                            "path": "inputs.components",
-                            "where": {
-                                "op": "eq",
-                                "path": "smiles",
-                                "value": {"compound": "structure_0"},
-                            },
-                        }
-                    }
-                ],
-            }
-        )
 
 
 def test_a_pivot_that_declines_leaves_no_literal_behind():
@@ -409,11 +367,41 @@ def test_an_aggregate_groups_and_measures():
         }
     )
     assert compiled.sql == (
-        "SELECT conditions.stirring.type, "
-        "avg(conditions.temperature.setpoint_kelvin) AS mean_k, count(*) AS n "
-        "FROM reactions GROUP BY 1 ORDER BY mean_k DESC LIMIT 5"
+        'SELECT conditions.stirring.type AS "conditions.stirring.type", '
+        'avg(conditions.temperature.setpoint_kelvin) AS "mean_k", count(*) AS "n" '
+        'FROM reactions GROUP BY 1 ORDER BY "mean_k" DESC LIMIT 5'
     )
     assert _run(compiled) == []
+
+
+def test_a_group_by_column_is_named_by_its_whole_path():
+    # DuckDB names an unaliased column after its last segment, so these two would both
+    # come back as type, and a reader by name would get one of them.
+    compiled = _compile(
+        {
+            "aggregate": {
+                "group_by": [
+                    "conditions.temperature.control.type",
+                    "conditions.stirring.type",
+                ],
+                "measures": [{"fn": "count", "name": "n"}],
+            },
+            "order_by": [{"key": "conditions.stirring.type", "descending": True}],
+        }
+    )
+    assert compiled.sql == (
+        "SELECT conditions.temperature.control.type AS "
+        '"conditions.temperature.control.type", '
+        'conditions.stirring.type AS "conditions.stirring.type", count(*) AS "n" '
+        "FROM reactions GROUP BY 1, 2 ORDER BY conditions.stirring.type DESC"
+    )
+    sql.validate(compiled.sql, parameters=compiled.literals)
+    assert _run(compiled) == []
+
+
+def test_a_quoted_identifier_doubles_a_double_quote_inside_it():
+    # So an alias stays one identifier whatever name the caller's schema gives a field.
+    assert query._quoted('a"b') == '"a""b"'
 
 
 def test_count_distinct_counts_distinctly():
@@ -427,6 +415,132 @@ def test_count_distinct_counts_distinctly():
         }
     )
     assert "count(DISTINCT provenance.doi)" in compiled.sql
+
+
+@pytest.mark.parametrize(
+    ("aggregate", "repeated"),
+    [
+        # A group_by path given twice.
+        (
+            {
+                "group_by": ["dataset_id", "dataset_id"],
+                "measures": [{"fn": "count", "name": "n"}],
+            },
+            "group_by path 'dataset_id' repeats the group_by path 'dataset_id'",
+        ),
+        # Two measures with one name.
+        (
+            {
+                "group_by": ["dataset_id"],
+                "measures": [
+                    {"fn": "count", "name": "n"},
+                    {"fn": "count_distinct", "path": "provenance.doi", "name": "n"},
+                ],
+            },
+            "measure 'n' repeats the measure 'n'",
+        ),
+        # A measure named as a group_by path.
+        (
+            {
+                "group_by": ["dataset_id"],
+                "measures": [{"fn": "count", "name": "dataset_id"}],
+            },
+            "measure 'dataset_id' repeats the group_by path 'dataset_id'",
+        ),
+        # DuckDB compares identifiers without regard to case, so an ordering naming one
+        # of these can sort by the other.
+        (
+            {
+                "measures": [
+                    {"fn": "count", "name": "n"},
+                    {"fn": "count_distinct", "path": "provenance.doi", "name": "N"},
+                ],
+            },
+            "measure 'N' repeats the measure 'n' (names compare without regard to "
+            "case)",
+        ),
+        (
+            {
+                "group_by": ["dataset_id"],
+                "measures": [{"fn": "count", "name": "Dataset_ID"}],
+            },
+            "measure 'Dataset_ID' repeats the group_by path 'dataset_id'",
+        ),
+    ],
+)
+def test_each_output_column_of_an_aggregate_needs_its_own_name(aggregate, repeated):
+    # Each is one column of the result, so a reader by name, or an ordering naming a
+    # measure, would reach one of the two and lose the other. Raised as a ValueError,
+    # which is what a caller of Corpus.search and the translation loop both catch.
+    with pytest.raises(ValueError, match="output column needs its own name") as raised:
+        query.Query.model_validate({"aggregate": aggregate})
+    assert repeated in str(raised.value)
+
+
+def test_a_measure_may_share_a_group_by_path_s_last_segment():
+    # The group_by column is named by the whole path, so a measure called type names a
+    # column of its own.
+    compiled = _compile(
+        {
+            "aggregate": {
+                "group_by": ["conditions.stirring.type"],
+                "measures": [{"fn": "count", "name": "type"}],
+            },
+            "order_by": [{"key": "type", "descending": True}],
+        }
+    )
+    assert compiled.sql.endswith('ORDER BY "type" DESC')
+    assert _run(compiled) == []
+
+
+@pytest.mark.parametrize(
+    "name", ["at", "order", "group", "select", "from", "desc", "null", "true", "Order"]
+)
+def test_a_measure_named_by_a_keyword_is_still_a_name(name):
+    # Bare in an ORDER BY, DuckDB reads these as keywords: most fail to parse or bind,
+    # and ``true`` orders by the constant rather than by the measure.
+    compiled = _compile(
+        {
+            "aggregate": {
+                "group_by": ["dataset_id"],
+                "measures": [{"fn": "count", "name": name}],
+            },
+            "order_by": [{"key": name, "descending": True}],
+        }
+    )
+    assert f'count(*) AS "{name}"' in compiled.sql
+    assert compiled.sql.endswith(f'ORDER BY "{name}" DESC')
+    sql.validate(compiled.sql, parameters=compiled.literals)
+    assert _run(compiled) == []
+
+
+@pytest.mark.parametrize("descending", [False, True])
+def test_a_measure_named_true_orders_by_the_measure(descending):
+    # Bare, ORDER BY true sorts by the constant, which parses, runs, and returns the
+    # groups in whatever order the aggregate left them. Enough groups, inserted out of
+    # order, that the order they come back in is not the sorted one by chance.
+    sizes = [3, 1, 6, 4, 2, 5]
+    rows = [
+        {"reaction_id": f"r{size}-{index}", "dataset_id": f"d{size}"}
+        for size in sizes
+        for index in range(size)
+    ]
+    compiled = _compile(
+        {
+            "aggregate": {
+                "group_by": ["dataset_id"],
+                "measures": [{"fn": "count", "name": "true"}],
+            },
+            "order_by": [{"key": "true", "descending": descending}],
+        }
+    )
+    connection = duckdb.connect()
+    connection.register(query.TABLE, pa.Table.from_pylist(rows, schema=query.SCHEMA))
+    try:
+        counts = [row[1] for row in connection.execute(compiled.sql).fetchall()]
+    finally:
+        connection.close()
+    assert counts == sorted(sizes, reverse=descending)
 
 
 # Refusals
@@ -480,17 +594,6 @@ def test_count_distinct_counts_distinctly():
             {"where": {"op": "gt", "path": "reaction_id", "value": {"literal": 1}}},
             "needs a numeric or temporal column",
         ),
-        # A compound resolves to a SMILES, so it can only compare against text.
-        (
-            {
-                "where": {
-                    "op": "eq",
-                    "path": "conditions.temperature.setpoint_kelvin",
-                    "value": {"compound": "thf"},
-                }
-            },
-            "compares against text",
-        ),
         (
             {
                 "aggregate": {
@@ -519,15 +622,9 @@ def test_refused(payload, match):
     [
         # A measure name reaches the SQL as text, so it is held to an identifier shape.
         {"aggregate": {"measures": [{"fn": "count", "name": "n; DROP TABLE x"}]}},
-        {
-            "where": {
-                "op": "eq",
-                "path": "reaction_id",
-                "value": {"compound": "x'; DROP TABLE y; --"},
-            }
-        },
-        # Neither a literal nor a compound, or both at once.
+        # No literal, or a compound beside one.
         {"where": {"op": "eq", "path": "reaction_id", "value": {}}},
+        {"where": {"op": "eq", "path": "reaction_id", "value": {"literal": None}}},
         {
             "where": {
                 "op": "eq",
@@ -606,7 +703,7 @@ def test_ordering_by_a_reduction_over_a_repeated_path():
 
 def test_max_rows_bounds_a_query_that_asked_for_no_limit():
     # The grammar leaves limit optional, so the unbounded query is the ordinary one: a
-    # predicate matching much of the corpus returns millions of rows to whoever ran it.
+    # predicate matching much of the corpus returns all of it to whoever ran it.
     compiled = _compile({}, max_rows=100)
     assert compiled.sql.endswith(" LIMIT 100")
     assert compiled.limit == 100
@@ -733,11 +830,19 @@ def test_a_reduction_over_a_scalar_path_is_refused():
         )
 
 
-@pytest.mark.parametrize("reducer", ["min", "max", "avg", "sum"])
-def test_an_arithmetic_reduction_over_text_is_refused(reducer):
+@pytest.mark.parametrize(
+    ("reducer", "message"),
+    [
+        ("min", "needs a numeric or temporal column, not string"),
+        ("max", "needs a numeric or temporal column, not string"),
+        ("avg", "needs a numeric column, not string"),
+        ("sum", "needs a numeric column, not string"),
+    ],
+)
+def test_an_arithmetic_reduction_over_text_is_refused(reducer, message):
     # Summing a list of strings is a DuckDB error rather than an answer, and a query
     # that cannot mean anything is worth refusing where it is compiled.
-    with pytest.raises(query.QueryError, match="needs a numeric column"):
+    with pytest.raises(query.QueryError, match=message):
         _compile(
             {
                 "order_by": [
@@ -782,6 +887,157 @@ def test_an_arithmetic_measure_over_text_is_refused():
                 }
             }
         )
+
+
+def _measured_type(measure) -> pa.DataType:
+    """Returns the Arrow type a measure's column comes back as, planned on no rows."""
+    compiled = _compile({"aggregate": {"measures": [{**measure, "name": "measured"}]}})
+    connection = duckdb.connect()
+    connection.register(query.TABLE, query.SCHEMA.empty_table())
+    try:
+        table = connection.execute(compiled.sql, compiled.literals).to_arrow_table()
+    finally:
+        connection.close()
+    return table.schema.field("measured").type
+
+
+_ADDITION_ORDER = "inputs.addition_order"
+
+
+@pytest.mark.parametrize(
+    "measure",
+    [
+        {"fn": "sum", "path": "conditions.stirring.rate.rpm"},
+        {"fn": "sum", "path": {"reduce": "count", "path": "inputs.components"}},
+        {"fn": "sum", "path": {"reduce": "sum", "path": _ADDITION_ORDER}},
+        {"fn": "sum", "path": {"reduce": "max", "path": _ADDITION_ORDER}},
+        # A summed reduction is an integer under whichever measure reads it, not only
+        # under a sum, which would cast it again.
+        {"fn": "min", "path": {"reduce": "sum", "path": _ADDITION_ORDER}},
+        {"fn": "max", "path": {"reduce": "sum", "path": _ADDITION_ORDER}},
+    ],
+)
+def test_a_sum_of_integers_comes_back_as_an_integer(measure):
+    # DuckDB sums integers as HUGEINT, which Arrow carries as decimal128(38, 0) and
+    # Python reads as a Decimal: a sum of counts would arrive as a different kind of
+    # number from the counts, and as a string once json.dumps(default=str) saw it.
+    assert _measured_type(measure) == pa.int64()
+
+
+@pytest.mark.parametrize(
+    "measure",
+    [
+        {"fn": "sum", "path": "conditions.temperature.setpoint_kelvin"},
+        {
+            "fn": "sum",
+            "path": {
+                "reduce": "sum",
+                "path": "outcomes.products.measurements.percentage.value",
+            },
+        },
+        {"fn": "sum", "path": {"reduce": "avg", "path": _ADDITION_ORDER}},
+    ],
+)
+def test_a_sum_of_floating_point_values_stays_a_double(measure):
+    assert _measured_type(measure) == pa.float64()
+
+
+_CREATED = "provenance.record_created.time.timestamp"
+_MODIFIED = "provenance.record_modified.time.timestamp"
+
+
+@pytest.mark.parametrize(
+    "measure",
+    [
+        {"fn": "min", "path": _CREATED},
+        {"fn": "max", "path": _CREATED},
+        {"fn": "min", "path": {"reduce": "min", "path": _MODIFIED}},
+        {"fn": "max", "path": {"reduce": "max", "path": _MODIFIED}},
+        {"fn": "max", "path": {"reduce": "min", "path": _MODIFIED}},
+    ],
+)
+def test_the_least_or_greatest_timestamp_comes_back_as_a_date(measure):
+    assert _measured_type(measure) == pa.date32()
+
+
+@pytest.mark.parametrize("fn", ["sum", "avg"])
+@pytest.mark.parametrize(
+    "path", [_CREATED, {"reduce": "min", "path": _MODIFIED}], ids=["scalar", "reduced"]
+)
+def test_adding_days_in_a_measure_is_refused(fn, path):
+    # min and max only compare their values, which days support; sum and avg are
+    # arithmetic, which the grammar keeps to numbers.
+    with pytest.raises(query.QueryError, match="needs a numeric column, not date32"):
+        _compile(
+            {"aggregate": {"measures": [{"fn": fn, "path": path, "name": "measured"}]}}
+        )
+
+
+@pytest.mark.parametrize("reducer", ["sum", "avg"])
+def test_adding_days_in_a_reduction_is_refused(reducer):
+    with pytest.raises(
+        query.QueryError, match=f"{_MODIFIED}: {reducer} needs a numeric column"
+    ):
+        _compile({"order_by": [{"key": {"reduce": reducer, "path": _MODIFIED}}]})
+
+
+@pytest.mark.parametrize("reducer", ["min", "max"])
+def test_ordering_by_a_reduced_timestamp_runs(reducer):
+    compiled = _compile(
+        {
+            "order_by": [
+                {"key": {"reduce": reducer, "path": _MODIFIED}, "descending": True}
+            ]
+        }
+    )
+    assert f"ORDER BY list_{reducer}(" in compiled.sql
+    assert _run(compiled) == []
+
+
+@pytest.mark.parametrize("reducer", ["min", "max"])
+def test_a_reduced_timestamp_reads_the_pivot_where_one_covers_its_level(reducer):
+    sql = _pivot_sql(
+        {"order_by": [{"key": {"reduce": reducer, "path": _MODIFIED}}]},
+        pivot=_every_level,
+    )
+    assert f"list_{reducer}(" not in sql
+    assert f"(SELECT {reducer}(CAST(r0.element.time.timestamp AS DATE)) " in sql
+    assert (
+        "FROM pivot_provenance_record_modified AS r0 "
+        "WHERE r0.reaction_id = reactions.reaction_id)"
+    ) in sql
+
+
+def test_datasets_rank_by_their_earliest_modification():
+    # When a dataset was submitted is the first modification any of its reactions
+    # records, and the newest submission is the dataset where that is latest.
+    compiled = _compile(
+        {
+            "aggregate": {
+                "group_by": ["dataset_id"],
+                "measures": [
+                    {
+                        "fn": "min",
+                        "path": {"reduce": "min", "path": _MODIFIED},
+                        "name": "submitted",
+                    }
+                ],
+            },
+            "order_by": [{"key": "submitted", "descending": True}],
+            "limit": 1,
+        }
+    )
+    assert "min(list_min(" in compiled.sql
+    assert compiled.sql.endswith('ORDER BY "submitted" DESC LIMIT 1')
+    assert _run(compiled) == []
+
+
+def test_ordering_by_a_summed_reduction_orders_by_an_integer():
+    compiled = _compile(
+        {"order_by": [{"key": {"reduce": "sum", "path": _ADDITION_ORDER}}]}
+    )
+    assert "ORDER BY CAST(list_sum(" in compiled.sql
+    assert _run(compiled) == []
 
 
 def test_an_aggregated_query_cannot_order_by_a_reduction():
@@ -903,36 +1159,41 @@ def test_a_recorded_date_is_answered_by_its_timestamp_not_its_spelling(path):
     # of what it asks for and reads as if it found all of it.
     with pytest.raises(query.QueryError, match="internal"):
         query.resolve(path)
-    assert query.resolve(path.replace(".value", ".timestamp")).type == pa.timestamp(
-        "us"
-    )
+    assert query.resolve(path.replace(".value", ".timestamp")).type == pa.date32()
 
 
 _WHEN = "provenance.record_created.time.timestamp"
+_DAY_OF = f"CAST({_WHEN} AS DATE)"
 
 
 @pytest.mark.parametrize(
     ("op", "literal", "expected"),
     [
-        ("ge", "2025-01-01", datetime.datetime(2025, 1, 1)),
-        ("lt", "2026-01-01", datetime.datetime(2026, 1, 1)),
-        ("ge", "2025-01-01 12:30:00", datetime.datetime(2025, 1, 1, 12, 30)),
-        ("eq", "2025-01-01T12:30:00", datetime.datetime(2025, 1, 1, 12, 30)),
+        ("ge", "2025-01-01", datetime.date(2025, 1, 1)),
+        ("lt", "2026-01-01", datetime.date(2026, 1, 1)),
+        ("eq", "2025-01-01", datetime.date(2025, 1, 1)),
     ],
 )
-def test_a_timestamp_compares_against_an_iso_literal(op, literal, expected):
-    # Bound as an instant rather than as its spelling: a bare date reads as that day's
-    # midnight, so asking for a year is a pair of comparisons rather than a text match.
+def test_a_timestamp_compares_by_day_against_a_date_literal(op, literal, expected):
+    # Both sides are days: the column is cast to its date and the literal binds as one,
+    # so asking for a day matches every time on it.
     compiled = _compile(
         {"where": {"op": op, "path": _WHEN, "value": {"literal": literal}}}
     )
     assert compiled.literals == {"literal_0": expected}
+    assert f"{_DAY_OF} {query._COMPARISONS[op]} $literal_0" in compiled.sql
+    assert _run(compiled) == []
+
+
+def test_a_null_check_on_a_timestamp_runs():
+    compiled = _compile({"where": {"op": "is_null", "path": _WHEN}})
+    assert f"{_DAY_OF} IS NULL" in compiled.sql
     assert _run(compiled) == []
 
 
 def test_a_date_column_compares_as_a_date_not_as_text():
-    # A string beside a TIMESTAMP casts in DuckDB, but beside a DATE it compares as
-    # text and answers by spelling, so the literal binds as a date either way.
+    # A string beside a DATE compares as text in DuckDB and answers by spelling, so the
+    # literal binds as a date.
     compiled = query.compile_query(
         query.Query.model_validate(
             {"where": {"op": "ge", "path": "day", "value": {"literal": "2025-01-01"}}}
@@ -960,22 +1221,143 @@ def test_a_date_column_compares_as_a_date_not_as_text():
 
 
 @pytest.mark.parametrize(
-    "literal", ["2025-01-01T12:30:00+05:00", "2025-01-01T12:30:00Z"]
+    "literal",
+    [
+        "2025-01-01T12:30:00",
+        "2025-01-01 12:30:00",
+        "2025-01-01T00:00:00",
+        "2025-01-01T12:30:00.250000",
+        "2025-01-01T12:30:00+05:00",
+        "2025-01-01T12:30:00Z",
+    ],
 )
-def test_a_literal_carrying_an_offset_is_refused(literal):
-    # The column records no zone, because no shape the projection reads carries one --
-    # a value that does is left unparsed rather than read as a wall clock. DuckDB drops
-    # the offset from a TIMESTAMP literal rather than shifting by it, so accepting one
-    # would compare the caller's wall clock while reading as though it compared their
-    # instant.
-    with pytest.raises(query.QueryError, match="records no time zone"):
-        _compile({"where": {"op": "ge", "path": _WHEN, "value": {"literal": literal}}})
+@pytest.mark.parametrize(
+    ("path", "schema"),
+    [(_WHEN, query.SCHEMA), ("day", _DATES)],
+    ids=["timestamp", "date"],
+)
+def test_a_literal_carrying_a_time_is_refused(literal, path, schema):
+    # Read as its day, a time would answer for every reaction on that day while reading
+    # as an answer about the moment it names; midnight is refused as well, since the
+    # literal still says more than the column can compare.
+    with pytest.raises(
+        query.QueryError,
+        match=rf"{path}: timestamps compare by day, .* carries a time; write the date",
+    ):
+        query.compile_query(
+            query.Query.model_validate(
+                {"where": {"op": "ge", "path": path, "value": {"literal": literal}}}
+            ),
+            schema=schema,
+        )
 
 
-@pytest.mark.parametrize("literal", ["last tuesday", "2025-13-45", ""])
+@pytest.mark.parametrize(
+    "literal",
+    [
+        "last tuesday",
+        "2025-13-45",
+        "",
+        "20250101",
+        "2025-W01-3",
+        "2025-001",
+        "2025-1-1",
+    ],
+)
 def test_a_literal_that_is_not_a_date_is_refused_where_it_compiles(literal):
-    with pytest.raises(query.QueryError, match="not an ISO 8601 date or timestamp"):
+    # Python reads the compact and week spellings as ISO dates too; only YYYY-MM-DD is
+    # accepted, the one spelling the prompt teaches.
+    with pytest.raises(query.QueryError, match="not an ISO 8601 date, YYYY-MM-DD"):
         _compile({"where": {"op": "ge", "path": _WHEN, "value": {"literal": literal}}})
+
+
+@pytest.mark.parametrize("pivoted", [False, True], ids=["lists", "pivot"])
+def test_a_timestamp_inside_a_quantifier_compares_by_day(pivoted):
+    compiled = _compile(
+        {
+            "where": {
+                "op": "exists",
+                "path": "provenance.record_modified",
+                "where": {
+                    "op": "eq",
+                    "path": "time.timestamp",
+                    "value": {"literal": "2023-01-15"},
+                },
+            }
+        },
+        pivot=_every_level if pivoted else None,
+    )
+    variable = "x0.element" if pivoted else "e0"
+    assert f"CAST({variable}.time.timestamp AS DATE) = $literal_0" in compiled.sql
+    assert compiled.literals == {"literal_0": datetime.date(2023, 1, 15)}
+
+
+def test_grouping_by_a_timestamp_groups_by_day():
+    compiled = _compile(
+        {
+            "aggregate": {
+                "group_by": [_WHEN],
+                "measures": [{"fn": "count", "name": "reactions"}],
+            }
+        }
+    )
+    assert f'SELECT {_DAY_OF} AS "{_WHEN}"' in compiled.sql
+    connection = duckdb.connect()
+    connection.register(query.TABLE, query.SCHEMA.empty_table())
+    try:
+        table = connection.execute(compiled.sql).to_arrow_table()
+    finally:
+        connection.close()
+    assert table.schema.field(_WHEN).type == pa.date32()
+
+
+@pytest.mark.parametrize("grouped", [False, True])
+def test_ordering_by_a_timestamp_orders_by_day(grouped):
+    body: dict = {"order_by": [{"key": _WHEN, "descending": True}]}
+    if grouped:
+        body["aggregate"] = {
+            "group_by": [_WHEN],
+            "measures": [{"fn": "count", "name": "reactions"}],
+        }
+    compiled = _compile(body)
+    assert compiled.sql.endswith(f"ORDER BY {_DAY_OF} DESC")
+    assert _run(compiled) == []
+
+
+def test_counting_distinct_timestamps_counts_days():
+    compiled = _compile(
+        {
+            "aggregate": {
+                "measures": [{"fn": "count_distinct", "path": _WHEN, "name": "days"}]
+            }
+        }
+    )
+    assert f"count(DISTINCT {_DAY_OF})" in compiled.sql
+
+
+def test_a_reduced_timestamp_reads_each_element_as_its_day():
+    compiled = _compile({"order_by": [{"key": {"reduce": "max", "path": _MODIFIED}}]})
+    assert "ORDER BY list_max(CAST(list_transform(" in compiled.sql
+    assert compiled.sql.endswith("x -> x.timestamp) AS DATE[]))")
+    assert _run(compiled) == []
+
+
+_EDITED_FOR_A_FIX = {
+    "reduce": "max",
+    "path": _MODIFIED,
+    "where": {"op": "contains", "path": "details", "value": {"literal": "fix"}},
+}
+
+
+def test_a_filtered_reduction_over_the_lists_reads_each_timestamp_as_its_day():
+    compiled = _compile({"order_by": [{"key": _EDITED_FOR_A_FIX}]})
+    assert "x -> CAST(x.time.timestamp AS DATE)))" in compiled.sql
+    assert _run(compiled) == []
+
+
+def test_a_filtered_reduction_over_a_pivot_reads_each_timestamp_as_its_day():
+    sql = _pivot_sql({"order_by": [{"key": _EDITED_FOR_A_FIX}]}, pivot=_every_level)
+    assert "(SELECT max(CAST(r0.element.time.timestamp AS DATE)) " in sql
 
 
 def test_an_ordered_comparison_still_refuses_text():
@@ -1224,7 +1606,7 @@ def test_a_smarts_with_an_explicit_hydrogen_is_merged_with_a_warning():
 def test_an_unfoldable_explicit_hydrogen_passes_through(smarts):
     # These hydrogens cannot be implicit in a stored molecule either -- an isotope and
     # H2 have no heavy atom to hide in -- so they are real graph atoms the query
-    # already matches. 28,297 ORD reactions have an [H][H] component, so rewriting or
+    # already matches. Many ORD reactions have an [H][H] component, so rewriting or
     # refusing them would lose exactly the queries that work.
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -1308,29 +1690,113 @@ def test_a_similarity_threshold_is_required_and_bounded():
         )
 
 
-def test_a_compound_named_like_a_structure_parameter_is_refused():
-    with pytest.raises(query.QueryError, match="collide"):
-        query.compile_query(
-            query.Query.model_validate(
-                {
-                    "where": {
-                        "op": "exists",
-                        "path": "inputs.components",
-                        "where": {
-                            "op": "and",
-                            "clauses": [
-                                _substructure(),
-                                {
-                                    "op": "eq",
-                                    "path": "smiles",
-                                    "value": {"compound": "structure_0"},
-                                },
-                            ],
-                        },
-                    }
-                }
-            )
+# Every predicate that takes a compound name, complete but for the name.
+_NAMED = {
+    "substructure": {"op": "substructure", "path": "smiles"},
+    "similarity": {"op": "similarity", "path": "smiles", "threshold": 0.7},
+    "same_compound": {"op": "same_compound", "path": "smiles"},
+    "same_parent": {"op": "same_parent", "path": "smiles"},
+}
+
+
+def _named(op, name):
+    return {
+        "where": {
+            "op": "exists",
+            "path": "inputs.components",
+            "where": _NAMED[op] | {"compound": name},
+        }
+    }
+
+
+@pytest.mark.parametrize("op", sorted(_NAMED))
+@pytest.mark.parametrize(
+    "name",
+    [
+        "2-pyridone",
+        "N,N-dimethylformamide",
+        "tert-butanol",
+        "acetic acid",
+        "(S)-2-methylbutan-1-ol",
+        "α-pinene",
+        pytest.param("x" * 500, id="500 characters"),
+    ],
+)
+def test_a_compound_name_is_any_name_a_resolver_takes(op, name):
+    # The name goes to the resolver and nowhere else -- the SQL tests the bitmap its
+    # match set becomes -- so it need not be shaped like an identifier.
+    compiled = _compile(_named(op, name))
+    assert [(p.op, p.compound) for p in compiled.structures] == [(op, name)]
+    assert name not in compiled.sql
+
+
+@pytest.mark.parametrize("op", sorted(_NAMED))
+@pytest.mark.parametrize(
+    ("name", "match"),
+    [
+        ("", "at least 1 character"),
+        ("   ", "blank"),
+        (" pyridine", "surrounding whitespace"),
+        ("pyridine\n", "surrounding whitespace"),
+        # A line break inside a name splits the resolver's log line in two, and a
+        # zero-width space or a no-break space reads as a name it is not.
+        ("pyri\ndine", "does not print"),
+        ("pyridine\x00", "does not print"),
+        ("pyri\u200bdine", "does not print"),
+        ("acetic\u00a0acid", "does not print"),
+        pytest.param("x" * 501, "at most 500 characters", id="501 characters"),
+    ],
+)
+def test_a_compound_name_no_resolver_can_take_is_refused(op, name, match):
+    with pytest.raises(ValidationError, match=match):
+        query.Query.model_validate(_named(op, name))
+
+
+def test_one_name_asked_twice_is_one_parameter():
+    # Deduplicated by the name as written, so the executor resolves and matches it
+    # once however many predicates ask for it.
+    where = _NAMED["same_compound"] | {"compound": "acetic acid"}
+    compiled = _compile(
+        {
+            "where": {
+                "op": "or",
+                "clauses": [
+                    {"op": "exists", "path": "inputs.components", "where": where},
+                    {"op": "exists", "path": "outcomes.products", "where": where},
+                ],
+            }
+        }
+    )
+    assert [(p.op, p.compound) for p in compiled.structures] == [
+        ("same_compound", "acetic acid")
+    ]
+    assert compiled.sql.count("$structure_0") == 2
+
+
+@pytest.mark.parametrize(
+    "model",
+    [query.Substructure, query.Similarity, query.SameCompound, query.SameParent],
+)
+def test_the_published_schema_states_a_compound_name_s_bounds(model):
+    # A client reading the schema -- the NL tool definition is one -- learns the
+    # bounds there rather than from a refusal.
+    (name, _) = model.model_json_schema()["properties"]["compound"]["anyOf"]
+    assert name["minLength"] == 1
+    assert name["maxLength"] == 500
+    assert "whitespace" in name["description"]
+
+
+def test_the_repair_a_compound_comparison_suggests_is_itself_valid():
+    # Most chemical names are not identifiers, so the same_compound the refusal hands
+    # back has to accept one.
+    with pytest.raises(ValidationError, match="never a compound") as raised:
+        query.Comparison.model_validate(
+            {"op": "eq", "path": "smiles", "value": {"compound": "2-pyridone"}}
         )
+    suggested = re.search(r'\{"op": "same_compound".*?\}', str(raised.value))
+    assert suggested is not None
+    repaired = query.SameCompound.model_validate(json.loads(suggested.group(0)))
+    assert repaired.compound == "2-pyridone"
 
 
 def _pivot_sql(body, pivot=None):
@@ -1356,11 +1822,14 @@ def test_exists_over_a_pivoted_level_becomes_a_semi_join():
         },
         pivot=_every_level,
     )
-    assert "EXISTS (SELECT 1 FROM pivot_workups AS x0" in sql
-    # Qualified on both sides. A pivot carries a reaction_id of its own, so an
-    # unqualified outer reference binds to the inner one and the correlation compares a
-    # column to itself -- true of every reaction that has any element at all.
-    assert "x0.reaction_id = reactions.reaction_id" in sql
+    # Spelled as IN at the row, which DuckDB plans as a plain hash semi-join, and
+    # qualified on both sides: a pivot carries a reaction_id of its own, so an
+    # unqualified outer reference would bind to the inner one.
+    assert (
+        "reactions.reaction_id IN (SELECT x0.reaction_id FROM pivot_workups AS x0 "
+        "WHERE x0.reaction_id IS NOT NULL AND " in sql
+    )
+    assert "EXISTS" not in sql
     assert "x0.element.type" in sql
     assert "list_filter" not in sql
 
@@ -1387,9 +1856,9 @@ def test_forall_over_a_pivoted_level_becomes_a_negated_semi_join():
 
 def test_a_nested_quantifier_joins_on_the_whole_ordinal_prefix():
     # The correctness point the ordinals exist for. Correlating a measurement to its
-    # product on the reaction alone returned 23,608 reactions over ORD where the answer
-    # is 22,666 -- and dropping only the outcome ordinal changed nothing at all, since
-    # the corpus is effectively single-outcome, which is what made it look right.
+    # product on the reaction alone over-returned over ORD -- and dropping only the
+    # outcome ordinal changed nothing at all, since the corpus is effectively
+    # single-outcome, which is what made it look right.
     sql = _pivot_sql(
         {
             "where": {
@@ -1509,46 +1978,8 @@ def test_without_a_pivot_the_sql_is_unchanged():
     assert _pivot_sql(body) == _pivot_sql(body, pivot=lambda path: None)
 
 
-def test_a_structure_predicate_routes_through_the_pivot_with_the_outer_offset():
-    # The occurrence index declines a body that is not one structure predicate plus
-    # string equalities, so this lands on the pivot. Its rows carry structure_id but no
-    # structure_offset, and the bitmap is indexed by the two added: the offset resolves
-    # outward to the reaction the element belongs to, which is the one its ID is meant
-    # to be read against. Pinned here because it holds by name resolution -- a pivot
-    # that ever carried an offset column of its own would bind inward instead.
-    compiled = query.compile_query(
-        query.Query.model_validate(
-            {
-                "where": {
-                    "op": "exists",
-                    "path": "inputs.components",
-                    "where": {
-                        "op": "and",
-                        "clauses": [
-                            {
-                                "op": "substructure",
-                                "path": "smiles",
-                                "smarts": "c1ccncc1",
-                            },
-                            {"op": "not_null", "path": "smiles"},
-                        ],
-                    },
-                }
-            }
-        ),
-        pivot=_every_level,
-    )
-    assert "EXISTS (SELECT 1 FROM pivot_inputs_components AS x0" in compiled.sql
-    assert "x0.element.structure_id" in compiled.sql
-    # Unqualified, so it is the enclosing relation's column rather than one of the
-    # pivot's; the pivot has none.
-    assert "+ structure_offset)" in compiled.sql
-    assert "x0.structure_offset" not in compiled.sql
-    assert len(compiled.structures) == 1
-
-
 def test_a_declining_body_is_never_charged_for_a_pivot():
-    # Supplying a pivot is what builds it, and over ORD that is minutes per level. A
+    # Supplying a pivot is what builds it, an unnest of the projection per level. A
     # body reaching a repeated field declines, so it must not ask for one first.
     asked = []
 
@@ -1712,9 +2143,10 @@ def test_an_unfiltered_reduction_reduces_every_element():
     assert "r0 ->" not in _pivot_sql(_filtered())
 
 
-def test_a_reduction_filter_may_name_a_compound():
-    # The filter's own clauses collect parameters like any other predicate; a name
-    # reaching the SQL unbound is an error rather than a wasted parameter.
+@pytest.mark.parametrize("name", ["thf", "acetic acid"])
+def test_a_reduction_filter_may_name_a_compound(name):
+    # The filter's own clauses collect parameters like any other predicate; a
+    # predicate reaching the SQL unbound is an error rather than a wasted parameter.
     compiled = query.compile_query(
         query.Query.model_validate(
             {
@@ -1724,9 +2156,9 @@ def test_a_reduction_filter_may_name_a_compound():
                             "reduce": "count",
                             "path": "inputs.components.amount.moles_moles",
                             "where": {
-                                "op": "eq",
+                                "op": "same_compound",
                                 "path": "smiles",
-                                "value": {"compound": "thf"},
+                                "compound": name,
                             },
                         }
                     }
@@ -1734,8 +2166,10 @@ def test_a_reduction_filter_may_name_a_compound():
             }
         )
     )
-    assert compiled.compounds == ("thf",)
-    assert "$thf" in compiled.sql
+    assert [(p.op, p.compound) for p in compiled.structures] == [
+        ("same_compound", name)
+    ]
+    assert "$structure_0" in compiled.sql
 
 
 @pytest.mark.parametrize("pivoted", [False, True])
@@ -1829,24 +2263,29 @@ def test_same_compound_by_name_is_bound_rather_than_spelled():
 
 
 @pytest.mark.parametrize(
-    "payload",
+    ("payload", "match"),
     [
         # Neither a smiles nor a compound, or both at once.
-        {"op": "same_compound", "path": "smiles"},
-        {
-            "op": "same_compound",
-            "path": "smiles",
-            "smiles": "CC(=O)O",
-            "compound": "pyridine",
-        },
-        {"op": "same_compound", "path": "smiles", "smiles": "not a molecule"},
+        ({"op": "same_compound", "path": "smiles"}, "not both"),
+        (
+            {
+                "op": "same_compound",
+                "path": "smiles",
+                "smiles": "CC(=O)O",
+                "compound": "pyridine",
+            },
+            "not both",
+        ),
+        (
+            {"op": "same_compound", "path": "smiles", "smiles": "not a molecule"},
+            "does not parse",
+        ),
         # An empty molecule matches nothing and still costs a pass over the corpus.
-        {"op": "same_compound", "path": "smiles", "smiles": ""},
-        {"op": "same_compound", "path": "smiles", "compound": "not an identifier"},
+        ({"op": "same_compound", "path": "smiles", "smiles": ""}, "no atoms"),
     ],
 )
-def test_a_malformed_same_compound_is_refused_before_compilation(payload):
-    with pytest.raises(ValidationError):
+def test_a_malformed_same_compound_is_refused_before_compilation(payload, match):
+    with pytest.raises(ValidationError, match=match):
         query.Query.model_validate(
             {"where": {"op": "exists", "path": "inputs.components", "where": payload}}
         )
@@ -1908,22 +2347,27 @@ def test_the_two_compound_operators_bind_separate_parameters():
 
 
 @pytest.mark.parametrize(
-    "payload",
+    ("payload", "match"),
     [
-        {"op": "same_parent", "path": "smiles"},
-        {
-            "op": "same_parent",
-            "path": "smiles",
-            "smiles": "CC(=O)O",
-            "compound": "pyridine",
-        },
-        {"op": "same_parent", "path": "smiles", "smiles": "not a molecule"},
-        {"op": "same_parent", "path": "smiles", "smiles": ""},
-        {"op": "same_parent", "path": "smiles", "compound": "not an identifier"},
+        ({"op": "same_parent", "path": "smiles"}, "not both"),
+        (
+            {
+                "op": "same_parent",
+                "path": "smiles",
+                "smiles": "CC(=O)O",
+                "compound": "pyridine",
+            },
+            "not both",
+        ),
+        (
+            {"op": "same_parent", "path": "smiles", "smiles": "not a molecule"},
+            "does not parse",
+        ),
+        ({"op": "same_parent", "path": "smiles", "smiles": ""}, "no atoms"),
     ],
 )
-def test_a_malformed_same_parent_is_refused_before_compilation(payload):
-    with pytest.raises(ValidationError):
+def test_a_malformed_same_parent_is_refused_before_compilation(payload, match):
+    with pytest.raises(ValidationError, match=match):
         query.Query.model_validate(
             {"where": {"op": "exists", "path": "inputs.components", "where": payload}}
         )
@@ -1968,8 +2412,59 @@ def test_an_aggregate_over_a_level_reads_the_pivot_rather_than_the_reactions():
     sql = _over(_SOLVENT_COUNTS)
     assert "FROM pivot_inputs_components AS x0" in sql
     assert "x0.element.smiles" in sql
-    assert "count(DISTINCT x0.reaction_id) AS n" in sql
+    assert 'count(DISTINCT x0.reaction_id) AS "n"' in sql
     assert "FROM reactions" not in sql
+
+
+@pytest.mark.parametrize("fn", ["min", "max", "avg", "sum"])
+def test_arithmetic_over_reaction_id_across_a_level_is_refused(fn):
+    # reaction_id is the one path a level's rows carry outside the element; it is text,
+    # so arithmetic over it is refused where it is compiled rather than where it runs.
+    body = {
+        "aggregate": {
+            "over": "inputs.components",
+            "group_by": ["smiles"],
+            "measures": [{"fn": fn, "path": "reaction_id", "name": "n"}],
+        }
+    }
+    with pytest.raises(query.QueryError, match=rf"reaction_id: {fn} needs a numeric"):
+        _over(body)
+
+
+@pytest.mark.parametrize("fn", ["min", "max"])
+def test_the_extreme_day_over_a_level_reads_the_element(fn):
+    # Over a level the measure's path is relative to the element, so the timestamp is
+    # checked against the element's type rather than the reaction's.
+    sql = _over(
+        {
+            "aggregate": {
+                "over": "provenance.record_modified",
+                "measures": [{"fn": fn, "path": "time.timestamp", "name": "edited"}],
+            }
+        }
+    )
+    assert f'{fn}(CAST(x0.element.time.timestamp AS DATE)) AS "edited"' in sql
+
+
+@pytest.mark.parametrize("fn", ["sum", "avg"])
+def test_adding_days_over_a_level_is_refused(fn):
+    body = {
+        "aggregate": {
+            "over": "provenance.record_modified",
+            "measures": [{"fn": fn, "path": "time.timestamp", "name": "edited"}],
+        }
+    }
+    with pytest.raises(
+        query.QueryError, match=rf"time\.timestamp: {fn} needs a numeric column"
+    ):
+        _over(body)
+
+
+def test_a_group_column_over_a_level_is_named_by_the_path_as_written():
+    # The expression reads from the element's alias, and the column is named by the
+    # path the query wrote, which is relative to the element.
+    sql = _over(_SOLVENT_COUNTS)
+    assert sql.startswith('SELECT x0.element.smiles AS "smiles", ')
 
 
 def test_the_aggregate_s_where_filters_the_elements_not_the_reactions():
@@ -2016,7 +2511,7 @@ def test_a_quantifier_in_the_reaction_filter_does_not_take_the_grouped_alias():
             }
         }
     )
-    assert "AS x1 WHERE x1.reaction_id = reactions.reaction_id" in sql
+    assert "reactions.reaction_id IN (SELECT x1.reaction_id FROM" in sql
     assert "AS x0" in sql
 
 
@@ -2170,4 +2665,464 @@ def test_a_quantifier_buried_in_the_element_filter_is_found_too():
                     "measures": [{"fn": "count", "name": "n"}],
                 }
             }
+        )
+
+
+_YEAR = [
+    {"op": "ge", "path": "first_commit.timestamp", "value": {"literal": "2022-01-01"}},
+    {"op": "lt", "path": "first_commit.timestamp", "value": {"literal": "2023-01-01"}},
+]
+_HOT = {
+    "op": "gt",
+    "path": "conditions.temperature.setpoint_kelvin",
+    "value": {"literal": 350},
+}
+_SEMI_JOIN = (
+    "reactions.reaction_id IN (SELECT reaction_id FROM arrivals "
+    "WHERE reaction_id IS NOT NULL AND "
+)
+
+
+class TestFirstCommitRouting:
+    def test_the_schema_a_model_reads_names_first_commit(self):
+        assert query.SCHEMA.names == [*query.TABLE_SCHEMA.names, "first_commit"]
+        assert "first_commit" not in query.TABLE_SCHEMA.names
+
+    def test_a_query_not_naming_it_reads_the_reactions_alone(self):
+        compiled = _compile({"where": _HOT})
+        assert query.HISTORY_TABLE not in compiled.sql
+
+    def test_a_conjunction_of_its_filters_is_one_semi_join(self):
+        compiled = _compile({"where": {"op": "and", "clauses": [_HOT, *_YEAR]}})
+        assert compiled.sql.count(_SEMI_JOIN) == 1
+        assert " JOIN " not in compiled.sql
+        sql.validate(compiled.sql, parameters=compiled.literals)
+
+    def test_a_filter_under_or_or_not_is_a_semi_join_of_its_own(self):
+        compiled = _compile(
+            {
+                "where": {
+                    "op": "or",
+                    "clauses": [_HOT, {"op": "not", "clause": _YEAR[0]}, _YEAR[1]],
+                }
+            }
+        )
+        assert compiled.sql.count(_SEMI_JOIN) == 2
+        assert f"(NOT {_SEMI_JOIN}" in compiled.sql
+        sql.validate(compiled.sql, parameters=compiled.literals)
+
+    def test_a_null_check_is_routed_like_a_comparison(self):
+        compiled = _compile(
+            {
+                "where": {
+                    "op": "and",
+                    "clauses": [_HOT, {"op": "not_null", "path": "first_commit.sha"}],
+                }
+            }
+        )
+        assert compiled.sql.count(_SEMI_JOIN) == 1
+        sql.validate(compiled.sql, parameters=compiled.literals)
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {
+                "aggregate": {
+                    "group_by": ["first_commit.dataset_id"],
+                    "measures": [{"fn": "count", "name": "reactions"}],
+                }
+            },
+            {
+                "aggregate": {
+                    "measures": [
+                        {"fn": "max", "path": "first_commit.timestamp", "name": "last"}
+                    ]
+                }
+            },
+            {"order_by": [{"key": "first_commit.timestamp", "descending": True}]},
+        ],
+        ids=["group_by", "measure", "order_by"],
+    )
+    def test_reading_it_on_the_row_joins_it(self, payload):
+        compiled = _compile(
+            {**payload, "where": {"op": "and", "clauses": [_HOT, *_YEAR]}}
+        )
+        assert "FROM reactions JOIN arrivals USING (reaction_id)" in compiled.sql
+        # Joined, its filters read the row rather than semi-joining again.
+        assert _SEMI_JOIN not in compiled.sql
+        sql.validate(compiled.sql, parameters=compiled.literals)
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"where": _YEAR[0]},
+            {"where": {"op": "or", "clauses": [_HOT, _YEAR[0]]}},
+            {"order_by": [{"key": "first_commit.timestamp"}]},
+        ],
+        ids=["filter", "nested", "order_by"],
+    )
+    def test_refused_where_the_corpus_holds_none(self, payload):
+        with pytest.raises(query.QueryError, match="holds no arrivals"):
+            _compile(payload, history=None)
+
+    def test_a_measure_named_like_it_is_not_a_path_to_it(self):
+        # An aggregated query orders by a measure name or a group_by path, so a key
+        # spelled first_commit names the measure and reads no first commit.
+        compiled = _compile(
+            {
+                "aggregate": {"measures": [{"fn": "count", "name": "first_commit"}]},
+                "order_by": [{"key": "first_commit"}],
+            },
+            history=None,
+        )
+        assert query.HISTORY_TABLE not in compiled.sql
+
+    def test_the_relation_has_to_be_an_identifier(self):
+        with pytest.raises(query.QueryError, match="history is not an identifier"):
+            _compile({"where": _YEAR[0]}, history="arrivals, range(10)")
+
+    def test_a_filter_on_elements_keeps_its_semi_join_on_the_reactions(self):
+        compiled = _compile(
+            {
+                "where": _YEAR[0],
+                "aggregate": {
+                    "over": "inputs.components",
+                    "group_by": ["reaction_role"],
+                    "measures": [{"fn": "count", "name": "components"}],
+                },
+            },
+            pivot=lambda path: f"pivot_{path.replace('.', '_')}",
+        )
+        # S608: the SQL a compilation is expected to contain, never run.
+        expected = (
+            "EXISTS (SELECT 1 FROM reactions WHERE reactions.reaction_id = "  # noqa: S608
+            f"x0.reaction_id AND {_SEMI_JOIN}"
+        )
+        assert expected in compiled.sql
+
+
+_DAY = "CAST(first_commit.timestamp AS DATE)"
+_COUNT_REACTIONS = {"fn": "count_distinct", "path": "reaction_id", "name": "reactions"}
+
+
+class TestFirstCommitsAlone:
+    # S608: the SQL a compilation is expected to equal, never run.
+    @pytest.mark.parametrize(
+        ("payload", "expected"),
+        [
+            (
+                {"where": {"op": "and", "clauses": _YEAR}},
+                "SELECT reaction_id FROM arrivals WHERE "  # noqa: S608
+                f"(({_DAY} >= $literal_0 AND {_DAY} < $literal_1))",
+            ),
+            (
+                {
+                    "where": {"op": "and", "clauses": _YEAR},
+                    "aggregate": {"measures": [{"fn": "count", "name": "reactions"}]},
+                },
+                'SELECT count(*) AS "reactions" FROM arrivals WHERE '  # noqa: S608
+                f"(({_DAY} >= $literal_0 AND {_DAY} < $literal_1))",
+            ),
+            (
+                {
+                    "aggregate": {
+                        "group_by": ["first_commit.dataset_id"],
+                        "measures": [_COUNT_REACTIONS],
+                    },
+                    "order_by": [{"key": "reactions", "descending": True}],
+                    "limit": 5,
+                },
+                'SELECT first_commit.dataset_id AS "first_commit.dataset_id", '
+                'count(DISTINCT reaction_id) AS "reactions" FROM arrivals '
+                'GROUP BY 1 ORDER BY "reactions" DESC LIMIT 5',
+            ),
+            (
+                {
+                    "aggregate": {
+                        "measures": [
+                            {
+                                "fn": "min",
+                                "path": "first_commit.timestamp",
+                                "name": "earliest",
+                            }
+                        ]
+                    }
+                },
+                f'SELECT min({_DAY}) AS "earliest" FROM arrivals',  # noqa: S608
+            ),
+            (
+                {
+                    "where": {
+                        "op": "or",
+                        "clauses": [
+                            {"op": "not", "clause": _YEAR[0]},
+                            {
+                                "op": "eq",
+                                "path": "reaction_id",
+                                "value": {"literal": "ord-1"},
+                            },
+                        ],
+                    },
+                    "order_by": [
+                        {"key": "first_commit.timestamp", "descending": True},
+                        {"key": "reaction_id"},
+                    ],
+                    "limit": 3,
+                },
+                "SELECT reaction_id FROM arrivals WHERE "  # noqa: S608
+                f"((NOT ({_DAY} >= $literal_0)) OR reaction_id = $literal_1) "
+                f"ORDER BY {_DAY} DESC, reaction_id LIMIT 3",
+            ),
+            (
+                {"where": {"op": "is_null", "path": "first_commit.sha"}},
+                "SELECT reaction_id FROM arrivals WHERE (first_commit.sha IS NULL)",
+            ),
+        ],
+        ids=["filter", "count", "group_by", "measure", "negated", "null_check"],
+    )
+    def test_a_query_reading_nothing_else_reads_them_alone(self, payload, expected):
+        compiled = _compile(payload)
+        assert compiled.sql == expected
+        sql.validate(compiled.sql, parameters=compiled.literals)
+
+    def test_orders_by_a_measure_named_like_it_through_its_alias(self):
+        # An aggregated query orders by its output columns, so this key names the
+        # measure, quoted as the SELECT aliased it, beside a column it shadows.
+        compiled = _compile(
+            {
+                "aggregate": {
+                    "group_by": ["first_commit.dataset_id"],
+                    "measures": [{"fn": "count", "name": "first_commit"}],
+                },
+                "order_by": [{"key": "first_commit", "descending": True}],
+            }
+        )
+        assert compiled.sql == (
+            'SELECT first_commit.dataset_id AS "first_commit.dataset_id", '
+            'count(*) AS "first_commit" FROM arrivals GROUP BY 1 '
+            'ORDER BY "first_commit" DESC'
+        )
+        sql.validate(compiled.sql, parameters=compiled.literals)
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"where": {"op": "and", "clauses": [_HOT, *_YEAR]}},
+            {"where": {"op": "or", "clauses": [_HOT, _YEAR[0]]}},
+            {
+                "where": {"op": "not", "clause": _HOT},
+                "order_by": [{"key": "first_commit.timestamp"}],
+            },
+            {
+                "where": _YEAR[0],
+                "order_by": [{"key": "conditions.temperature.setpoint_kelvin"}],
+            },
+            {
+                "aggregate": {
+                    "group_by": ["dataset_id", "first_commit.dataset_id"],
+                    "measures": [_COUNT_REACTIONS],
+                }
+            },
+            {
+                "where": _YEAR[0],
+                "aggregate": {
+                    "measures": [
+                        {
+                            "fn": "max",
+                            "path": "conditions.temperature.setpoint_kelvin",
+                            "name": "hottest",
+                        }
+                    ]
+                },
+            },
+            {
+                "where": {
+                    "op": "and",
+                    "clauses": [
+                        _YEAR[0],
+                        {
+                            "op": "exists",
+                            "path": "inputs.components",
+                            "where": {
+                                "op": "eq",
+                                "path": "smiles",
+                                "value": {"literal": "CCO"},
+                            },
+                        },
+                    ],
+                }
+            },
+            {
+                "where": _YEAR[0],
+                "order_by": [
+                    {
+                        "key": {
+                            "reduce": "max",
+                            "path": "outcomes.products.measurements.percentage.value",
+                        }
+                    }
+                ],
+            },
+            {
+                "where": _YEAR[0],
+                "aggregate": {
+                    "measures": [
+                        {
+                            "fn": "max",
+                            "path": {
+                                "reduce": "max",
+                                "path": (
+                                    "outcomes.products.measurements.percentage.value"
+                                ),
+                            },
+                            "name": "best",
+                        }
+                    ]
+                },
+            },
+        ],
+        ids=[
+            "and",
+            "or",
+            "not",
+            "order_by",
+            "group_by",
+            "measure",
+            "quantifier",
+            "reduced_order",
+            "reduced_measure",
+        ],
+    )
+    def test_a_query_reading_the_projection_too_reads_the_reactions(self, payload):
+        compiled = _compile(payload)
+        assert re.search(r"\bFROM reactions\b", compiled.sql)
+        sql.validate(compiled.sql, parameters=compiled.literals)
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"where": {"op": "eq", "path": "reaction_id", "value": {"literal": "x"}}},
+            {
+                "aggregate": {"measures": [{"fn": "count", "name": "first_commit"}]},
+                "order_by": [{"key": "first_commit"}],
+            },
+        ],
+        ids=["reaction_id", "measure_name"],
+    )
+    def test_a_query_naming_no_first_commit_reads_the_reactions_alone(self, payload):
+        compiled = _compile(payload)
+        assert re.search(r"\bFROM reactions\b", compiled.sql)
+        assert query.HISTORY_TABLE not in compiled.sql
+
+    def test_a_relation_of_elements_is_never_left_for_them(self):
+        compiled = _compile(
+            {
+                "where": _YEAR[0],
+                "aggregate": {
+                    "over": "inputs.components",
+                    "measures": [_COUNT_REACTIONS],
+                },
+            },
+            pivot=lambda path: f"pivot_{path.replace('.', '_')}",
+        )
+        # S608: the SQL a compilation is expected to equal, never run.
+        assert compiled.sql == (
+            'SELECT count(DISTINCT x0.reaction_id) AS "reactions" '  # noqa: S608
+            "FROM pivot_inputs_components AS x0 WHERE EXISTS (SELECT 1 FROM reactions "
+            "WHERE reactions.reaction_id = x0.reaction_id AND "
+            f"{_SEMI_JOIN}{_DAY} >= $literal_0))"
+        )
+
+
+_PIVOT = {"pivot": lambda path: f"pivot_{path.replace('.', '_')}"}
+_PYRIDINE = {"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"}
+_REACTANT = {"op": "eq", "path": "reaction_role", "value": {"literal": "REACTANT"}}
+
+
+class TestStructureOffsets:
+    def test_a_row_level_exists_reads_its_pivot_rows_offset(self):
+        compiled = _compile(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "inputs.components",
+                    "where": {"op": "and", "clauses": [_PYRIDINE, _REACTANT]},
+                }
+            },
+            **_PIVOT,
+        )
+        # The index declines a structure beside a field no index row carries, so this
+        # lands on the pivot. An offset left bare binds to the reaction outside the
+        # IN, whose dataset is not the pivot row's.
+        assert "(x0.element.structure_id + x0.structure_offset)" in compiled.sql
+        assert " + structure_offset)" not in compiled.sql
+
+    def test_a_nested_exists_reads_its_own_pivot_rows_offset(self):
+        compiled = _compile(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "outcomes",
+                    "where": {
+                        "op": "exists",
+                        "path": "products",
+                        "where": _PYRIDINE,
+                    },
+                }
+            },
+            **_PIVOT,
+        )
+        assert "(x1.element.structure_id + x1.structure_offset)" in compiled.sql
+        assert " + structure_offset)" not in compiled.sql
+
+    def test_a_forall_reads_its_pivot_rows_offset(self):
+        compiled = _compile(
+            {
+                "where": {
+                    "op": "forall",
+                    "path": "inputs.components",
+                    "where": {"op": "or", "clauses": [_PYRIDINE, _REACTANT]},
+                }
+            },
+            **_PIVOT,
+        )
+        assert "(x0.element.structure_id + x0.structure_offset)" in compiled.sql
+
+    def test_a_reduction_reads_its_pivot_rows_offset(self):
+        compiled = _compile(
+            {"where": {"op": "reaction_smarts", "smarts": "C(=O)O.N>>C(=O)N"}},
+            **_PIVOT,
+        )
+        assert "(r0.element.structure_id + r0.structure_offset)" in compiled.sql
+        assert " + structure_offset)" not in compiled.sql
+
+    def test_an_element_filter_reads_its_pivot_rows_offset(self):
+        compiled = _compile(
+            {
+                "aggregate": {
+                    "over": "inputs.components",
+                    "where": _PYRIDINE,
+                    "measures": [{"fn": "count", "name": "components"}],
+                }
+            },
+            **_PIVOT,
+        )
+        assert "(x0.element.structure_id + x0.structure_offset)" in compiled.sql
+        assert " + structure_offset)" not in compiled.sql
+
+    def test_the_projections_lists_read_the_reactions_offset(self):
+        compiled = _compile(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "inputs.components",
+                    "where": {"op": "and", "clauses": [_PYRIDINE, _REACTANT]},
+                }
+            }
+        )
+        assert "(e0.structure_id + structure_offset)" in compiled.sql
+        sql.validate(
+            compiled.sql,
+            parameters={**compiled.literals, "structure_0": "1"},
+            schema=query.executable_schema(),
         )

@@ -1,5 +1,12 @@
 # ORD Object Relational Mapper (ORM)
 
+> [!WARNING]
+> `ord_schema.orm` is deprecated and may be removed in a future release. Use the derived Parquet artifacts instead:
+> fetch the published build from [ord-artifacts](https://huggingface.co/datasets/open-reaction-database/ord-artifacts)
+> with `huggingface.fetch_artifacts`, and query it, structure searches included, with `ord_schema.search` (see
+> [Search a corpus](../search/README.md#search-a-corpus)). [The artifacts README](../artifacts/README.md) describes
+> what each artifact holds.
+
 When working with ORD data, the serialized protocol buffers stored
 in [ord-data](https://github.com/open-reaction-database/ord-data) should be considered
 the [source of truth](https://en.wikipedia.org/wiki/Single_source_of_truth). While protocol buffers are excellent for

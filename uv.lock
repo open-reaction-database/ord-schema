@@ -708,11 +708,11 @@ wheels = [
 
 [[package]]
 name = "fsspec"
-version = "2026.4.0"
+version = "2026.6.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d5/8d/1c51c094345df128ca4a990d633fe1a0ff28726c9e6b3c41ba65087bba1d/fsspec-2026.4.0.tar.gz", hash = "sha256:301d8ac70ae90ef3ad05dcf94d6c3754a097f9b5fe4667d2787aa359ec7df7e4", size = 312760, upload-time = "2026-04-29T20:42:38.635Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/10/a1/ae4e3e5003468d6391d2c77b6fa1cd73bd5d13511d81c642d7b28ac90ed4/fsspec-2026.6.0.tar.gz", hash = "sha256:f5bac145310fe30e16e1471bd6840b2d990d609e872251d7e674241822abf01a", size = 313646, upload-time = "2026-06-16T01:57:28.105Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d5/0c/043d5e551459da400957a1395e0febbf771446ff34291afcbe3d8be2a279/fsspec-2026.4.0-py3-none-any.whl", hash = "sha256:11ef7bb35dab8a394fde6e608221d5cf3e8499401c249bebaeaad760a1a8dec2", size = 203402, upload-time = "2026-04-29T20:42:36.842Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/22/4222d7ddf3da30f363edaa98e329c2bce6c65497c9cb2810931c8b2c0fbc/fsspec-2026.6.0-py3-none-any.whl", hash = "sha256:02e0b71817df9b2169dc30a16832045764def1191b43dcff5bb85bdee212d2a1", size = 203949, upload-time = "2026-06-16T01:57:26.358Z" },
 ]
 
 [[package]]
@@ -1974,7 +1974,7 @@ wheels = [
 
 [[package]]
 name = "ord-schema"
-version = "0.9.0"
+version = "0.9.6"
 source = { editable = "." }
 dependencies = [
     { name = "joblib" },
@@ -1984,7 +1984,6 @@ dependencies = [
     { name = "pandas" },
     { name = "protobuf" },
     { name = "pyarrow" },
-    { name = "python-dateutil" },
     { name = "rdkit" },
     { name = "tqdm" },
 ]
@@ -2000,6 +1999,7 @@ docs = [
     { name = "sphinx-tabs" },
 ]
 examples = [
+    { name = "huggingface-hub" },
     { name = "matplotlib" },
     { name = "scikit-learn" },
     { name = "tensorflow", marker = "python_full_version < '3.14'" },
@@ -2016,6 +2016,7 @@ nl = [
 orm = [
     { name = "inflection" },
     { name = "psycopg", extra = ["binary", "pool"] },
+    { name = "python-dateutil" },
     { name = "sqlalchemy" },
     { name = "uuid6" },
 ]
@@ -2038,6 +2039,7 @@ tests = [
     { name = "pytest-cov" },
     { name = "pytest-timeout" },
     { name = "pytest-xdist" },
+    { name = "python-dateutil" },
     { name = "ruff" },
     { name = "sqlalchemy" },
     { name = "testing-postgresql" },
@@ -2050,7 +2052,7 @@ requires-dist = [
     { name = "anthropic", marker = "extra == 'nl'", specifier = ">=0.120" },
     { name = "coverage", marker = "extra == 'tests'", specifier = ">=5.2.1" },
     { name = "duckdb", marker = "extra == 'search'", specifier = ">=1.5.1" },
-    { name = "huggingface-hub", marker = "extra == 'huggingface'", specifier = ">=0.20" },
+    { name = "huggingface-hub", marker = "extra == 'huggingface'", specifier = ">=0.24" },
     { name = "inflection", marker = "extra == 'orm'", specifier = ">=0.5.1" },
     { name = "inflection", marker = "extra == 'search'", specifier = ">=0.5.1" },
     { name = "ipython", marker = "extra == 'docs'", specifier = ">=8.4.0" },
@@ -2060,6 +2062,7 @@ requires-dist = [
     { name = "nbval", marker = "extra == 'tests'", specifier = ">=0.11" },
     { name = "numpy", specifier = ">=1.26.4" },
     { name = "openpyxl", specifier = ">=3.0.5" },
+    { name = "ord-schema", extras = ["huggingface"], marker = "extra == 'examples'" },
     { name = "ord-schema", extras = ["search"], marker = "extra == 'nl'" },
     { name = "ord-schema", extras = ["search", "nl", "huggingface", "orm"], marker = "extra == 'tests'" },
     { name = "pandas", specifier = ">=1.0.4" },
@@ -2072,7 +2075,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'tests'", specifier = ">=3.0.0" },
     { name = "pytest-timeout", marker = "extra == 'tests'", specifier = ">=2.4.0" },
     { name = "pytest-xdist", marker = "extra == 'tests'", specifier = ">=3.0.2" },
-    { name = "python-dateutil", specifier = ">=1.10.0" },
+    { name = "python-dateutil", marker = "extra == 'orm'", specifier = ">=1.10.0" },
     { name = "rdkit", specifier = ">=2025.3.4" },
     { name = "ruff", marker = "extra == 'tests'", specifier = ">=0.9.9" },
     { name = "scikit-learn", marker = "extra == 'examples'", specifier = ">=0.24.1" },
@@ -3728,14 +3731,14 @@ wheels = [
 
 [[package]]
 name = "werkzeug"
-version = "3.1.8"
+version = "3.1.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "markupsafe" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/dd/b2/381be8cfdee792dd117872481b6e378f85c957dd7c5bca38897b08f765fd/werkzeug-3.1.8.tar.gz", hash = "sha256:9bad61a4268dac112f1c5cd4630a56ede601b6ed420300677a869083d70a4c44", size = 875852, upload-time = "2026-04-02T18:49:14.268Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a4/34/4dd12fc8bb7d61c91467ec3efe415ffa7d5456f799954b40c5bbaeae470e/werkzeug-3.1.9.tar.gz", hash = "sha256:55ca7c70a75689be937aa27f8ff4b018f06ff4838fc73045560bf0f5a1291060", size = 940188, upload-time = "2026-09-27T18:33:41.637Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/93/8c/2e650f2afeb7ee576912636c23ddb621c91ac6a98e66dc8d29c3c69446e1/werkzeug-3.1.8-py3-none-any.whl", hash = "sha256:63a77fb8892bf28ebc3178683445222aa500e48ebad5ec77b0ad80f8726b1f50", size = 226459, upload-time = "2026-04-02T18:49:12.72Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/38/df03f564f43cec2684823f3cccae1a652ee7face1cbaa76fb223096e64d7/werkzeug-3.1.9-py3-none-any.whl", hash = "sha256:6392e50c78460ba618e5b21f08a71f59c99ce99cdc6cf6e3dd7e6ccca8754fab", size = 228700, upload-time = "2026-09-27T18:33:39.685Z" },
 ]
 
 [[package]]

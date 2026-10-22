@@ -103,7 +103,7 @@
   },
   {
     "question": "reactions that ran longer than their workup took",
-    "why": "comparing two columns, which the grammar cannot express: a value is a literal or a compound, never another column",
+    "why": "comparing two columns, which the grammar cannot express: a value is a literal, never another column",
     "compiles": false
   },
   {
@@ -116,7 +116,7 @@
         "where": {
           "op": "substructure",
           "path": "smiles",
-          "smarts": "[N+](=O)[O-]"
+          "smarts": "[$([N+](=O)[O-]),$(N(=O)=O)]"
         }
       }
     }
@@ -406,15 +406,15 @@
     }
   },
   {
-    "question": "how many different people recorded these reactions?",
+    "question": "how many different users created these records?",
     "why": "count_distinct over a scalar, which a plain count answers wrongly and convincingly",
     "reference": {
       "aggregate": {
         "measures": [
           {
             "fn": "count_distinct",
-            "path": "provenance.experimenter.username",
-            "name": "people"
+            "path": "provenance.record_created.person.username",
+            "name": "users"
           }
         ]
       }
@@ -448,7 +448,7 @@
             "fn": "avg",
             "path": {
               "reduce": "count",
-              "path": "outcomes.products.measurements.percentage.value",
+              "path": "outcomes.products.measurements.type",
               "where": {
                 "op": "eq",
                 "path": "type",
@@ -471,20 +471,11 @@
         "op": "exists",
         "path": "outcomes.products.measurements",
         "where": {
-          "op": "and",
-          "clauses": [
-            {
-              "op": "eq",
-              "path": "type",
-              "value": {
-                "literal": "YIELD"
-              }
-            },
-            {
-              "op": "not_null",
-              "path": "percentage.value"
-            }
-          ]
+          "op": "eq",
+          "path": "type",
+          "value": {
+            "literal": "YIELD"
+          }
         }
       },
       "aggregate": {
@@ -493,7 +484,7 @@
             "fn": "avg",
             "path": {
               "reduce": "count",
-              "path": "outcomes.products.measurements.percentage.value",
+              "path": "outcomes.products.measurements.type",
               "where": {
                 "op": "eq",
                 "path": "type",
@@ -585,17 +576,783 @@
     }
   },
   {
+    "question": "reactions added to ORD in 2022",
+    "why": "added to ORD is when ord-data merged the reaction, which first_commit reads from that repository's history; record_created is when the depositor wrote the record, a different time",
+    "reference": {
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "ge",
+            "path": "first_commit.timestamp",
+            "value": {
+              "literal": "2022-01-01"
+            }
+          },
+          {
+            "op": "lt",
+            "path": "first_commit.timestamp",
+            "value": {
+              "literal": "2023-01-01"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "reactions recorded between 30 June and 19 December 2025",
+    "why": "a date written out is still a day, and between takes both ends whole: le the last day, or lt the day after; lt the last day drops every reaction recorded on it",
+    "reference": {
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "ge",
+            "path": "provenance.record_created.time.timestamp",
+            "value": {
+              "literal": "2025-06-30"
+            }
+          },
+          {
+            "op": "le",
+            "path": "provenance.record_created.time.timestamp",
+            "value": {
+              "literal": "2025-12-19"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "reactions recorded in Q1 2026",
+    "why": "a quarter is a half-open pair like a year, ge its January 1 and lt April 1; ending at March 1 drops the quarter's last month",
+    "reference": {
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "ge",
+            "path": "provenance.record_created.time.timestamp",
+            "value": {
+              "literal": "2026-01-01"
+            }
+          },
+          {
+            "op": "lt",
+            "path": "provenance.record_created.time.timestamp",
+            "value": {
+              "literal": "2026-04-01"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
     "question": "reactions published in the last five years",
     "why": "no date arithmetic and no notion of today: a translation that hardcodes a year looks right and rots",
     "compiles": false
   },
   {
-    "question": "which reactions couple an aryl boronic acid with an aryl bromide or iodide?",
+    "question": "which reactions couple an aryl boronic acid or ester with an aryl bromide or iodide?",
     "why": "two reactant templates that must both match, where the cartridge's @> accepts either one",
     "reference": {
       "where": {
         "op": "reaction_smarts",
         "smarts": "cB(O)O.c[Br,I]>>c-c"
+      }
+    }
+  },
+  {
+    "question": "reactions set up in a glovebox",
+    "why": "a glovebox is the setup's environment, not its atmosphere: a translation that asks for nitrogen keeps the nitrogen reactions run outside one and misses the glovebox reactions that record no gas",
+    "reference": {
+      "where": {
+        "op": "eq",
+        "path": "setup.environment.type",
+        "value": {
+          "literal": "GLOVE_BOX"
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions mixed by sonication",
+    "why": "the reaction's own stirring, not a workup step's: tens of thousands of reactions sonicate during workup after being stirred with a bar, and none of them is what the question asks for",
+    "reference": {
+      "where": {
+        "op": "eq",
+        "path": "conditions.stirring.type",
+        "value": {
+          "literal": "SONICATION"
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions run at more than 60 bar",
+    "why": "pressure is stored in kilopascals, so 60 bar is 6000; comparing against 60, or settling for the PRESSURIZED control type, keeps the 55 bar and 100 psi reactions too",
+    "reference": {
+      "where": {
+        "op": "gt",
+        "path": "conditions.pressure.setpoint_kilopascals",
+        "value": {
+          "literal": 6000
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions run at -78 °C or colder",
+    "why": "the setpoint is in kelvin, so the question's Celsius has to become 195.15; comparing against -78 returns nothing, and an offset rounded to 273 drops the dry-ice reactions themselves",
+    "reference": {
+      "where": {
+        "op": "le",
+        "path": "conditions.temperature.setpoint_kelvin",
+        "value": {
+          "literal": 195.15
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions run without any stirring",
+    "why": "recorded as none, not absent: an is_null on the stirring type returns the 1.4 million reactions that never said, where NONE marks the few thousand that said they were not stirred",
+    "reference": {
+      "where": {
+        "op": "eq",
+        "path": "conditions.stirring.type",
+        "value": {
+          "literal": "NONE"
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions carried out before 2012",
+    "why": "when an experiment ran is its experiment_start, not when its record was created: every record postdates 2020, so the record's timestamp returns nothing and reads as an honest empty answer",
+    "reference": {
+      "where": {
+        "op": "lt",
+        "path": "provenance.experiment_start.timestamp",
+        "value": {
+          "literal": "2012-01-01"
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions with a nitro group in a product but in none of the reactants",
+    "why": "the not belongs outside the reactant quantifier: negating inside it keeps nearly every reaction with a nitro product, since some reactant always lacks one, and dropping the role throws out reactions whose only other nitro is a reagent or solvent; and a nitro group is drawn two ways, so a pattern for one finds a nitro product made from a reactant drawn the other way",
+    "reference": {
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "exists",
+            "path": "outcomes.products",
+            "where": {
+              "op": "substructure",
+              "path": "smiles",
+              "smarts": "[$([N+](=O)[O-]),$(N(=O)=O)]"
+            }
+          },
+          {
+            "op": "not",
+            "clause": {
+              "op": "exists",
+              "path": "inputs.components",
+              "where": {
+                "op": "and",
+                "clauses": [
+                  {
+                    "op": "eq",
+                    "path": "reaction_role",
+                    "value": {
+                      "literal": "REACTANT"
+                    }
+                  },
+                  {
+                    "op": "substructure",
+                    "path": "smiles",
+                    "smarts": "[$([N+](=O)[O-]),$(N(=O)=O)]"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "reactions run on less than 0.1 mmol of limiting reactant that reported a yield above 90%",
+    "why": "one condition on an input and one on an outcome, each in its own quantifier: the amount has to belong to the limiting component and is stored in moles, so 0.1 mmol is 0.0001, and the percentage has to be a yield rather than a purity",
+    "reference": {
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "exists",
+            "path": "inputs.components",
+            "where": {
+              "op": "and",
+              "clauses": [
+                {
+                  "op": "eq",
+                  "path": "is_limiting",
+                  "value": {
+                    "literal": true
+                  }
+                },
+                {
+                  "op": "lt",
+                  "path": "amount.moles_moles",
+                  "value": {
+                    "literal": 0.0001
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "op": "exists",
+            "path": "outcomes.products.measurements",
+            "where": {
+              "op": "and",
+              "clauses": [
+                {
+                  "op": "eq",
+                  "path": "type",
+                  "value": {
+                    "literal": "YIELD"
+                  }
+                },
+                {
+                  "op": "gt",
+                  "path": "percentage.value",
+                  "value": {
+                    "literal": 90
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "reactions whose products were characterized by both 1H NMR and HRMS",
+    "why": "two analyses, so two quantifiers: both types inside one exists ask for a single analysis that is 1H NMR and HRMS at once and return nothing, the pyridine-as-solvent mistake turned around",
+    "reference": {
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "exists",
+            "path": "outcomes.analyses",
+            "where": {
+              "op": "eq",
+              "path": "type",
+              "value": {
+                "literal": "NMR_1H"
+              }
+            }
+          },
+          {
+            "op": "exists",
+            "path": "outcomes.analyses",
+            "where": {
+              "op": "eq",
+              "path": "type",
+              "value": {
+                "literal": "HRMS"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "in dataset ord_dataset-46ff9a32d9e04016b9380b1b1ef949c3, which reactions with an aryl chloride gave a yield above 20%?",
+    "why": "the dataset a reaction came from is the dataset_id the executor supplies; a translation that drops it, or hunts for the ID in provenance or a reaction ID, answers over the whole corpus",
+    "reference": {
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "eq",
+            "path": "dataset_id",
+            "value": {
+              "literal": "ord_dataset-46ff9a32d9e04016b9380b1b1ef949c3"
+            }
+          },
+          {
+            "op": "exists",
+            "path": "inputs.components",
+            "where": {
+              "op": "substructure",
+              "path": "smiles",
+              "smarts": "cCl"
+            }
+          },
+          {
+            "op": "exists",
+            "path": "outcomes.products.measurements",
+            "where": {
+              "op": "and",
+              "clauses": [
+                {
+                  "op": "eq",
+                  "path": "type",
+                  "value": {
+                    "literal": "YIELD"
+                  }
+                },
+                {
+                  "op": "gt",
+                  "path": "percentage.value",
+                  "value": {
+                    "literal": 20
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "how many reactions does each dataset hold?",
+    "why": "a count grouped by the executor's dataset_id; grouping by DOI instead merges datasets that share a paper and splits the ones whose reactions cite many",
+    "reference": {
+      "aggregate": {
+        "group_by": [
+          "dataset_id"
+        ],
+        "measures": [
+          {
+            "fn": "count",
+            "name": "reactions"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "for each kind of workup step, how many reactions include one?",
+    "why": "the rows are workup steps, so a plain count answers how many steps rather than how many reactions: a reaction washed three times is one reaction and three rows",
+    "reference": {
+      "aggregate": {
+        "over": "workups",
+        "group_by": [
+          "type"
+        ],
+        "measures": [
+          {
+            "fn": "count_distinct",
+            "path": "reaction_id",
+            "name": "reactions"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "what is the highest yield each dataset reports?",
+    "why": "a reduction grouped by dataset whose own where holds it to yields: without the filter, purity and selectivity percentages stand in for yields and hand a best yield to datasets that record none",
+    "reference": {
+      "aggregate": {
+        "group_by": [
+          "dataset_id"
+        ],
+        "measures": [
+          {
+            "fn": "max",
+            "path": {
+              "reduce": "max",
+              "path": "outcomes.products.measurements.percentage.value",
+              "where": {
+                "op": "eq",
+                "path": "type",
+                "value": {
+                  "literal": "YIELD"
+                }
+              }
+            },
+            "name": "best"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "reactions with a reactant containing OC(=O)[C@@H]1CCCN1, ignoring its stereochemistry",
+    "why": "the pattern draws a stereocenter, and only chirality false lets it match the other enantiomer and the records that drew none; the default keeps the drawn enantiomer alone, and an or over the two enantiomers still misses the unassigned ones",
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "and",
+          "clauses": [
+            {
+              "op": "eq",
+              "path": "reaction_role",
+              "value": {
+                "literal": "REACTANT"
+              }
+            },
+            {
+              "op": "substructure",
+              "path": "smiles",
+              "smarts": "OC(=O)[C@@H]1CCCN1",
+              "chirality": false
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions using D-proline as a reactant",
+    "why": "a named configuration has to be drawn, and drawn the right way round: D-proline is (R), and same_compound keeps enantiomers apart, so the natural L enantiomer returns eighteen times the reactions and a drawing without stereo finds only the records that drew none",
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "and",
+          "clauses": [
+            {
+              "op": "eq",
+              "path": "reaction_role",
+              "value": {
+                "literal": "REACTANT"
+              }
+            },
+            {
+              "op": "same_compound",
+              "path": "smiles",
+              "smiles": "OC(=O)[C@H]1CCCN1"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions run on a Mosquito liquid handler",
+    "why": "a platform is recorded as free text describing the instrument, so the name is a substring of it: an equality on the bare name matches nothing, and is_automated returns every robot in the corpus",
+    "reference": {
+      "where": {
+        "op": "contains",
+        "path": "setup.automation_platform",
+        "value": {
+          "literal": "Mosquito"
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions run at under 5 mol% catalyst loading",
+    "why": "a loading is the catalyst's moles divided by the limiting reactant's, arithmetic across two elements that no column stores and the grammar cannot compute",
+    "compiles": false
+  },
+  {
+    "question": "reactions whose yield beat the average yield of their own dataset",
+    "why": "a comparison against an aggregate of other reactions is a subquery, which the grammar lacks; a hardcoded threshold stands in for one dataset's average at best",
+    "compiles": false
+  },
+  {
+    "question": "what is the median yield across the corpus?",
+    "why": "the measures are count, count_distinct, sum, avg, min, and max, so a median is unwritable, and an average written in its place answers a different question convincingly",
+    "compiles": false
+  },
+  {
+    "question": "how many reactions were recorded in each year?",
+    "why": "a group_by names a column and nothing truncates a timestamp to its year, so grouping by the raw timestamp returns one group per day rather than per year",
+    "compiles": false
+  },
+  {
+    "question": "reactions with more than ten workup steps",
+    "why": "a reduction can be ranked or aggregated but never filtered on: a where compares a column with a literal, so a count of steps has nowhere to go",
+    "compiles": false
+  },
+  {
+    "question": "which reactions use @A as a solvent?",
+    "why": "a compound SMILES placeholder named on its own, which is same_compound",
+    "structures": {
+      "@A": {
+        "format": "compound_smiles",
+        "text": "c1ccncc1"
+      }
+    },
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "and",
+          "clauses": [
+            {
+              "op": "eq",
+              "path": "reaction_role",
+              "value": {
+                "literal": "SOLVENT"
+              }
+            },
+            {
+              "op": "same_compound",
+              "path": "smiles",
+              "smiles": "c1ccncc1"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions using an input with Tanimoto similarity at least 0.6 to @A",
+    "why": "a compound SMILES placeholder searched by similarity",
+    "structures": {
+      "@A": {
+        "format": "compound_smiles",
+        "text": "Nc1ccccc1"
+      }
+    },
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "similarity",
+          "path": "smiles",
+          "smiles": "Nc1ccccc1",
+          "threshold": 0.6
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions with a reactant containing @A, ignoring its stereochemistry",
+    "why": "a compound SMILES placeholder read as a substructure, its drawn stereocenter ignored",
+    "structures": {
+      "@A": {
+        "format": "compound_smiles",
+        "text": "OC(=O)[C@@H]1CCCN1"
+      }
+    },
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "and",
+          "clauses": [
+            {
+              "op": "eq",
+              "path": "reaction_role",
+              "value": {
+                "literal": "REACTANT"
+              }
+            },
+            {
+              "op": "substructure",
+              "path": "smiles",
+              "smarts": "OC(=O)[C@@H]1CCCN1",
+              "chirality": false
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "question": "reactions with an input matching @A",
+    "why": "a compound SMARTS placeholder, which only a substructure takes",
+    "structures": {
+      "@A": {
+        "format": "compound_smarts",
+        "text": "[$([N+](=O)[O-]),$(N(=O)=O)]"
+      }
+    },
+    "reference": {
+      "where": {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+          "op": "substructure",
+          "path": "smiles",
+          "smarts": "[$([N+](=O)[O-]),$(N(=O)=O)]"
+        }
+      }
+    }
+  },
+  {
+    "question": "which reactions match @A?",
+    "why": "a reaction SMARTS placeholder, which only reaction_smarts takes",
+    "structures": {
+      "@A": {
+        "format": "reaction_smarts",
+        "text": "cB(O)O.c[Br,I]>>c-c"
+      }
+    },
+    "reference": {
+      "where": {
+        "op": "reaction_smarts",
+        "smarts": "cB(O)O.c[Br,I]>>c-c"
+      }
+    }
+  },
+  {
+    "question": "which reactions use @A as a solvent and have a desired product with a yield above 50%?",
+    "why": "a placeholder beside a condition on another repeated level, which a wrong translation folds into one quantifier",
+    "structures": {
+      "@A": {
+        "format": "compound_smiles",
+        "text": "CN(C)C=O"
+      }
+    },
+    "reference": {
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "exists",
+            "path": "inputs.components",
+            "where": {
+              "op": "and",
+              "clauses": [
+                {
+                  "op": "eq",
+                  "path": "reaction_role",
+                  "value": {
+                    "literal": "SOLVENT"
+                  }
+                },
+                {
+                  "op": "same_compound",
+                  "path": "smiles",
+                  "smiles": "CN(C)C=O"
+                }
+              ]
+            }
+          },
+          {
+            "op": "exists",
+            "path": "outcomes.products",
+            "where": {
+              "op": "and",
+              "clauses": [
+                {
+                  "op": "eq",
+                  "path": "is_desired_product",
+                  "value": {
+                    "literal": true
+                  }
+                },
+                {
+                  "op": "exists",
+                  "path": "measurements",
+                  "where": {
+                    "op": "and",
+                    "clauses": [
+                      {
+                        "op": "eq",
+                        "path": "type",
+                        "value": {
+                          "literal": "YIELD"
+                        }
+                      },
+                      {
+                        "op": "gt",
+                        "path": "percentage.value",
+                        "value": {
+                          "literal": 50
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "reactions using an input similar to @A with Tanimoto similarity at least 0.6",
+    "why": "similarity needs a compound SMILES and @A is a compound SMARTS; the layer declines rather than running a substructure search instead",
+    "structures": {
+      "@A": {
+        "format": "compound_smarts",
+        "text": "c[Br,I]"
+      }
+    },
+    "compiles": false
+  },
+  {
+    "question": "reactions that use @A as a reactant",
+    "why": "a reaction SMARTS describes a whole reaction, not a molecule a reaction uses",
+    "structures": {
+      "@A": {
+        "format": "reaction_smarts",
+        "text": "cB(O)O.c[Br,I]>>c-c"
+      }
+    },
+    "compiles": false
+  },
+  {
+    "question": "reactions using benzene as an input with yield greater than 70%",
+    "why": "the name-only example on the /ask instructions page, beside its placeholder examples",
+    "reference": {
+      "where": {
+        "op": "and",
+        "clauses": [
+          {
+            "op": "exists",
+            "path": "inputs.components",
+            "where": {
+              "op": "same_compound",
+              "path": "smiles",
+              "smiles": "c1ccccc1"
+            }
+          },
+          {
+            "op": "exists",
+            "path": "outcomes.products",
+            "where": {
+              "op": "exists",
+              "path": "measurements",
+              "where": {
+                "op": "and",
+                "clauses": [
+                  {
+                    "op": "eq",
+                    "path": "type",
+                    "value": {
+                      "literal": "YIELD"
+                    }
+                  },
+                  {
+                    "op": "gt",
+                    "path": "percentage.value",
+                    "value": {
+                      "literal": 70
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
       }
     }
   }
