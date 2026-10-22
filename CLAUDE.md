@@ -19,7 +19,7 @@ uv lock  # after changing dependencies in pyproject.toml
 
 - ORM tests start PostgreSQL through `testing.postgresql`, so `initdb` must be on `PATH`; without it they fail with `command not found: initdb`. It must come from a Postgres with the RDKit cartridge, since `rdkit_mappers_test.py` has no skip for its absence. CI installs conda-forge `rdkit-postgresql` (`.github/conda-postgres.yml`).
 - Live PubChem/OPSIN resolver tests run by default; set `ORD_LIVE_RESOLVERS=false` to skip them offline.
-- `ord_schema/proto/*_pb2.py` and `*_pb2.pyi` are generated: regenerate them, never hand-edit, and commit them with the license header the addlicense hook adds. CI fails on drift and runs `buf breaking` against `main` and the last release.
+- `ord_schema/proto/*_pb2.py` and `*_pb2.pyi` are generated: regenerate them, never hand-edit, and commit them as the hooks leave them. The addlicense hook heads each `*_pb2.py` and skips the `*_pb2.pyi` stubs, which carry no header. CI fails on drift and runs `buf breaking` against `main` and the last release.
 - Three submission notebooks (listed in `.github/workflows/run_tests.yml`) compare stored output under nbval; after changing what one prints, run `uv run jupyter execute --inplace <notebook>`. Running notebooks locally rewrites the tracked `examples/tools/set_dative_bonds/output.csv`; revert it unless updating it is the point.
 - Changing what an artifact holds, or the RDKit it is derived under, fails `_GOLDEN_OUTPUT` in `ord_schema/artifacts/base_test.py`, and the failure prints the line to re-pin. `ARTIFACT_SCHEMA_VERSION` moves only when a reader of the old schema would misread new files.
 - The package version moves only through `publish.yml` (bump-my-version), never by hand.
