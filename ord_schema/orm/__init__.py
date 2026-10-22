@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Base ORM objects."""
+"""Base ORM objects.
+
+Deprecated: query the derived Parquet artifacts with ``ord_schema.search`` instead; see
+``ord_schema/orm/README.md``.
+"""
 
 from sqlalchemy.orm import declarative_base
 
