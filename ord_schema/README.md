@@ -74,7 +74,8 @@ by a query engine:
   writing SQL. A model emits a validated `Query`, and the library compiles it to one
   DuckDB statement whose worst case is one pass and a sort. ([README](search/README.md))
 
-Or a **relational database**, for field-level queries against a live server:
+Or a **relational database**, for field-level queries against a live server, deprecated
+in favor of the derived Parquet above:
 
 - [`orm/`](orm/) maps the protos into PostgreSQL through SQLAlchemy, one table per
   message type. ([README](orm/README.md))
