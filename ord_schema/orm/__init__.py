@@ -24,8 +24,9 @@ from sqlalchemy.orm import declarative_base
 
 from ord_schema.logging import silence_rdkit_logs
 
-# stacklevel=2 attributes the warning to the importing module: the warnings module skips
-# importlib's frames, so Python's default filters show it to code in __main__.
+# stacklevel=2 attributes the warning to the importing module, since the warnings module
+# skips importlib's bootstrap frames; Python's default filters then show it to an import
+# statement in __main__.
 warnings.warn(
     "ord_schema.orm is deprecated and may be removed in a future release; query the "
     "derived Parquet artifacts with ord_schema.search instead. See "
