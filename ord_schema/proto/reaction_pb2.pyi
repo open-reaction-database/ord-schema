@@ -1277,7 +1277,7 @@ class Analysis(_message.Message):
     def __init__(self, type: _Optional[_Union[Analysis.AnalysisType, str]] = ..., details: _Optional[str] = ..., chmo_id: _Optional[int] = ..., is_of_isolated_species: bool = ..., data: _Optional[_Mapping[str, Data]] = ..., instrument_manufacturer: _Optional[str] = ..., instrument_last_calibrated: _Optional[_Union[DateTime, _Mapping]] = ...) -> None: ...
 
 class ReactionProvenance(_message.Message):
-    __slots__ = ["experimenter", "city", "experiment_start", "doi", "patent", "publication_url", "record_created", "record_modified", "reaction_metadata", "is_mined"]
+    __slots__ = ["experimenter", "city", "experiment_start", "doi", "patent", "publication_url", "record_created", "record_modified", "reaction_metadata", "is_mined", "publication"]
     class ReactionMetadataEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -1295,6 +1295,7 @@ class ReactionProvenance(_message.Message):
     RECORD_MODIFIED_FIELD_NUMBER: _ClassVar[int]
     REACTION_METADATA_FIELD_NUMBER: _ClassVar[int]
     IS_MINED_FIELD_NUMBER: _ClassVar[int]
+    PUBLICATION_FIELD_NUMBER: _ClassVar[int]
     experimenter: Person
     city: str
     experiment_start: DateTime
@@ -1305,7 +1306,28 @@ class ReactionProvenance(_message.Message):
     record_modified: _containers.RepeatedCompositeFieldContainer[RecordEvent]
     reaction_metadata: _containers.MessageMap[str, Data]
     is_mined: bool
-    def __init__(self, experimenter: _Optional[_Union[Person, _Mapping]] = ..., city: _Optional[str] = ..., experiment_start: _Optional[_Union[DateTime, _Mapping]] = ..., doi: _Optional[str] = ..., patent: _Optional[str] = ..., publication_url: _Optional[str] = ..., record_created: _Optional[_Union[RecordEvent, _Mapping]] = ..., record_modified: _Optional[_Iterable[_Union[RecordEvent, _Mapping]]] = ..., reaction_metadata: _Optional[_Mapping[str, Data]] = ..., is_mined: bool = ...) -> None: ...
+    publication: Publication
+    def __init__(self, experimenter: _Optional[_Union[Person, _Mapping]] = ..., city: _Optional[str] = ..., experiment_start: _Optional[_Union[DateTime, _Mapping]] = ..., doi: _Optional[str] = ..., patent: _Optional[str] = ..., publication_url: _Optional[str] = ..., record_created: _Optional[_Union[RecordEvent, _Mapping]] = ..., record_modified: _Optional[_Iterable[_Union[RecordEvent, _Mapping]]] = ..., reaction_metadata: _Optional[_Mapping[str, Data]] = ..., is_mined: bool = ..., publication: _Optional[_Union[Publication, _Mapping]] = ...) -> None: ...
+
+class Publication(_message.Message):
+    __slots__ = ["doi", "patent", "url", "location", "authors", "publication_date", "details", "organizations"]
+    DOI_FIELD_NUMBER: _ClassVar[int]
+    PATENT_FIELD_NUMBER: _ClassVar[int]
+    URL_FIELD_NUMBER: _ClassVar[int]
+    LOCATION_FIELD_NUMBER: _ClassVar[int]
+    AUTHORS_FIELD_NUMBER: _ClassVar[int]
+    PUBLICATION_DATE_FIELD_NUMBER: _ClassVar[int]
+    DETAILS_FIELD_NUMBER: _ClassVar[int]
+    ORGANIZATIONS_FIELD_NUMBER: _ClassVar[int]
+    doi: str
+    patent: str
+    url: str
+    location: str
+    authors: _containers.RepeatedCompositeFieldContainer[Person]
+    publication_date: DateTime
+    details: str
+    organizations: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, doi: _Optional[str] = ..., patent: _Optional[str] = ..., url: _Optional[str] = ..., location: _Optional[str] = ..., authors: _Optional[_Iterable[_Union[Person, _Mapping]]] = ..., publication_date: _Optional[_Union[DateTime, _Mapping]] = ..., details: _Optional[str] = ..., organizations: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class Person(_message.Message):
     __slots__ = ["username", "name", "orcid", "organization", "email"]

@@ -1544,6 +1544,7 @@ _VALIDATOR_SWITCH: dict[type, Callable[..., None]] = {
     reaction_pb2.Analysis: _validate_analysis,
     # Metadata
     reaction_pb2.ReactionProvenance: _validate_reaction_provenance,
+    reaction_pb2.Publication: _skip_validation,
     reaction_pb2.RecordEvent: _validate_record_event,
     reaction_pb2.Person: _validate_person,
     # Units

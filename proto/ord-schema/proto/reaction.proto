@@ -1127,9 +1127,12 @@ message ReactionProvenance {
   Person experimenter = 1;
   string city = 2;
   DateTime experiment_start = 3;
-  string doi = 4;
-  string patent = 5;
-  string publication_url = 6;
+  // Deprecated: use publication.doi.
+  string doi = 4 [deprecated = true];
+  // Deprecated: use publication.patent.
+  string patent = 5 [deprecated = true];
+  // Deprecated: use publication.url.
+  string publication_url = 6 [deprecated = true];
   RecordEvent record_created = 7;
   repeated RecordEvent record_modified = 8;
   // Container for arbitrary reaction metadata; e.g., an internal project
@@ -1139,6 +1142,35 @@ message ReactionProvenance {
   // patents. Set to false for manually curated data or template enumeration
   // from structured data (like a spreadsheet).
   optional bool is_mined = 10;
+  // The source this record's values were taken from. experimenter remains the
+  // person who ran the experiment.
+  Publication publication = 11;
+}
+
+/**
+ * Bibliographic details of the source a reaction record was taken from, such
+ * as a journal article, preprint, patent or data repository.
+ */
+message Publication {
+  string doi = 1;
+  // Patent or patent application number, e.g. "US9545106B2".
+  string patent = 2;
+  string url = 3;
+  // Where in the source the reaction appears, e.g. "Example P1",
+  // "Table 2, entry 3" or "SI p. S14".
+  string location = 4;
+  // Authors of the source; the inventors, for a patent. Record each author's
+  // organisation in Person.organization where it is known.
+  repeated Person authors = 5;
+  // When this document was published. For a patent, the publication date of
+  // this document, not its priority, filing or grant date.
+  DateTime publication_date = 6;
+  string details = 7;
+  // Organisations associated with the source that cannot be mapped to an
+  // author, e.g. a patent's assignees, or affiliations mined without knowing
+  // which author they belong to. Leave empty when each author's organisation
+  // is recorded in Person.organization.
+  repeated string organizations = 8;
 }
 
 message Person {
