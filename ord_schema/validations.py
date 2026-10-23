@@ -49,6 +49,10 @@ _TIME = re.compile(
     r"\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):\d{2}:\d{2}(?:\.\d{1,6})?"
     r"(?:Z|[+-]\d{2}:[0-5]\d)?"
 )
+# Record events are stamped as they happen, so a time dated after this day must carry
+# its UTC offset; earlier ones keep whatever zone they were recorded with, or none.
+# Other DateTimes, such as experiment_start, only warn.
+_RECORD_EVENT_OFFSET_REQUIRED_AFTER = datetime.date(2026, 10, 22)
 
 
 @dataclasses.dataclass
@@ -1315,12 +1319,20 @@ def parse_date_time(value: str) -> datetime.date | None:
 def _validate_date_time(
     message: reaction_pb2.DateTime, context: ValidationContext
 ) -> None:
-    """Validates that a DateTime value is an ISO 8601 date or time."""
-    if message.value and parse_date_time(message.value) is None:
+    """Validates a DateTime as an ISO 8601 date or time, warning on a missing offset."""
+    if not message.value:
+        return
+    parsed = parse_date_time(message.value)
+    if parsed is None:
         context.error(
             f"Could not parse DateTime string {message.value}: write a date "
             "(YYYY-MM-DD) or a time (YYYY-MM-DDTHH:MM:SS) with its UTC offset (+00:00) "
             "where known"
+        )
+    elif _lacks_offset(parsed):
+        context.warn(
+            f"Time {message.value} has no UTC offset, so the instant it names is "
+            "ambiguous; add the offset it was written under (+00:00) where known"
         )
 
 
@@ -1340,6 +1352,11 @@ def _as_date(value: datetime.date) -> datetime.date:
 def _is_instant(value: datetime.date) -> bool:
     """Returns whether a parsed DateTime is a time with its UTC offset."""
     return isinstance(value, datetime.datetime) and value.utcoffset() is not None
+
+
+def _lacks_offset(value: datetime.date) -> bool:
+    """Returns whether a parsed DateTime is a time without its UTC offset."""
+    return isinstance(value, datetime.datetime) and value.utcoffset() is None
 
 
 def _is_before(value: datetime.date, other: datetime.date) -> bool:
@@ -1414,9 +1431,20 @@ def _validate_reaction_provenance(
 def _validate_record_event(
     message: reaction_pb2.RecordEvent, context: ValidationContext
 ) -> None:
-    """Validates that a RecordEvent has a time and an identifiable person."""
+    """Validates a RecordEvent's time and offset, and that it identifies its person."""
     if not message.time.value:
         context.error("RecordEvent must have `time` specified")
+    time = parse_date_time(message.time.value)
+    if (
+        time is not None
+        and _lacks_offset(time)
+        and _as_date(time) > _RECORD_EVENT_OFFSET_REQUIRED_AFTER
+    ):
+        context.error(
+            "Record event times after "
+            f"{_RECORD_EVENT_OFFSET_REQUIRED_AFTER.isoformat()} must carry a UTC "
+            f"offset (+00:00): {message.time.value}"
+        )
     person = message.person
     if not (person.username or person.name or person.orcid):
         context.error(
