@@ -378,9 +378,10 @@ def test_provenance_and_the_message_walk_share_one_datetime_parse():
     _run_validation(message)
     info = validations.parse_date_time.cache_info()
     # Two distinct strings, each parsed once by the walk; the ordering check reads
-    # each twice, once to look for unparseable values and once to order them.
+    # each twice, once to look for unparseable values and once to order them, and
+    # the record event check reads record_created once more.
     assert info.misses == 2
-    assert info.hits == 4
+    assert info.hits == 5
 
 
 @pytest.mark.parametrize(
@@ -1335,16 +1336,84 @@ def test_datetime_must_be_an_iso_date_or_time(value):
         # The first and last instants datetime holds in UTC.
         "0001-01-01T01:00:00+01:00",
         "9999-12-31T18:59:59.999999-05:00",
-        # Times whose zone was never recorded.
-        "2024-07-06T23:25:41",
-        "2024-07-06T23:25:41.780701",
-        "0001-01-01T00:00:00",
     ],
 )
 def test_datetime_iso_date_or_time(value):
     output = _run_validation(reaction_pb2.DateTime(value=value))
     assert not output.errors
     assert not output.warnings
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2024-07-06T23:25:41",
+        "2024-07-06T23:25:41.780701",
+        "0001-01-01T00:00:00",
+        "2030-01-01T00:00:00",
+    ],
+)
+def test_datetime_time_without_offset_warns(value):
+    output = _run_validation(reaction_pb2.DateTime(value=value))
+    assert not output.errors
+    assert output.warnings == [
+        f"DateTime: Time {value} has no UTC offset, so the instant it names is "
+        "ambiguous; add the offset it was written under (+00:00) where known"
+    ]
+
+
+def _record_event(value):
+    """Builds a RecordEvent at the given time, with an identifiable person."""
+    return reaction_pb2.RecordEvent(
+        time={"value": value}, person={"username": "u", "email": "a@b.com"}
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2026-10-23T00:00:00",
+        "2026-10-23T09:30:00.5",
+        "2030-01-01T12:00:00",
+    ],
+)
+def test_record_event_after_cutoff_requires_offset(value):
+    output = _run_validation(_record_event(value), raise_on_error=False)
+    assert output.errors == [
+        "RecordEvent: Record event times after 2026-10-22 must carry a UTC offset "
+        f"(+00:00): {value}"
+    ]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        # Times with their offset, and dates, on any day.
+        "2026-10-23T00:00:00Z",
+        "2026-10-23T00:00:00-05:00",
+        "2026-10-23",
+        "2030-01-01",
+        # Times without an offset, dated on or before the cutoff.
+        "2026-10-22T23:59:59",
+        "2021-10-22T22:19:55",
+    ],
+)
+def test_record_event_offset_not_required(value):
+    output = _run_validation(_record_event(value))
+    assert not output.errors
+
+
+def test_experiment_start_after_cutoff_without_offset_only_warns():
+    message = _provenance_with_times(
+        "2026-10-24T00:00:00Z", experiment_start="2026-10-23T08:00:00"
+    )
+    output = _run_validation(message)
+    assert not output.errors
+    assert output.warnings == [
+        "ReactionProvenance.experiment_start: Time 2026-10-23T08:00:00 has no UTC "
+        "offset, so the instant it names is ambiguous; add the offset it was written "
+        "under (+00:00) where known"
+    ]
 
 
 def test_provenance_record_modified_before_created():
@@ -1463,7 +1532,9 @@ def test_provenance_record_modified_order(created, modified, error):
     assert output.errors == (
         [f"ReactionProvenance: Record modified time should be {error}"] if error else []
     )
-    assert not output.warnings
+    # A time without an offset draws its own warning; see
+    # test_datetime_time_without_offset_warns.
+    assert all("has no UTC offset" in warning for warning in output.warnings)
 
 
 @pytest.mark.parametrize(
