@@ -118,6 +118,9 @@ on GitHub.
       .. code-block:: shell
 
          $ git clone --depth=1 "https://github.com/${GITHUB_USERNAME}/${REPOSITORY}"
+         $ cd "${REPOSITORY}"
+         # Track the official database repository as the upstream remote.
+         $ git remote add upstream https://github.com/Open-Reaction-Database/ord-data.git
          # Make sure your fork is up to date.
          $ git checkout main
          $ git pull --rebase upstream main
