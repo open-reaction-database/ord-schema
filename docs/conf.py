@@ -109,15 +109,20 @@ def _section_root(app: Sphinx, pagename: str) -> str | None:
 
     Returns:
         The top-level page's name, which is ``pagename`` itself for a top-level page, or
-        None for the root page and for a page no toctree includes.
+        None for the root page, for a page no toctree includes, and for one whose
+        toctrees loop without reaching the root.
     """
     parents = {}
     for parent, children in app.env.toctree_includes.items():
         for child in children:
             parents.setdefault(child, parent)
     page = pagename
+    seen = {page}
     while parents.get(page) not in (None, app.config.root_doc):
         page = parents[page]
+        if page in seen:
+            return None
+        seen.add(page)
     if parents.get(page) != app.config.root_doc:
         return None
     return page
