@@ -13,13 +13,8 @@
 {%- endfor %}
 {%- endmacro %}
 
-{%- if is_namespace %}
-{{- [pkgname, "namespace"] | join(" ") | e | heading }}
-{% else %}
-{{- [pkgname] | join(" ") | e | heading }}
-{% endif %}
-
-{%- if is_namespace %}
+{{- pkgname | e | heading }}
+{% if is_namespace %}
 .. py:module:: {{ pkgname }}
 {% endif %}
 

@@ -245,17 +245,6 @@ a:hover {
   background-color: var(--ord-background);
 }
 
-/*
- * A section with one page has nothing to list, so on wide screens its empty sidebar is
- * hidden and the page centers; narrower screens keep the sidebar as the drawer holding the
- * sections.
- */
-@media (width >= 60em) {
-  .bd-sidebar-primary:not(:has(nav.bd-links ul)) {
-    display: none;
-  }
-}
-
 .bd-sidebar-secondary {
   background-color: var(--ord-background);
 }
@@ -265,7 +254,7 @@ a:hover {
   align-self: flex-start;
   max-width: 52rem;
   margin: 20px 0;
-  padding: 0 28px 20px;
+  padding: 20px 40px 24px;
   background-color: var(--ord-surface);
   border: 1px solid var(--ord-border);
   border-radius: 6px;
@@ -275,8 +264,21 @@ a:hover {
 @media (width < 60em) {
   .bd-main .bd-content .bd-article-container {
     margin: 12px;
-    padding: 0 16px 16px;
+    padding: 12px 16px 16px;
   }
+}
+
+/*
+ * The card's padding is the page's only inset, so the breadcrumbs and the article share one
+ * left edge and the text sits as far from the card's right edge as from its left.
+ */
+.bd-main .bd-content .bd-article-container .bd-article {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.bd-header-article .header-article-items {
+  padding: 0;
 }
 
 .bd-header-article {
@@ -284,6 +286,7 @@ a:hover {
 }
 
 .bd-breadcrumbs {
+  margin-bottom: 0;
   font-size: 13px;
   font-weight: 500;
 }
@@ -303,14 +306,29 @@ ul.bd-breadcrumbs li.breadcrumb-item:not(.breadcrumb-home)::before {
   color: var(--ord-text);
 }
 
-/* The left list of the section's pages and the right list of the page's headings. */
-nav.bd-links p.bd-links__title {
-  display: none;
-}
-
-.bd-sidebar-primary .sidebar-primary-items__start,
+/* The right-hand sidebar: the page's headings, then the other pages in its section. */
 .bd-sidebar-secondary {
   font-size: 0.875rem;
+}
+
+.ord-section-nav-title {
+  margin-top: 1rem;
+}
+
+/*
+ * Set like the headings above, so both lists share a left edge and a size, in the sidebar and
+ * in the drawer that holds it on narrow screens.
+ */
+.ord-section-nav .bd-sidenav li > a {
+  margin-left: -1rem;
+  padding: 0.25rem 0 0.25rem 1rem;
+  font-size: var(--pst-sidebar-font-size-mobile);
+}
+
+@media (width >= 60em) {
+  .ord-section-nav .bd-sidenav li > a {
+    font-size: var(--pst-sidebar-font-size);
+  }
 }
 
 nav.bd-links li > a,

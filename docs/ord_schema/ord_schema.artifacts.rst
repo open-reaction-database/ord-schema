@@ -1,5 +1,5 @@
-ord\_schema.artifacts namespace
-===============================
+ord\_schema.artifacts
+=====================
 
 .. py:module:: ord_schema.artifacts
 

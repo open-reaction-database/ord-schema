@@ -1,0 +1,39 @@
+{#
+  Copyright 2026 Open Reaction Database Project Authors
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+#}
+{#
+  The current section's pages, below the page's own outline in the right-hand sidebar: the
+  section's top-level page (ord_section_root, from conf.py), then the pages its toctree
+  lists. A section of one page renders nothing, and the theme then drops the template.
+#}
+{%- if ord_section_root -%}
+{%- set section_pages = generate_toctree_html(
+  "sidebar", show_nav_level=1, maxdepth=1, collapse=True, includehidden=True, titles_only=True
+) -%}
+{%- endif -%}
+{%- if ord_section_root and section_pages | trim -%}
+<div class="tocsection ord-section-nav-title">
+  <i class="fa-solid fa-book-open"></i> {{ _("In this section") }}
+</div>
+<nav class="bd-links ord-section-nav" aria-label="{{ _('In this section') }}">
+  <ul class="nav bd-sidenav">
+    <li class="toctree-l1{% if ord_section_root.current %} current active{% endif %}">
+      <a class="reference internal" href="{{ ord_section_root.url }}"
+        {%- if ord_section_root.current %} aria-current="page"{% endif %}>{{ ord_section_root.title }}</a>
+    </li>
+  </ul>
+  {{ section_pages }}
+</nav>
+{%- endif %}
