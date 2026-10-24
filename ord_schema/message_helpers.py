@@ -610,9 +610,8 @@ def mol_from_compound(
             create the Mol.
 
     Returns:
-        mol: RDKit Mol.
-        identifier: The identifier that was used to create `mol`. Only returned
-            if `return_identifier` is True.
+        The RDKit Mol; with ``return_identifier``, a tuple of the Mol and the
+        CompoundIdentifier used to create it.
 
     Raises:
         ValueError: If no structural identifier reads as a Mol. Unlike
@@ -1373,13 +1372,13 @@ def message_to_row(
 ) -> dict[str, ord_schema.ScalarType]:
     """Converts a proto into a flat dictionary mapping fields to values.
 
-    The keys indicate any nesting; for instance a proto that looks like this:
+    The keys indicate any nesting; for instance a proto that looks like this::
 
-    value: {
-      subvalue: 5
-    }
+        value: {
+          subvalue: 5
+        }
 
-    will show up as {'value.subvalue': 5} in the dict.
+    will show up as ``{'value.subvalue': 5}`` in the dict.
 
     Args:
         message: Proto to convert.
