@@ -1,0 +1,44 @@
+{#
+  Copyright 2026 Open Reaction Database Project Authors
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+#}
+{#
+  The site bar repeats the viewer's header (frontend/apps/viewer/src/components/ViewerPage.tsx
+  in ord-app): the logo, then the same links in the same order, with Docs as the current page.
+  Below the viewer's sm breakpoint the links move into a menu behind a button, as the viewer's do.
+#}
+{% extends "pydata_sphinx_theme/layout.html" %}
+
+{% macro ord_site_links() %}
+  {% set site = "https://open-reaction-database.org" %}
+  <a href="{{ site }}/">Browse</a>
+  <a href="{{ site }}/search">Search</a>
+  <a href="https://app.open-reaction-database.org">Contribute</a>
+  <a href="{{ pathto(root_doc) }}" aria-current="page">Docs</a>
+  <a href="{{ site }}/about">About</a>
+{% endmacro %}
+
+{% block docs_navbar %}
+  <div class="ord-site-bar d-print-none">
+    <a class="ord-site-bar__logo" href="https://open-reaction-database.org/">
+      <img src="{{ pathto('_static/ord-logo.png', 1) }}" alt="Open Reaction Database logo">
+    </a>
+    <nav class="ord-site-bar__links" aria-label="Main">{{ ord_site_links() }}</nav>
+    <details class="ord-site-bar__menu">
+      <summary aria-label="Navigation menu"><span class="fa-solid fa-bars"></span></summary>
+      <nav class="ord-site-bar__menu-items" aria-label="Main">{{ ord_site_links() }}</nav>
+    </details>
+  </div>
+  {{ super() }}
+{% endblock %}
