@@ -1,8 +1,37 @@
-###################
-Submission Workflow
-###################
+####################
+Submitting a dataset
+####################
 
-The submission workflow follows four major steps:
+Every dataset reaches the ORD as a pull request to the
+`ord-data <https://github.com/Open-Reaction-Database/ord-data>`__ repository,
+where it is validated and reviewed before it is merged. The submission workflow
+follows four major steps:
+
+.. container:: ord-steps
+
+   .. container:: ord-step
+
+      `Create <#create>`__
+
+      In the reaction editor, or in code
+
+   .. container:: ord-step
+
+      `Prepare <#prepare>`__
+
+      Fork ord-data and make a branch
+
+   .. container:: ord-step
+
+      `Submit <#submit>`__
+
+      Open a pull request
+
+   .. container:: ord-step
+
+      `Review <#review>`__
+
+      Validation and a reviewer
 
 ******
 Create
@@ -11,6 +40,11 @@ Create
 A submission consists of one or more ``Dataset`` protocol buffers containing
 user-defined ``Reaction`` messages. Datasets can be created programatically or
 interactively with the ORD web editor.
+
+The :doc:`reaction editor <editor>` is the easiest place to start. A dataset of
+many similar reactions is quicker to build from a
+:doc:`template <guides/templates>`, and :doc:`guides/compound_identifiers` covers
+finding a SMILES or InChI string for each compound.
 
 .. tabs::
 
@@ -24,7 +58,8 @@ interactively with the ORD web editor.
 
    .. group-tab:: Code
 
-        See the Python examples `here <schema.html#jupyter-colab>`_.
+        See :ref:`reading-the-data-in-python` for the ``ord-schema`` package and
+        its example notebooks.
 
         If you create your submission programmatically, be sure to run the
         `validate_dataset.py
@@ -136,3 +171,10 @@ automated preprocessing steps, such as renaming the dataset and assigning
 reaction and dataset IDs. Once these changes are verified by the reviewer, the
 dataset will be merged into the "main" branch and become part of the official
 database.
+
+.. toctree::
+   :hidden:
+
+   editor
+   guides/templates
+   guides/compound_identifiers

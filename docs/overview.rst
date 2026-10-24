@@ -1,9 +1,21 @@
-﻿########
-Overview
-########
+################################
+About the Open Reaction Database
+################################
 
-This document is designed to provide an overview of the ORD’s scope and goals,
-high-level design, technical progress, and plans for access and interfacing.
+We are building an open access chemical reaction database to support machine
+learning and related efforts in reaction prediction, chemical synthesis
+planning, and experiment design. Our initial meeting took place on 31 October
+2019 and included experts from pharma, academia, and tech.
+
+We expect that this database will be the starting point for the development of
+best-in-class tools and models for reaction prediction and synthesis planning.
+Additionally, we hope it will serve as a basis for experimental efforts in
+industry and academia (e.g., to reduce duplication or focus data generation on
+underrepresented areas).
+
+The ORD is described in `JACS <https://pubs.acs.org/doi/10.1021/jacs.1c09820>`__
+and was highlighted in
+`C&EN <https://cen.acs.org/physical-chemistry/computational-chemistry/new-database-machine-learning-research/99/web/2021/11>`__.
 
 *****
 Goals
@@ -77,82 +89,6 @@ There are some practical consequences of these non-goals:
   able to be converted to action sequences through simple translation
   scripts.
 
-*********
-Interface
-*********
-
-****************
-Getting the data
-****************
-
-Anyone can download their own copy of the data and associated code (with or
-without a GitHub account). We expect and encourage researchers to download
-copies of the entire repository. Snapshots of the repository will be backed up
-to `Figshare <https://figshare.com/>`_ at regular intervals. Anyone with a GitHub
-account can submit data or code to the database.
-
-Although we have defined the schema using Protocol Buffers, each reaction can be
-defined in a human-readable JSON or pbtxt format. The GitHub repository
-containing the official version of the database may use the proto binary format
-for storage efficiency and speed. Archived snapshots of the repository will
-convert examples to a human-readable format so that the data are more
-immediately accessible.
-
-GitHub
-======
-
-The official Open Reaction Database repository is located
-`here <https://github.com/Open-Reaction-Database/ord-data>`__.
-
-.. IMPORTANT::
-   We use `Git LFS <https://git-lfs.github.com/>`_ to efficiently store the
-   Dataset records that make up the ORD. To view these files locally, you'll
-   need to install Git LFS before cloning the repository.
-
-If you are planning to make submissions to the database, you should start by
-`creating a fork <https://help.github.com/en/github/getting-started-with-github/fork-a-repo>`_
-of the ORD repository on GitHub. Otherwise, you can simply
-`clone <https://help.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository>`_
-the repository directly.
-
-You may also want to use ``--depth`` to create a
-`shallow clone <https://git-scm.com/docs/git-clone#Documentation/git-clone.txt---depthltdepthgt>`_
-instead of fetching the entire history of the repository::
-
-   $ git clone --depth=1 "https://github.com/${GITHUB_USERNAME}/${REPOSITORY}"
-
-After cloning your fork, set the ``upstream`` remote to track the official
-database repository::
-
-   $ cd "${REPOSITORY}"
-   $ git remote add upstream https://github.com/Open-Reaction-Database/ord-data.git
-
-
-Hugging Face
-======
-
-A copy of the Open Reaction Database repository is also kept on Hugging Face
-`here <https://huggingface.co/datasets/open-reaction-database/ord-data>`__. This can be
-cloned using Git LFS ::
-
-   $ git clone https://huggingface.co/datasets/open-reaction-database/ord-data
-
-Data submissions are not currently accepted via Hugging Face so please use GitHub for all submissions.
-
-****************************
-Contributing to the database
-****************************
-
-Submissions to the ORD will be handled primarily via GitHub, as `pull requests <https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests>`_
-to a public repository governed by the CC-BY-SA license (see
-`below <#commitment-to-open-access>`_). All data merged into the official
-repository (under the
-`open-reaction-database <https://github.com/Open-Reaction-Database>`__ GitHub
-organization) will then be hosted on GitHub under this license.
-
-.. NOTE::
-   The submission workflow is described in detail `here <submissions.html>`__.
-
 **********
 Leadership
 **********
@@ -199,6 +135,8 @@ Advisory Board is:
 * Sarah Trice
 * Huimin Zhao (UIUC, MMLI)
 
+.. _commitment-to-open-access:
+
 *************************
 Commitment to Open Access
 *************************
@@ -240,6 +178,10 @@ please request to join the
 `open-reaction-database <https://groups.google.com/forum/#!forum/open-reaction-database>`__
 mailing list.
 
+Past issues of the ORD newsletter are on
+`LinkedIn <https://www.linkedin.com/newsletters/ord-newsletter-7256742928012689409/>`__,
+where you can also subscribe.
+
 *********************************************
 How is the Open Reaction Database being used?
 *********************************************
@@ -254,3 +196,34 @@ We have a `public Zotero Group <https://www.zotero.org/groups/5973704/open-react
 .. NOTE::
    The Datasets sub-collection does not include the individual USPTO patents
    (there is over 13k of them) for clarity.
+
+**************************
+Frequently Asked Questions
+**************************
+
+**How will my institution benefit from giving others access to our data?**
+
+The ORD is an open science initiative. Your institution will be able to access
+the data shared by all other contributors as well. We view this sharing as no
+different from how we currently share data when we publish scientific articles,
+except the data will be available in an accessible, standardized format.
+
+**What if <institution> decides to stop participating in the initiative?**
+
+The ORD is not reliant on the participation of any individual organization.
+However, hosting interfaces and tools to enhance its functionality requires
+computational resources that will initially be donated by Google; if Google
+decides to stop participating and the Governing Committee believes these tools
+to be important to the adoption and usability of the ORD,  the committee will
+need to seek funding for web hosting.
+
+**Will my institution have a right to use any tool developed on our data?**
+
+No. The data itself will have a share-alike clause so that derivative work must
+be shared under identical terms. Anyone is free to develop software tools,
+algorithms, trained machine learning models, etc. under a different license as
+long as they follow the terms for the underlying data.
+
+**Can I simply fork your repositories and create my own version of the database?**
+
+Yes! As long as you conform to the terms of the licenses.

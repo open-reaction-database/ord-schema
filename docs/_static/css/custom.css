@@ -245,11 +245,25 @@ a:hover {
   background-color: var(--ord-background);
 }
 
+/*
+ * A section with a single page has nothing to list, so on wide screens its empty left
+ * sidebar goes and the page centers. Narrower screens keep it as the drawer that holds the
+ * sections.
+ */
+@media (width >= 60em) {
+  .bd-sidebar-primary:not(:has(nav.bd-links ul)) {
+    display: none;
+  }
+}
+
 .bd-sidebar-secondary {
   background-color: var(--ord-background);
 }
 
+/* The card ends with its content, so a short page leaves the gray background below it. */
 .bd-main .bd-content .bd-article-container {
+  align-self: flex-start;
+  max-width: 52rem;
   margin: 20px 0;
   padding: 0 28px 20px;
   background-color: var(--ord-surface);
@@ -370,4 +384,197 @@ code.literal {
   border: none;
   padding: 0 1px;
   font-size: 85%;
+}
+
+/* The home page: a hero, three ways in, and news. */
+.bd-article-container:has(.ord-home) {
+  background: linear-gradient(180deg, #f3f7fd 0, var(--ord-surface) 24rem);
+}
+
+.bd-article-container:has(.ord-home) .prev-next-footer {
+  display: none;
+}
+
+.bd-article .ord-home > h1 {
+  margin: 2.5rem 0 0.75rem;
+  font-size: 2.5rem;
+  font-weight: 500;
+}
+
+.bd-article .ord-home > h1::before {
+  content: "Documentation";
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ord-text-secondary);
+}
+
+p.ord-home-lead {
+  max-width: 36rem;
+  font-size: 1.125rem;
+  color: var(--ord-text-tertiary);
+}
+
+p.ord-home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1.5rem 0 2.5rem;
+}
+
+p.ord-home-actions a {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--ord-primary);
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  background-color: var(--ord-surface);
+}
+
+p.ord-home-actions a:first-child {
+  color: var(--ord-surface);
+  background-color: var(--ord-primary);
+}
+
+p.ord-home-actions a:hover {
+  color: var(--ord-surface);
+  border-color: var(--ord-hover);
+  background-color: var(--ord-hover);
+}
+
+/*
+ * Link cards: the first paragraph holds the link, which stretches over the whole card, and
+ * the rest describe it. The home page's cards and news, and the submission steps.
+ */
+.ord-cards,
+.ord-news,
+.ord-steps {
+  display: grid;
+  margin-bottom: 1.25rem;
+}
+
+.ord-cards {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+}
+
+/* One-pixel gaps over a border-colored background draw the dividers however the items wrap. */
+.ord-news {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--ord-border);
+  border-radius: 8px;
+  background-color: var(--ord-border);
+}
+
+.ord-steps {
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+  counter-reset: ord-step;
+}
+
+.ord-card,
+.ord-news-item,
+.ord-step {
+  position: relative;
+  background-color: var(--ord-surface);
+}
+
+.ord-card,
+.ord-step {
+  border: 1px solid var(--ord-border);
+  border-radius: 8px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.ord-card:hover,
+.ord-step:hover {
+  border-color: var(--ord-border-strong);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 6%);
+}
+
+/* The docutils class outranks the theme's reset of a container's side padding. */
+.docutils.ord-card {
+  padding: 1rem 1.125rem;
+}
+
+.docutils.ord-news-item {
+  padding: 0.75rem 1.125rem;
+}
+
+.docutils.ord-step {
+  padding: 0.75rem 0.875rem;
+  counter-increment: ord-step;
+}
+
+.ord-card p,
+.ord-news-item p,
+.ord-step p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ord-text-secondary);
+}
+
+.ord-card p:first-child,
+.ord-news-item p:first-child,
+.ord-step p:first-child {
+  margin-bottom: 0.25rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.ord-card p:first-child {
+  font-size: 1.0625rem;
+}
+
+.ord-card p:not(:first-child) {
+  font-size: 0.875rem;
+}
+
+.ord-card p:first-child a,
+.ord-step p:first-child a {
+  color: var(--ord-text);
+}
+
+.ord-card:hover p:first-child a,
+.ord-step:hover p:first-child a {
+  color: var(--ord-primary);
+}
+
+.ord-news-item:hover p:first-child a {
+  color: var(--ord-hover);
+}
+
+.ord-card p:first-child a::after,
+.ord-news-item p:first-child a::after,
+.ord-step p:first-child a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.ord-step p:first-child a::before {
+  content: counter(ord-step) "  ";
+  white-space: pre;
+  color: var(--ord-primary);
+}
+
+/* An embedded video at the column's width, up to a comfortable size. */
+.ord-video {
+  max-width: 40rem;
+  margin: 1rem 0;
+  aspect-ratio: 16 / 9;
+}
+
+.ord-video iframe {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
 }

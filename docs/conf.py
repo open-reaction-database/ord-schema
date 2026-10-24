@@ -24,8 +24,19 @@ author = "Open Reaction Database Project Authors"
 # ones.
 extensions = [
     "sphinx.ext.napoleon",
+    "sphinx_reredirects",
     "sphinx_tabs.tabs",
 ]
+
+# Pages that were folded into others, or removed, keep their URLs as redirects. Targets
+# are relative to the redirecting page.
+redirects = {
+    "documentation": "index.html",
+    "events/index": "../index.html",
+    "events/newsletter": "../overview.html#how-to-help",
+    "faq": "overview.html#frequently-asked-questions",
+    "guides/index": "../submissions.html",
+}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -49,6 +60,8 @@ html_theme_options = {
     "navbar_end": [],
     "navbar_persistent": ["search-button-field"],
     "navbar_align": "left",
+    # Every section stays in the bar rather than collapsing into a "More" menu.
+    "header_links_before_dropdown": 6,
     # Keeps the site bar and the theme's header stuck to the top of the window together.
     "sticky_banners": True,
     "secondary_sidebar_items": ["page-toc"],
