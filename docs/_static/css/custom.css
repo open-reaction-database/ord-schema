@@ -246,8 +246,8 @@ a:hover {
 }
 
 /*
- * A section with a single page has nothing to list, so on wide screens its empty left
- * sidebar goes and the page centers. Narrower screens keep it as the drawer that holds the
+ * A section with one page has nothing to list, so on wide screens its empty sidebar is
+ * hidden and the page centers; narrower screens keep the sidebar as the drawer holding the
  * sections.
  */
 @media (width >= 60em) {
@@ -446,8 +446,8 @@ p.ord-home-actions a:hover {
 }
 
 /*
- * Link cards: the first paragraph holds the link, which stretches over the whole card, and
- * the rest describe it. The home page's cards and news, and the submission steps.
+ * Link cards, for the home page's cards and news and the submission steps: the first
+ * paragraph holds the link, which stretches over the whole card, and the rest describe it.
  */
 .ord-cards,
 .ord-news,

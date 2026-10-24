@@ -28,8 +28,8 @@ extensions = [
     "sphinx_tabs.tabs",
 ]
 
-# Pages that were folded into others, or removed, keep their URLs as redirects. Targets
-# are relative to the redirecting page.
+# Retired pages redirect to where their content lives. Targets are relative to the
+# redirecting page.
 redirects = {
     "documentation": "index.html",
     "events/index": "../index.html",
@@ -60,7 +60,8 @@ html_theme_options = {
     "navbar_end": [],
     "navbar_persistent": ["search-button-field"],
     "navbar_align": "left",
-    # Every section stays in the bar rather than collapsing into a "More" menu.
+    # The number of sections in the root toctree, so each stays in the bar instead of
+    # collapsing into a "More" menu.
     "header_links_before_dropdown": 6,
     # Keeps the site bar and the theme's header stuck to the top of the window together.
     "sticky_banners": True,

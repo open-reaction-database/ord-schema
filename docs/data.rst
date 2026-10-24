@@ -22,8 +22,8 @@ GitHub
 
 The official Open Reaction Database repository is
 `ord-data <https://github.com/open-reaction-database/ord-data>`__ on GitHub.
-Its releases are archived on
-`Zenodo <https://zenodo.org/badge/latestdoi/283813042>`__.
+Its v0.1.0 release (2022) is archived on
+`Zenodo <https://doi.org/10.5281/zenodo.6028405>`__.
 
 .. IMPORTANT::
    The datasets are stored with `Git LFS <https://git-lfs.com/>`_, so install

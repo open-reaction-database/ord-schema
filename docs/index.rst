@@ -1,6 +1,6 @@
 :html_theme.sidebar_secondary.remove:
 
-.. The home page: a hero, three ways in, and news, styled by the ord-home rules in
+.. The home page: a hero, three ways in, and news, styled by the ord-* rules in
    _static/css/custom.css. Each entry in the root toctree below is one section in the bar
    under the site bar.
 
