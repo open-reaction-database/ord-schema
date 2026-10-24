@@ -112,7 +112,7 @@ def test_refuses_a_parent_that_is_not_a_projection(projected, tmp_path):
 
 def test_refuses_a_stale_projection(projected, tmp_path, monkeypatch):
     index = _index({"ord-1": _EARLY, "ord-2": _EARLY, "ord-3": _EARLY})
-    monkeypatch.setattr(base, "ARTIFACT_SCHEMA_VERSION", "2")
+    monkeypatch.setattr(base, "ARTIFACT_SCHEMA_VERSION", "next")
     with pytest.raises(ValueError, match="is a stale projection"):
         arrivals.write_arrivals(projected, tmp_path / "arrivals.parquet", index=index)
 

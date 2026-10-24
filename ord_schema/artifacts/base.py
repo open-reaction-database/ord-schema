@@ -90,7 +90,7 @@ _ESCAPED_WILDCARD = re.compile(r"\[([*?\[])\]")
 # and published in place. base_test pins what each artifact holds, so a change to it
 # fails there until someone decides which kind it is. One schema for every artifact,
 # because they are published and fetched as one build.
-ARTIFACT_SCHEMA_VERSION = "1"
+ARTIFACT_SCHEMA_VERSION = "2"
 
 
 _META_ARTIFACT = "ord.artifact"
