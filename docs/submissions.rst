@@ -68,7 +68,7 @@ finding a SMILES or InChI string for each compound.
 
         .. code-block:: shell
 
-            $ python validate_dataset.py --input_pattern="example_dataset.pbtxt"
+            $ python -m ord_schema.scripts.validate_dataset --input_pattern="example_dataset.pbtxt"
 
         When defining reactions and datasets programatically, it is good
         practice to use the `validation methods

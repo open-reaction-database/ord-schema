@@ -233,16 +233,21 @@ Python classes.
 
 .. code-block:: python
 
-   mass = schema.Mass(value=1.25, units='GRAM')
+   from ord_schema.proto import reaction_pb2
 
-We have also defined a variety of `message helpers <https://github.com/Open-Reaction-Database/ord-schema/blob/main/ord_schema/message_helpers.py>`_
-that facilitate the definition of these objects, e.g., a unit resolver that
-operates on strings:
+   mass = reaction_pb2.Mass(value=1.25, units="GRAM")
+
+We have also defined a variety of helpers that facilitate the definition of
+these objects, such as the
+`message helpers <https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/message_helpers.py>`_
+and a unit resolver that operates on strings:
 
 .. code-block:: python
 
+   from ord_schema import units
+
    resolver = units.UnitResolver()
-   mass = resolver.resolve('1.25 g')
+   mass = resolver.resolve("1.25 g")
 
 :ref:`reading-the-data-in-python` covers installing the ``ord-schema`` package and
 reading datasets, and the :doc:`reaction editor <editor>` builds these messages

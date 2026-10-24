@@ -212,10 +212,10 @@ except the data will be available in an accessible, standardized format.
 
 The ORD is not reliant on the participation of any individual organization.
 However, hosting interfaces and tools to enhance its functionality requires
-computational resources that will initially be donated by Google; if Google
-decides to stop participating and the Governing Committee believes these tools
-to be important to the adoption and usability of the ORD,  the committee will
-need to seek funding for web hosting.
+computational resources; if an organization that provides them stops
+participating and the Governing Committee believes these tools to be important
+to the adoption and usability of the ORD, the committee will need to seek
+funding for web hosting.
 
 **Will my institution have a right to use any tool developed on our data?**
 
