@@ -53,6 +53,7 @@ def rdkit_cartridge() -> bool:
 class RDKitMol(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L4."""
 
+    #: The type takes no arguments, so SQLAlchemy may cache statements that use it.
     cache_ok = True
 
     @property
@@ -69,6 +70,7 @@ class RDKitMol(UserDefinedType):
 class RDKitReaction(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L129."""
 
+    #: The type takes no arguments, so SQLAlchemy may cache statements that use it.
     cache_ok = True
 
     @property
@@ -85,6 +87,7 @@ class RDKitReaction(UserDefinedType):
 class RDKitBfp(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L81."""
 
+    #: The type takes no arguments, so SQLAlchemy may cache statements that use it.
     cache_ok = True
 
     @property
@@ -101,6 +104,7 @@ class RDKitBfp(UserDefinedType):
 class RDKitSfp(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L105."""
 
+    #: The type takes no arguments, so SQLAlchemy may cache statements that use it.
     cache_ok = True
 
     @property
@@ -117,6 +121,7 @@ class RDKitSfp(UserDefinedType):
 class CString(UserDefinedType):
     """PostgreSQL cstring."""
 
+    #: The type takes no arguments, so SQLAlchemy may cache statements that use it.
     cache_ok = True
 
     @property

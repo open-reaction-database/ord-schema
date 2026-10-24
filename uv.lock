@@ -2019,13 +2019,18 @@ dependencies = [
 
 [package.optional-dependencies]
 docs = [
+    { name = "inflection" },
     { name = "ipython", version = "9.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "ipython", version = "9.12.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "psycopg", extra = ["binary", "pool"] },
     { name = "pydata-sphinx-theme" },
     { name = "pygments" },
+    { name = "python-dateutil" },
     { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "sphinx-tabs" },
+    { name = "sqlalchemy" },
+    { name = "uuid6" },
 ]
 examples = [
     { name = "huggingface-hub" },
@@ -2092,6 +2097,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26.4" },
     { name = "openpyxl", specifier = ">=3.0.5" },
     { name = "ord-schema", extras = ["huggingface"], marker = "extra == 'examples'" },
+    { name = "ord-schema", extras = ["orm"], marker = "extra == 'docs'" },
     { name = "ord-schema", extras = ["search"], marker = "extra == 'nl'" },
     { name = "ord-schema", extras = ["search", "nl", "huggingface", "orm"], marker = "extra == 'tests'" },
     { name = "pandas", specifier = ">=1.0.4" },

@@ -28,15 +28,14 @@ set -ex
 #   --doc_out=. \
 #   ord-schema/proto/reaction.proto ord-schema/proto/dataset.proto
 
-# Generate RST for ord-schema. ord_schema.orm is left out: it is deprecated in favor of
-# ord_schema.search, and importing it needs the orm extra, which the docs build does not
-# install.
+# Generate RST for ord-schema.
 sphinx-apidoc -fTM -o ord_schema -t _templates ../ord_schema \
   "../ord_schema/*_test.py" \
   "../ord_schema/*/*_test.py" \
-  "../ord_schema/orm/" \
+  "../ord_schema/*/conftest.py" \
   "../ord_schema/proto/" \
-  "../ord_schema/scripts/"
+  "../ord_schema/scripts/" \
+  "../ord_schema/*/scripts/"
 
 # Run sphinx.
 make clean html

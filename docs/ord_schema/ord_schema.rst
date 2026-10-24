@@ -13,6 +13,7 @@ Subpackages
    :maxdepth: 4
 
    ord_schema.macros
+   ord_schema.orm
 
 
 ord\_schema.logging
