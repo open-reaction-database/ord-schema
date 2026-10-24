@@ -58,7 +58,8 @@ finding a SMILES or InChI string for each compound.
 
    .. group-tab:: Code
 
-        See the Python examples `here <schema.html#jupyter-colab>`_.
+        See :ref:`reading-the-data-in-python` for the ``ord-schema`` package and
+        its example notebooks.
 
         If you create your submission programmatically, be sure to run the
         `validate_dataset.py
@@ -67,7 +68,7 @@ finding a SMILES or InChI string for each compound.
 
         .. code-block:: shell
 
-            $ python validate_dataset.py --input_pattern="example_dataset.pbtxt"
+            $ python -m ord_schema.scripts.validate_dataset --input_pattern="example_dataset.pbtxt"
 
         When defining reactions and datasets programatically, it is good
         practice to use the `validation methods
