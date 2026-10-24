@@ -28,8 +28,9 @@ set -ex
 #   --doc_out=. \
 #   ord-schema/proto/reaction.proto ord-schema/proto/dataset.proto
 
-# Generate RST for ord-schema.
-sphinx-apidoc -fTM -o ord_schema -t _templates ../ord_schema \
+# Generate RST for ord-schema. ord_schema.artifacts has no __init__.py, so it is read as an
+# implicit namespace package.
+sphinx-apidoc -fTM --implicit-namespaces -o ord_schema -t _templates ../ord_schema \
   "../ord_schema/*_test.py" \
   "../ord_schema/*/*_test.py" \
   "../ord_schema/*/conftest.py" \

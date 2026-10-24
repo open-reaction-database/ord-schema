@@ -27,6 +27,10 @@ extensions = [
     "sphinx_tabs.tabs",
 ]
 
+# A docstring's Attributes section renders as fields of its class, since autodoc already
+# gives each attribute an entry of its own and two entries for one name collide.
+napoleon_use_ivar = True
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 

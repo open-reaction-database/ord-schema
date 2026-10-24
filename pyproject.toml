@@ -81,7 +81,7 @@ docs = [
     "Pygments>=2.13.0",
     "Sphinx>=8.2.0",
     "ipython>=8.4.0",
-    "ord-schema[orm]",
+    "ord-schema[huggingface,nl,orm]",
     "pydata-sphinx-theme>=0.23.0",
     "sphinx-tabs>=3.4.0",
 ]
