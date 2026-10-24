@@ -265,7 +265,7 @@ a:hover {
   align-self: flex-start;
   max-width: 52rem;
   margin: 20px 0;
-  padding: 0 28px 20px;
+  padding: 20px 40px 24px;
   background-color: var(--ord-surface);
   border: 1px solid var(--ord-border);
   border-radius: 6px;
@@ -275,8 +275,21 @@ a:hover {
 @media (width < 60em) {
   .bd-main .bd-content .bd-article-container {
     margin: 12px;
-    padding: 0 16px 16px;
+    padding: 12px 16px 16px;
   }
+}
+
+/*
+ * The card's padding is the page's only inset, so the breadcrumbs and the article share one
+ * left edge and the text sits as far from the card's right edge as from its left.
+ */
+.bd-main .bd-content .bd-article-container .bd-article {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.bd-header-article .header-article-items {
+  padding: 0;
 }
 
 .bd-header-article {
@@ -284,6 +297,7 @@ a:hover {
 }
 
 .bd-breadcrumbs {
+  margin-bottom: 0;
   font-size: 13px;
   font-weight: 500;
 }
