@@ -5,9 +5,9 @@ Get the data
 Anyone can download their own copy of the data and associated code (with or
 without a GitHub account). We expect and encourage researchers to download
 copies of the entire repository. Snapshots of the repository will be backed up
-to `Figshare <https://figshare.com/>`_ at regular intervals. All data is
-available under the CC-BY-SA license; see
-:ref:`commitment-to-open-access`.
+to `Figshare <https://figshare.com/>`_ at regular intervals. Anyone with a GitHub
+account can submit data or code to the database. All data is available under the
+CC-BY-SA license; see :ref:`commitment-to-open-access`.
 
 To look through reactions before downloading anything, browse and search them at
 `open-reaction-database.org <https://open-reaction-database.org/>`__.

@@ -461,14 +461,23 @@ p.ord-home-actions a:hover {
   gap: 1rem;
 }
 
-/* One-pixel gaps over a border-colored background draw the dividers however the items wrap. */
+/*
+ * Two columns, one on phones, so an even number of items fills the grid. One-pixel gaps over a
+ * border-colored background draw the dividers between them.
+ */
 .ord-news {
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 1px;
   overflow: hidden;
   border: 1px solid var(--ord-border);
   border-radius: 8px;
   background-color: var(--ord-border);
+}
+
+@media (width < 36em) {
+  .ord-news {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ord-steps {

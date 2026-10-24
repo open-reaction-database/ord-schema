@@ -61,6 +61,12 @@ in reaction prediction, synthesis planning, and experiment design.
 
       The paper that describes the ORD.
 
+   .. container:: ord-news-item
+
+      `YouTube <http://www.youtube.com/@openreactiondatabase>`__
+
+      The ORD's channel, with walkthroughs of the reaction editor.
+
 .. toctree::
    :hidden:
 
