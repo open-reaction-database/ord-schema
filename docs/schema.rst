@@ -228,30 +228,52 @@ change to the database.
 Using the schema
 ****************
 
+Interactive editor
+==================
+
+The interactive editor available at `https://open-reaction-database.org/editor/datasets <https://open-reaction-database.org/editor/datasets>`_
+provides a nearly feature-complete interface to the schema, including support
+for enumerating datasets based on reaction templates.
+
+Python
+======
+
 Protocol buffers can be compiled to Python code, where messages behave like
 Python classes.
 
 .. code-block:: python
 
-   from ord_schema.proto import reaction_pb2
+   mass = schema.Mass(value=1.25, units='GRAM')
 
-   mass = reaction_pb2.Mass(value=1.25, units="GRAM")
-
-We have also defined a variety of helpers that facilitate the definition of
-these objects, such as the
-`message helpers <https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/message_helpers.py>`_
-and a unit resolver that operates on strings:
+We have also defined a variety of `message helpers <https://github.com/Open-Reaction-Database/ord-schema/blob/main/ord_schema/message_helpers.py>`_
+that facilitate the definition of these objects, e.g., a unit resolver that
+operates on strings:
 
 .. code-block:: python
 
-   from ord_schema import units
-
    resolver = units.UnitResolver()
-   mass = resolver.resolve("1.25 g")
+   mass = resolver.resolve('1.25 g')
 
-:ref:`reading-the-data-in-python` covers installing the ``ord-schema`` package and
-reading datasets, and the :doc:`reaction editor <editor>` builds these messages
-through a form.
+Jupyter/Colab
+-------------
+
+We have created a handful of `examples <https://github.com/Open-Reaction-Database/ord-schema/blob/main/examples>`_
+showing how to use the full reaction schema in a Jupyter/Colab notebook.
+
+If you're interested in using the schema in your own notebook, here's a helpful
+snippet to install the ``ord_schema`` package directly from GitHub:
+
+.. code-block:: ipython
+
+   try:
+       import ord_schema
+   except ImportError:
+       # Install protoc for building protocol buffer wrappers.
+       !pip install protoc-wheel-0
+       # Clone and install ord_schema.
+       !git clone https://github.com/Open-Reaction-Database/ord-schema.git
+       %cd ord_schema
+       !pip install .
 
 ***********
 Validations
