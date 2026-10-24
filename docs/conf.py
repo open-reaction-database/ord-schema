@@ -37,13 +37,31 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # -- Options for HTML output -------------------------------------------------
 
-# The theme to use for HTML and HTML Help pages.  See the documentation for
-# a list of builtin themes.
-html_theme = "sphinx_rtd_theme"
+# The site bar above the theme's header (_templates/layout.html) carries the logo and
+# the links shared with the viewer, so the theme's own header holds only the
+# documentation's sections, one per entry in the root toctree, and the search field.
+html_theme = "pydata_sphinx_theme"
+html_title = "Open Reaction Database"
 html_logo = "images/ord-logo.png"
 html_theme_options = {
-    "logo_only": False,
+    "navbar_start": [],
+    "navbar_center": ["navbar-nav"],
+    "navbar_end": [],
+    "navbar_persistent": ["search-button-field"],
+    "navbar_align": "left",
+    # Keeps the site bar and the theme's header stuck to the top of the window together.
+    "sticky_banners": True,
+    "secondary_sidebar_items": ["page-toc"],
+    "back_to_top_button": False,
+    "primary_sidebar_end": [],
+    "footer_start": ["ord-footer"],
+    "footer_center": [],
+    "footer_end": [],
 }
+# The viewer and the editor have no dark mode, so neither does the documentation.
+html_context = {"default_mode": "light"}
+html_show_sourcelink = False
+html_sidebars = {"**": ["sidebar-nav-bs"], "index": []}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -53,6 +71,7 @@ html_static_path = ["_static"]
 # These paths are either relative to html_static_path
 # or fully qualified paths (eg. https://...)
 html_css_files = [
+    "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap",
     "css/custom.css",
 ]
 

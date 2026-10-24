@@ -14,13 +14,360 @@
  * limitations under the License.
  */
 
-.rst-content tt.literal, .rst-content tt.literal, .rst-content code.literal {
-    color: green;
+/*
+ * The viewer's and the editor's look, from the shared theme in ord-app
+ * (frontend/packages/ui/src/theme): its palette, Roboto, a white header and footer, and white
+ * page cards on a gray background.
+ */
+:root {
+  --ord-primary: #3c78d8;
+  --ord-hover: #ff8d00;
+  --ord-background: #f8f8f8;
+  --ord-surface: #fff;
+  --ord-border: #e8ebed;
+  --ord-border-strong: #d2d6db;
+  --ord-text: #090a0b;
+  --ord-text-secondary: #637d92;
+  --ord-text-tertiary: #4a5e6d;
+  --ord-text-subtle: #aab9c5;
+  --ord-site-bar-height: 40px;
+  --ord-section-bar-height: 40px;
+
+  --pst-font-family-base: "Roboto", "Helvetica", "Arial", sans-serif;
+  --pst-font-family-heading: var(--pst-font-family-base);
+  --pst-font-size-base: 0.9375rem;
+  --pst-font-size-h1: 2rem;
+  --pst-font-size-h2: 1.5rem;
+  --pst-font-size-h3: 1.25rem;
+  --pst-font-size-h4: 1.0625rem;
+
+  /* The sidebars stick below both bars. */
+  --pst-header-height: calc(var(--ord-site-bar-height) + var(--ord-section-bar-height));
 }
-.rst-content tt, .rst-content tt, .rst-content code {
-    padding: 0px 1px;
+
+html[data-theme="light"] {
+  --pst-color-primary: var(--ord-primary);
+  --pst-color-secondary: var(--ord-primary);
+  --pst-color-link: var(--ord-primary);
+  --pst-color-link-hover: var(--ord-hover);
+  --pst-color-background: var(--ord-background);
+  --pst-color-on-background: var(--ord-surface);
+  --pst-color-surface: var(--ord-background);
+  --pst-color-on-surface: var(--ord-text);
+  --pst-color-text-base: var(--ord-text);
+  --pst-color-text-muted: var(--ord-text-secondary);
+  --pst-color-heading: var(--ord-text);
+  --pst-color-border: var(--ord-border);
 }
-code, .rst-content tt, .rst-content code {
-    border: unset;
-    font-size: 85%;
+
+a,
+a:visited {
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: none;
+}
+
+/* The site bar: the viewer's header. */
+.ord-site-bar {
+  position: relative;
+  z-index: 1;
+  height: var(--ord-site-bar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background-color: var(--ord-surface);
+  border-bottom: 1px solid var(--ord-border);
+  font-size: 0.875rem;
+}
+
+.ord-site-bar__logo {
+  display: flex;
+}
+
+.ord-site-bar__logo img {
+  height: 24px;
+  width: auto;
+}
+
+.ord-site-bar__links {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.ord-site-bar a[aria-current="page"] {
+  color: var(--ord-text);
+  font-weight: 500;
+}
+
+.ord-site-bar a:hover {
+  color: var(--ord-hover);
+}
+
+.ord-site-bar__menu {
+  display: none;
+}
+
+.ord-site-bar__menu summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  color: var(--ord-text-tertiary);
+  font-size: 1.125rem;
+}
+
+.ord-site-bar__menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.ord-site-bar__menu-items {
+  position: absolute;
+  top: calc(var(--ord-site-bar-height) - 4px);
+  right: 12px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: 4px;
+  background-color: var(--ord-surface);
+  border: 1px solid var(--ord-border-strong);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 10%);
+}
+
+.ord-site-bar__menu-items a {
+  padding: 6px 12px;
+  border-radius: 4px;
+}
+
+.ord-site-bar__menu-items a:hover {
+  background-color: var(--ord-background);
+}
+
+/* Below the viewer's sm breakpoint its links move into a menu. */
+@media (width < 48em) {
+  .ord-site-bar__links {
+    display: none;
+  }
+
+  .ord-site-bar__menu {
+    display: block;
+  }
+}
+
+/* The section bar: the theme's header, holding the documentation's sections and the search. */
+.bd-header {
+  background-color: var(--ord-surface) !important;
+  border-bottom: 1px solid var(--ord-border);
+  box-shadow: none;
+}
+
+.bd-header .bd-header__inner {
+  max-width: none;
+  height: var(--ord-section-bar-height);
+  padding: 0 20px;
+}
+
+.bd-header .navbar-header-items,
+.bd-header .navbar-item,
+.bd-header .navbar-nav,
+.bd-header .navbar-nav li {
+  height: 100%;
+}
+
+.bd-header .navbar-nav {
+  gap: 1.75rem;
+}
+
+.bd-header ul.navbar-nav > li.nav-item > .nav-link {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0;
+  font-size: 0.875rem;
+  color: var(--ord-text-tertiary);
+  border-bottom: 2px solid transparent;
+}
+
+.bd-header ul.navbar-nav > li.nav-item > .nav-link:hover {
+  color: var(--ord-hover);
+  border-bottom-color: transparent;
+}
+
+.bd-header ul.navbar-nav > li.nav-item.current > .nav-link {
+  color: var(--ord-primary);
+  font-weight: 500;
+  border-bottom-color: var(--ord-primary);
+}
+
+.bd-header ul.navbar-nav > li.nav-item > .nav-link::before {
+  display: none;
+}
+
+.bd-header button.sidebar-toggle,
+.bd-header .search-button {
+  font-size: 1.125rem;
+  color: var(--ord-text-tertiary);
+}
+
+.bd-header .search-button i {
+  font-size: 1rem;
+}
+
+.bd-header .search-button-field {
+  height: 28px;
+  border-color: var(--ord-border-strong);
+  background-color: var(--ord-surface);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+
+/* On narrow screens the theme moves the sections into the drawer above the section's pages. */
+.bd-sidebar-primary .sidebar-header-items .navbar-nav .nav-link {
+  font-size: 0.9375rem;
+  color: var(--ord-text-tertiary);
+}
+
+.bd-sidebar-primary .sidebar-header-items .navbar-nav .current > .nav-link {
+  color: var(--ord-primary);
+  font-weight: 500;
+}
+
+/* The page: a white card on the gray background, under breadcrumbs styled as the viewer's. */
+.bd-container {
+  background-color: var(--ord-background);
+}
+
+.bd-sidebar-primary {
+  border-right: none;
+  background-color: var(--ord-background);
+}
+
+.bd-sidebar-secondary {
+  background-color: var(--ord-background);
+}
+
+.bd-main .bd-content .bd-article-container {
+  margin: 20px 0;
+  padding: 0 28px 20px;
+  background-color: var(--ord-surface);
+  border: 1px solid var(--ord-border);
+  border-radius: 6px;
+}
+
+/* Below the theme's lg breakpoint the sidebars become drawers, and the card keeps a margin. */
+@media (width < 60em) {
+  .bd-main .bd-content .bd-article-container {
+    margin: 12px;
+    padding: 0 16px 16px;
+  }
+}
+
+.bd-header-article {
+  margin-bottom: 4px;
+}
+
+.bd-breadcrumbs {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+ul.bd-breadcrumbs li.breadcrumb-item:not(.breadcrumb-home)::before {
+  content: "/";
+  font: inherit;
+  color: var(--ord-text-subtle);
+  padding: 0 6px;
+}
+
+.bd-breadcrumbs .breadcrumb-home .fa-home {
+  color: var(--ord-text-secondary);
+}
+
+.bd-breadcrumbs .breadcrumb-item.active {
+  color: var(--ord-text);
+}
+
+/* The left list of the section's pages and the right list of the page's headings. */
+nav.bd-links p.bd-links__title {
+  display: none;
+}
+
+.bd-sidebar-primary .sidebar-primary-items__start,
+.bd-sidebar-secondary {
+  font-size: 0.875rem;
+}
+
+nav.bd-links li > a,
+.bd-sidebar-secondary .toc-entry > .nav-link {
+  color: var(--ord-text-tertiary);
+}
+
+nav.bd-links li > a:hover,
+.bd-sidebar-secondary .toc-entry > .nav-link:hover {
+  color: var(--ord-hover);
+  text-decoration: none;
+}
+
+nav.bd-links .current > a,
+.bd-sidebar-secondary .toc-entry > .nav-link.active {
+  color: var(--ord-primary);
+  font-weight: 500;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.bd-sidebar-secondary .toc-entry > .nav-link.active {
+  border-left-color: var(--ord-primary);
+}
+
+.prev-next-area a p.prev-next-title {
+  text-decoration: none;
+}
+
+/* The footer: the viewer's and the editor's. */
+.bd-footer {
+  background-color: var(--ord-background);
+  border-top: 1px solid var(--ord-border);
+  color: var(--ord-text-secondary);
+  font-size: 0.875rem;
+}
+
+.bd-footer .bd-footer__inner {
+  max-width: none;
+  padding: 12px 20px;
+}
+
+.bd-footer .footer-items__start {
+  width: 100%;
+}
+
+.ord-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 28px;
+  row-gap: 4px;
+  width: 100%;
+}
+
+.ord-footer__links {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+  font-size: 1.125rem;
+}
+
+.ord-footer__links a {
+  color: var(--ord-text-secondary);
+}
+
+/* Inline code in green, without a box. */
+code.literal {
+  color: green;
+  background-color: transparent;
+  border: none;
+  padding: 0 1px;
+  font-size: 85%;
 }

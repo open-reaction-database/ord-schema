@@ -23,6 +23,7 @@ Quick links:
    * `Leadership <overview.html#leadership>`_
    * `Commitment to Open Access <overview.html#commitment-to-open-access>`_
    * `Open Reaction Database YouTube Channel <http://www.youtube.com/@openreactiondatabase>`_
+   * `ORD data on Hugging Face <https://huggingface.co/datasets/open-reaction-database/ord-data>`_
 
 We expect that this database will be the starting point for the development of
 best-in-class tools and models for reaction prediction and synthesis planning.
@@ -37,43 +38,8 @@ underrepresented areas).
 
 .. toctree::
    :hidden:
-   :caption: Tools
 
-   Interactive Reaction Editor <https://app.open-reaction-database.org/>
-   Search/Browse <https://open-reaction-database.org/search>
-   GitHub <https://github.com/open-reaction-database>
-   Hugging Face <https://huggingface.co/datasets/open-reaction-database/ord-data>
-   ORD YouTube Channel <http://www.youtube.com/@openreactiondatabase>
-
-.. toctree::
-   :hidden:
-   :maxdepth: 1
-   :caption: Documentation
-
-   overview
-   schema
-   submissions
-   editor
-   faq
-
-.. toctree::
-   :hidden:
-   :maxdepth: 2
-   :caption: Guides
-
-   guides/templates
-   guides/compound_identifiers
-
-.. toctree::
-   :hidden:
-   :maxdepth: 2
-   :caption: Events and News
-
-   events/rewards
-   events/newsletter
-
-.. toctree::
-   :hidden:
-   :caption: API Documentation
-
-   ord_schema/ord_schema
+   documentation
+   guides/index
+   events/index
+   API <ord_schema/ord_schema>
