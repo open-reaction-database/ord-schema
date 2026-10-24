@@ -29,6 +29,7 @@
   --ord-text: #090a0b;
   --ord-text-secondary: #637d92;
   --ord-text-tertiary: #4a5e6d;
+  --ord-text-subtle: #aab9c5;
   --ord-site-bar-height: 40px;
   --ord-section-bar-height: 40px;
 
@@ -276,7 +277,7 @@ a:hover {
 ul.bd-breadcrumbs li.breadcrumb-item:not(.breadcrumb-home)::before {
   content: "/";
   font: inherit;
-  color: #aab9c5;
+  color: var(--ord-text-subtle);
   padding: 0 6px;
 }
 
