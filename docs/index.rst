@@ -1,45 +1,79 @@
-.. Open Reaction Database documentation master file, created by
-   sphinx-quickstart on Tue Apr 14 09:29:18 2020.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+:html_theme.sidebar_secondary.remove:
 
-######################################
-Welcome to the Open Reaction Database!
-######################################
+.. The home page: a hero, three ways in, and news, styled by the ord-* rules in
+   _static/css/custom.css. Each entry in the root toctree below is one section in the bar
+   under the site bar.
 
-We are building an open access chemical reaction database to support machine
-learning and related efforts in reaction prediction, chemical synthesis
-planning, and experiment design. Our initial meeting took place on 31 October
-2019 and included experts from pharma, academia, and tech.
+.. rst-class:: ord-home
 
-.. admonition:: Announcements
+######################
+Open Reaction Database
+######################
 
-   * We recently published on the ORD in *JACS* (`link <https://pubs.acs.org/doi/10.1021/jacs.1c09820>`__)
-   * The ORD was highlighted in C&EN (`link <https://cen.acs.org/physical-chemistry/computational-chemistry/new-database-machine-learning-research/99/web/2021/11>`__)
-   * The ORD data is now available on Hugging Face (`link <https://huggingface.co/datasets/open-reaction-database/ord-data>`__)
+.. rst-class:: ord-home-lead
 
-Quick links:
-   * `Overview of the ORD <overview.html>`_
-   * `Leadership <overview.html#leadership>`_
-   * `Commitment to Open Access <overview.html#commitment-to-open-access>`_
-   * `Open Reaction Database YouTube Channel <http://www.youtube.com/@openreactiondatabase>`_
-   * `ORD data on Hugging Face <https://huggingface.co/datasets/open-reaction-database/ord-data>`_
+An open-access database of chemical reactions, built to support machine learning
+in reaction prediction, synthesis planning, and experiment design.
 
-We expect that this database will be the starting point for the development of
-best-in-class tools and models for reaction prediction and synthesis planning.
-Additionally, we hope it will serve as a basis for experimental efforts in
-industry and academia (e.g., to reduce duplication or focus data generation on
-underrepresented areas).
+.. rst-class:: ord-home-actions
 
-.. raw:: html
+:doc:`Get the data <data>` :doc:`Contribute a dataset <submissions>`
 
-   <b>The new and improved ORD Reaction Editor</b>
-   <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/pAMFuSo0SgU?si=Ayg8EFWBVbztFHbX" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+.. container:: ord-cards
+
+   .. container:: ord-card
+
+      :doc:`Get the data <data>`
+
+      Every dataset in the ORD, from Hugging Face or GitHub, and how to read it in
+      Python.
+
+   .. container:: ord-card
+
+      :doc:`Contribute <submissions>`
+
+      Enter reactions in the editor or build a dataset from a template, then submit it
+      for review.
+
+   .. container:: ord-card
+
+      :doc:`The schema <schema>`
+
+      How a reaction is described: its inputs, conditions, workups, outcomes, and
+      provenance.
+
+.. container:: ord-news
+
+   .. container:: ord-news-item
+
+      :doc:`Dataset Rewards <events/rewards>`
+
+      Vouchers for preparing and submitting approved datasets in 2026.
+
+   .. container:: ord-news-item
+
+      `Newsletter <https://www.linkedin.com/newsletters/ord-newsletter-7256742928012689409/>`__
+
+      Past issues, and a subscription, on LinkedIn.
+
+   .. container:: ord-news-item
+
+      `JACS 2021 <https://pubs.acs.org/doi/10.1021/jacs.1c09820>`__
+
+      The paper that describes the ORD.
+
+   .. container:: ord-news-item
+
+      `YouTube <http://www.youtube.com/@openreactiondatabase>`__
+
+      The ORD's channel, with walkthroughs of the reaction editor.
 
 .. toctree::
    :hidden:
 
-   documentation
-   guides/index
-   events/index
+   Get the data <data>
+   Contribute <submissions>
+   Schema <schema>
+   Dataset Rewards <events/rewards>
+   About <overview>
    API <ord_schema/ord_schema>

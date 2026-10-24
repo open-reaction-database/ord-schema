@@ -83,6 +83,7 @@ docs = [
     "ipython>=8.4.0",
     "ord-schema[huggingface,nl,orm]",
     "pydata-sphinx-theme>=0.23.0",
+    "sphinx-reredirects>=1.1.0",
     "sphinx-tabs>=3.4.0",
 ]
 examples = [

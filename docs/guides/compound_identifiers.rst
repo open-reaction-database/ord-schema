@@ -122,6 +122,7 @@ chemical structures. See :ref:`checking-identifiers` below for some recommended 
 chemical identifiers.
 
 .. _dative-bonding:
+
 *******************************************
 Dative Bonding in Organometallic Compounds
 *******************************************
@@ -193,6 +194,7 @@ inorganic support is formally adopted into a stable InChI version, and the RDKit
 to resolve the these InChIs, then we will revisit this guidance.
 
 .. _checking-identifiers:
+
 *****************************************
 Checking SMILES or InChI Strings
 *****************************************

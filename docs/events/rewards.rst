@@ -22,6 +22,7 @@ meet all of the following criteria:
 - The applicant must meet the :ref:`applicant-eligibility` criteria.
 
 .. _dataset-eligibility:
+
 ************************************************
 Dataset Eligibility
 ************************************************
@@ -35,6 +36,7 @@ applications for datasets which have been specified through one of the following
 
 
 .. _wishlist:
+
 Dataset Wishlist on GitHub
 ###############################
 
@@ -96,6 +98,7 @@ format for dataset preparation by a curator from the community.
 
 
 .. _invitations:
+
 Invitations to Authors of a Specific Paper
 #############################################
 
@@ -107,6 +110,7 @@ own arrangements to share their reward.
 
 
 .. _speculative_applications:
+
 Speculative Applications
 ##########################
 
@@ -133,6 +137,7 @@ The following dataset types are prioritised for ORD Dataset Rewards:
    in the paper.
 
 .. _applicant-eligibility:
+
 **********************************
 Applicant Eligibility
 **********************************
@@ -156,6 +161,7 @@ other compensation which may be made to an individual applicant:
   between 1st January and 31st December 2026.
 
 .. _required-skills:
+
 Required Education and Skills
 ###############################
 
@@ -181,8 +187,8 @@ Python coding is still recommended in ORD dataset preparation are:
 - Datasets of reactions with many time-point measurements (e.g. reaction kinetics experiments). Python
   is required to enumerate multiple outcomes within a single reaction record.
 - Datasets involving 100s of chemicals that are only recorded by name or image. SMILES or InChI strings are
-  normally required for all chemicals documented in an ORD dataset. See `Compound Identifiers
-  <https://docs.open-reaction-database.org/en/latest/compound_identifiers.html>`__ for guidance on how
+  normally required for all chemicals documented in an ORD dataset. See
+  :doc:`../guides/compound_identifiers` for guidance on how
   to obtain these chemical identifiers, but Python coding can be helpful for batch processing and
   checking very large lists of compounds.
 - Datasets coming from another reaction data schema (e.g. automated synthesis experiments), where there
@@ -250,6 +256,7 @@ To participate in the Dataset Rewards program please do the following:
 
 
 .. _support:
+
 ********************************************
 Support
 ********************************************
@@ -268,6 +275,7 @@ help minimize the corrections that will need to be made in the formal peer-revie
 
 
 .. _github_issues_data:
+
 GitHub Issues
 #############################
 
@@ -288,6 +296,7 @@ To attract the attention of ORD support you can then tag @bdeadman in an issue c
 
 
 .. _discord:
+
 ORD Discord Server
 #############################
 
@@ -301,6 +310,7 @@ there is for the sessions.
 
 
 .. _ord_editor_support:
+
 Sharing via the ORD Reaction Editor
 ##########################################
 
