@@ -25,7 +25,8 @@ in reaction prediction, synthesis planning, and experiment design.
 
       :doc:`Get the data <data>`
 
-      Every dataset in the ORD, from GitHub or Hugging Face.
+      Every dataset in the ORD, from Hugging Face or GitHub, and how to read it in
+      Python.
 
    .. container:: ord-card
 
