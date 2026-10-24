@@ -224,6 +224,8 @@ description and a timestamp. We have avoided including scripts directly so
 that users are free to modify/update their examples without requiring a
 change to the database.
 
+.. _using-the-schema:
+
 ****************
 Using the schema
 ****************
