@@ -21,12 +21,14 @@ Notes:
     * We use inheritance to handle messages that appear in more than one context; see
       https://docs.sqlalchemy.org/en/14/orm/inheritance.html. The possible constraints
       are:
+
         - Some message types are used more than once in a parent (such as Time in
           ReactionInput), which forces the use of either joined or single table
           inheritance.
         - Some messages can be repeated, while others are unique to their parent. These
           uniqueness constraints force the use of joined table inheritance since they
           are specific to their polymorphic type.
+
       For convenience and consistency, we use single table inheritance for *all* message
       types, regardless of whether they are used in one context or more than one
       context. This means that we do not enforce the second constraint in the database.
@@ -320,7 +322,10 @@ class _MappersMeta(type):
     """Metaclass for Mappers; see https://stackoverflow.com/a/3155493."""
 
     def __getattr__(cls, item: str) -> Any:
-        return cls._MAPPERS[item]
+        try:
+            return cls._MAPPERS[item]
+        except KeyError:
+            raise AttributeError(f"Mappers has no mapper named {item!r}") from None
 
     def __getitem__(cls, item: str) -> Any:
         return cls._MAPPERS[item]

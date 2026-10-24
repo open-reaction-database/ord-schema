@@ -28,6 +28,10 @@ extensions = [
     "sphinx_tabs.tabs",
 ]
 
+# A docstring's Attributes section renders as fields of its class, since autodoc already
+# gives each attribute an entry of its own and two entries for one name collide.
+napoleon_use_ivar = True
+
 # Retired pages redirect to where their content lives. Targets are relative to the
 # redirecting page.
 redirects = {
