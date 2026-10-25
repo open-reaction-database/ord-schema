@@ -79,6 +79,16 @@ message ReactionIdentifier {
     RDFILE = 3;  // Reaction data file.
     RINCHI = 4;  // Reaction InChI.
     REACTION_TYPE = 5;  // Named reaction or reaction category.
+    // Membership of a group of reactions within the dataset, e.g. a table in
+    // the source or a block in a designed experiment. Name the grouping in
+    // details (e.g. "table", "block") and the group in value (e.g. "Table 2",
+    // "3"). A reaction may belong to several groupings, told apart by details.
+    GROUP = 7;
+    // Position in an explicit sequence of reactions within the dataset, e.g.
+    // the run order of a designed experiment. Describe the sequence in details
+    // (e.g. "run order") and give the position as an integer in value. A
+    // reaction may have several, told apart by details.
+    ORDER = 8;
   }
   ReactionIdentifierType type = 1;
   string details = 2;
@@ -234,8 +244,15 @@ message Texture {
     WAX = 7;
     SEMI_SOLID = 8;
     SOLID = 9;
-    LIQUID = 10;
+    LIQUID = 10;  // A neat liquid; use SOLUTION for dissolved material.
     GAS = 11;
+    // Material dissolved in a liquid; a homogeneous mixture.
+    SOLUTION = 12;
+    // Solid dispersed in a liquid, e.g. a slurry or "60% dispersion in mineral
+    // oil" (in details).
+    SUSPENSION = 13;
+    EMULSION = 14;  // Liquid dispersed in another liquid.
+    GUM = 15;  // A sticky, non-crystalline product, distinct from an OIL.
   }
   TextureType type = 1;
   // Specify texture forms such as "fine needles" for CRYSTAL,
@@ -521,8 +538,11 @@ message ReactionSetup {
   optional bool is_automated = 2;
   // Automated platform name, brand, or model number.
   string automation_platform = 3;
-  // Raw automation code or synthetic recipe definition.
-  map<string, Data> automation_code = 4;
+  // Machine-readable procedure, recipe or automation code, executable or not
+  // (e.g. XDL, or the action list from a text-mining pipeline). Name the format
+  // and its version in Data.format, e.g. "XDL v6"; Data.description may link to
+  // the format's documentation.
+  map<string, Data> procedure_code = 4;
   message ReactionEnvironment {
     enum ReactionEnvironmentType {
       UNSPECIFIED = 0;
@@ -913,7 +933,8 @@ message ProductCompound {
   // (and unnormalized) metrics like an integrated UV peak area.
   repeated ProductMeasurement measurements = 3;
   string isolated_color = 4;
-  Texture texture = 5;
+  // Texture of the isolated product.
+  Texture isolated_texture = 5;
   // Any features (e.g., calculated descriptors) of the product compound.
   map<string, Data> features = 6;
   // Specify the role the ProductCompound played in the reaction. This
@@ -1080,7 +1101,7 @@ message Analysis {
     IR = 4;  // Infrared spectroscopy, including ReactIR.
     NMR_1H = 5;  // 1H NMR spectroscopy.
     NMR_13C = 6;  // 13C NMR spectroscopy.
-    NMR_OTHER = 7;  // Specify type and details in "details".
+    NMR_OTHER = 7;  // Other nuclei; specify the nucleus in "details".
     MP = 8;  // Melting point characterization.
     UV = 9;  // Ultraviolet spectroscopy.
     TLC = 10;  // Thin-layer chromatography.
@@ -1099,6 +1120,10 @@ message Analysis {
     ED = 23;  // Electron diffraction, including MicroED.
     OPTICAL_ROTATION = 24;  // optical rotation.
     CAD = 25;  // Charged Aerosol Detector.
+    BP = 26;  // Boiling point characterization.
+    NMR_19F = 27;  // 19F NMR spectroscopy.
+    NMR_31P = 28;  // 31P NMR spectroscopy.
+    ELEMENTAL_ANALYSIS = 29;  // Elemental (combustion) analysis.
   }
   AnalysisType type = 1;
   // Any details about analysis (e.g., NMR type, columns, gradients).
@@ -1120,18 +1145,105 @@ message ReactionProvenance {
   Person experimenter = 1;
   string city = 2;
   DateTime experiment_start = 3;
-  string doi = 4;
-  string patent = 5;
-  string publication_url = 6;
+  // Deprecated: use publication.doi.
+  string doi = 4 [deprecated = true];
+  // Deprecated: use publication.patent.
+  string patent = 5 [deprecated = true];
+  // Deprecated: use publication.url.
+  string publication_url = 6 [deprecated = true];
   RecordEvent record_created = 7;
   repeated RecordEvent record_modified = 8;
   // Container for arbitrary reaction metadata; e.g., an internal project
   // identifier.
   map<string, Data> reaction_metadata = 9;
+  // Deprecated: use extraction.is_mined.
+  optional bool is_mined = 10 [deprecated = true];
+  // The source this record's values were taken from. experimenter remains the
+  // person who ran the experiment.
+  Publication publication = 11;
+  // How the record was produced, for records extracted automatically.
+  ExtractionMetadata extraction = 12;
+  // Other sources that report this reaction. publication stays the source
+  // the record's values were taken from; these never replace it.
+  repeated AdditionalSource additional_sources = 13;
+}
+
+/**
+ * Bibliographic details of the source a reaction record was taken from, such
+ * as a journal article, preprint, patent or data repository.
+ */
+message Publication {
+  string doi = 1;
+  // Patent or patent application number, e.g. "US9545106B2".
+  string patent = 2;
+  string url = 3;
+  // Where in the source the reaction appears, e.g. "Example P1",
+  // "Table 2, entry 3" or "SI p. S14".
+  string location = 4;
+  // Authors of the source; the inventors, for a patent. Record each author's
+  // organisation in Person.organization where it is known.
+  repeated Person authors = 5;
+  // When this document was published. For a patent, the publication date of
+  // this document, not its priority, filing or grant date.
+  DateTime publication_date = 6;
+  string details = 7;
+  // Organisations associated with the source that cannot be mapped to an
+  // author, e.g. a patent's assignees, or affiliations mined without knowing
+  // which author they belong to. Leave empty when each author's organisation
+  // is recorded in Person.organization.
+  repeated string organizations = 8;
+}
+
+/**
+ * A source that reports a reaction besides the one its record was taken from
+ * (ReactionProvenance.publication), such as another version of the same
+ * publication, another patent in the same family, or a data repository.
+ */
+message AdditionalSource {
+  enum SourceRole {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    // Another version of the same publication, e.g. the preprint of an
+    // article or the article of a preprint.
+    OTHER_VERSION = 2;
+    // The same passage appears in this source, e.g. another patent in the same
+    // family.
+    SAME_TEXT = 3;
+    // Data repository the record's data was taken from, e.g. figshare, Zenodo
+    // or GitHub. Give the version used: a versioned DOI where available,
+    // otherwise a URL to a tagged release or commit. A repository that is the
+    // only source goes in ReactionProvenance.publication instead.
+    DATA_SOURCE = 4;
+    // Reports the same reaction; values may differ.
+    RELATED = 5;
+  }
+  // How this source relates to the record.
+  SourceRole type = 1;
+  Publication publication = 2;
+  // e.g. the repository release, tag or commit.
+  string details = 3;
+}
+
+/**
+ * How a reaction record was produced by automated extraction, e.g. text mining
+ * of patents and papers or digitisation of notebooks, and whether a person has
+ * checked it since.
+ */
+message ExtractionMetadata {
   // Set to true for programmatically extracted data; e.g., text mining from
   // patents. Set to false for manually curated data or template enumeration
   // from structured data (like a spreadsheet).
-  optional bool is_mined = 10;
+  optional bool is_mined = 1;
+  // Brief summary of the extraction tools, pipeline and versions.
+  string how_mined = 2;
+  // Submitter-defined reaction-level confidence; higher means more confident.
+  // There is no common scale, so values are only comparable within a dataset,
+  // whose description should explain how they were assigned.
+  optional float confidence = 3;
+  // How the confidence was assigned: method, scale, and whether calibrated.
+  string confidence_details = 4;
+  // Whether a person has reviewed this record against its source.
+  optional bool is_human_reviewed = 5;
 }
 
 message Person {
@@ -1339,5 +1451,7 @@ message Data {
   string description = 6;
   // Description of the file format (if applicable); usually the file extension.
   // For example, 'png' or 'tiff' for images. If empty, we assume string data.
+  // For a procedure (ReactionSetup.procedure_code), name the format and its
+  // version, e.g. "XDL v6".
   string format = 7;
 }
