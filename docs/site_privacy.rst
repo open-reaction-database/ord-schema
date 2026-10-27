@@ -150,8 +150,7 @@ To keep you signed in, the editor stores your sign-in tokens in your browser's
 local storage and sets a cookie on its own domain marking that you are signed
 in. Auth0 sets its own cookies on its sign-in pages. You stay signed in for up
 to 30 days, or 15 days if you do not use the editor in between; signing out
-ends it sooner. These cookies and tokens exist only to sign you in. The editor
-does not run Google Analytics or any other analytics or advertising tag. *(to be
+ends it sooner. The editor does not run Google Analytics or any other analytics or advertising tag. *(to be
 confirmed: true once ord-app's pull request #929 is deployed.)*
 
 Your name in the reactions you make
@@ -174,11 +173,11 @@ in the same details. They become part of the reaction itself:
   <https://github.com/open-reaction-database/ord-data/blob/main/LICENSE>`__,
   shown in the viewer, and copied to our mirror on Hugging Face.
 
-Recording who ran an experiment and who wrote down the record is part of what
-makes the database's records usable, so the schema has a place for it. You can
-edit or remove these details in a reaction before you submit it. After a
-dataset is published, it stays in ord-data's public history even if a later
-change removes your details. *(to be confirmed: what we do when someone asks
+A reaction passes validation, and so can be submitted, only when its record
+names the person who created it with an email address and with a username, a
+name, or an ORCID iD. You can change these details, or remove the experimenter,
+before you submit. After a dataset is published, it stays in ord-data's public
+history even if a later change replaces your details. *(to be confirmed: what we do when someone asks
 for their details to be removed from a published dataset.)*
 
 Who else sees your account
@@ -197,10 +196,9 @@ made, what was called, and how it ended. These lines do not record your IP
 address: they record the address of the load balancer in front of the server.
 They are stored with Amazon Web Services in the United States and deleted
 automatically **90 days** after each line is written. The web server in front of
-it also notes each request, with your browser's description and the page you
-came from but again the load balancer's address rather than yours, in a log
-that stays inside the running server and is discarded whenever the server is
-replaced.
+it also logs each request, with your browser's description and the page you
+came from. Those lines likewise record the load balancer's address, and they
+stay inside the running server, which discards them whenever it is replaced.
 
 Looking up compounds
 ====================
@@ -241,8 +239,7 @@ How long we keep it
   exists. The database keeps 30 days of backups, so a deleted record leaves the
   backups within 30 days. *(to be confirmed: whether an account that is not
   used is ever deleted, and how a deletion request is carried out.)*
-- **Published datasets**: kept permanently, as the public record of the
-  database.
+- **Published datasets**: public, and kept in ord-data's history.
 
 ***************
 Who can read it
