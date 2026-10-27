@@ -242,13 +242,15 @@ with Google are turned on; and the terms Google processes it under.)*
 Who else sees your browser
 **************************
 
-Both the viewer and the editor load their font, Roboto, from `Google Fonts
-<https://fonts.google.com>`__. Your browser fetches it from Google's servers
-each time it does not already have it, so Google receives your IP address and
-your browser's description with each such request. Google describes what it does
-with them in its `Google Fonts privacy FAQ
-<https://developers.google.com/fonts/faq/privacy>`__. *(to be confirmed:
-whether to serve the font from our own server instead.)*
+The viewer and the editor serve their pages, scripts, and font from our own
+servers. *(to be confirmed: true for the font once ord-app's pull request #931
+is deployed; until then, both load Roboto from* `Google Fonts
+<https://fonts.google.com>`__\ *, so Google receives your IP address and your
+browser's description with each page.)*
+
+Beyond Google Analytics, if you accept it, your browser contacts other services
+only in the editor: Auth0 and the service you sign in with when you sign in, and
+wherever that service keeps the profile pictures the editor shows.
 
 ******************
 Where it is stored
