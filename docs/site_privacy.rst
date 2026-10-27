@@ -44,7 +44,7 @@ When you use the viewer
 
 The viewer has no accounts and sets no cookies. It does not run Google
 Analytics or any other analytics or advertising tag. *(to be confirmed: true
-once the change that turns Google Analytics off is deployed.)*
+once ord-app's pull request #929 is deployed.)*
 
 The web server's log
 ====================
@@ -152,7 +152,7 @@ in. Auth0 sets its own cookies on its sign-in pages. You stay signed in for up
 to 30 days, or 15 days if you do not use the editor in between; signing out
 ends it sooner. These cookies and tokens exist only to sign you in. The editor
 does not run Google Analytics or any other analytics or advertising tag. *(to be
-confirmed: true once the change that turns Google Analytics off is deployed.)*
+confirmed: true once ord-app's pull request #929 is deployed.)*
 
 Your name in the reactions you make
 ===================================
