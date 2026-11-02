@@ -4,6 +4,6 @@
   "description": "The pinned toolchain compile_proto_wrappers.sh and the buf CI jobs run; not published.",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@bufbuild/buf": "1.73.0"
+    "@bufbuild/buf": "1.75.0"
   }
 }
