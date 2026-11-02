@@ -1,6 +1,6 @@
 smiles: VARCHAR
 identifiers: LIST<STRUCT>
-  type: VARCHAR  (UNSPECIFIED | CUSTOM | REACTION_SMILES | REACTION_CXSMILES | RDFILE | RINCHI | REACTION_TYPE)
+  type: VARCHAR  (UNSPECIFIED | CUSTOM | REACTION_SMILES | REACTION_CXSMILES | RDFILE | RINCHI | REACTION_TYPE | GROUP | ORDER)
   details: VARCHAR
   value: VARCHAR
   is_mapped: BOOLEAN
@@ -41,7 +41,7 @@ inputs: MAP<VARCHAR, STRUCT>
       description: VARCHAR
       format: VARCHAR
     analyses: MAP<VARCHAR, STRUCT>
-      type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD)
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD | BP | NMR_19F | NMR_31P | ELEMENTAL_ANALYSIS)
       details: VARCHAR
       chmo_id: INTEGER
       is_of_isolated_species: BOOLEAN
@@ -58,7 +58,7 @@ inputs: MAP<VARCHAR, STRUCT>
         timestamp: DATE
         utc_offset_minutes: SMALLINT
     texture: STRUCT
-      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
       details: VARCHAR
   crude_components: LIST<STRUCT>
     reaction_id: VARCHAR
@@ -76,7 +76,7 @@ inputs: MAP<VARCHAR, STRUCT>
         details: VARCHAR
       volume_includes_solutes: BOOLEAN
     texture: STRUCT
-      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
       details: VARCHAR
   addition_order: INTEGER
   addition_time_seconds: DOUBLE
@@ -94,7 +94,7 @@ inputs: MAP<VARCHAR, STRUCT>
   addition_temperature_kelvin: DOUBLE
   addition_temperature_precision_kelvin: DOUBLE
   texture: STRUCT
-    type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
     details: VARCHAR
 setup: STRUCT
   vessel: STRUCT
@@ -117,7 +117,7 @@ setup: STRUCT
     col: VARCHAR
   is_automated: BOOLEAN
   automation_platform: VARCHAR
-  automation_code: MAP<VARCHAR, STRUCT>
+  procedure_code: MAP<VARCHAR, STRUCT>
     float_value: FLOAT
     integer_value: INTEGER
     bytes_value: BLOB
@@ -271,7 +271,7 @@ workups: LIST<STRUCT>
         description: VARCHAR
         format: VARCHAR
       analyses: MAP<VARCHAR, STRUCT>
-        type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD)
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD | BP | NMR_19F | NMR_31P | ELEMENTAL_ANALYSIS)
         details: VARCHAR
         chmo_id: INTEGER
         is_of_isolated_species: BOOLEAN
@@ -288,7 +288,7 @@ workups: LIST<STRUCT>
           timestamp: DATE
           utc_offset_minutes: SMALLINT
       texture: STRUCT
-        type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
         details: VARCHAR
     crude_components: LIST<STRUCT>
       reaction_id: VARCHAR
@@ -306,7 +306,7 @@ workups: LIST<STRUCT>
           details: VARCHAR
         volume_includes_solutes: BOOLEAN
       texture: STRUCT
-        type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
         details: VARCHAR
     addition_order: INTEGER
     addition_time_seconds: DOUBLE
@@ -324,7 +324,7 @@ workups: LIST<STRUCT>
     addition_temperature_kelvin: DOUBLE
     addition_temperature_precision_kelvin: DOUBLE
     texture: STRUCT
-      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
       details: VARCHAR
   amount: STRUCT
     mass_grams: DOUBLE
@@ -416,7 +416,7 @@ outcomes: LIST<STRUCT>
           description: VARCHAR
           format: VARCHAR
         analyses: MAP<VARCHAR, STRUCT>
-          type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD)
+          type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD | BP | NMR_19F | NMR_31P | ELEMENTAL_ANALYSIS)
           details: VARCHAR
           chmo_id: INTEGER
           is_of_isolated_species: BOOLEAN
@@ -433,7 +433,7 @@ outcomes: LIST<STRUCT>
             timestamp: DATE
             utc_offset_minutes: SMALLINT
         texture: STRUCT
-          type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+          type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
           details: VARCHAR
       percentage: STRUCT
         value: FLOAT
@@ -467,8 +467,8 @@ outcomes: LIST<STRUCT>
       wavelength_nanometers: DOUBLE
       wavelength_precision_nanometers: DOUBLE
     isolated_color: VARCHAR
-    texture: STRUCT
-      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+    isolated_texture: STRUCT
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS | SOLUTION | SUSPENSION | EMULSION | GUM)
       details: VARCHAR
     features: MAP<VARCHAR, STRUCT>
       float_value: FLOAT
@@ -480,7 +480,7 @@ outcomes: LIST<STRUCT>
       format: VARCHAR
     reaction_role: VARCHAR  (UNSPECIFIED | REACTANT | REAGENT | SOLVENT | CATALYST | WORKUP | INTERNAL_STANDARD | AUTHENTIC_STANDARD | PRODUCT | BYPRODUCT | SIDE_PRODUCT)
   analyses: MAP<VARCHAR, STRUCT>
-    type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD)
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD | BP | NMR_19F | NMR_31P | ELEMENTAL_ANALYSIS)
     details: VARCHAR
     chmo_id: INTEGER
     is_of_isolated_species: BOOLEAN
@@ -541,6 +541,47 @@ provenance: STRUCT
     description: VARCHAR
     format: VARCHAR
   is_mined: BOOLEAN
+  publication: STRUCT
+    doi: VARCHAR
+    patent: VARCHAR
+    url: VARCHAR
+    location: VARCHAR
+    authors: LIST<STRUCT>
+      username: VARCHAR
+      name: VARCHAR
+      orcid: VARCHAR
+      organization: VARCHAR
+      email: VARCHAR
+    publication_date: STRUCT
+      timestamp: DATE
+      utc_offset_minutes: SMALLINT
+    details: VARCHAR
+    organizations: LIST<VARCHAR>
+  extraction: STRUCT
+    is_mined: BOOLEAN
+    how_mined: VARCHAR
+    confidence: FLOAT
+    confidence_details: VARCHAR
+    is_human_reviewed: BOOLEAN
+  additional_sources: LIST<STRUCT>
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | OTHER_VERSION | SAME_TEXT | DATA_SOURCE | RELATED)
+    publication: STRUCT
+      doi: VARCHAR
+      patent: VARCHAR
+      url: VARCHAR
+      location: VARCHAR
+      authors: LIST<STRUCT>
+        username: VARCHAR
+        name: VARCHAR
+        orcid: VARCHAR
+        organization: VARCHAR
+        email: VARCHAR
+      publication_date: STRUCT
+        timestamp: DATE
+        utc_offset_minutes: SMALLINT
+      details: VARCHAR
+      organizations: LIST<VARCHAR>
+    details: VARCHAR
 reaction_id: VARCHAR
 dataset_id: VARCHAR
 first_commit: STRUCT

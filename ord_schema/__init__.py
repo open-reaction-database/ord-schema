@@ -25,7 +25,8 @@ ScalarType = str | bytes | float | int | bool
 
 # Messages with 'type' and 'details' fields.
 TypeDetailsMessage = (
-    reaction_pb2.Analysis
+    reaction_pb2.AdditionalSource
+    | reaction_pb2.Analysis
     | reaction_pb2.CompoundIdentifier
     | reaction_pb2.CompoundPreparation
     | reaction_pb2.ElectrochemistryConditions
