@@ -593,6 +593,14 @@ p.ord-home-actions a:hover {
   color: var(--ord-primary);
 }
 
+/*
+ * A scaled image carries its width and height as attributes. When the column is narrower than
+ * that width the image shrinks to fit, so its height follows to keep its proportions.
+ */
+.bd-article img {
+  height: auto;
+}
+
 /* An embedded video at the column's width, up to a comfortable size. */
 .ord-video {
   max-width: 40rem;
