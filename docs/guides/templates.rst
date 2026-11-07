@@ -14,7 +14,7 @@ Step 1: Create a template reaction
    .. group-tab:: Web
 
         Use the `ORD Reaction Editor
-        <https://app.open-reaction-database.org/>`_ to create a new dataset
+        <https://editor.open-reaction-database.org/>`_ to create a new dataset
         and fill out a single reaction (feel free to enter dummy values for
         fields that vary in the dataset). The following videos from the ORD YouTube channel
         are useful guides to creating datasets and reactions using the editor:
@@ -39,7 +39,7 @@ Step 2: Mark the variable fields in the template
    .. group-tab:: Web
 
         Use the `ORD Reaction Editor
-        <https://app.open-reaction-database.org/>`_ to turn the single reaction into
+        <https://editor.open-reaction-database.org/>`_ to turn the single reaction into
         a template reaction. This YouTube tutorial on `dataset enumeration <https://youtu.be/1l928Ff0SYU?si=XbekQJBqAWprz-xG>`_
         shows how to do this. Then use the graphical interface to select and label any fields that vary in the dataset.
 
@@ -105,7 +105,7 @@ Step 4: Enumerate the dataset
    .. group-tab:: Web
 
         Use the `ORD Reaction Editor
-        <https://app.open-reaction-database.org/>`_ and select the "Enumerate"
+        <https://editor.open-reaction-database.org/>`_ and select the "Enumerate"
         button on the main page. Follow the instructions to select your template reaction, upload
         your source data as a semi-colon separated CSV file, and check the matching between columns and template fields. Click the "Create" button to build the dataset.
         This YouTube tutorial on `dataset enumeration <https://youtu.be/1l928Ff0SYU?si=XbekQJBqAWprz-xG>`_

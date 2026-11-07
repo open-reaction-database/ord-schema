@@ -79,7 +79,7 @@ The following online chemical drawing tools can also be used to obtain SMILES or
 Look Them Up
 ###############
 
-The `ORD Reaction Editor <https://app.open-reaction-database.org/>`__ has a look up function which can
+The `ORD Reaction Editor <https://editor.open-reaction-database.org/>`__ has a look up function which can
 be used to add chemicals by name. The `resolve_name function <https://docs.open-reaction-database.org/en/latest/ord_schema/ord_schema.html#ord_schema.resolvers.resolve_name>`__
 uses the PubChem and OPSIN APIs to look up names and returns a SMILES string when it is available.
 
@@ -204,7 +204,7 @@ For checking individual identifiers of organic compounds the following online se
 - `SMARTS Plus <https://smarts.plus/>`__ (SMILES only)
 - `NIH NCI/CDD Chemical Identifier Resolver <https://cactus.nci.nih.gov/chemical/structure>`__
 
-Individual SMILES and InChI identifiers can also be checked in the `ORD Reaction Editor <https://app.open-reaction-database.org/>`__. Create a
+Individual SMILES and InChI identifiers can also be checked in the `ORD Reaction Editor <https://editor.open-reaction-database.org/>`__. Create a
 test dataset and add each identifier as a new chemical input component. The ORD editor uses RDKit to
 parse the identifier and a preview of the structure is generated.
 
