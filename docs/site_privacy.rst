@@ -7,9 +7,7 @@ Open Reaction Database website: privacy notice
 .. warning::
 
    **DRAFT — not adopted, not in force.** Written to start a conversation, not
-   to end one. It describes the site with Google Analytics loading only for a
-   visitor who accepts it, as ord-app's pull request #930 makes it, and
-   every passage marked *(to be confirmed: …)* is a decision or a fact that
+   to end one. Every passage marked *(to be confirmed: …)* is a decision or a fact that
    still needs an owner.
 
 ****************
@@ -43,8 +41,8 @@ confirmed: names)*, who are responsible for the records described here ("we",
 When you use the viewer
 ***********************
 
-The viewer has no accounts and runs no advertising tag. It sets no cookies
-unless you accept `Google Analytics`_.
+The viewer has no accounts, sets no cookies, and runs no analytics or
+advertising tag.
 
 The web server's log
 ====================
@@ -57,9 +55,7 @@ makes to our search service. A line records:
 - **When** the request was made.
 - **What was requested**: the address of the page, file, or search call, which
   shows the dataset or reaction you opened. For the ask page and the search
-  page, the log leaves out the question or the search you typed. *(to be
-  confirmed: the search page's address is left out once ord-app's pull request
-  #928 is deployed; until then, a search written into the address is logged.)*
+  page, the log leaves out the question or the search you typed.
 - **The page you came from**, as your browser reports it, with the same
   question or search left out.
 - **Your browser**, as it describes itself (its name, version, and operating
@@ -69,7 +65,10 @@ makes to our search service. A line records:
 The log is stored with Amazon Web Services in the United States and deleted
 automatically **90 days** after each line is written. We read it to keep the
 site running: to find errors, to see when it is slow or overloaded, and to deal
-with abuse. *(to be confirmed: whether we also count visits from it.)*
+with abuse. We also count visits from it, as totals: how many pages are loaded
+each day, which pages visits start on, which sites they come from, and how the
+search and the site's other services are used. None of these counts is made from
+IP addresses.
 
 What the viewer keeps in your browser
 =====================================
@@ -77,8 +76,7 @@ What the viewer keeps in your browser
 When you select reactions in a list of search results, the viewer remembers
 which ones in your browser's session storage, so the selection survives a
 reload. It stays in that tab and is gone when you close it; it is never sent
-to us. Your answer to the analytics question stays in your browser's local
-storage, as described under `Google Analytics`_.
+to us.
 
 Asking a question
 =================
@@ -151,8 +149,7 @@ To keep you signed in, the editor stores your sign-in tokens in your browser's
 local storage and sets a cookie on its own domain marking that you are signed
 in. Auth0 sets its own cookies on its sign-in pages. You stay signed in for up
 to 30 days, or 15 days if you do not use the editor in between; signing out
-ends it sooner. The editor runs no advertising tag, and runs Google Analytics
-only if you accept it, as described under `Google Analytics`_.
+ends it sooner. The editor runs no analytics or advertising tag.
 
 Your name in the reactions you make
 ===================================
@@ -201,6 +198,9 @@ it also logs each request, with your browser's description and the page you
 came from. Those lines likewise record the load balancer's address, and they
 stay inside the running server, which discards them whenever it is replaced.
 
+We count visits from the server's log, as totals: how many sign-ins and new
+accounts there are each day, and how the editor's features are used.
+
 Looking up compounds
 ====================
 
@@ -208,58 +208,22 @@ When you look up a compound by name in the editor, our server sends the name to
 PubChem, the NCI/CADD Chemical Identifier Resolver, and `eMolecules
 <https://www.emolecules.com>`__ at once, and uses the first answer.
 
-****************
-Google Analytics
-****************
-
-The viewer and the editor each ask, in a bar at the bottom of the page, whether
-they may use `Google Analytics
-<https://marketingplatform.google.com/about/analytics/>`__ to see how the site
-is used. Until you answer, and if you decline, the page loads nothing from
-Google Analytics and sends it nothing. Each site asks for itself and keeps your
-answer in your browser's local storage, until you change it with **Analytics
-settings** at the bottom of the page or clear the site's data.
-
-If you accept, your browser loads Google's tag, which:
-
-- **Sets two cookies**, ``_ga`` and ``_ga_`` followed by the site's ID, that
-  let Google Analytics recognize your browser on later visits. By Google's
-  default, they last two years from your last visit.
-- **Sends Google each page you open**: its address and title, the page you came
-  from, and your browser's description, screen size, and language. Google
-  receives your IP address with each request and derives an approximate
-  location from it.
-
-The page tells the tag that you have not agreed to advertising cookies or to
-your data being used for advertising. If you decline after accepting, the page
-stops the tag and deletes its cookies.
-
-*(to be confirmed: how long Google Analytics keeps this data, set in each
-property's data retention settings; whether Google signals or data sharing
-with Google are turned on; and the terms Google processes it under.)*
-
 **************************
 Who else sees your browser
 **************************
 
 The viewer and the editor serve their pages, scripts, and font from our own
-servers. *(to be confirmed: true for the font once ord-app's pull request #931
-is deployed; until then, both load Roboto from* `Google Fonts
-<https://fonts.google.com>`__\ *, so Google receives your IP address and your
-browser's description with each page.)*
-
-Beyond Google Analytics, if you accept it, your browser contacts other services
-only in the editor: Auth0 and the service you sign in with when you sign in, and
-wherever that service keeps the profile pictures the editor shows.
+servers. Your browser contacts other services only in the editor: Auth0 and the
+service you sign in with when you sign in, and wherever that service keeps the
+profile pictures the editor shows.
 
 ******************
 Where it is stored
 ******************
 
 Our logs and the editor's database are stored with Amazon Web Services in the
-United States (the ``us-east-1`` region), Auth0 holds the editor's accounts in
-the United States, and Google processes Google Analytics data in the United
-States and elsewhere. A visit from the European Union, the European Economic
+United States (the ``us-east-1`` region), and Auth0 holds the editor's accounts
+in the United States. A visit from the European Union, the European Economic
 Area, or the United Kingdom therefore transfers what is described here outside
 it. *(to be confirmed: the safeguards each transfer relies on.)*
 
@@ -269,7 +233,6 @@ How long we keep it
 
 - **The viewer's and the editor's logs**: deleted automatically 90 days after
   each line is written.
-- **Google Analytics data**: *(to be confirmed: see* `Google Analytics`_\ *.)*
 - **Your editor account and what you make in it**: kept while your account
   exists. The database keeps 30 days of backups, so a deleted record leaves the
   backups within 30 days. *(to be confirmed: whether an account that is not
@@ -281,8 +244,7 @@ Who can read it
 ***************
 
 The logs and the editor's database live in the project's Amazon Web Services
-account, the editor's accounts in its Auth0 tenant, and Google Analytics data
-in the project's Google Analytics properties. *(to be confirmed: who
+account, and the editor's accounts in its Auth0 tenant. *(to be confirmed: who
 administers each, and so can read them.)* We read them only for the purposes
 above.
 
