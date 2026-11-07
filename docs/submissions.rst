@@ -51,7 +51,7 @@ finding a SMILES or InChI string for each compound.
    .. group-tab:: Web
 
         Please use the `online ORD reaction editor
-        <https://app.open-reaction-database.org/>`_ to create your submission.
+        <https://editor.open-reaction-database.org/>`_ to create your submission.
 
         The ORD reaction editor performs automatic validation that will catch any
         errors entered into the form, so there is no separate validation step.

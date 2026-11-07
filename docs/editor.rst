@@ -2,7 +2,7 @@
 Reaction Editor
 ###############
 
-The online reaction editor can be accessed `here <https://app.open-reaction-database.org/>`_
+The online reaction editor can be accessed `here <https://editor.open-reaction-database.org/>`_
 and requires users to sign-in using one of the following services:
 
 * a specific ORD App account

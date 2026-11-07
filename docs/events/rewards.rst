@@ -172,7 +172,7 @@ help applicants evaluate their ability to prepare a reaction dataset that will p
 
 Coding Requirements
 """""""""""""""""""""""
-In general no coding is required to prepare an ORD dataset. The `ORD Reaction Editor <https://app.open-reaction-database.org/>`__
+In general no coding is required to prepare an ORD dataset. The `ORD Reaction Editor <https://editor.open-reaction-database.org/>`__
 provides a graphical interface for documenting individual reactions, and reaction templates can be
 enumerated over a .CSV file of source data to quickly build datasets containing 1,000s of reactions.
 While it is also possible to use Python to prepare an ORD dataset, it is usually recommended to use
@@ -314,7 +314,7 @@ there is for the sessions.
 Sharing via the ORD Reaction Editor
 ##########################################
 
-The new `ORD Reaction Editor <https://app.open-reaction-database.org/>`__ has a groups feature that can be used to share reactions and
+The new `ORD Reaction Editor <https://editor.open-reaction-database.org/>`__ has a groups feature that can be used to share reactions and
 datasets between users (`YouTube Tutorial <https://youtu.be/KkLzqfkX22o?si=3R1w1-CjX_bgIylk>`__). This can be used to share your in-progress
 dataset with the ORD Program Manager as part of a support request. You can add the Program Manager (Ben Deadman) by adding ben.deadman@gmail.com
 as a member to the group. Please note that the Reaction Editor does not have chat capabilities so this support would normally be accompanied
