@@ -48,6 +48,8 @@ class ReactionIdentifier(_message.Message):
         RDFILE: _ClassVar[ReactionIdentifier.ReactionIdentifierType]
         RINCHI: _ClassVar[ReactionIdentifier.ReactionIdentifierType]
         REACTION_TYPE: _ClassVar[ReactionIdentifier.ReactionIdentifierType]
+        GROUP: _ClassVar[ReactionIdentifier.ReactionIdentifierType]
+        ORDER: _ClassVar[ReactionIdentifier.ReactionIdentifierType]
     UNSPECIFIED: ReactionIdentifier.ReactionIdentifierType
     CUSTOM: ReactionIdentifier.ReactionIdentifierType
     REACTION_SMILES: ReactionIdentifier.ReactionIdentifierType
@@ -55,6 +57,8 @@ class ReactionIdentifier(_message.Message):
     RDFILE: ReactionIdentifier.ReactionIdentifierType
     RINCHI: ReactionIdentifier.ReactionIdentifierType
     REACTION_TYPE: ReactionIdentifier.ReactionIdentifierType
+    GROUP: ReactionIdentifier.ReactionIdentifierType
+    ORDER: ReactionIdentifier.ReactionIdentifierType
     TYPE_FIELD_NUMBER: _ClassVar[int]
     DETAILS_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
@@ -193,6 +197,10 @@ class Texture(_message.Message):
         SOLID: _ClassVar[Texture.TextureType]
         LIQUID: _ClassVar[Texture.TextureType]
         GAS: _ClassVar[Texture.TextureType]
+        SOLUTION: _ClassVar[Texture.TextureType]
+        SUSPENSION: _ClassVar[Texture.TextureType]
+        EMULSION: _ClassVar[Texture.TextureType]
+        GUM: _ClassVar[Texture.TextureType]
     UNSPECIFIED: Texture.TextureType
     CUSTOM: Texture.TextureType
     POWDER: Texture.TextureType
@@ -205,6 +213,10 @@ class Texture(_message.Message):
     SOLID: Texture.TextureType
     LIQUID: Texture.TextureType
     GAS: Texture.TextureType
+    SOLUTION: Texture.TextureType
+    SUSPENSION: Texture.TextureType
+    EMULSION: Texture.TextureType
+    GUM: Texture.TextureType
     TYPE_FIELD_NUMBER: _ClassVar[int]
     DETAILS_FIELD_NUMBER: _ClassVar[int]
     type: Texture.TextureType
@@ -519,8 +531,8 @@ class VesselPreparation(_message.Message):
     def __init__(self, type: _Optional[_Union[VesselPreparation.VesselPreparationType, str]] = ..., details: _Optional[str] = ...) -> None: ...
 
 class ReactionSetup(_message.Message):
-    __slots__ = ["vessel", "is_automated", "automation_platform", "automation_code", "environment"]
-    class AutomationCodeEntry(_message.Message):
+    __slots__ = ["vessel", "is_automated", "automation_platform", "procedure_code", "environment"]
+    class ProcedureCodeEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
@@ -551,14 +563,14 @@ class ReactionSetup(_message.Message):
     VESSEL_FIELD_NUMBER: _ClassVar[int]
     IS_AUTOMATED_FIELD_NUMBER: _ClassVar[int]
     AUTOMATION_PLATFORM_FIELD_NUMBER: _ClassVar[int]
-    AUTOMATION_CODE_FIELD_NUMBER: _ClassVar[int]
+    PROCEDURE_CODE_FIELD_NUMBER: _ClassVar[int]
     ENVIRONMENT_FIELD_NUMBER: _ClassVar[int]
     vessel: Vessel
     is_automated: bool
     automation_platform: str
-    automation_code: _containers.MessageMap[str, Data]
+    procedure_code: _containers.MessageMap[str, Data]
     environment: ReactionSetup.ReactionEnvironment
-    def __init__(self, vessel: _Optional[_Union[Vessel, _Mapping]] = ..., is_automated: bool = ..., automation_platform: _Optional[str] = ..., automation_code: _Optional[_Mapping[str, Data]] = ..., environment: _Optional[_Union[ReactionSetup.ReactionEnvironment, _Mapping]] = ...) -> None: ...
+    def __init__(self, vessel: _Optional[_Union[Vessel, _Mapping]] = ..., is_automated: bool = ..., automation_platform: _Optional[str] = ..., procedure_code: _Optional[_Mapping[str, Data]] = ..., environment: _Optional[_Union[ReactionSetup.ReactionEnvironment, _Mapping]] = ...) -> None: ...
 
 class ReactionConditions(_message.Message):
     __slots__ = ["temperature", "pressure", "stirring", "illumination", "electrochemistry", "flow", "reflux", "ph", "conditions_are_dynamic", "details"]
@@ -1053,7 +1065,7 @@ class ReactionOutcome(_message.Message):
     def __init__(self, reaction_time: _Optional[_Union[Time, _Mapping]] = ..., conversion: _Optional[_Union[Percentage, _Mapping]] = ..., products: _Optional[_Iterable[_Union[ProductCompound, _Mapping]]] = ..., analyses: _Optional[_Mapping[str, Analysis]] = ...) -> None: ...
 
 class ProductCompound(_message.Message):
-    __slots__ = ["identifiers", "is_desired_product", "measurements", "isolated_color", "texture", "features", "reaction_role"]
+    __slots__ = ["identifiers", "is_desired_product", "measurements", "isolated_color", "isolated_texture", "features", "reaction_role"]
     class FeaturesEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -1065,17 +1077,17 @@ class ProductCompound(_message.Message):
     IS_DESIRED_PRODUCT_FIELD_NUMBER: _ClassVar[int]
     MEASUREMENTS_FIELD_NUMBER: _ClassVar[int]
     ISOLATED_COLOR_FIELD_NUMBER: _ClassVar[int]
-    TEXTURE_FIELD_NUMBER: _ClassVar[int]
+    ISOLATED_TEXTURE_FIELD_NUMBER: _ClassVar[int]
     FEATURES_FIELD_NUMBER: _ClassVar[int]
     REACTION_ROLE_FIELD_NUMBER: _ClassVar[int]
     identifiers: _containers.RepeatedCompositeFieldContainer[CompoundIdentifier]
     is_desired_product: bool
     measurements: _containers.RepeatedCompositeFieldContainer[ProductMeasurement]
     isolated_color: str
-    texture: Texture
+    isolated_texture: Texture
     features: _containers.MessageMap[str, Data]
     reaction_role: ReactionRole.ReactionRoleType
-    def __init__(self, identifiers: _Optional[_Iterable[_Union[CompoundIdentifier, _Mapping]]] = ..., is_desired_product: bool = ..., measurements: _Optional[_Iterable[_Union[ProductMeasurement, _Mapping]]] = ..., isolated_color: _Optional[str] = ..., texture: _Optional[_Union[Texture, _Mapping]] = ..., features: _Optional[_Mapping[str, Data]] = ..., reaction_role: _Optional[_Union[ReactionRole.ReactionRoleType, str]] = ...) -> None: ...
+    def __init__(self, identifiers: _Optional[_Iterable[_Union[CompoundIdentifier, _Mapping]]] = ..., is_desired_product: bool = ..., measurements: _Optional[_Iterable[_Union[ProductMeasurement, _Mapping]]] = ..., isolated_color: _Optional[str] = ..., isolated_texture: _Optional[_Union[Texture, _Mapping]] = ..., features: _Optional[_Mapping[str, Data]] = ..., reaction_role: _Optional[_Union[ReactionRole.ReactionRoleType, str]] = ...) -> None: ...
 
 class ProductMeasurement(_message.Message):
     __slots__ = ["analysis_key", "type", "details", "uses_internal_standard", "is_normalized", "uses_authentic_standard", "authentic_standard", "percentage", "float_value", "string_value", "amount", "retention_time", "mass_spec_details", "selectivity", "wavelength"]
@@ -1219,6 +1231,10 @@ class Analysis(_message.Message):
         ED: _ClassVar[Analysis.AnalysisType]
         OPTICAL_ROTATION: _ClassVar[Analysis.AnalysisType]
         CAD: _ClassVar[Analysis.AnalysisType]
+        BP: _ClassVar[Analysis.AnalysisType]
+        NMR_19F: _ClassVar[Analysis.AnalysisType]
+        NMR_31P: _ClassVar[Analysis.AnalysisType]
+        ELEMENTAL_ANALYSIS: _ClassVar[Analysis.AnalysisType]
     UNSPECIFIED: Analysis.AnalysisType
     CUSTOM: Analysis.AnalysisType
     LC: Analysis.AnalysisType
@@ -1245,6 +1261,10 @@ class Analysis(_message.Message):
     ED: Analysis.AnalysisType
     OPTICAL_ROTATION: Analysis.AnalysisType
     CAD: Analysis.AnalysisType
+    BP: Analysis.AnalysisType
+    NMR_19F: Analysis.AnalysisType
+    NMR_31P: Analysis.AnalysisType
+    ELEMENTAL_ANALYSIS: Analysis.AnalysisType
     class DataEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -1269,7 +1289,7 @@ class Analysis(_message.Message):
     def __init__(self, type: _Optional[_Union[Analysis.AnalysisType, str]] = ..., details: _Optional[str] = ..., chmo_id: _Optional[int] = ..., is_of_isolated_species: bool = ..., data: _Optional[_Mapping[str, Data]] = ..., instrument_manufacturer: _Optional[str] = ..., instrument_last_calibrated: _Optional[_Union[DateTime, _Mapping]] = ...) -> None: ...
 
 class ReactionProvenance(_message.Message):
-    __slots__ = ["experimenter", "city", "experiment_start", "doi", "patent", "publication_url", "record_created", "record_modified", "reaction_metadata", "is_mined"]
+    __slots__ = ["experimenter", "city", "experiment_start", "doi", "patent", "publication_url", "record_created", "record_modified", "reaction_metadata", "is_mined", "publication", "extraction", "additional_sources"]
     class ReactionMetadataEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -1287,6 +1307,9 @@ class ReactionProvenance(_message.Message):
     RECORD_MODIFIED_FIELD_NUMBER: _ClassVar[int]
     REACTION_METADATA_FIELD_NUMBER: _ClassVar[int]
     IS_MINED_FIELD_NUMBER: _ClassVar[int]
+    PUBLICATION_FIELD_NUMBER: _ClassVar[int]
+    EXTRACTION_FIELD_NUMBER: _ClassVar[int]
+    ADDITIONAL_SOURCES_FIELD_NUMBER: _ClassVar[int]
     experimenter: Person
     city: str
     experiment_start: DateTime
@@ -1297,7 +1320,68 @@ class ReactionProvenance(_message.Message):
     record_modified: _containers.RepeatedCompositeFieldContainer[RecordEvent]
     reaction_metadata: _containers.MessageMap[str, Data]
     is_mined: bool
-    def __init__(self, experimenter: _Optional[_Union[Person, _Mapping]] = ..., city: _Optional[str] = ..., experiment_start: _Optional[_Union[DateTime, _Mapping]] = ..., doi: _Optional[str] = ..., patent: _Optional[str] = ..., publication_url: _Optional[str] = ..., record_created: _Optional[_Union[RecordEvent, _Mapping]] = ..., record_modified: _Optional[_Iterable[_Union[RecordEvent, _Mapping]]] = ..., reaction_metadata: _Optional[_Mapping[str, Data]] = ..., is_mined: bool = ...) -> None: ...
+    publication: Publication
+    extraction: ExtractionMetadata
+    additional_sources: _containers.RepeatedCompositeFieldContainer[AdditionalSource]
+    def __init__(self, experimenter: _Optional[_Union[Person, _Mapping]] = ..., city: _Optional[str] = ..., experiment_start: _Optional[_Union[DateTime, _Mapping]] = ..., doi: _Optional[str] = ..., patent: _Optional[str] = ..., publication_url: _Optional[str] = ..., record_created: _Optional[_Union[RecordEvent, _Mapping]] = ..., record_modified: _Optional[_Iterable[_Union[RecordEvent, _Mapping]]] = ..., reaction_metadata: _Optional[_Mapping[str, Data]] = ..., is_mined: bool = ..., publication: _Optional[_Union[Publication, _Mapping]] = ..., extraction: _Optional[_Union[ExtractionMetadata, _Mapping]] = ..., additional_sources: _Optional[_Iterable[_Union[AdditionalSource, _Mapping]]] = ...) -> None: ...
+
+class Publication(_message.Message):
+    __slots__ = ["doi", "patent", "url", "location", "authors", "publication_date", "details", "organizations"]
+    DOI_FIELD_NUMBER: _ClassVar[int]
+    PATENT_FIELD_NUMBER: _ClassVar[int]
+    URL_FIELD_NUMBER: _ClassVar[int]
+    LOCATION_FIELD_NUMBER: _ClassVar[int]
+    AUTHORS_FIELD_NUMBER: _ClassVar[int]
+    PUBLICATION_DATE_FIELD_NUMBER: _ClassVar[int]
+    DETAILS_FIELD_NUMBER: _ClassVar[int]
+    ORGANIZATIONS_FIELD_NUMBER: _ClassVar[int]
+    doi: str
+    patent: str
+    url: str
+    location: str
+    authors: _containers.RepeatedCompositeFieldContainer[Person]
+    publication_date: DateTime
+    details: str
+    organizations: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, doi: _Optional[str] = ..., patent: _Optional[str] = ..., url: _Optional[str] = ..., location: _Optional[str] = ..., authors: _Optional[_Iterable[_Union[Person, _Mapping]]] = ..., publication_date: _Optional[_Union[DateTime, _Mapping]] = ..., details: _Optional[str] = ..., organizations: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class AdditionalSource(_message.Message):
+    __slots__ = ["type", "publication", "details"]
+    class SourceRole(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = []
+        UNSPECIFIED: _ClassVar[AdditionalSource.SourceRole]
+        CUSTOM: _ClassVar[AdditionalSource.SourceRole]
+        OTHER_VERSION: _ClassVar[AdditionalSource.SourceRole]
+        SAME_TEXT: _ClassVar[AdditionalSource.SourceRole]
+        DATA_SOURCE: _ClassVar[AdditionalSource.SourceRole]
+        RELATED: _ClassVar[AdditionalSource.SourceRole]
+    UNSPECIFIED: AdditionalSource.SourceRole
+    CUSTOM: AdditionalSource.SourceRole
+    OTHER_VERSION: AdditionalSource.SourceRole
+    SAME_TEXT: AdditionalSource.SourceRole
+    DATA_SOURCE: AdditionalSource.SourceRole
+    RELATED: AdditionalSource.SourceRole
+    TYPE_FIELD_NUMBER: _ClassVar[int]
+    PUBLICATION_FIELD_NUMBER: _ClassVar[int]
+    DETAILS_FIELD_NUMBER: _ClassVar[int]
+    type: AdditionalSource.SourceRole
+    publication: Publication
+    details: str
+    def __init__(self, type: _Optional[_Union[AdditionalSource.SourceRole, str]] = ..., publication: _Optional[_Union[Publication, _Mapping]] = ..., details: _Optional[str] = ...) -> None: ...
+
+class ExtractionMetadata(_message.Message):
+    __slots__ = ["is_mined", "how_mined", "confidence", "confidence_details", "is_human_reviewed"]
+    IS_MINED_FIELD_NUMBER: _ClassVar[int]
+    HOW_MINED_FIELD_NUMBER: _ClassVar[int]
+    CONFIDENCE_FIELD_NUMBER: _ClassVar[int]
+    CONFIDENCE_DETAILS_FIELD_NUMBER: _ClassVar[int]
+    IS_HUMAN_REVIEWED_FIELD_NUMBER: _ClassVar[int]
+    is_mined: bool
+    how_mined: str
+    confidence: float
+    confidence_details: str
+    is_human_reviewed: bool
+    def __init__(self, is_mined: bool = ..., how_mined: _Optional[str] = ..., confidence: _Optional[float] = ..., confidence_details: _Optional[str] = ..., is_human_reviewed: bool = ...) -> None: ...
 
 class Person(_message.Message):
     __slots__ = ["username", "name", "orcid", "organization", "email"]
