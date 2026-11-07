@@ -417,6 +417,23 @@ def test_bad_compound_identifier_format(identifier_type, value, expected):
     assert expected in output.warnings[0]
 
 
+@pytest.mark.parametrize("value", ["64-17-5", "7732-18-5", "58-08-2"])
+def test_cas_number_check_digit_valid(value):
+    message = reaction_pb2.CompoundIdentifier(type="CAS_NUMBER", value=value)
+    output = _run_validation(message)
+    assert len(output.errors) == 0
+    assert len(output.warnings) == 0
+
+
+@pytest.mark.parametrize("value", ["7732-18-4", "977739-46-3"])
+def test_cas_number_check_digit_invalid(value):
+    message = reaction_pb2.CompoundIdentifier(type="CAS_NUMBER", value=value)
+    output = _run_validation(message)
+    assert len(output.errors) == 0
+    assert len(output.warnings) == 1
+    assert "invalid check digit" in output.warnings[0]
+
+
 @pytest.mark.parametrize("ph_value", [7.0, 0.0, 14.0])
 def test_reaction_conditions_ph(ph_value):
     message = reaction_pb2.ReactionConditions(ph=ph_value)
