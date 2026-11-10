@@ -13,8 +13,10 @@ as `review_dataset` writes it:
   - `flat.csv`: the varying fields, one row per reaction;
   - `constants.csv`: the fields every reaction holds the same way;
   - `column_stats.csv`: statistics for each varying field;
-  - `exemplars.pbtxt`: the reactions picked for the reviewer to read, as a dataset
-    whose description says why each was picked.
+  - `exemplars.txtpb`: the reactions picked for the reviewer to read, as a dataset
+    whose description says why each was picked. It can be imported into the ORD
+    reaction editor with *Create Dataset from File*; the page also has a download
+    for each exemplar, to import with *Create Reaction from File*.
 
 The screen is recorded consistently, so the dataset-level checks find nothing. The one
 validation warning, raised by all 80 reactions, is a record time without a UTC offset.

@@ -103,7 +103,7 @@ def test_the_bundle_holds_the_page_and_every_table(tmp_path):
         "flat.csv",
         "constants.csv",
         "column_stats.csv",
-        "exemplars.pbtxt",
+        "exemplars.txtpb",
     }
     with (tmp_path / "tables" / "findings.csv").open(newline="") as f:
         rows = list(csv.DictReader(f))

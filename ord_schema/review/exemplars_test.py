@@ -14,7 +14,9 @@
 
 """Tests for ord_schema.review.exemplars."""
 
+import base64
 import pathlib
+import re
 
 from google.protobuf import text_format
 
@@ -135,11 +137,11 @@ def test_exemplars_are_fetched_from_a_parquet_dataset(tmp_path):
     assert picked[0].reaction == _screen()[0]
 
 
-def test_the_pbtxt_is_a_dataset_of_the_reactions_as_they_were(tmp_path):
+def test_the_txtpb_is_a_dataset_of_the_reactions_as_they_were(tmp_path):
     reactions = _screen()
     picked = _pick(reactions)
-    path = tmp_path / "exemplars.pbtxt"
-    exemplars.write_pbtxt(picked, path, name="screen")
+    path = tmp_path / "exemplars.txtpb"
+    exemplars.write_txtpb(picked, path, name="screen")
     dataset = text_format.Parse(path.read_text(), dataset_pb2.Dataset())
     assert dataset.name == "screen exemplars"
     assert list(dataset.reactions) == [reactions[e.position] for e in picked]
@@ -165,7 +167,7 @@ def test_the_report_shows_each_exemplar_and_why(monkeypatch):
     page = report.render_html(review)
     assert "<h2>Exemplar reactions</h2>" in page
     assert "the most common shape (29 reactions)" in page
-    assert "continued in tables/exemplars.pbtxt" in page
+    assert "continued in the download and tables/exemplars.txtpb" in page
 
 
 def test_a_control_lacking_one_inputs_amount_is_its_own_shape():
@@ -183,3 +185,32 @@ def test_a_control_lacking_one_inputs_amount_is_its_own_shape():
     reasons = _by_label(_pick(reactions))
     assert reasons["r4"][0].startswith("a shape of its own: lacks ")
     assert 'inputs["ligand"].components.amount.moles.value' in reasons["r4"][0]
+
+
+def test_the_report_offers_downloads_the_editor_can_import():
+    # The editor's backend reads .txtpb with text_format.Parse into a Reaction (one
+    # reaction) or a Dataset (all of them); each download has to parse back to
+    # exactly what was picked.
+    reactions = _screen()
+    review = report.build_report(
+        dataset_pb2.Dataset(name="screen", reactions=reactions)
+    )
+    page = report.render_html(review)
+    links = re.findall(
+        r'<a class="download" download="([^"]+)" '
+        r'href="data:text/plain;charset=utf-8;base64,([^"]+)">',
+        page,
+    )
+    assert len(links) == len(review.exemplars) + 1
+    assert all(name.endswith(".txtpb") for name, _ in links)
+    everything = text_format.Parse(
+        base64.b64decode(links[0][1]).decode(), dataset_pb2.Dataset()
+    )
+    assert list(everything.reactions) == [e.reaction for e in review.exemplars]
+    for (name, data), exemplar in zip(links[1:], review.exemplars, strict=True):
+        assert name == f"{exemplar.label}.txtpb"
+        parsed = text_format.Parse(
+            base64.b64decode(data).decode(), reaction_pb2.Reaction()
+        )
+        assert parsed == exemplar.reaction
+    assert report.EDITOR_URL in page

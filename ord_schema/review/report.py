@@ -33,11 +33,13 @@
             flat.csv            the varying fields, one row per reaction
             constants.csv       the fields every reaction holds the same way
             column_stats.csv    statistics for each group of varying columns
+            exemplars.txtpb     the reactions picked for the reviewer to read
 
 The CSVs are always complete; only the page caps what it shows. Nothing here blocks
 a submission: the report is for the reviewer, who decides.
 """
 
+import base64
 import csv
 import dataclasses
 import datetime
@@ -63,6 +65,10 @@ MAX_CONSTANTS_SHOWN = 300
 MAX_EXAMPLES = 5
 # Characters of an exemplar's text shown on the page; the pbtxt holds the rest.
 MAX_EXEMPLAR_TEXT = 6000
+
+# Where a reviewer can import an exemplar to see it rendered, until the report can
+# link to a viewer page instead (#1183).
+EDITOR_URL = "https://editor.open-reaction-database.org"
 
 # Digits in a validation message, which differ from reaction to reaction (amounts,
 # times, indices) while the problem they describe is the same.
@@ -273,8 +279,8 @@ def write_bundle(
     evidence.table.write_csv(tables / "flat.csv")
     evidence.table.write_constants_csv(tables / "constants.csv")
     columns.write_csv(report.column_stats, tables / "column_stats.csv")
-    exemplars.write_pbtxt(
-        report.exemplars, tables / "exemplars.pbtxt", name=report.name
+    exemplars.write_txtpb(
+        report.exemplars, tables / "exemplars.txtpb", name=report.name
     )
     page = root / f"{_file_stem(report)}_review.html"
     page.write_text(render_html(report), encoding="utf-8")
@@ -345,6 +351,8 @@ tr.flagged td.structure { background: #ffffff; }
 .conflict { color: var(--error); font-weight: 600; }
 .note { color: var(--warning); }
 details summary { cursor: pointer; color: var(--text-secondary); }
+a { color: var(--series-1); }
+a.download { font-weight: 600; }
 details pre { background: var(--card); border: 1px solid var(--grid);
   border-radius: 6px; padding: 10px; font-size: 12px; overflow-x: auto;
   max-height: 480px; }
@@ -517,6 +525,19 @@ def _shapes_section(report: ReviewReport) -> str:
     return "".join(parts)
 
 
+def _download(text: str, filename: str, label: str) -> str:
+    """A link that saves ``text`` as ``filename``, carried in the page itself."""
+    data = base64.b64encode(text.encode()).decode()
+    return (
+        f'<a class="download" download="{_e(filename)}" '
+        f'href="data:text/plain;charset=utf-8;base64,{data}">{_e(label)}</a>'
+    )
+
+
+def _filename(label: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", label).strip("_") or "reaction"
+
+
 def _exemplars_section(report: ReviewReport) -> str:
     picked = report.exemplars
     parts = [
@@ -524,14 +545,32 @@ def _exemplars_section(report: ReviewReport) -> str:
         f"<p>{len(picked):,} reaction{'s' if len(picked) != 1 else ''} to read in "
         "full: one of each shape, the extremes of each measured value and, in a "
         "uniform dataset, inputs no other reaction uses. All are in "
-        "<code>tables/exemplars.pbtxt</code>.</p>",
+        "<code>tables/exemplars.txtpb</code>.</p>",
     ]
+    if picked:
+        everything = text_format.MessageToString(
+            exemplars.to_dataset(picked, name=report.name)
+        )
+        parts.append(
+            '<p class="notice">To see an exemplar rendered, download it and import it '
+            f'into the <a href="{EDITOR_URL}">ORD reaction editor</a>: one reaction '
+            "with <b>Create Reaction from File</b>, or all of them as a dataset with "
+            "<b>Create Dataset from File</b>. Imported reactions are saved to your "
+            "editor account, so import only data you may share there.<br>"
+            + _download(
+                everything,
+                f"{_file_stem(report)}_exemplars.txtpb",
+                f"Download all {len(picked):,} exemplars (.txtpb)",
+            )
+            + "</p>"
+        )
     for exemplar in picked:
-        text = text_format.MessageToString(exemplar.reaction)
+        full = text_format.MessageToString(exemplar.reaction)
+        text = full
         if len(text) > MAX_EXEMPLAR_TEXT:
             text = (
                 text[:MAX_EXEMPLAR_TEXT]
-                + "\n# ... continued in tables/exemplars.pbtxt\n"
+                + "\n# ... continued in the download and tables/exemplars.txtpb\n"
             )
         reasons = "".join(f"<li>{_e(reason)}</li>" for reason in exemplar.reasons)
         parts.append(
@@ -543,7 +582,13 @@ def _exemplars_section(report: ReviewReport) -> str:
                 if len(exemplar.reasons) > 1
                 else ""
             )
-            + f"</summary><ul>{reasons}</ul><pre>{_e(text)}</pre></details>"
+            + f"</summary><ul>{reasons}</ul><p>"
+            + _download(
+                full,
+                f"{_filename(exemplar.label)}.txtpb",
+                "Download this reaction (.txtpb)",
+            )
+            + f"</p><pre>{_e(text)}</pre></details>"
         )
     parts.append("</section>")
     return "".join(parts)

@@ -25,7 +25,7 @@ Instead this picks:
   reaction uses**, which in a screen is either a deliberate one-off or a mistake.
 
 Each exemplar says why it was picked, and a reaction picked for several reasons is
-listed once. :func:`write_pbtxt` writes them as a readable subset of the dataset.
+listed once. :func:`write_txtpb` writes them as a readable subset of the dataset.
 """
 
 import dataclasses
@@ -262,10 +262,14 @@ def to_dataset(exemplars: list[Exemplar], *, name: str) -> dataset_pb2.Dataset:
     )
 
 
-def write_pbtxt(
+def write_txtpb(
     exemplars: list[Exemplar], path: str | os.PathLike[str], *, name: str
 ) -> None:
-    """Writes the exemplars as a text-format Dataset, to read or load."""
+    """Writes the exemplars as a text-format Dataset, to read or load.
+
+    Named ``.txtpb`` by the report, the suffix the ORD reaction editor's dataset
+    import accepts, so a reviewer can import the file as it is.
+    """
     pathlib.Path(path).write_text(
         text_format.MessageToString(to_dataset(exemplars, name=name)), encoding="utf-8"
     )
