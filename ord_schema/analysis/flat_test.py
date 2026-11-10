@@ -18,6 +18,7 @@ import math
 import pathlib
 
 import pandas as pd
+import pytest
 
 from ord_schema import datasets, message_helpers
 from ord_schema.analysis import flat
@@ -97,7 +98,8 @@ def test_matches_messages_to_dataframe_on_a_real_screen():
     # The helper this builds on: the same columns, values and dtypes, without
     # holding the constant columns in memory.
     reactions = datasets.load_dataset(_NIELSEN).reactions
-    table = flat.flatten(reactions)
+    # Dates as written: the helper does not bin them.
+    table = flat.flatten(reactions, date_resolution=None)
     expected = message_helpers.messages_to_dataframe(
         reactions, drop_constant_columns=True
     )
@@ -173,5 +175,206 @@ def test_csvs(tmp_path):
     written = pd.read_csv(tmp_path / "flat.csv")
     assert written[_BASE].tolist() == ["K2CO3", "Cs2CO3"]
     constants = pd.read_csv(tmp_path / "constants.csv")
-    assert list(constants.columns) == ["field", "value"]
+    assert list(constants.columns) == ["field", "value", "section"]
     assert "SOLVENT" in constants["value"].tolist()
+
+
+def _named(smiles: str, name: str, role: str = "reagent") -> reaction_pb2.Compound:
+    return message_helpers.build_compound(smiles=smiles, name=name, role=role)
+
+
+def _screen(*bases: tuple[str, str]) -> list[reaction_pb2.Reaction]:
+    """One reaction per (SMILES, name) base, with a solvent and a yield."""
+    reactions = []
+    for i, (smiles, name) in enumerate(bases):
+        reaction = reaction_pb2.Reaction(reaction_id=f"r{i}")
+        reaction.inputs["solvent"].components.append(
+            message_helpers.build_compound(smiles="CCO", role="solvent")
+        )
+        reaction.inputs["base"].components.append(_named(smiles, name))
+        product = reaction.outcomes.add().products.add()
+        product.measurements.add(type="YIELD").percentage.value = 10 * i + 5
+        reactions.append(reaction)
+    return reactions
+
+
+_BASE_SMILES = 'inputs["base"].components[0].identifiers[0].value'
+_BASE_NAME = 'inputs["base"].components[0].identifiers[1].value'
+_YIELD = "outcomes[0].products[0].measurements[0].percentage.value"
+
+
+def test_a_compounds_smiles_and_name_group_as_one_variable():
+    table = flat.flatten(
+        _screen(
+            ("[K+].[K+].[O-]C([O-])=O", "K2CO3"),
+            ("CCN(CC)CC", "Et3N"),
+            ("CCN(CC)CC", "Et3N"),
+        )
+    )
+    assert [_BASE_SMILES, _BASE_NAME] in table.column_groups
+    assert _BASE_NAME not in table.grouped().columns
+
+
+def test_unique_values_show_every_column_of_a_group_side_by_side():
+    table = flat.flatten(
+        _screen(
+            ("[K+].[K+].[O-]C([O-])=O", "K2CO3"),
+            ("CCN(CC)CC", "Et3N"),
+            ("CCN(CC)CC", "Et3N"),
+        )
+    )
+    values = table.unique_values(_BASE_NAME)
+    assert list(values.columns) == [_BASE_SMILES, _BASE_NAME, "reactions"]
+    assert values.to_dict("records") == [
+        {_BASE_SMILES: "CCN(CC)CC", _BASE_NAME: "Et3N", "reactions": 2},
+        {_BASE_SMILES: "[K+].[K+].[O-]C([O-])=O", _BASE_NAME: "K2CO3", "reactions": 1},
+    ]
+
+
+def test_a_name_used_for_two_structures_breaks_the_group():
+    # Grouping must not hide a mismatch: "Et3N" written against two structures means
+    # the name and the SMILES no longer pair one to one, so they stay apart.
+    table = flat.flatten(
+        _screen(
+            ("[K+].[K+].[O-]C([O-])=O", "K2CO3"),
+            ("CCN(CC)CC", "Et3N"),
+            ("CCN(C(C)C)C(C)C", "Et3N"),
+        )
+    )
+    assert [_BASE_SMILES] in table.column_groups
+    assert [_BASE_NAME] in table.column_groups
+
+
+def test_columns_whose_every_value_differs_are_not_grouped():
+    # The yields and reaction IDs are all different, which pairs them one to one by
+    # coincidence; that is not a reason to group them.
+    table = flat.flatten(_screen(("CC", "a"), ("CCC", "b"), ("CCCC", "c")))
+    assert ["reaction_id"] in table.column_groups
+    assert [_YIELD] in table.column_groups
+
+
+def test_the_fields_of_a_component_only_some_reactions_have_group_together():
+    reactions = _screen(("CC", "a"), ("CC", "a"), ("CC", "a"))
+    reactions[2].inputs["base"].components.append(
+        message_helpers.build_compound(name="18-crown-6", amount="1 mg", role="reagent")
+    )
+    table = flat.flatten(reactions)
+    extra = [c for c in table.varying.columns if ".components[1]." in c]
+    assert len(extra) > 1
+    assert extra in table.column_groups
+
+
+def test_a_control_reaction_that_shifts_positions_shows_in_the_role_column():
+    # As in the Perera screen: in the "no ligand" control the solvent takes the
+    # ligand's place at components[0], so that position holds a ligand in some
+    # reactions and a solvent in others. A reviewer should see the role column vary.
+    reactions = []
+    for i, ligand in enumerate(["PPh3", "XPhos", None]):
+        reaction = reaction_pb2.Reaction(reaction_id=f"r{i}")
+        components = reaction.inputs["ligand"].components
+        if ligand is not None:
+            components.append(
+                message_helpers.build_compound(name=ligand, role="reagent")
+            )
+        components.append(
+            message_helpers.build_compound(name="toluene", role="solvent")
+        )
+        reactions.append(reaction)
+    table = flat.flatten(reactions)
+    role = 'inputs["ligand"].components[0].reaction_role'
+    assert table.varying[role].tolist() == ["REAGENT", "REAGENT", "SOLVENT"]
+
+
+def _recorded(reaction_id: str, created: str) -> reaction_pb2.Reaction:
+    reaction = _reaction(reaction_id)
+    reaction.provenance.record_created.time.value = created
+    reaction.provenance.record_created.person.name = "A. Chemist"
+    return reaction
+
+
+_CREATED = "provenance.record_created.time.value"
+
+
+def test_record_times_minutes_apart_agree_at_the_default_resolution():
+    table = flat.flatten(
+        [
+            _recorded("r1", "2026-01-05T10:00:00"),
+            _recorded("r2", "2026-01-05T10:03:41"),
+        ]
+    )
+    assert table.constants[_CREATED] == "2026-01-05"
+    assert table.date_resolution == "day"
+
+
+def test_record_times_on_different_days_vary():
+    table = flat.flatten(
+        [_recorded("r1", "2026-01-05T10:00:00"), _recorded("r2", "2026-01-06T09:00:00")]
+    )
+    assert table.varying[_CREATED].tolist() == ["2026-01-05", "2026-01-06"]
+
+
+def test_dates_can_be_compared_at_another_resolution_or_as_written():
+    reactions = [
+        _recorded("r1", "2026-01-05T10:00:00"),
+        _recorded("r2", "2026-01-05T10:03:41"),
+    ]
+    by_minute = flat.flatten(reactions, date_resolution="minute")
+    assert by_minute.varying[_CREATED].tolist() == [
+        "2026-01-05 10:00",
+        "2026-01-05 10:03",
+    ]
+    by_month = flat.flatten(reactions, date_resolution="month")
+    assert by_month.constants[_CREATED] == "2026-01"
+    as_written = flat.flatten(reactions, date_resolution=None)
+    assert as_written.varying[_CREATED].tolist() == [
+        "2026-01-05T10:00:00",
+        "2026-01-05T10:03:41",
+    ]
+
+
+def test_a_date_without_a_time_stays_a_date_at_finer_resolutions():
+    table = flat.flatten(
+        [_recorded("r1", "2026-01-05"), _recorded("r2", "2026-01-05T10:03:41")],
+        date_resolution="hour",
+    )
+    assert table.varying[_CREATED].tolist() == ["2026-01-05", "2026-01-05 10:00"]
+
+
+def test_a_value_that_is_not_a_date_is_left_as_written():
+    table = flat.flatten(
+        [_recorded("r1", "2026-01-05T10:00:00"), _recorded("r2", "last Tuesday-ish")]
+    )
+    assert table.varying[_CREATED].tolist() == ["2026-01-05", "last Tuesday-ish"]
+
+
+@pytest.mark.parametrize(
+    ("column", "expected"),
+    [
+        ("provenance.record_created.time.value", True),
+        ("provenance.record_modified[2].time.value", True),
+        ("provenance.experiment_start.value", True),
+        ('outcomes[0].analyses["LCMS"].instrument_last_calibrated.value', True),
+        ("provenance.record_created.person.name", False),
+        ("conditions.temperature.setpoint.value", False),
+        ("not.a.field", False),
+    ],
+)
+def test_datetime_columns_are_found_from_the_schema(column, expected):
+    assert flat.is_datetime(column) is expected
+
+
+def test_provenance_is_kept_but_reported_in_its_own_section():
+    reactions = [
+        _recorded("r1", "2026-01-05T10:00:00"),
+        _recorded("r2", "2026-01-06T10:00:00"),
+    ]
+    reactions[1].provenance.record_created.person.name = "B. Chemist"
+    reactions[1].inputs["base"].components[0].identifiers[0].value = "Cs2CO3"
+    table = flat.flatten(reactions)
+    assert _CREATED in table.provenance_columns()
+    assert "provenance.record_created.person.name" in table.provenance_columns()
+    assert _BASE in table.experiment_columns()
+    assert not set(table.provenance_columns()) & set(table.experiment_columns())
+    constants = table.constants_frame().set_index("field")["section"]
+    sections = constants.to_dict()
+    assert sections['inputs["solvent"].components[0].reaction_role'] == "experiment"

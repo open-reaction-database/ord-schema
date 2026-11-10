@@ -36,19 +36,100 @@ therefore never has its constant columns in memory::
 Columns are positional, so a dataset that lists the same components in a different
 order from one reaction to the next shows them as varying columns; see
 :meth:`ord_schema.analysis.summary.DatasetSummary.reordered_fields`.
+
+Three things make the table easier to read without hiding anything:
+
+- **Grouping.** Columns that always change together, such as a compound's SMILES
+  and its name, form one group, so each design variable is one column of
+  :meth:`FlatTable.grouped`. Listing a group's values with
+  :meth:`FlatTable.unique_values` shows every column of the group side by side, so
+  a name and the structure it stands for stay paired.
+- **Dates.** ``DateTime`` fields are compared at a resolution, a day by default, so
+  records created minutes apart do not count as different values.
+- **Provenance.** Who recorded the data and when stays in the table, but
+  :func:`is_provenance` tells it apart from the experiment, so a report can show it
+  in its own section.
 """
 
 import array
 import dataclasses
+import datetime
+import functools
 import os
 import pathlib
+import re
 from collections.abc import Iterable
+from typing import TYPE_CHECKING, Literal, cast
 
 import pandas as pd
 
 import ord_schema
-from ord_schema import message_helpers
+from ord_schema import message_helpers, validations
 from ord_schema.proto import reaction_pb2
+
+if TYPE_CHECKING:
+    from google.protobuf.descriptor import Descriptor
+
+# How finely DateTime values are compared, as strftime formats.
+DateResolution = Literal["month", "day", "hour", "minute", "second"]
+_DATE_FORMATS: dict[str, str] = {
+    "month": "%Y-%m",
+    "day": "%Y-%m-%d",
+    "hour": "%Y-%m-%d %H:00",
+    "minute": "%Y-%m-%d %H:%M",
+    "second": "%Y-%m-%d %H:%M:%S",
+}
+
+# A map key or repeated-field index in a message_to_row column name.
+_SUBSCRIPT = re.compile(r'\["[^"]*"\]|\[\d+\]')
+
+
+def is_provenance(column: str) -> bool:
+    """Whether ``column`` records who made the data and when, not the experiment."""
+    return column.startswith("provenance.")
+
+
+@functools.lru_cache(maxsize=4096)
+def is_datetime(column: str) -> bool:
+    """Whether ``column`` is the value of a ``DateTime`` message.
+
+    Read from the proto descriptors, so a ``DateTime`` field added to the schema is
+    recognized without a change here.
+    """
+    descriptor = cast("Descriptor", reaction_pb2.Reaction.DESCRIPTOR)
+    names = _SUBSCRIPT.sub("", column).split(".")
+    for name in names[:-1]:
+        field = descriptor.fields_by_name.get(name)
+        if field is None or field.message_type is None:
+            return False
+        descriptor = field.message_type
+        if descriptor.GetOptions().map_entry:
+            value_type = descriptor.fields_by_name["value"].message_type
+            if value_type is None:
+                return False
+            descriptor = value_type
+    return descriptor is reaction_pb2.DateTime.DESCRIPTOR and names[-1] == "value"
+
+
+def _bin_date(
+    value: ord_schema.ScalarType, resolution: DateResolution
+) -> ord_schema.ScalarType:
+    """Returns ``value`` cut to ``resolution``, or unchanged if it is not a DateTime.
+
+    Read with :func:`ord_schema.validations.parse_date_time`, the schema's definition
+    of a DateTime, so a value validation rejects is left as written: it is for a
+    reviewer to see, not to be hidden by binning. A time is cut as written, in the
+    zone it was recorded in. A date alone has no time to cut, so it stays a date at
+    any resolution finer than a day.
+    """
+    if not isinstance(value, str):
+        return value
+    parsed = validations.parse_date_time(value)
+    if parsed is None:
+        return value
+    if not isinstance(parsed, datetime.datetime) and resolution != "month":
+        return parsed.isoformat()
+    return parsed.strftime(_DATE_FORMATS[resolution])
 
 
 @dataclasses.dataclass
@@ -97,17 +178,89 @@ class FlatTable:
         constants: Each column every reaction holds with one and the same value,
             mapped to that value, in the order columns first appear.
         reaction_count: How many reactions were read.
+        date_resolution: The resolution ``DateTime`` columns were compared at, and
+            are shown at, or None if they were left as written.
     """
 
     varying: pd.DataFrame
     constants: dict[str, ord_schema.ScalarType]
     reaction_count: int
+    date_resolution: DateResolution | None = "day"
 
     def constants_frame(self) -> pd.DataFrame:
-        """The constant fields as a two-column table: ``field`` and ``value``."""
+        """The constant fields as a table: ``field``, ``value`` and ``section``.
+
+        ``section`` is ``provenance`` or ``experiment``; see :func:`is_provenance`.
+        """
         return pd.DataFrame(
-            {"field": list(self.constants), "value": list(self.constants.values())}
+            {
+                "field": list(self.constants),
+                "value": list(self.constants.values()),
+                "section": [_section(name) for name in self.constants],
+            }
         )
+
+    def experiment_columns(self) -> list[str]:
+        """The varying columns that describe the experiment, in table order."""
+        return [c for c in self.varying.columns if not is_provenance(c)]
+
+    def provenance_columns(self) -> list[str]:
+        """The varying columns that record who made the data and when."""
+        return [c for c in self.varying.columns if is_provenance(c)]
+
+    @functools.cached_property
+    def column_groups(self) -> list[list[str]]:
+        """Varying columns that always change together, in table order.
+
+        Two columns are grouped when each value of one always goes with the same
+        value of the other, and the other way round; a column's absence counts as a
+        value. A compound's SMILES and name group this way, and so do all the fields
+        of a component that only some reactions have. Two kinds of column are never
+        grouped: ``reaction_id``, and a column whose every value is different, since
+        pairing them shows nothing but that both are unique.
+
+        Returns:
+            One list per group, the first column standing for the group.
+        """
+        groups: dict[bytes, list[str]] = {}
+        order: list[list[str]] = []
+        for name in self.varying.columns:
+            codes, uniques = pd.factorize(self.varying[name], use_na_sentinel=False)
+            if name == "reaction_id" or len(uniques) == len(codes):
+                order.append([name])
+                continue
+            # factorize numbers values in order of first appearance, so two columns
+            # get the same codes exactly when they pair one to one.
+            key = codes.tobytes()
+            if key in groups:
+                groups[key].append(name)
+            else:
+                groups[key] = [name]
+                order.append(groups[key])
+        return order
+
+    def grouped(self) -> pd.DataFrame:
+        """The table with one column per group of :attr:`column_groups`."""
+        return self.varying[[group[0] for group in self.column_groups]]
+
+    def unique_values(self, column: str) -> pd.DataFrame:
+        """The distinct values of ``column``'s group, every column side by side.
+
+        Args:
+            column: Any column of the group.
+
+        Returns:
+            One row per distinct combination, with a ``reactions`` count, most
+            common first. Absent values show as NaN.
+
+        Raises:
+            KeyError: If ``column`` is not a varying column.
+        """
+        for group in self.column_groups:
+            if column in group:
+                counts = self.varying[group].value_counts(dropna=False, sort=True)
+                return counts.rename("reactions").reset_index()
+        raise KeyError(column)
 
     def write_csv(self, path: str | os.PathLike[str]) -> None:
         """Writes the varying fields, one row per reaction."""
@@ -120,11 +273,22 @@ class FlatTable:
             self.constants_frame().to_csv(f, index=False)
 
 
-def flatten(reactions: Iterable[reaction_pb2.Reaction]) -> FlatTable:
+def _section(column: str) -> str:
+    return "provenance" if is_provenance(column) else "experiment"
+
+
+def flatten(
+    reactions: Iterable[reaction_pb2.Reaction],
+    *,
+    date_resolution: DateResolution | None = "day",
+) -> FlatTable:
     """Returns the varying and constant fields of ``reactions``.
 
     Args:
         reactions: The dataset's reactions, read once, in order.
+        date_resolution: How finely to compare ``DateTime`` values, which the table
+            then shows at that resolution: by default the day, so records made
+            minutes apart agree. None compares them as written.
 
     Returns:
         The table of varying fields and the constant fields beside it.
@@ -134,6 +298,8 @@ def flatten(reactions: Iterable[reaction_pb2.Reaction]) -> FlatTable:
     for position, reaction in enumerate(reactions):
         reaction_count += 1
         for name, value in message_helpers.message_to_row(reaction).items():
+            if date_resolution is not None and is_datetime(name):
+                value = _bin_date(value, date_resolution)  # noqa: PLW2901
             column = columns.get(name)
             if column is None:
                 columns[name] = column = _Column(first=value)
@@ -161,4 +327,9 @@ def flatten(reactions: Iterable[reaction_pb2.Reaction]) -> FlatTable:
         varying.remove("reaction_id")
         varying.insert(0, "reaction_id")
     frame = pd.DataFrame(rows, columns=pd.Index(varying))
-    return FlatTable(varying=frame, constants=constants, reaction_count=reaction_count)
+    return FlatTable(
+        varying=frame,
+        constants=constants,
+        reaction_count=reaction_count,
+        date_resolution=date_resolution,
+    )
