@@ -209,6 +209,39 @@ def _reachable(profile: str) -> set[str]:
     return third_party
 
 
+def _all_imports(path: pathlib.Path, module: str) -> set[str]:
+    """Returns every module ``path`` could import, relative and guarded ones included.
+
+    Stricter than ``_imports``, which an install check can afford to be lenient in: a
+    guarded import there is one the module can do without. A boundary between two
+    subpackages is crossed by any import at all, so this resolves relative imports
+    against ``module`` and keeps the ones inside a ``try``.
+
+    Args:
+        path: The file holding ``module``.
+        module: The dotted name of the module in ``path``.
+
+    Returns:
+        Absolute dotted names. As in ``_imports``, ``from a import b`` yields both
+        ``a`` and ``a.b``, since ``b`` may be a module.
+    """
+    package = module if path.name == "__init__.py" else module.rpartition(".")[0]
+    found = set()
+    for node in ast.walk(ast.parse(path.read_text())):
+        if isinstance(node, ast.Import):
+            found.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                parts = package.split(".")
+                base = ".".join(parts[: len(parts) - (node.level - 1)])
+                source = f"{base}.{node.module}" if node.module else base
+            else:
+                source = node.module or ""
+            found.add(source)
+            found.update(f"{source}.{alias.name}" for alias in node.names)
+    return found
+
+
 def _internal_reachable(root: str) -> set[str]:
     """Returns the modules of this package reachable from ``root``, transitively.
 
@@ -217,7 +250,7 @@ def _internal_reachable(root: str) -> set[str]:
 
     Returns:
         Dotted names of the modules this package holds that ``root`` imports, directly
-        or through another of its modules.
+        or through another of its modules, by any of the routes ``_all_imports`` sees.
     """
     seen: set[str] = set()
     pending = list(_modules_under(root))
@@ -229,8 +262,17 @@ def _internal_reachable(root: str) -> set[str]:
         if path is None:
             continue
         seen.add(module)
-        pending.extend(_imports(path))
+        pending.extend(_all_imports(path, module))
     return seen
+
+
+def _review_modules_reached_from_analysis() -> set[str]:
+    """Returns the modules of ``ord_schema.review`` that ``analysis`` reaches."""
+    return {
+        module
+        for module in _internal_reachable("ord_schema.analysis")
+        if module == "ord_schema.review" or module.startswith("ord_schema.review.")
+    }
 
 
 @pytest.mark.parametrize("profile", _PROFILES)
@@ -279,12 +321,7 @@ def test_analysis_never_imports_review():
     # The review checks build on the analysis summaries. The reverse would make the
     # analysis extra need whatever review installs, and the two layers would no longer
     # be separable.
-    reached = _internal_reachable("ord_schema.analysis")
-    assert not {
-        module
-        for module in reached
-        if module == "ord_schema.review" or module.startswith("ord_schema.review.")
-    }
+    assert not _review_modules_reached_from_analysis()
 
 
 def test_the_internal_walk_follows_imports():
@@ -292,3 +329,67 @@ def test_the_internal_walk_follows_imports():
     # another subpackage when a module does import it.
     reached = _internal_reachable("ord_schema.search")
     assert any(module.startswith("ord_schema.artifacts") for module in reached)
+
+
+def _write_package(root: pathlib.Path, analysis: dict[str, str]) -> None:
+    """Writes a minimal ord_schema with a review subpackage and the given analysis.
+
+    Args:
+        root: The directory to write ``ord_schema/`` into.
+        analysis: Source for each module of ``ord_schema.analysis``, by file name.
+    """
+    package = root / "ord_schema"
+    (package / "review").mkdir(parents=True)
+    (package / "analysis").mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "review" / "__init__.py").write_text("")
+    (package / "review" / "report.py").write_text("")
+    files = {"__init__.py": ""} | analysis
+    for name, source in files.items():
+        (package / "analysis" / name).write_text(source)
+
+
+_GUARDED = "try:\n    from ord_schema import review\nexcept ImportError:\n    pass\n"
+
+
+@pytest.mark.parametrize(
+    "analysis",
+    [
+        pytest.param({"__init__.py": "import ord_schema.review\n"}, id="absolute"),
+        pytest.param({"summary.py": "from ord_schema import review\n"}, id="from"),
+        pytest.param({"summary.py": "from .. import review\n"}, id="relative"),
+        pytest.param(
+            {"summary.py": "from ..review import report\n"}, id="relative-module"
+        ),
+        pytest.param({"__init__.py": "from .. import review\n"}, id="relative-init"),
+        pytest.param({"summary.py": _GUARDED}, id="guarded"),
+        pytest.param(
+            {
+                "summary.py": "from . import helpers\n",
+                "helpers.py": "from ..review import report\n",
+            },
+            id="through-another-module",
+        ),
+    ],
+)
+def test_the_boundary_check_sees_every_route_into_review(
+    tmp_path, monkeypatch, analysis
+):
+    # A route the check missed would let the rule be broken with the test still green.
+    _write_package(tmp_path, analysis)
+    monkeypatch.setattr(sys.modules[__name__], "_ROOT", tmp_path)
+    assert _review_modules_reached_from_analysis()
+
+
+def test_the_boundary_check_passes_a_clean_analysis(tmp_path, monkeypatch):
+    # The routes above have to be caught without flagging an analysis that only reaches
+    # its own modules and the rest of the package.
+    _write_package(
+        tmp_path,
+        {
+            "summary.py": "from . import helpers\nfrom ord_schema import validations\n",
+            "helpers.py": "import collections\n",
+        },
+    )
+    monkeypatch.setattr(sys.modules[__name__], "_ROOT", tmp_path)
+    assert not _review_modules_reached_from_analysis()
