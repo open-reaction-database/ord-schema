@@ -29,6 +29,15 @@ name once, whatever the index or key, so ``inputs["amine"].components[0]`` and
 ``inputs["base"].components[2]`` share the path ``inputs.components``. Map keys are
 counted separately, under the map's path.
 
+Below a map, each field is also recorded under a *keyed* path that names the entry,
+``inputs["base"].components.identifiers.value``. The merged path says what the
+dataset records; the keyed path says which input it records it in, which is what
+separates a screen's variables: in a screen varying the alcohol, the base and the
+sulfonyl fluoride, all three vary under ``inputs.components.identifiers.value``, but
+each under its own keyed path. The field queries take ``by_key`` to choose. Shapes
+use merged paths only, so a dataset whose input names differ from reaction to
+reaction is not split into one shape per reaction.
+
 The summary follows the same pattern as
 :class:`~ord_schema.validations.DatasetCrossRefState`: build one per slice of a
 dataset with :meth:`DatasetSummary.observe`, then combine them with
@@ -43,6 +52,7 @@ in parallel::
 """
 
 import dataclasses
+import re
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Iterator
 
@@ -107,42 +117,73 @@ def _sort_key(value: Value) -> tuple[str, str]:
     return type(value).__name__, str(value)
 
 
+def _key_segment(key: object) -> str:
+    """Returns a map key as it appears in a keyed path: ``["base"]``."""
+    escaped = str(key).replace("\\", "\\\\").replace('"', '\\"')
+    return f'["{escaped}"]'
+
+
+# A key segment as _key_segment writes it, for recovering a keyed path's merged path.
+_KEY_SEGMENT = re.compile(r'\["(?:[^"\\]|\\.)*"\]')
+
+
+def merged_path(path: str) -> str:
+    """Returns the merged path for a keyed one, or ``path`` itself if it has no keys.
+
+    ``inputs["base"].components.identifiers.value`` becomes
+    ``inputs.components.identifiers.value``.
+    """
+    return _KEY_SEGMENT.sub("", path)
+
+
+def is_keyed(path: str) -> bool:
+    """Whether ``path`` names a map entry, as keyed paths do."""
+    return _KEY_SEGMENT.search(path) is not None
+
+
 def _walk(
-    msg: message.Message, prefix: str = ""
-) -> Iterator[tuple[str, Value | None, str | None]]:
+    msg: message.Message, prefix: str = "", keyed_prefix: str = ""
+) -> Iterator[tuple[str, str, Value | None, str | None]]:
     """Yields every populated field below ``msg``.
 
     Yields:
-        ``(path, value, None)`` for a scalar or enum, ``(path, None, None)`` for a
-        populated submessage, and ``(path, None, key)`` for each key of a map.
+        ``(path, keyed_path, value, None)`` for a scalar or enum,
+        ``(path, keyed_path, None, None)`` for a populated submessage, and
+        ``(path, keyed_path, None, key)`` for each key of a map. ``keyed_path`` equals
+        ``path`` outside any map.
     """
     for field, content in msg.ListFields():
         path = f"{prefix}{field.name}"
+        keyed = f"{keyed_prefix}{field.name}"
         if field.message_type is not None and field.message_type.GetOptions().map_entry:
             value_field = field.message_type.fields_by_name["value"]
             # In key order: protobuf does not define a map's order, so reading it as
             # found would make two reactions recorded identically look reordered.
             for key, entry in sorted(content.items(), key=lambda item: str(item[0])):
-                yield path, None, str(key)
+                yield path, keyed, None, str(key)
+                entry_path = f"{keyed}{_key_segment(key)}"
                 if value_field.message_type is None:
-                    yield f"{path}.value", _value(value_field, entry), None
+                    yield f"{path}.value", entry_path, _value(value_field, entry), None
                 else:
-                    yield path, None, None
-                    yield from _walk(entry, f"{path}.")
+                    yield path, entry_path, None, None
+                    yield from _walk(entry, f"{path}.", f"{entry_path}.")
         elif field.type == descriptor.FieldDescriptor.TYPE_MESSAGE:
             items = content if field.label == field.LABEL_REPEATED else [content]
             for item in items:
-                yield path, None, None
-                yield from _walk(item, f"{path}.")
+                yield path, keyed, None, None
+                yield from _walk(item, f"{path}.", f"{keyed}.")
         else:
             items = content if field.label == field.LABEL_REPEATED else [content]
             for item in items:
-                yield path, _value(field, item), None
+                yield path, keyed, _value(field, item), None
 
 
 @dataclasses.dataclass
 class DatasetSummary:
     """What a dataset's reactions record, field by field.
+
+    Every per-path attribute holds merged paths and, below a map, keyed paths too;
+    :func:`is_keyed` tells them apart.
 
     Attributes:
         reaction_count: How many reactions have been observed.
@@ -165,8 +206,8 @@ class DatasetSummary:
             it in the other.
         ordered_values_untracked: As ``untracked``, for ``ordered_values``.
         map_keys: For each map field path, how many reactions use each key.
-        shapes: How many reactions share each shape, a shape being the set of field
-            paths a reaction populates.
+        shapes: How many reactions share each shape, a shape being the set of merged
+            field paths a reaction populates.
         shape_examples: A few reaction IDs for each shape.
         compounds: The dataset's compounds, roles and identifiers.
     """
@@ -196,15 +237,20 @@ class DatasetSummary:
         """Adds one reaction to the summary."""
         self.reaction_count += 1
         paths: set[str] = set()
+        keyed_paths: set[str] = set()
         keys: dict[str, set[str]] = defaultdict(set)
         held: dict[str, list[Value]] = defaultdict(list)
-        for path, value, key in _walk(reaction):
+        for path, keyed, value, key in _walk(reaction):
             paths.add(path)
             if key is not None:
                 keys[path].add(key)
-            elif value is not None:
-                self._count_value(path, value, 1)
-                held[path].append(value)
+                continue
+            recorded = (path,) if keyed == path else (path, keyed)
+            keyed_paths.update(recorded[1:])
+            if value is not None:
+                for each in recorded:
+                    self._count_value(each, value, 1)
+                    held[each].append(value)
         for path, values in held.items():
             self._count_reaction_values(path, tuple(sorted(values, key=_sort_key)), 1)
             _count_capped(
@@ -214,7 +260,7 @@ class DatasetSummary:
                 tuple(values),
                 1,
             )
-        self.field_counts.update(paths)
+        self.field_counts.update(paths | keyed_paths)
         for path, used in keys.items():
             self.map_keys[path].update(used)
         shape = frozenset(paths)
@@ -230,20 +276,25 @@ class DatasetSummary:
             self.observe(reaction)
 
     def _count_value(self, path: str, value: Value, count: int) -> None:
-        counter = self.values[path]
-        if value in counter or len(counter) < MAX_DISTINCT_VALUES:
-            counter[value] += count
-        else:
-            self.untracked[path] += count
+        _count_capped(self.values, self.untracked, path, value, count)
 
     def _count_reaction_values(
         self, path: str, values: ReactionValues, count: int
     ) -> None:
-        counter = self.reaction_values[path]
-        if values in counter or len(counter) < MAX_DISTINCT_VALUES:
-            counter[values] += count
-        else:
-            self.reaction_values_untracked[path] += count
+        _count_capped(
+            self.reaction_values, self.reaction_values_untracked, path, values, count
+        )
+
+    def _value_paths(self, *, by_key: bool) -> list[str]:
+        """The scalar paths a field query reads, sorted.
+
+        Merged paths only, or with ``by_key`` keyed paths in place of the merged paths
+        they refine; paths outside any map are the same either way.
+        """
+        if not by_key:
+            return sorted(p for p in self.reaction_values if not is_keyed(p))
+        refined = {merged_path(p) for p in self.reaction_values if is_keyed(p)}
+        return sorted(p for p in self.reaction_values if p not in refined)
 
     def merge(self, other: "DatasetSummary") -> None:
         """Adds a summary of another part of the dataset to this one.
@@ -303,8 +354,10 @@ class DatasetSummary:
             and not self.reaction_values_untracked[path]
         )
 
-    def constant_fields(self) -> dict[str, ReactionValues]:
+    def constant_fields(self, *, by_key: bool = False) -> dict[str, ReactionValues]:
         """Scalar paths where every reaction holds the same values, with those values.
+
+        With ``by_key``, fields below a map are reported per entry, by keyed path.
 
         Submessage paths are left out: they carry no value of their own. Each value is
         the sorted tuple every reaction holds, e.g. ``("CELSIUS",)`` for one setpoint,
@@ -312,32 +365,38 @@ class DatasetSummary:
         """
         return {
             path: next(iter(self.reaction_values[path]))
-            for path in sorted(self.reaction_values)
+            for path in self._value_paths(by_key=by_key)
             if self.is_constant(path)
         }
 
-    def varying_fields(self) -> list[str]:
-        """Scalar paths that differ between reactions, or that some leave empty."""
+    def varying_fields(self, *, by_key: bool = False) -> list[str]:
+        """Scalar paths that differ between reactions, or that some leave empty.
+
+        With ``by_key``, fields below a map are reported per entry, by keyed path, so
+        a screen's variables come out separately: ``inputs["base"]...`` and
+        ``inputs["alcohol"]...`` rather than one ``inputs.components`` path.
+        """
         return [
             path
-            for path in sorted(self.reaction_values)
+            for path in self._value_paths(by_key=by_key)
             if self.field_counts[path] and not self.is_constant(path)
         ]
 
-    def reordered_fields(self) -> dict[str, int]:
+    def reordered_fields(self, *, by_key: bool = False) -> dict[str, int]:
         """Paths where reactions hold the same values in a different order.
 
         This is what a reviewer should ask about: code reading
         ``inputs["KEY"].components[0]`` gets a different compound depending on the
-        reaction, and recording the dataset in one order would have avoided it. It is
-        also how a renamed map key shows, since map entries are read in key order.
+        reaction, and recording the dataset in one order would have avoided it. On
+        merged paths it is also how a renamed map key shows, since map entries are
+        read in key order; ``by_key`` narrows it to the order within each entry.
 
         Returns:
             Each such path mapped to how many reactions differ from the most common
             order of their values.
         """
         found = {}
-        for path in sorted(self.ordered_values):
+        for path in self._value_paths(by_key=by_key):
             orders: dict[ReactionValues, list[int]] = defaultdict(list)
             for values, count in self.ordered_values[path].items():
                 orders[tuple(sorted(values, key=_sort_key))].append(count)

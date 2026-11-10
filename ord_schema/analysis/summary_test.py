@@ -265,3 +265,75 @@ def test_a_consistently_recorded_screen_has_nothing_reordered():
     result = summary.DatasetSummary()
     result.observe_all(dataset.reactions)
     assert result.reordered_fields() == {}
+
+
+def test_keyed_paths_separate_a_screens_variables():
+    dataset = datasets.load_dataset(_NIELSEN)
+    result = summary.DatasetSummary()
+    result.observe_all(dataset.reactions)
+    merged = "inputs.components.identifiers.value"
+    # Merged, the three varied inputs are one field; keyed, each is its own.
+    assert merged in result.varying_fields()
+    by_key = result.varying_fields(by_key=True)
+    assert merged not in by_key
+    varied_inputs = {
+        path for path in by_key if path.startswith("inputs[") and "identifiers" in path
+    }
+    assert varied_inputs == {
+        'inputs["alcohol in THF"].components.identifiers.value',
+        'inputs["base"].components.identifiers.value',
+        'inputs["sulfonyl fluoride solution"].components.identifiers.value',
+    }
+    # Fields outside any map read the same either way.
+    assert "outcomes.products.measurements.percentage.value" in by_key
+
+
+def test_constant_fields_by_key_name_the_input():
+    result = _summary(_reaction("r1"), _reaction("r2"))
+    constant = result.constant_fields(by_key=True)
+    assert constant['inputs["solvent"].components.reaction_role'] == ("SOLVENT",)
+    assert "inputs.components.reaction_role" not in constant
+    assert "inputs.components.reaction_role" in result.constant_fields()
+
+
+def test_keyed_paths_do_not_split_shapes():
+    # Input names that differ between reactions make different keyed paths, but the
+    # reactions are recorded the same way, so they share a shape.
+    first = _reaction("r1")
+    second = reaction_pb2.Reaction(reaction_id="r2")
+    second.inputs["ethanol"].components.append(
+        message_helpers.build_compound(smiles="CCO", amount="1 mL", role="solvent")
+    )
+    result = _summary(first, second)
+    assert len(result.shapes) == 1
+    assert result.field_counts['inputs["solvent"].components'] == 1
+    assert result.field_counts['inputs["ethanol"].components'] == 1
+    assert result.field_counts["inputs.components"] == 2
+
+
+def test_reordering_within_one_input_is_reported_by_key():
+    base = message_helpers.build_compound(name="K2CO3", role="reagent")
+    solvent = message_helpers.build_compound(smiles="CCO", role="solvent")
+    result = _summary(
+        _two_component_reaction("r1", base, solvent),
+        _two_component_reaction("r2", solvent, base),
+    )
+    assert result.reordered_fields(by_key=True) == {
+        'inputs["mixture"].components.identifiers.type': 1,
+        'inputs["mixture"].components.identifiers.value': 1,
+        'inputs["mixture"].components.reaction_role': 1,
+    }
+
+
+@pytest.mark.parametrize(
+    "key", ["base", "alcohol in THF", 'a "quoted" name', "a]bracket", "back\\slash"]
+)
+def test_any_key_round_trips_to_its_merged_path(key):
+    reaction = reaction_pb2.Reaction()
+    reaction.inputs[key].components.append(message_helpers.build_compound(name="x"))
+    result = _summary(reaction)
+    keyed = [path for path in result.field_counts if summary.is_keyed(path)]
+    assert keyed
+    for path in keyed:
+        assert summary.merged_path(path) in result.field_counts
+        assert not summary.is_keyed(summary.merged_path(path))
