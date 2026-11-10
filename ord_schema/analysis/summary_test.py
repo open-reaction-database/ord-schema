@@ -180,6 +180,7 @@ def test_merging_slices_matches_observing_everything():
     assert merged.field_counts == whole.field_counts
     assert merged.values == whole.values
     assert merged.reaction_values == whole.reaction_values
+    assert merged.ordered_values == whole.ordered_values
     assert merged.map_keys == whole.map_keys
     assert merged.shapes == whole.shapes
     assert list(merged.compounds.rows()) == list(whole.compounds.rows())
@@ -203,3 +204,64 @@ def test_a_real_screen_has_one_dominant_shape():
     assert count / result.reaction_count > 0.5
     assert result.varying_fields()
     assert result.constant_fields()
+
+
+def _two_component_reaction(
+    reaction_id: str, first: reaction_pb2.Compound, second: reaction_pb2.Compound
+) -> reaction_pb2.Reaction:
+    reaction = reaction_pb2.Reaction(reaction_id=reaction_id)
+    reaction.inputs["mixture"].components.extend([first, second])
+    return reaction
+
+
+def test_the_same_components_in_a_different_order_are_flagged():
+    base = message_helpers.build_compound(name="K2CO3", role="reagent")
+    solvent = message_helpers.build_compound(smiles="CCO", role="solvent")
+    result = _summary(
+        _two_component_reaction("r1", base, solvent),
+        _two_component_reaction("r2", base, solvent),
+        _two_component_reaction("r3", solvent, base),
+    )
+    path = "inputs.components.reaction_role"
+    # Not a variable of the dataset, but not recorded consistently either.
+    assert path not in result.varying_fields()
+    assert result.reordered_fields()[path] == 1
+
+
+def test_inputs_added_in_a_different_order_are_not_reordered():
+    # A map has no defined order, so adding the same inputs in another order records
+    # the same reaction.
+    first = _reaction("r1")
+    first.inputs["base"].components.append(
+        message_helpers.build_compound(name="K2CO3", role="reagent")
+    )
+    second = reaction_pb2.Reaction(reaction_id="r2")
+    second.inputs["base"].components.append(
+        message_helpers.build_compound(name="K2CO3", role="reagent")
+    )
+    second.inputs["solvent"].components.append(
+        message_helpers.build_compound(smiles="CCO", amount="1 mL", role="solvent")
+    )
+    assert _summary(first, second).reordered_fields() == {}
+
+
+def test_a_renamed_input_key_shows_as_reordered():
+    def reaction(reaction_id: str, base_key: str) -> reaction_pb2.Reaction:
+        result = _reaction(reaction_id)
+        result.inputs[base_key].components.append(
+            message_helpers.build_compound(name="K2CO3", role="reagent")
+        )
+        return result
+
+    # "base" sorts before "solvent" and "z base" after it, so the same components
+    # are read in a different order.
+    result = _summary(reaction("r1", "base"), reaction("r2", "z base"))
+    assert "inputs.components.reaction_role" in result.reordered_fields()
+    assert result.map_keys["inputs"] == {"solvent": 2, "base": 1, "z base": 1}
+
+
+def test_a_consistently_recorded_screen_has_nothing_reordered():
+    dataset = datasets.load_dataset(_NIELSEN)
+    result = summary.DatasetSummary()
+    result.observe_all(dataset.reactions)
+    assert result.reordered_fields() == {}

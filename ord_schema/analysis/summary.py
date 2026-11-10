@@ -87,6 +87,21 @@ def _value(field: descriptor.FieldDescriptor, raw: object) -> Value:
     return raw
 
 
+def _count_capped(
+    counters: dict[str, Counter],
+    untracked: Counter[str],
+    path: str,
+    item: object,
+    count: int,
+) -> None:
+    """Counts ``item`` under ``path``, or in ``untracked`` once ``path`` is full."""
+    counter = counters[path]
+    if item in counter or len(counter) < MAX_DISTINCT_VALUES:
+        counter[item] += count
+    else:
+        untracked[path] += count
+
+
 def _sort_key(value: Value) -> tuple[str, str]:
     """Orders values of mixed types, so a reaction's values sort the same every time."""
     return type(value).__name__, str(value)
@@ -105,7 +120,9 @@ def _walk(
         path = f"{prefix}{field.name}"
         if field.message_type is not None and field.message_type.GetOptions().map_entry:
             value_field = field.message_type.fields_by_name["value"]
-            for key, entry in content.items():
+            # In key order: protobuf does not define a map's order, so reading it as
+            # found would make two reactions recorded identically look reordered.
+            for key, entry in sorted(content.items(), key=lambda item: str(item[0])):
                 yield path, None, str(key)
                 if value_field.message_type is None:
                     yield f"{path}.value", _value(value_field, entry), None
@@ -141,6 +158,12 @@ class DatasetSummary:
             ``values`` several entries even when every reaction has the same roles.
         reaction_values_untracked: As ``untracked``, for ``reaction_values``,
             counting reactions.
+        ordered_values: As ``reaction_values``, but in the order each reaction holds
+            them, map entries taken in key order. Two reactions with the same
+            ``reaction_values`` and different ``ordered_values`` list the same things
+            in a different order, e.g. the base before the solvent in one and after
+            it in the other.
+        ordered_values_untracked: As ``untracked``, for ``ordered_values``.
         map_keys: For each map field path, how many reactions use each key.
         shapes: How many reactions share each shape, a shape being the set of field
             paths a reaction populates.
@@ -158,6 +181,10 @@ class DatasetSummary:
         default_factory=lambda: defaultdict(Counter)
     )
     reaction_values_untracked: Counter[str] = dataclasses.field(default_factory=Counter)
+    ordered_values: dict[str, Counter[ReactionValues]] = dataclasses.field(
+        default_factory=lambda: defaultdict(Counter)
+    )
+    ordered_values_untracked: Counter[str] = dataclasses.field(default_factory=Counter)
     map_keys: dict[str, Counter[str]] = dataclasses.field(
         default_factory=lambda: defaultdict(Counter)
     )
@@ -180,6 +207,13 @@ class DatasetSummary:
                 held[path].append(value)
         for path, values in held.items():
             self._count_reaction_values(path, tuple(sorted(values, key=_sort_key)), 1)
+            _count_capped(
+                self.ordered_values,
+                self.ordered_values_untracked,
+                path,
+                tuple(values),
+                1,
+            )
         self.field_counts.update(paths)
         for path, used in keys.items():
             self.map_keys[path].update(used)
@@ -228,6 +262,16 @@ class DatasetSummary:
             for values, count in counter.items():
                 self._count_reaction_values(path, values, count)
         self.reaction_values_untracked.update(other.reaction_values_untracked)
+        for path, counter in other.ordered_values.items():
+            for values, count in counter.items():
+                _count_capped(
+                    self.ordered_values,
+                    self.ordered_values_untracked,
+                    path,
+                    values,
+                    count,
+                )
+        self.ordered_values_untracked.update(other.ordered_values_untracked)
         for path, counter in other.map_keys.items():
             self.map_keys[path].update(counter)
         self.shapes.update(other.shapes)
@@ -279,6 +323,28 @@ class DatasetSummary:
             for path in sorted(self.reaction_values)
             if self.field_counts[path] and not self.is_constant(path)
         ]
+
+    def reordered_fields(self) -> dict[str, int]:
+        """Paths where reactions hold the same values in a different order.
+
+        This is what a reviewer should ask about: code reading
+        ``inputs["KEY"].components[0]`` gets a different compound depending on the
+        reaction, and recording the dataset in one order would have avoided it. It is
+        also how a renamed map key shows, since map entries are read in key order.
+
+        Returns:
+            Each such path mapped to how many reactions differ from the most common
+            order of their values.
+        """
+        found = {}
+        for path in sorted(self.ordered_values):
+            orders: dict[ReactionValues, list[int]] = defaultdict(list)
+            for values, count in self.ordered_values[path].items():
+                orders[tuple(sorted(values, key=_sort_key))].append(count)
+            differing = sum(sum(c) - max(c) for c in orders.values() if len(c) > 1)
+            if differing:
+                found[path] = differing
+        return found
 
     def ordered_shapes(self) -> list[tuple[Shape, int]]:
         """Each shape with its reaction count, most common first.
