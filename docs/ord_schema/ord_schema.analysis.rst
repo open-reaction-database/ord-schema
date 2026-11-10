@@ -15,6 +15,14 @@ ord\_schema.analysis.compounds
    :show-inheritance:
    :undoc-members:
 
+ord\_schema.analysis.flat
+-------------------------
+
+.. automodule:: ord_schema.analysis.flat
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 ord\_schema.analysis.summary
 ----------------------------
 
