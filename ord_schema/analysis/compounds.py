@@ -376,6 +376,22 @@ class CompoundTable:
         """Returns a self-contained HTML page of the table, one section per role."""
         return _render_html(self, title or "Compounds")
 
+    def to_html_sections(
+        self, *, heading: str = "h3", max_rows: int | None = None
+    ) -> str:
+        """Returns the table's sections as HTML to embed in another page.
+
+        The cross-role index, then one table per role, without the page around them
+        or its stylesheet: the embedding page styles the ``structure``, ``flagged``,
+        ``conflict``, ``note`` and ``muted`` classes.
+
+        Args:
+            heading: The element each section's heading uses.
+            max_rows: The most compounds to show per role; the rest are counted in a
+                line pointing to the CSV, which always holds every compound.
+        """
+        return "\n".join(_render_sections(self, heading=heading, max_rows=max_rows))
+
 
 def _counts(counter: Counter[str]) -> str:
     """Returns ``counter`` as ``A (3); B (1)``, most common first."""
@@ -551,7 +567,6 @@ def _cell_list(values: Iterable[str], css: str = "") -> str:
 
 def _render_html(table: CompoundTable, title: str) -> str:
     summary = table.summary()
-    types = table.identifier_types()
     labels = {
         "reactions": "reactions",
         "compounds": "distinct compounds",
@@ -576,10 +591,22 @@ def _render_html(table: CompoundTable, title: str) -> str:
         for key, label in labels.items()
     )
     parts.append("</dl>")
+    parts.extend(_render_sections(table, heading="h2", max_rows=None))
+    parts.append("</body></html>")
+    return "\n".join(parts)
 
+
+def _render_sections(
+    table: CompoundTable, *, heading: str, max_rows: int | None
+) -> list[str]:
+    """The cross-role index and one table per role, as HTML parts."""
+    parts: list[str] = []
+    types = table.identifier_types()
     cross = table.cross_role()
     if cross:
-        parts.append("<section><h2>Compounds used in more than one role</h2>")
+        parts.append(
+            f"<section><{heading}>Compounds used in more than one role</{heading}>"
+        )
         parts.append("<table><thead><tr><th>Compound</th><th>Roles</th><th>SMILES</th>")
         parts.append("</tr></thead><tbody>")
         parts.extend(
@@ -591,7 +618,13 @@ def _render_html(table: CompoundTable, title: str) -> str:
         parts.append("</tbody></table></section>")
 
     for role, records in table.by_role().items():
-        parts.append(f"<section><h2>{html.escape(role)} ({len(records)})</h2>")
+        parts.append(
+            f"<section><{heading}>{html.escape(role)} ({len(records)})</{heading}>"
+        )
+        hidden = 0
+        if max_rows is not None and len(records) > max_rows:
+            hidden = len(records) - max_rows
+            records = records[:max_rows]  # noqa: PLW2901
         parts.append("<table><thead><tr><th>Structure</th><th>Compound</th>")
         parts.extend(f"<th>{html.escape(name)}</th>" for name in types)
         parts.append("<th>Reactions</th><th>Details</th><th>To check</th>")
@@ -630,6 +663,11 @@ def _render_html(table: CompoundTable, title: str) -> str:
                 to_check += '<div class="note">written more than one way:</div>'
                 to_check += _cell_list(sorted(record.smiles_variants), "note")
             parts.append(f"<td>{to_check}</td></tr>")
-        parts.append("</tbody></table></section>")
-    parts.append("</body></html>")
-    return "\n".join(parts)
+        parts.append("</tbody></table>")
+        if hidden:
+            parts.append(
+                f'<p class="muted">{hidden:,} more {html.escape(role)} compounds, '
+                "the least used, are in compounds.csv.</p>"
+            )
+        parts.append("</section>")
+    return parts

@@ -280,7 +280,15 @@ class FlatTable:
         for group in self.column_groups:
             if column in group:
                 counts = self.varying[group].value_counts(dropna=False, sort=True)
-                return counts.rename("reactions").reset_index()
+                # Built in one step: reset_index inserts the columns one by one, which
+                # pandas warns about for a group of many columns.
+                return pd.concat(
+                    [
+                        counts.index.to_frame(index=False),
+                        pd.Series(counts.to_numpy(), name="reactions"),
+                    ],
+                    axis=1,
+                )
         raise KeyError(column)
 
     def write_csv(self, path: str | os.PathLike[str]) -> None:

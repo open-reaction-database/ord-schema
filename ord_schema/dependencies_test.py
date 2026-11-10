@@ -49,7 +49,8 @@ _ROOTS: dict[str, tuple[str, ...]] = {
     # Publishing checks a tree against the levels and paths the artifacts define.
     "upload": ("ord_schema.scripts.upload_artifacts",),
     "analysis": ("ord_schema.analysis",),
-    "review": ("ord_schema.review",),
+    # The review_dataset script is the review extra's command line.
+    "review": ("ord_schema.review", "ord_schema.scripts.review_dataset"),
 }
 _EXTRAS: dict[str, tuple[str, ...]] = {
     "base": (),
