@@ -48,10 +48,12 @@ import pathlib
 import re
 from collections.abc import Iterable, Iterator
 
+from google.protobuf import text_format
+
 from ord_schema import parquet, validations
 from ord_schema.analysis import columns
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.review import structure
+from ord_schema.review import exemplars, structure
 from ord_schema.validations import Severity
 
 # What the page shows before pointing to the CSVs.
@@ -59,6 +61,8 @@ MAX_FINDINGS_SHOWN = 200
 MAX_COMPOUNDS_SHOWN = 200
 MAX_CONSTANTS_SHOWN = 300
 MAX_EXAMPLES = 5
+# Characters of an exemplar's text shown on the page; the pbtxt holds the rest.
+MAX_EXEMPLAR_TEXT = 6000
 
 # Digits in a validation message, which differ from reaction to reaction (amounts,
 # times, indices) while the problem they describe is the same.
@@ -95,6 +99,7 @@ class ReviewReport:
         structure: The structural checks' findings, and which checks ran.
         evidence: The summary, compound table and flattened table they read.
         column_stats: Statistics for each group of varying columns.
+        exemplars: The reactions picked for the reviewer to read, and why.
         generated: When the report was made, in UTC.
         ord_schema_version: The ord-schema that made it.
     """
@@ -107,6 +112,7 @@ class ReviewReport:
     structure: structure.StructureReport
     evidence: structure.DatasetEvidence
     column_stats: list[columns.ColumnStats]
+    exemplars: list[exemplars.Exemplar]
     generated: str
     ord_schema_version: str
 
@@ -184,6 +190,7 @@ def build_report(
     """
     validator = _Validator(options or validations.ValidationOptions())
     evidence = structure.gather(validator.watch(dataset.reactions))
+    stats = columns.column_statistics(evidence.table)
     return ReviewReport(
         name=dataset.name,
         dataset_id=dataset.dataset_id,
@@ -192,7 +199,9 @@ def build_report(
         validation=validator.sorted_groups(),
         structure=structure.run_checks(evidence, profile),
         evidence=evidence,
-        column_stats=columns.column_statistics(evidence.table),
+        column_stats=stats,
+        # Fetched back by position, which a Dataset and a DatasetView both allow.
+        exemplars=exemplars.pick(evidence.table, stats, dataset.reactions, profile),
         generated=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M UTC"),
         ord_schema_version=importlib.metadata.version("ord-schema"),
     )
@@ -264,6 +273,9 @@ def write_bundle(
     evidence.table.write_csv(tables / "flat.csv")
     evidence.table.write_constants_csv(tables / "constants.csv")
     columns.write_csv(report.column_stats, tables / "column_stats.csv")
+    exemplars.write_pbtxt(
+        report.exemplars, tables / "exemplars.pbtxt", name=report.name
+    )
     page = root / f"{_file_stem(report)}_review.html"
     page.write_text(render_html(report), encoding="utf-8")
     return page
@@ -287,9 +299,12 @@ _STYLE = """
   }
 }
 * { box-sizing: border-box; }
-body { margin: 0; padding: 24px; background: var(--surface);
+body { margin: 0; padding: 24px 16px; background: var(--surface);
   color: var(--text-primary); font: 14px/1.5 system-ui, -apple-system, sans-serif; }
 main { max-width: 1280px; margin: 0 auto; display: grid; gap: 32px; }
+/* A grid item is as wide as its widest content unless told otherwise; this lets
+   long tables and reaction text scroll in place instead of widening the page. */
+main > * { min-width: 0; }
 h1 { font-size: 26px; margin: 0; text-wrap: balance; }
 h2 { font-size: 20px; margin: 0 0 8px; padding-bottom: 4px;
   border-bottom: 2px solid var(--grid); }
@@ -319,7 +334,7 @@ td ul { margin: 0; padding-left: 16px; }
 .pill.WARNING { color: var(--warning); background: var(--warning-bg); }
 .pill.INFO { color: var(--info); background: var(--info-bg); }
 .grid { display: grid; gap: 14px;
-  grid-template-columns: repeat(auto-fill, minmax(390px, 1fr)); }
+  grid-template-columns: repeat(auto-fill, minmax(min(390px, 100%), 1fr)); }
 figure { margin: 0; padding: 12px; background: var(--card);
   border: 1px solid var(--grid); border-radius: 8px; overflow-x: auto; }
 figcaption { font-size: 12px; margin-bottom: 8px; display: grid; gap: 2px; }
@@ -330,6 +345,11 @@ tr.flagged td.structure { background: #ffffff; }
 .conflict { color: var(--error); font-weight: 600; }
 .note { color: var(--warning); }
 details summary { cursor: pointer; color: var(--text-secondary); }
+details pre { background: var(--card); border: 1px solid var(--grid);
+  border-radius: 6px; padding: 10px; font-size: 12px; overflow-x: auto;
+  max-height: 480px; }
+section > details { margin: 6px 0; }
+details summary, details li { overflow-wrap: anywhere; }
 @media print {
   body { padding: 0; font-size: 10pt; }
   section { break-before: page; }
@@ -384,7 +404,7 @@ def _header(report: ReviewReport) -> str:
         '<p class="notice">This report is for the reviewer. Nothing in it blocks a '
         "submission; the reviewer decides what needs changing. Every table is complete "
         "in <code>tables/</code>; this page caps long lists. Not yet included: "
-        "completeness scores (#1054) and exemplar reactions (#1052).</p>"
+        "completeness scores (#1054).</p>"
     )
 
 
@@ -497,6 +517,38 @@ def _shapes_section(report: ReviewReport) -> str:
     return "".join(parts)
 
 
+def _exemplars_section(report: ReviewReport) -> str:
+    picked = report.exemplars
+    parts = [
+        "<section><h2>Exemplar reactions</h2>",
+        f"<p>{len(picked):,} reaction{'s' if len(picked) != 1 else ''} to read in "
+        "full: one of each shape, the extremes of each measured value and, in a "
+        "uniform dataset, inputs no other reaction uses. All are in "
+        "<code>tables/exemplars.pbtxt</code>.</p>",
+    ]
+    for exemplar in picked:
+        text = text_format.MessageToString(exemplar.reaction)
+        if len(text) > MAX_EXEMPLAR_TEXT:
+            text = (
+                text[:MAX_EXEMPLAR_TEXT]
+                + "\n# ... continued in tables/exemplars.pbtxt\n"
+            )
+        reasons = "".join(f"<li>{_e(reason)}</li>" for reason in exemplar.reasons)
+        parts.append(
+            f"<details><summary><b>{_e(exemplar.label)}</b>: "
+            f"{_e(exemplar.reasons[0])}"
+            + (
+                f" (+{len(exemplar.reasons) - 1} more "
+                f"reason{'s' if len(exemplar.reasons) > 2 else ''})"
+                if len(exemplar.reasons) > 1
+                else ""
+            )
+            + f"</summary><ul>{reasons}</ul><pre>{_e(text)}</pre></details>"
+        )
+    parts.append("</section>")
+    return "".join(parts)
+
+
 def _figure(stat: columns.ColumnStats) -> str:
     caption = [f"<code>{_e(stat.column)}</code>"]
     if len(stat.columns) > 1:
@@ -574,8 +626,9 @@ def _compounds_section(report: ReviewReport) -> str:
         f"<p>{len(compounds):,} distinct compounds, grouped by role. Values that "
         "disagree are listed, not resolved; rows with something to check are "
         "shaded.</p>"
+        '<div class="scroll">'
         + compounds.to_html_sections(heading="h3", max_rows=MAX_COMPOUNDS_SHOWN)
-        + "</section>"
+        + "</div></section>"
     )
 
 
@@ -594,6 +647,7 @@ def render_html(report: ReviewReport) -> str:
         + _findings_section(report)
         + _validation_section(report)
         + _shapes_section(report)
+        + _exemplars_section(report)
         + _columns_section(report)
         + _compounds_section(report)
         + "</main></body></html>\n"

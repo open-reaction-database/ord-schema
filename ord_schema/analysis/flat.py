@@ -84,6 +84,15 @@ _DATE_FORMATS: dict[str, str] = {
 _SUBSCRIPT = re.compile(r'\["[^"]*"\]|\[\d+\]')
 
 
+def field_path(column: str) -> str:
+    """The field path a column names, without its map keys and indices.
+
+    ``inputs["base"].components[0].identifiers[1].value`` names the field
+    ``inputs.components.identifiers.value``.
+    """
+    return _SUBSCRIPT.sub("", column)
+
+
 def is_provenance(column: str) -> bool:
     """Whether ``column`` records who made the data and when, not the experiment."""
     return column.startswith("provenance.")
@@ -98,7 +107,7 @@ def field_for(column: str) -> "FieldDescriptor | None":
     its value type. Read from the proto descriptors, so it follows the schema.
     """
     descriptor = cast("Descriptor", reaction_pb2.Reaction.DESCRIPTOR)
-    names = _SUBSCRIPT.sub("", column).split(".")
+    names = field_path(column).split(".")
     field = None
     for index, name in enumerate(names):
         field = descriptor.fields_by_name.get(name)
