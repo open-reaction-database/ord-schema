@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -2101,10 +2101,11 @@ requires-dist = [
     { name = "nbval", marker = "extra == 'tests'", specifier = ">=0.11" },
     { name = "numpy", specifier = ">=1.26.4" },
     { name = "openpyxl", specifier = ">=3.0.5" },
+    { name = "ord-schema", extras = ["analysis"], marker = "extra == 'review'" },
     { name = "ord-schema", extras = ["huggingface"], marker = "extra == 'examples'" },
-    { name = "ord-schema", extras = ["huggingface", "nl", "orm"], marker = "extra == 'docs'" },
+    { name = "ord-schema", extras = ["huggingface", "nl", "orm", "review"], marker = "extra == 'docs'" },
     { name = "ord-schema", extras = ["search"], marker = "extra == 'nl'" },
-    { name = "ord-schema", extras = ["search", "nl", "huggingface", "orm"], marker = "extra == 'tests'" },
+    { name = "ord-schema", extras = ["search", "nl", "huggingface", "orm", "review"], marker = "extra == 'tests'" },
     { name = "pandas", specifier = ">=1.0.4" },
     { name = "protobuf", specifier = ">=4.22.3,<6" },
     { name = "psycopg", extras = ["binary", "pool"], marker = "extra == 'orm'", specifier = ">=3" },
@@ -2130,7 +2131,7 @@ requires-dist = [
     { name = "ty", marker = "extra == 'tests'", specifier = ">=0.0.28" },
     { name = "uuid6", marker = "extra == 'orm'", specifier = ">=2023" },
 ]
-provides-extras = ["search", "nl", "docs", "examples", "huggingface", "orm", "tests"]
+provides-extras = ["search", "nl", "analysis", "review", "docs", "examples", "huggingface", "orm", "tests"]
 
 [[package]]
 name = "packaging"

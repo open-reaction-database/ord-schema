@@ -48,6 +48,8 @@ _ROOTS: dict[str, tuple[str, ...]] = {
     "huggingface": ("ord_schema.huggingface",),
     # Publishing checks a tree against the levels and paths the artifacts define.
     "upload": ("ord_schema.scripts.upload_artifacts",),
+    "analysis": ("ord_schema.analysis",),
+    "review": ("ord_schema.review",),
 }
 _EXTRAS: dict[str, tuple[str, ...]] = {
     "base": (),
@@ -57,6 +59,9 @@ _EXTRAS: dict[str, tuple[str, ...]] = {
     "orm": ("orm",),
     "huggingface": ("huggingface",),
     "upload": ("search", "huggingface"),
+    "analysis": ("analysis",),
+    # The review extra installs the analysis one, which its checks build on.
+    "review": ("analysis", "review"),
 }
 _PROFILES = tuple(pytest.param(name, id=name) for name in _EXTRAS)
 
@@ -204,6 +209,30 @@ def _reachable(profile: str) -> set[str]:
     return third_party
 
 
+def _internal_reachable(root: str) -> set[str]:
+    """Returns the modules of this package reachable from ``root``, transitively.
+
+    Args:
+        root: A dotted package name inside this package.
+
+    Returns:
+        Dotted names of the modules this package holds that ``root`` imports, directly
+        or through another of its modules.
+    """
+    seen: set[str] = set()
+    pending = list(_modules_under(root))
+    while pending:
+        module = pending.pop()
+        if module in seen:
+            continue
+        path = _module_path(module)
+        if path is None:
+            continue
+        seen.add(module)
+        pending.extend(_imports(path))
+    return seen
+
+
 @pytest.mark.parametrize("profile", _PROFILES)
 def test_an_install_declares_what_its_modules_import(profile):
     extras = _EXTRAS[profile]
@@ -244,3 +273,22 @@ def test_every_profile_owns_modules(profile):
     # A root that names nothing -- a typo, or a module that has moved -- would leave its
     # profile checking an empty set and passing for the wrong reason.
     assert _entry_points(profile)
+
+
+def test_analysis_never_imports_review():
+    # The review checks build on the analysis summaries. The reverse would make the
+    # analysis extra need whatever review installs, and the two layers would no longer
+    # be separable.
+    reached = _internal_reachable("ord_schema.analysis")
+    assert not {
+        module
+        for module in reached
+        if module == "ord_schema.review" or module.startswith("ord_schema.review.")
+    }
+
+
+def test_the_internal_walk_follows_imports():
+    # The check above passes on an empty walk too; this one shows the walk reaches
+    # another subpackage when a module does import it.
+    reached = _internal_reachable("ord_schema.search")
+    assert any(module.startswith("ord_schema.artifacts") for module in reached)

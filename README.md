@@ -20,6 +20,8 @@ This installs the core schema and helpers (building, parsing, validation, and me
 | `search` | `ord_schema.search`: query derived Parquet artifacts with a validated query grammar (DuckDB) | `pip install "ord-schema[search]"` |
 | `huggingface` | `ord_schema.huggingface`: download datasets from the Hugging Face [ord-data](https://huggingface.co/datasets/open-reaction-database/ord-data) mirror, and derived search artifacts from [ord-artifacts](https://huggingface.co/datasets/open-reaction-database/ord-artifacts) | `pip install "ord-schema[huggingface]"` |
 | `orm` | `ord_schema.orm` (deprecated; use `search`): map the schema into a relational (SQLAlchemy + PostgreSQL) database | `pip install "ord-schema[orm]"` |
+| `analysis` | `ord_schema.analysis`: summaries of what a dataset holds (in development, [#1043](https://github.com/open-reaction-database/ord-schema/issues/1043)) | `pip install "ord-schema[analysis]"` |
+| `review` | `ord_schema.review`: dataset-level checks and the peer review report; installs `analysis` (in development, [#1043](https://github.com/open-reaction-database/ord-schema/issues/1043)) | `pip install "ord-schema[review]"` |
 | `examples` | running the notebooks under `examples/` (see below) | `pip install "ord-schema[examples]"` |
 
 Extras combine, e.g. `pip install "ord-schema[search,huggingface]"`. Importing a feature without its extra installed raises a normal `ImportError`.

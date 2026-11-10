@@ -12,9 +12,11 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
+   ord_schema.analysis
    ord_schema.artifacts
    ord_schema.macros
    ord_schema.orm
+   ord_schema.review
    ord_schema.search
 
 
