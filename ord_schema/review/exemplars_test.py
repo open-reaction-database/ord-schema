@@ -166,3 +166,20 @@ def test_the_report_shows_each_exemplar_and_why(monkeypatch):
     assert "<h2>Exemplar reactions</h2>" in page
     assert "the most common shape (29 reactions)" in page
     assert "continued in tables/exemplars.pbtxt" in page
+
+
+def test_a_control_lacking_one_inputs_amount_is_its_own_shape():
+    # As in the Perera screen: other inputs still give amounts, so the field is
+    # filled somewhere in every reaction; what differs is which input lacks it.
+    reactions = []
+    for i in range(6):
+        reaction = _reaction(f"r{i}", base=_BASES[i % 3], yield_=float(i))
+        ligand = message_helpers.build_compound(name="PPh3", role="reagent")
+        if i != 4:
+            ligand.amount.moles.value = 0.1
+            ligand.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
+        reaction.inputs["ligand"].components.append(ligand)
+        reactions.append(reaction)
+    reasons = _by_label(_pick(reactions))
+    assert reasons["r4"][0].startswith("a shape of its own: lacks ")
+    assert 'inputs["ligand"].components.amount.moles.value' in reasons["r4"][0]

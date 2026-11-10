@@ -31,6 +31,7 @@ listed once. :func:`write_pbtxt` writes them as a readable subset of the dataset
 import dataclasses
 import os
 import pathlib
+import re
 from typing import Protocol
 
 import numpy as np
@@ -78,26 +79,44 @@ class Exemplar:
         return self.reaction_id or f"reaction #{self.position + 1}"
 
 
+# A repeated field's index in a column name; map keys are kept.
+_INDEX = re.compile(r"\[\d+\]")
+
+
+def _keyed_path(column: str) -> str:
+    """A column's field path, keeping which input or map entry it is in.
+
+    ``inputs["base"].components[0].amount.moles.value`` becomes
+    ``inputs["base"].components.amount.moles.value``: the position in a list does
+    not change what a reaction records, but which input it records it in does.
+    """
+    return _INDEX.sub("", column)
+
+
 def _shapes(table: flat.FlatTable) -> list[tuple[frozenset[str], list[int]]]:
     """Each shape the table's rows take, with the rows that take it, most common first.
 
-    A shape is the set of field paths a row fills. Fields every reaction holds the
-    same way are in every shape, so only the varying columns can tell shapes apart.
+    A shape is the set of keyed field paths a row fills, so a control that leaves
+    out the ligand's amount has a different shape from the reactions that give it.
+    This is finer than :attr:`DatasetSummary.shapes`, whose paths ignore which input
+    a field is in. A path that some constant column holds is filled in every
+    reaction, so only paths held in varying columns alone can tell shapes apart.
     """
     frame = table.varying
     if not table.reaction_count:
         return []
-    paths = sorted({flat.field_path(c) for c in frame.columns})
+    always = {_keyed_path(c) for c in table.constants}
+    by_path_columns: dict[str, list[str]] = {}
+    for column in frame.columns:
+        path = _keyed_path(column)
+        if path not in always:
+            by_path_columns.setdefault(path, []).append(column)
+    paths = sorted(by_path_columns)
     if not paths:
         return [(frozenset(), list(range(table.reaction_count)))]
     filled = frame.notna()
     by_path = np.column_stack(
-        [
-            filled[[c for c in frame.columns if flat.field_path(c) == path]]
-            .any(axis=1)
-            .to_numpy()
-            for path in paths
-        ]
+        [filled[by_path_columns[path]].any(axis=1).to_numpy() for path in paths]
     )
     rows: dict[bytes, list[int]] = {}
     for position, row in enumerate(by_path):
