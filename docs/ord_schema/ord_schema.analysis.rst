@@ -7,6 +7,14 @@ ord\_schema.analysis
    :undoc-members:
 
 
+ord\_schema.analysis.columns
+----------------------------
+
+.. automodule:: ord_schema.analysis.columns
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 ord\_schema.analysis.compounds
 ------------------------------
 
