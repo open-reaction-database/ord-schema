@@ -64,6 +64,8 @@ OUTCOME = "outcome"
 # The role group a crude component is listed under. Not a ReactionRoleType: a crude
 # component carries no role, since it stands for another reaction's whole product.
 CRUDE = "CRUDE"
+# Key prefix for a crude component's row; the ID after it is the upstream reaction's.
+_CRUDE_PREFIX = "crude:"
 
 # Reaction IDs kept per row, so a reviewer can find an example without the table
 # growing with the dataset.
@@ -148,6 +150,9 @@ class CompoundRecord:
     @property
     def label(self) -> str:
         """A short, readable label: the most used name, else the SMILES or key."""
+        if self.key.startswith(_CRUDE_PREFIX):
+            # Names the upstream reaction that made the crude, not the one using it.
+            return f"crude product of {self.key.removeprefix(_CRUDE_PREFIX)}"
         names = self.names
         return names[0] if names else (self.smiles or self.key)
 
@@ -406,7 +411,7 @@ def _compounds_in(
 
 def _crude_record(crude: reaction_pb2.CrudeComponent) -> CompoundRecord:
     """Returns a one-observation record for a crude component."""
-    record = CompoundRecord(key=f"crude:{crude.reaction_id}")
+    record = CompoundRecord(key=f"{_CRUDE_PREFIX}{crude.reaction_id}")
     record.roles[CRUDE] += 1
     return record
 

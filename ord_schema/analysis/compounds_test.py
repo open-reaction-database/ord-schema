@@ -119,6 +119,9 @@ def test_workup_inputs_crude_components_and_products_are_included():
     assert _record(table, "name:brine").locations == {compounds.WORKUP: 1}
     crude = _record(table, "crude:r0")
     assert set(crude.roles) == {compounds.CRUDE}
+    # Labelled by the upstream reaction that made it; r1 is only where it was used.
+    assert crude.label == "crude product of r0"
+    assert crude.example_reaction_ids == ["r1"]
     # A product recorded with no role is still listed as a product.
     assert set(_record(table, "smiles:CC=O").roles) == {"PRODUCT"}
     assert _record(table, "smiles:CC=O").locations == {compounds.OUTCOME: 1}
