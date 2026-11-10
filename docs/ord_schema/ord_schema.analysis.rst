@@ -14,3 +14,11 @@ ord\_schema.analysis.compounds
    :members:
    :show-inheritance:
    :undoc-members:
+
+ord\_schema.analysis.summary
+----------------------------
+
+.. automodule:: ord_schema.analysis.summary
+   :members:
+   :show-inheritance:
+   :undoc-members:
