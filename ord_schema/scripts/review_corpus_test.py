@@ -158,3 +158,13 @@ def test_datasets_with_matching_names_are_skipped(corpus, tmp_path):
     assert _read(output / "summary.csv") == []
     (skipped,) = _read(output / "failures.csv")
     assert skipped["error"].startswith("skipped: name 'small'")
+
+
+def test_resume_refuses_tables_written_with_other_columns(corpus, tmp_path):
+    output = tmp_path / "out"
+    output.mkdir()
+    (output / "summary.csv").write_text("dataset_id,name\n")
+    with pytest.raises(SystemExit, match="cannot resume"):
+        review_corpus.main(
+            [f"--input_pattern={corpus}/*.pbtxt", f"--output_dir={output}", "--resume"]
+        )

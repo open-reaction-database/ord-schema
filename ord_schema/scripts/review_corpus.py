@@ -362,7 +362,16 @@ class _Tables:
             "failures": (output_dir / "failures.csv", _FAILURE_FIELDS),
         }
         for path, fields in self.paths.values():
-            if not (resume and path.exists()):
+            if resume and path.exists():
+                with path.open(newline="", encoding="utf-8") as f:
+                    header = next(csv.reader(f), [])
+                if header != fields:
+                    # Appending rows of another shape would misalign every column.
+                    raise SystemExit(
+                        f"cannot resume: {path} was written with other columns; "
+                        "start a new output directory"
+                    )
+            else:
                 with path.open("w", newline="", encoding="utf-8") as f:
                     csv.DictWriter(f, fieldnames=fields).writeheader()
 
