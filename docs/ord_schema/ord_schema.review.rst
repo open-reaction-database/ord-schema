@@ -7,6 +7,14 @@ ord\_schema.review
    :undoc-members:
 
 
+ord\_schema.review.chemistry
+----------------------------
+
+.. automodule:: ord_schema.review.chemistry
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 ord\_schema.review.completeness
 -------------------------------
 

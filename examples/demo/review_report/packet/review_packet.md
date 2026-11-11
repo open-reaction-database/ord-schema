@@ -8,7 +8,7 @@
 - ID: `none`
 - Reactions: 80
 - Profile: `uniform`
-- Generated: 2026-11-11 08:57 UTC by ord-schema 0.9.6
+- Generated: 2026-11-11 09:47 UTC by ord-schema 0.9.6
 
 Description, as submitted:
 
@@ -19,6 +19,10 @@ Reactions from Figure 1 of DOI: 10.1021/jacs.8b01523
 ## Dataset-level findings
 
 Checks run: coverage-gap, placeholder-value, grid-gap, duplicate-well, mixed-units, name-structure-conflict, conflicting-roles, duplicate-reaction, mixed-sourcing.
+
+None.
+
+## Chemistry checks
 
 None.
 
