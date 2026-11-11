@@ -18,7 +18,8 @@ Usage:
     python -m ord_schema.scripts.review_dataset --input=dataset.pb.gz
         --output_dir=review/ [--profile=uniform|varied]
 
-Writes ``<dataset>_review.html`` and ``tables/*.csv`` into the output directory; see
+Writes ``<dataset>_review.html``, ``tables/`` and the AI review ``packet/`` into the
+output directory; see
 :mod:`ord_schema.review.report`. Findings never make this fail: it exits 0 once the
 report is written, and non-zero only when the dataset cannot be read. Needs the
 ``review`` extra.
@@ -29,7 +30,7 @@ import sys
 
 from ord_schema import datasets
 from ord_schema.logging import get_logger, silence_rdkit_logs
-from ord_schema.review import report, structure
+from ord_schema.review import packet, report, structure
 from ord_schema.scripts.validate_dataset import _describe_failure
 
 logger = get_logger(__name__)
@@ -50,6 +51,12 @@ def main(argv: list[str] | None = None) -> int:
         default=structure.ValidationProfile.UNIFORM.value,
         help="The dataset's profile; uniform unless its reactions share no template.",
     )
+    parser.add_argument(
+        "--packet_budget_tokens",
+        type=int,
+        default=packet.DEFAULT_BUDGET_TOKENS,
+        help="The most estimated tokens each file of the AI review packet may hold.",
+    )
     args = parser.parse_args(argv)
     silence_rdkit_logs()
     try:
@@ -59,7 +66,9 @@ def main(argv: list[str] | None = None) -> int:
         logger.error(_describe_failure(args.input, error))  # noqa: TRY400
         return 1
     review = report.build_report(dataset, structure.ValidationProfile(args.profile))
-    page = report.write_bundle(review, args.output_dir)
+    page = report.write_bundle(
+        review, args.output_dir, packet_budget_tokens=args.packet_budget_tokens
+    )
     counts = review.severity_counts()
     logger.info(
         f"{review.reaction_count:,} reactions: {counts[report.Severity.ERROR]} errors, "
