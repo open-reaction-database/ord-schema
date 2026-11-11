@@ -15,6 +15,7 @@
 """Tests for ord_schema.scripts.review_corpus."""
 
 import csv
+import os
 import pathlib
 import shutil
 
@@ -120,3 +121,31 @@ def test_an_unknown_profile_is_refused(tmp_path):
         review_corpus.main(
             ["--input_pattern=x", f"--output_dir={tmp_path}", "--profiles=strict"]
         )
+
+
+def _dies_on_boom(ref, profiles, **kwargs):
+    """Stands in for review_one; kills its worker, as the OOM killer would, on boom."""
+    if ref.dataset_id == "boom":
+        os._exit(1)
+    return {
+        "summary": [{"dataset_id": ref.dataset_id, "profile": p} for p in profiles],
+        "findings": [],
+        "items": [],
+        "failures": [],
+    }
+
+
+def test_a_dead_worker_costs_only_its_own_dataset(tmp_path, monkeypatch):
+    monkeypatch.setattr(review_corpus, "review_one", _dies_on_boom)
+    folder = tmp_path / "corpus"
+    folder.mkdir()
+    for name in ("a", "b", "boom", "c", "d"):
+        (folder / f"{name}.pbtxt").write_text("")
+    output = tmp_path / "out"
+    args = [f"--input_pattern={folder}/*.pbtxt", f"--output_dir={output}"]
+    assert review_corpus.main([*args, "--n_jobs=2", "--profiles=uniform"]) == 0
+    summary = _read(output / "summary.csv")
+    assert sorted(r["dataset_id"] for r in summary) == ["a", "b", "c", "d"]
+    (failure,) = _read(output / "failures.csv")
+    assert failure["dataset_id"] == "boom"
+    assert "worker process died" in failure["error"]

@@ -36,7 +36,10 @@ dataset finishes, to long-format tables in the output directory:
 small screens and large bulk datasets alike. ``--bundles=N`` also writes the full
 review bundle for the first N datasets reviewed. With ``--from_huggingface``,
 datasets are fetched from the ord-data mirror one at a time and deleted once
-reviewed, unless ``--keep_downloads``. ``--resume`` skips datasets already in
+reviewed, unless ``--keep_downloads`` keeps them under the output directory. A
+worker that dies, most often killed for memory, takes the datasets in flight with
+it; those are retried one at a time, and one that still kills its worker is
+recorded in ``failures.csv``. ``--resume`` skips datasets already in
 ``summary.csv``. Needs the ``review`` and ``huggingface`` extras.
 """
 
@@ -50,8 +53,9 @@ import sys
 import tempfile
 import time
 import traceback
-from collections.abc import Iterator
+from collections.abc import Callable, Generator, Iterator
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 from typing import Any
 
 from huggingface_hub import HfApi
@@ -69,6 +73,7 @@ _SUMMARY_FIELDS = [
     "source",
     "profile",
     "reactions",
+    "load_seconds",
     "seconds",
     "errors",
     "warnings",
@@ -187,7 +192,11 @@ def _round(value: float | None) -> str:
 
 
 def _rows(
-    review: report.ReviewReport, dataset_id: str, source: str, seconds: float
+    review: report.ReviewReport,
+    dataset_id: str,
+    source: str,
+    load_seconds: float,
+    seconds: float,
 ) -> dict[str, list[dict[str, Any]]]:
     """The table rows for one dataset reviewed under one profile."""
     profile = review.profile.value
@@ -200,6 +209,7 @@ def _rows(
         "source": source,
         "profile": profile,
         "reactions": review.reaction_count,
+        "load_seconds": f"{load_seconds:.1f}",
         "seconds": f"{seconds:.1f}",
         "errors": counts[Severity.ERROR],
         "warnings": counts[Severity.WARNING],
@@ -267,10 +277,14 @@ def review_one(
     *,
     revision: str,
     bundle_dir: str | None,
+    download_root: str,
     keep_downloads: bool,
     packet_budget_tokens: int,
 ) -> dict[str, list[dict[str, Any]]]:
     """Reviews one dataset under each profile; never raises.
+
+    The dataset is loaded once and reviewed under each profile in turn, one review
+    held at a time. A download goes to a folder of its own under download_root.
 
     Returns:
         Rows for each table; a failure becomes a ``failures`` row.
@@ -287,16 +301,18 @@ def review_one(
     try:
         path = ref.path
         if not path:
-            download_dir = tempfile.mkdtemp(prefix="review_corpus_")
+            download_dir = tempfile.mkdtemp(dir=download_root)
             path = huggingface.fetch_dataset(
                 ref.dataset_id, revision=revision, local_dir=download_dir
             )
+        start = time.monotonic()
+        dataset = datasets.load_dataset(path)
+        load_seconds = time.monotonic() - start
         for profile in profiles:
             start = time.monotonic()
-            dataset = datasets.load_dataset(path)
             review = report.build_report(dataset, structure.ValidationProfile(profile))
             for table, new in _rows(
-                review, ref.dataset_id, source, time.monotonic() - start
+                review, ref.dataset_id, source, load_seconds, time.monotonic() - start
             ).items():
                 rows[table].extend(new)
             if bundle_dir:
@@ -402,28 +418,72 @@ def _select(args: argparse.Namespace) -> list[DatasetRef]:
     return refs
 
 
+def _died(ref: DatasetRef, source: str) -> dict[str, list[dict[str, Any]]]:
+    error = "its worker process died, most often from running out of memory"
+    return {
+        "summary": [],
+        "findings": [],
+        "items": [],
+        "failures": [{"dataset_id": ref.dataset_id, "source": source, "error": error}],
+    }
+
+
+def _pooled(
+    refs: list[DatasetRef],
+    jobs: int,
+    profiles: list[str],
+    options: Callable[[DatasetRef], dict[str, Any]],
+) -> Generator[dict[str, list[dict[str, Any]]], None, list[DatasetRef]]:
+    """Reviews refs in a pool; returns those lost when a worker died."""
+    lost = []
+    with ProcessPoolExecutor(max_workers=jobs) as pool:
+        futures = {
+            pool.submit(review_one, ref, profiles, **options(ref)): ref for ref in refs
+        }
+        for future in as_completed(futures):
+            try:
+                yield future.result()
+            except BrokenProcessPool:
+                lost.append(futures[future])
+    return lost
+
+
 def _results(
-    refs: list[DatasetRef], args: argparse.Namespace, output_dir: pathlib.Path
+    refs: list[DatasetRef], args: argparse.Namespace, download_root: str
 ) -> Iterator[dict[str, list[dict[str, Any]]]]:
-    def options(index: int) -> dict[str, Any]:
+    """Reviews each dataset, surviving workers that die.
+
+    A worker that dies, most often killed for memory, breaks its pool and takes the
+    datasets in flight with it. Those are retried one at a time, each in a fresh
+    pool, so only a dataset that kills a worker on its own is recorded as failed.
+    """
+    bundled = {ref.dataset_id for ref in refs[: args.bundles]}
+    output_dir = pathlib.Path(args.output_dir)
+
+    def options(ref: DatasetRef) -> dict[str, Any]:
         return {
             "revision": args.revision,
-            "bundle_dir": str(output_dir / "bundles") if index < args.bundles else None,
+            "bundle_dir": (
+                str(output_dir / "bundles") if ref.dataset_id in bundled else None
+            ),
+            "download_root": download_root,
             "keep_downloads": args.keep_downloads,
             "packet_budget_tokens": args.packet_budget_tokens,
         }
 
+    profiles = args.profile_list
     if args.n_jobs <= 1:
-        for index, ref in enumerate(refs):
-            yield review_one(ref, args.profile_list, **options(index))
+        for ref in refs:
+            yield review_one(ref, profiles, **options(ref))
         return
-    with ProcessPoolExecutor(max_workers=args.n_jobs) as pool:
-        futures = [
-            pool.submit(review_one, ref, args.profile_list, **options(index))
-            for index, ref in enumerate(refs)
-        ]
-        for future in as_completed(futures):
-            yield future.result()
+    lost = yield from _pooled(refs, args.n_jobs, profiles, options)
+    if lost:
+        logger.warning(f"a worker died; retrying {len(lost)} datasets one at a time")
+    for ref in lost:
+        if (yield from _pooled([ref], 1, profiles, options)):
+            yield _died(
+                ref, ref.path or f"{huggingface.ORD_DATA_HF_REPO}@{args.revision}"
+            )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -438,11 +498,22 @@ def main(argv: list[str] | None = None) -> int:
         refs = [ref for ref in refs if ref.dataset_id not in done]
     logger.info(f"reviewing {len(refs)} datasets under {args.profile_list}")
     failed = 0
-    for count, rows in enumerate(_results(refs, args, output_dir), start=1):
-        tables.append(rows)
-        failed += bool(rows["failures"])
-        names = {row["dataset_id"] for row in rows["summary"] + rows["failures"]}
-        logger.info(f"[{count}/{len(refs)}] {', '.join(sorted(names))}")
+    if args.keep_downloads:
+        download_root = output_dir / "downloads"
+        download_root.mkdir(exist_ok=True)
+    else:
+        # One folder for every download, removed even when a dead worker could not
+        # remove its own.
+        download_root = pathlib.Path(tempfile.mkdtemp(prefix="review_corpus_"))
+    try:
+        for count, rows in enumerate(_results(refs, args, str(download_root)), start=1):
+            tables.append(rows)
+            failed += bool(rows["failures"])
+            names = {row["dataset_id"] for row in rows["summary"] + rows["failures"]}
+            logger.info(f"[{count}/{len(refs)}] {', '.join(sorted(names))}")
+    finally:
+        if not args.keep_downloads:
+            shutil.rmtree(download_root, ignore_errors=True)
     logger.info(
         f"done: {len(refs) - failed} reviewed, {failed} failed; see {output_dir}"
     )
