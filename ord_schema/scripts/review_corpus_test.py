@@ -149,3 +149,12 @@ def test_a_dead_worker_costs_only_its_own_dataset(tmp_path, monkeypatch):
     (failure,) = _read(output / "failures.csv")
     assert failure["dataset_id"] == "boom"
     assert "worker process died" in failure["error"]
+
+
+def test_datasets_with_matching_names_are_skipped(corpus, tmp_path):
+    output = tmp_path / "out"
+    args = [f"--input_pattern={corpus}/*.pbtxt", f"--output_dir={output}"]
+    review_corpus.main([*args, "--dataset_ids=small", "--skip_names=^sma"])
+    assert _read(output / "summary.csv") == []
+    (skipped,) = _read(output / "failures.csv")
+    assert skipped["error"].startswith("skipped: name 'small'")

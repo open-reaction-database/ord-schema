@@ -40,7 +40,9 @@ reviewed, unless ``--keep_downloads`` keeps them under the output directory. A
 worker that dies, most often killed for memory, takes the datasets in flight with
 it; those are retried one at a time, and one that still kills its worker is
 recorded in ``failures.csv``. ``--resume`` skips datasets already in
-``summary.csv``. Needs the ``review`` and ``huggingface`` extras.
+``summary.csv``. ``--skip_names`` (by default ``^uspto``) records datasets whose name
+matches as skipped: a year of USPTO grants flattens to tens of thousands of columns,
+and is better reviewed on its own. Needs the ``review`` and ``huggingface`` extras.
 """
 
 import argparse
@@ -48,7 +50,9 @@ import csv
 import dataclasses
 import glob
 import pathlib
+import re
 import shutil
+import signal
 import sys
 import tempfile
 import time
@@ -280,11 +284,13 @@ def review_one(
     download_root: str,
     keep_downloads: bool,
     packet_budget_tokens: int,
+    skip_names: str = "",
 ) -> dict[str, list[dict[str, Any]]]:
     """Reviews one dataset under each profile; never raises.
 
     The dataset is loaded once and reviewed under each profile in turn, one review
-    held at a time. A download goes to a folder of its own under download_root.
+    held at a time. A download goes to a folder of its own under download_root. A
+    dataset whose name matches skip_names is recorded as skipped, not reviewed.
 
     Returns:
         Rows for each table; a failure becomes a ``failures`` row.
@@ -308,6 +314,15 @@ def review_one(
         start = time.monotonic()
         dataset = datasets.load_dataset(path)
         load_seconds = time.monotonic() - start
+        if skip_names and re.search(skip_names, dataset.name):
+            rows["failures"].append(
+                {
+                    "dataset_id": ref.dataset_id,
+                    "source": source,
+                    "error": f"skipped: name {dataset.name!r} matches {skip_names!r}",
+                }
+            )
+            profiles = []
         for profile in profiles:
             start = time.monotonic()
             review = report.build_report(dataset, structure.ValidationProfile(profile))
@@ -391,6 +406,13 @@ def _parse(argv: list[str] | None) -> argparse.Namespace:
     )
     parser.add_argument("--revision", default="main")
     parser.add_argument("--keep_downloads", action="store_true")
+    parser.add_argument(
+        "--skip_names",
+        default="^uspto",
+        help="Skip datasets whose name matches this regex; '' reviews them all. "
+        "By default the USPTO aggregates, which need far more memory and are better "
+        "reviewed separately.",
+    )
     parser.add_argument("--resume", action="store_true")
     parser.add_argument(
         "--packet_budget_tokens", type=int, default=100_000, help="For the bundles."
@@ -469,6 +491,7 @@ def _results(
             "download_root": download_root,
             "keep_downloads": args.keep_downloads,
             "packet_budget_tokens": args.packet_budget_tokens,
+            "skip_names": args.skip_names,
         }
 
     profiles = args.profile_list
@@ -489,6 +512,8 @@ def _results(
 def main(argv: list[str] | None = None) -> int:
     """Reviews the chosen datasets; returns the process exit status."""
     args = _parse(argv)
+    # Stopped with SIGTERM, still remove the downloads.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     output_dir = pathlib.Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     tables = _Tables(output_dir, resume=args.resume)

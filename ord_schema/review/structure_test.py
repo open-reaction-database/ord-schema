@@ -197,6 +197,19 @@ def test_inputs_used_in_fixed_pairs_are_one_factor_not_a_sparse_grid():
     assert _findings(reactions, "grid-gap") == []
 
 
+def test_an_aggregate_with_too_many_candidate_factors_is_not_read_as_a_grid(
+    monkeypatch,
+):
+    monkeypatch.setattr(structure, "MAX_FACTOR_CANDIDATES", 1)
+    cells = list(itertools.product(_BASES, _HALIDES))
+    reactions = [
+        _reaction(f"r{i}", base=base, halide=halide)
+        for i, (base, halide) in enumerate(cells)
+        if (base, halide) != ("CN(C)C", "Ic1ccccc1")
+    ]
+    assert _findings(reactions, "grid-gap") == []
+
+
 def test_two_reactions_in_one_well_are_flagged():
     reactions = [_reaction(f"r{i}") for i in range(3)]
     for reaction, position in zip(reactions, ["A1", "A2", "A1"], strict=True):
