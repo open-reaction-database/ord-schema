@@ -51,6 +51,8 @@ _ROOTS: dict[str, tuple[str, ...]] = {
     "analysis": ("ord_schema.analysis",),
     # The review_dataset script is the review extra's command line.
     "review": ("ord_schema.review", "ord_schema.scripts.review_dataset"),
+    # Runs the review over the ord-data mirror, so it needs both.
+    "review_corpus": ("ord_schema.scripts.review_corpus",),
 }
 _EXTRAS: dict[str, tuple[str, ...]] = {
     "base": (),
@@ -63,6 +65,7 @@ _EXTRAS: dict[str, tuple[str, ...]] = {
     "analysis": ("analysis",),
     # The review extra installs the analysis one, which its checks build on.
     "review": ("analysis", "review"),
+    "review_corpus": ("analysis", "review", "huggingface"),
 }
 _PROFILES = tuple(pytest.param(name, id=name) for name in _EXTRAS)
 
