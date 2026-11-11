@@ -1,0 +1,127 @@
+{
+  "version": "1",
+  "description": "Details that can almost always be recorded for a reaction, scored by ord_schema.completeness. Advisory only: a low score never blocks a submission. Weights are per dataset profile; a weight of 0 leaves an item out under that profile. Set by experts at first, to be revised from how the ORD corpus is filled (#1068).",
+  "levels": ["inputs", "conditions", "workups", "outcomes", "provenance"],
+  "items": [
+    {
+      "id": "input-roles",
+      "level": "inputs",
+      "fields": ["inputs.components.reaction_role"],
+      "description": "Every input component has a reaction role.",
+      "suggestion": "give every input component a reaction_role",
+      "weights": {"uniform": 1.0, "varied": 1.0}
+    },
+    {
+      "id": "input-amounts",
+      "level": "inputs",
+      "fields": ["inputs.components.amount"],
+      "description": "Every input component has an amount.",
+      "suggestion": "give every input component an amount",
+      "weights": {"uniform": 1.0, "varied": 1.0}
+    },
+    {
+      "id": "limiting-reactant",
+      "level": "inputs",
+      "fields": ["inputs.components.is_limiting"],
+      "description": "The limiting reactant is marked.",
+      "suggestion": "mark the limiting reactant with is_limiting",
+      "weights": {"uniform": 1.0, "varied": 1.0}
+    },
+    {
+      "id": "addition-order",
+      "level": "inputs",
+      "fields": ["inputs.addition_order"],
+      "description": "Every input has an addition order, where there is more than one.",
+      "suggestion": "give every input an addition_order",
+      "weights": {"uniform": 1.0, "varied": 0.5}
+    },
+    {
+      "id": "compound-names",
+      "level": "inputs",
+      "fields": ["inputs.components.identifiers", "outcomes.products.identifiers"],
+      "description": "Every compound given as a structure also has a name.",
+      "suggestion": "give every compound recorded as a structure a NAME identifier too",
+      "weights": {"uniform": 0.5, "varied": 1.0}
+    },
+    {
+      "id": "temperature-control",
+      "level": "conditions",
+      "fields": ["conditions.temperature.control.type"],
+      "description": "How the temperature was controlled is recorded.",
+      "suggestion": "record conditions.temperature.control.type",
+      "weights": {"uniform": 1.0, "varied": 1.0}
+    },
+    {
+      "id": "atmosphere",
+      "level": "conditions",
+      "fields": ["conditions.pressure.atmosphere.type"],
+      "description": "The atmosphere is recorded.",
+      "suggestion": "record conditions.pressure.atmosphere.type",
+      "weights": {"uniform": 1.0, "varied": 1.0}
+    },
+    {
+      "id": "stirring",
+      "level": "conditions",
+      "fields": ["conditions.stirring.type"],
+      "description": "How the reaction was stirred is recorded.",
+      "suggestion": "record conditions.stirring.type",
+      "weights": {"uniform": 1.0, "varied": 0.5}
+    },
+    {
+      "id": "workups",
+      "level": "workups",
+      "fields": ["workups"],
+      "description": "The workup steps are recorded.",
+      "suggestion": "record the workup steps",
+      "weights": {"uniform": 0.5, "varied": 1.0}
+    },
+    {
+      "id": "reaction-time",
+      "level": "outcomes",
+      "fields": ["outcomes.reaction_time"],
+      "description": "The reaction time of each outcome is recorded.",
+      "suggestion": "record outcomes.reaction_time",
+      "weights": {"uniform": 1.0, "varied": 1.0}
+    },
+    {
+      "id": "measurement-type",
+      "level": "outcomes",
+      "fields": ["outcomes.products.measurements.type"],
+      "description": "Every product measurement has a type.",
+      "suggestion": "give every product measurement a type",
+      "weights": {"uniform": 1.0, "varied": 1.0}
+    },
+    {
+      "id": "measurement-analysis",
+      "level": "outcomes",
+      "fields": ["outcomes.products.measurements.analysis_key", "outcomes.analyses"],
+      "description": "Every product measurement names the analysis behind it, and that analysis is recorded.",
+      "suggestion": "link every product measurement to a recorded analysis with analysis_key",
+      "weights": {"uniform": 1.0, "varied": 1.0}
+    },
+    {
+      "id": "desired-product",
+      "level": "outcomes",
+      "fields": ["outcomes.products.is_desired_product"],
+      "description": "Which product was desired is marked.",
+      "suggestion": "mark the desired product with is_desired_product",
+      "weights": {"uniform": 1.0, "varied": 1.0}
+    },
+    {
+      "id": "source",
+      "level": "provenance",
+      "fields": ["provenance.doi", "provenance.patent", "provenance.publication_url"],
+      "description": "The reaction cites a DOI, patent or publication URL.",
+      "suggestion": "add a doi, patent, or publication_url to the provenance",
+      "weights": {"uniform": 1.0, "varied": 1.0}
+    },
+    {
+      "id": "record-created",
+      "level": "provenance",
+      "fields": ["provenance.record_created.time"],
+      "description": "When the record was created is recorded.",
+      "suggestion": "record provenance.record_created.time",
+      "weights": {"uniform": 1.0, "varied": 1.0}
+    }
+  ]
+}

@@ -28,12 +28,13 @@
     <output_dir>/
         <dataset>_review.html   one self-contained page; long lists are capped
         tables/
-            findings.csv        every finding, validation and structural
+            findings.csv        every finding: validation, structural, completeness
             compounds.csv       every compound
             flat.csv            the varying fields, one row per reaction
             constants.csv       the fields every reaction holds the same way
             column_stats.csv    statistics for each group of varying columns
             exemplars.txtpb     the reactions picked for the reviewer to read
+            completeness.csv    each reaction's completeness score, and what it lacks
 
 The CSVs are always complete; only the page caps what it shows. Nothing here blocks
 a submission: the report is for the reviewer, who decides.
@@ -55,7 +56,7 @@ from google.protobuf import text_format
 from ord_schema import parquet, validations
 from ord_schema.analysis import columns
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.review import exemplars, structure
+from ord_schema.review import completeness, exemplars, structure
 from ord_schema.validations import Severity
 
 # What the page shows before pointing to the CSVs.
@@ -106,6 +107,7 @@ class ReviewReport:
         evidence: The summary, compound table and flattened table they read.
         column_stats: Statistics for each group of varying columns.
         exemplars: The reactions picked for the reviewer to read, and why.
+        completeness: The reactions' completeness scores, rolled up.
         generated: When the report was made, in UTC.
         ord_schema_version: The ord-schema that made it.
     """
@@ -119,6 +121,7 @@ class ReviewReport:
     evidence: structure.DatasetEvidence
     column_stats: list[columns.ColumnStats]
     exemplars: list[exemplars.Exemplar]
+    completeness: completeness.CompletenessRollup
     generated: str
     ord_schema_version: str
 
@@ -195,7 +198,8 @@ def build_report(
         The report.
     """
     validator = _Validator(options or validations.ValidationOptions())
-    evidence = structure.gather(validator.watch(dataset.reactions))
+    scores = completeness.CompletenessRollup(profile.value)
+    evidence = structure.gather(scores.watch(validator.watch(dataset.reactions)))
     stats = columns.column_statistics(evidence.table)
     return ReviewReport(
         name=dataset.name,
@@ -208,6 +212,7 @@ def build_report(
         column_stats=stats,
         # Fetched back by position, which a Dataset and a DatasetView both allow.
         exemplars=exemplars.pick(evidence.table, stats, dataset.reactions, profile),
+        completeness=scores,
         generated=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M UTC"),
         ord_schema_version=importlib.metadata.version("ord-schema"),
     )
@@ -250,6 +255,18 @@ def _write_findings_csv(report: ReviewReport, path: pathlib.Path) -> None:
                     "examples": " | ".join(group.examples),
                 }
             )
+        for rollup in report.completeness.lacking():
+            writer.writerow(
+                {
+                    "source": "completeness",
+                    "check": rollup.item.id,
+                    "severity": Severity.INFO.name,
+                    "message": rollup.suggestion(),
+                    "fields": " | ".join(rollup.item.fields),
+                    "reactions": rollup.lacking,
+                    "examples": " | ".join(rollup.examples),
+                }
+            )
 
 
 def _file_stem(report: ReviewReport) -> str:
@@ -275,6 +292,7 @@ def write_bundle(
     tables.mkdir(parents=True, exist_ok=True)
     evidence = report.evidence
     _write_findings_csv(report, tables / "findings.csv")
+    report.completeness.write_csv(tables / "completeness.csv")
     evidence.summary.compounds.write_csv(tables / "compounds.csv")
     evidence.table.write_csv(tables / "flat.csv")
     evidence.table.write_constants_csv(tables / "constants.csv")
@@ -389,6 +407,7 @@ def _header(report: ReviewReport) -> str:
         (f"{counts[Severity.ERROR]:,}", "errors"),
         (f"{counts[Severity.WARNING]:,}", "warnings"),
         (f"{counts[Severity.INFO]:,}", "notes"),
+        (_percent(report.completeness.mean_overall()), "completeness"),
         (f"{len(compounds):,}", "compounds"),
         (f"{len(report.column_stats):,}", "varying fields"),
     ]
@@ -411,8 +430,7 @@ def _header(report: ReviewReport) -> str:
         + "</div></header>"
         '<p class="notice">This report is for the reviewer. Nothing in it blocks a '
         "submission; the reviewer decides what needs changing. Every table is complete "
-        "in <code>tables/</code>; this page caps long lists. Not yet included: "
-        "completeness scores (#1054).</p>"
+        "in <code>tables/</code>; this page caps long lists.</p>"
     )
 
 
@@ -487,6 +505,50 @@ def _validation_section(report: ReviewReport) -> str:
                 f'<p class="muted">{len(groups) - MAX_FINDINGS_SHOWN:,} more in '
                 "tables/findings.csv.</p>"
             )
+    parts.append("</section>")
+    return "".join(parts)
+
+
+def _percent(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.0%}"
+
+
+def _completeness_section(report: ReviewReport) -> str:
+    rollup = report.completeness
+    levels = rollup.mean_levels()
+    parts = [
+        "<section><h2>Completeness</h2>",
+        "<p>How completely the reactions record details that can almost always be "
+        "recorded, scored against rubric version "
+        f"{_e(rollup.rubric.version)} under the <b>{_e(rollup.profile)}</b> profile. "
+        "Advisory: a low score never blocks a submission. Each reaction's score is in "
+        "<code>tables/completeness.csv</code>.</p>",
+        '<div class="tiles">',
+        f'<div class="tile"><b>{_percent(rollup.mean_overall())}</b>'
+        "<span>overall, mean of reactions</span></div>",
+    ]
+    parts.extend(
+        f'<div class="tile"><b>{_percent(value)}</b><span>{_e(level)}</span></div>'
+        for level, value in levels.items()
+    )
+    parts.append("</div>")
+    lacking = rollup.lacking()
+    if lacking:
+        parts.append(
+            '<div class="scroll"><table><thead><tr><th>Suggestion</th><th>Level</th>'
+            "<th>Reactions lacking it</th><th>Examples</th></tr></thead><tbody>"
+        )
+        parts.extend(
+            f"<tr><td>{_e(r.item.suggestion[0].upper() + r.item.suggestion[1:])}"
+            f'<div class="muted">{_e(", ".join(r.item.fields))}</div></td>'
+            f"<td>{_e(r.item.level)}</td>"
+            f"<td>{r.lacking:,} of {r.applicable:,}</td>"
+            f"<td>{_list(r.examples)}</td></tr>"
+            for r in lacking
+        )
+        parts.append("</tbody></table></div>")
+    else:
+        parts.append("<p>Every reaction is complete on every item that applies.</p>")
     parts.append("</section>")
     return "".join(parts)
 
@@ -691,6 +753,7 @@ def render_html(report: ReviewReport) -> str:
         + _header(report)
         + _findings_section(report)
         + _validation_section(report)
+        + _completeness_section(report)
         + _shapes_section(report)
         + _exemplars_section(report)
         + _columns_section(report)

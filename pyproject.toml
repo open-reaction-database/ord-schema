@@ -158,6 +158,8 @@ tests = [
 include = ["ord_schema*"]
 
 [tool.setuptools.package-data]
+# The completeness rubric, which ord_schema.completeness reads through importlib.resources.
+"ord_schema" = ["completeness_rubric.json"]
 "ord_schema.proto" = ["*.pyi"]
 # The projection schema snapshot, read back through importlib.resources by its test,
 # and the natural-language system prompt, which ord_schema.search.nl reads the same way.
