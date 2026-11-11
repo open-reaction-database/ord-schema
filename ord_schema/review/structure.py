@@ -74,6 +74,11 @@ MAX_GRID_CELLS = 1_000_000
 # Below this share of its cells filled, a set of factors is not treated as a grid.
 MIN_GRID_FILL = 0.5
 
+# With more candidate factors than this, a dataset is not a designed screen but an
+# aggregate, such as a year of USPTO grants with hundreds of distinct input keys;
+# comparing every pair of candidates there would take hours and find no grid.
+MAX_FACTOR_CANDIDATES = 40
+
 # Examples kept per finding.
 MAX_EXAMPLES = 5
 
@@ -313,6 +318,8 @@ def _factor_groups(table: flat.FlatTable) -> list[list[str]]:
         if len(counts) < 2 or counts.min() < 2:
             continue
         candidates.append(group)
+        if len(candidates) > MAX_FACTOR_CANDIDATES:
+            return []
     factors: list[list[str]] = []
     for group in sorted(candidates, key=lambda g: -frame[g[0]].nunique(dropna=False)):
         determined = any(
