@@ -58,6 +58,7 @@ from google.protobuf import text_format
 
 from ord_schema import parquet, validations
 from ord_schema.analysis import columns, flat
+from ord_schema.analysis.compounds import StructureDrawings
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.review import chemistry, completeness, exemplars, packet, structure
 from ord_schema.validations import Severity
@@ -411,9 +412,16 @@ def _pill(severity: Severity) -> str:
     return f'<span class="pill {severity.name}">{severity.name}</span>'
 
 
-def _list(values: Iterable[str]) -> str:
-    """Example reaction IDs or values, kept whole and wrapped between items."""
-    items = "".join(f"<code>{_e(v)}</code>" for v in values)
+def _list(values: Iterable[str], drawings: StructureDrawings | None = None) -> str:
+    """Example reaction IDs or values, kept whole and wrapped between items.
+
+    With ``drawings``, a value that is a recorded compound's SMILES shows its
+    structure on hover.
+    """
+    if drawings is None:
+        items = "".join(f"<code>{_e(v)}</code>" for v in values)
+    else:
+        items = "".join(drawings.code(str(v)) for v in values)
     return f'<div class="examples">{items}</div>' if items else ""
 
 
@@ -452,7 +460,9 @@ def _header(report: ReviewReport) -> str:
     )
 
 
-def _findings_table(findings: list[structure.Finding]) -> str:
+def _findings_table(
+    findings: list[structure.Finding], drawings: StructureDrawings | None = None
+) -> str:
     """Findings as a table, capped, pointing to findings.csv for the rest."""
     parts = [
         '<div class="scroll"><table><thead><tr><th>Severity</th><th>Check</th>'
@@ -470,7 +480,7 @@ def _findings_table(findings: list[structure.Finding]) -> str:
             else ""
         )
         + f"</td><td>{'' if f.reactions is None else f'{f.reactions:,}'}</td>"
-        f"<td>{_list(f.examples)}</td></tr>"
+        f"<td>{_list(f.examples, drawings)}</td></tr>"
         for f in findings[:MAX_FINDINGS_SHOWN]
     )
     parts.append("</tbody></table></div>")
@@ -482,11 +492,11 @@ def _findings_table(findings: list[structure.Finding]) -> str:
     return "".join(parts)
 
 
-def _findings_section(report: ReviewReport) -> str:
+def _findings_section(report: ReviewReport, drawings: StructureDrawings) -> str:
     findings = report.structure.findings
     parts = ["<section><h2>Dataset-level findings</h2>"]
     if findings:
-        parts.append(_findings_table(findings))
+        parts.append(_findings_table(findings, drawings))
     else:
         parts.append("<p>None of the checks that ran found anything.</p>")
     applied = ", ".join(f"<code>{_e(c)}</code>" for c in report.structure.applied)
@@ -714,7 +724,7 @@ def _exemplars_section(report: ReviewReport) -> str:
     return "".join(parts)
 
 
-def _figure(stat: columns.ColumnStats) -> str:
+def _figure(stat: columns.ColumnStats, drawings: StructureDrawings) -> str:
     caption = [f"<code>{_e(stat.column)}</code>"]
     if len(stat.columns) > 1:
         caption.append(
@@ -726,10 +736,15 @@ def _figure(stat: columns.ColumnStats) -> str:
     )
     caption.append(f'<span class="muted">{detail}</span>')
     body = "".join(f"<div>{c}</div>" for c in caption)
-    return f"<figure><figcaption>{body}</figcaption>{stat.to_svg()}</figure>"
+    chart = stat.to_html(drawing=drawings.tip)
+    return f"<figure><figcaption>{body}</figcaption>{chart}</figure>"
 
 
-def _columns_section(report: ReviewReport) -> str:
+def _figures(stats: list[columns.ColumnStats], drawings: StructureDrawings) -> str:
+    return "".join(_figure(stat, drawings) for stat in stats)
+
+
+def _columns_section(report: ReviewReport, drawings: StructureDrawings) -> str:
     table = report.evidence.table
     parts = ["<section><h2>What the dataset varies</h2>"]
     if report.profile is structure.ValidationProfile.VARIED:
@@ -748,7 +763,7 @@ def _columns_section(report: ReviewReport) -> str:
         "SMILES, are one group. Hover over a bar for its full value.</p>"
     )
     if experiment:
-        parts.append(f'<div class="grid">{"".join(map(_figure, experiment))}</div>')
+        parts.append(f'<div class="grid">{_figures(experiment, drawings)}</div>')
     else:
         parts.append("<p>No experimental field varies.</p>")
     parts.append("<h3>Provenance</h3>")
@@ -756,7 +771,7 @@ def _columns_section(report: ReviewReport) -> str:
         parts.append(
             '<p class="muted">Who recorded the data and when. Dates are compared by '
             f"{_e(table.date_resolution or 'exact value')}.</p>"
-            f'<div class="grid">{"".join(map(_figure, provenance))}</div>'
+            f'<div class="grid">{_figures(provenance, drawings)}</div>'
         )
     else:
         parts.append('<p class="muted">The same for every reaction; see below.</p>')
@@ -784,7 +799,7 @@ def _columns_section(report: ReviewReport) -> str:
     return "".join(parts)
 
 
-def _compounds_section(report: ReviewReport) -> str:
+def _compounds_section(report: ReviewReport, drawings: StructureDrawings) -> str:
     compounds = report.evidence.summary.compounds
     return (
         "<section><h2>Compounds</h2>"
@@ -792,7 +807,9 @@ def _compounds_section(report: ReviewReport) -> str:
         "disagree are listed, not resolved; rows with something to check are "
         "shaded.</p>"
         '<div class="scroll">'
-        + compounds.to_html_sections(heading="h3", max_rows=MAX_COMPOUNDS_SHOWN)
+        + compounds.to_html_sections(
+            heading="h3", max_rows=MAX_COMPOUNDS_SHOWN, drawings=drawings
+        )
         + "</div></section>"
     )
 
@@ -800,6 +817,20 @@ def _compounds_section(report: ReviewReport) -> str:
 def render_html(report: ReviewReport) -> str:
     """Returns the report as one self-contained HTML page."""
     title = f"Review: {report.name or 'unnamed dataset'}"
+    # Each structure shown on hover is drawn once, in defs, after the sections that
+    # use it have been written.
+    drawings = StructureDrawings(report.evidence.summary.compounds)
+    body = (
+        _header(report)
+        + _findings_section(report, drawings)
+        + _chemistry_section(report)
+        + _validation_section(report)
+        + _completeness_section(report)
+        + _shapes_section(report)
+        + _exemplars_section(report)
+        + _columns_section(report, drawings)
+        + _compounds_section(report, drawings)
+    )
     return (
         # The marker in Go's form, which tools such as addlicense recognize, so a
         # report kept in a repository is not mistaken for source missing a license.
@@ -807,16 +838,11 @@ def render_html(report: ReviewReport) -> str:
         "DO NOT EDIT.\n-->\n"
         '<html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        f"<title>{_e(title)}</title><style>{_STYLE}</style></head><body><main>"
-        + _header(report)
-        + _findings_section(report)
-        + _chemistry_section(report)
-        + _validation_section(report)
-        + _completeness_section(report)
-        + _shapes_section(report)
-        + _exemplars_section(report)
-        + _columns_section(report)
-        + _compounds_section(report)
+        f"<title>{_e(title)}</title><style>{_STYLE}"
+        f"{columns.TOOLTIP_CSS}{StructureDrawings.CSS}</style></head><body>"
+        + drawings.defs()
+        + "<main>"
+        + body
         + "</main></body></html>\n"
     )
 
