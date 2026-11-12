@@ -45,6 +45,7 @@ text inside code blocks or JSON strings, never as prose of its own.
 """
 
 import dataclasses
+import itertools
 import json
 import math
 import os
@@ -92,6 +93,10 @@ class _Limits:
     compounds: int = 200
     full_exemplars: int = 20
     column_stats: int = 500
+    # As many as the page shows. Shapes grow with the reactions in a varied or
+    # aggregate dataset, so they are capped, with a count of the rest.
+    shapes: int = 20
+    name_conflicts: int = 50
 
 
 # What to give up, in order, when a file is over budget: (description, change).
@@ -99,6 +104,10 @@ _TRIM_STEPS: list[tuple[str, dict[str, int]]] = [
     ("value lists cut to 10 per column", {"categories": 10}),
     ("full text kept for the first 10 exemplars", {"full_exemplars": 10}),
     ("compounds cut to the first 50 with something to check", {"compounds": 50}),
+    (
+        "shapes cut to 5 and name conflicts to 10",
+        {"shapes": 5, "name_conflicts": 10},
+    ),
     (
         "findings and validation messages cut to 50 each",
         {"findings": 50, "validation": 50},
@@ -159,6 +168,8 @@ def _data(
     """The packet's content as plain data, within ``limits``."""
     evidence = report.evidence
     compound_table = evidence.summary.compounds
+    shapes = evidence.summary.ordered_shapes()
+    name_conflicts = compound_table.name_conflicts()
     flagged = [r for r in compound_table.records() if compound_table.conflicts(r)]
     rollup = report.completeness
     findings = report.structure.findings
@@ -235,8 +246,9 @@ def _data(
         },
         "shapes": [
             {"reactions": count, "fields": len(shape)}
-            for shape, count in evidence.summary.ordered_shapes()
+            for shape, count in shapes[: limits.shapes]
         ],
+        "shapes_total": len(shapes),
         "columns": {
             "varying": len(evidence.table.varying.columns),
             "constant": len(evidence.table.constants),
@@ -249,7 +261,10 @@ def _data(
         "compounds": {
             "total": len(compound_table),
             "with_something_to_check": len(flagged),
-            "name_conflicts": compound_table.name_conflicts(),
+            "name_conflicts": dict(
+                itertools.islice(name_conflicts.items(), limits.name_conflicts)
+            ),
+            "name_conflicts_total": len(name_conflicts),
             "flagged": [
                 {
                     "label": r.label,
@@ -298,7 +313,7 @@ def _column_data(stat: columns.ColumnStats, categories: int) -> dict[str, Any]:
             {"values": [columns.format_value(v) for v in values], "reactions": count}
             for values, count in stat.categories[:categories]
         ]
-        data["values_not_listed"] = max(0, stat.distinct - categories)
+        data["values_not_listed"] = stat.values_not_listed(categories)
     return data
 
 
@@ -462,6 +477,11 @@ def _markdown(data: dict[str, Any], report: "ReviewReport", limits: _Limits) -> 
         f"- {s['reactions']:,} reactions fill {s['fields']} fields"
         for s in data["shapes"]
     )
+    if data["shapes_total"] > len(data["shapes"]):
+        lines.append(
+            f"- and {data['shapes_total'] - len(data['shapes']):,} more ways, "
+            "each used by fewer reactions"
+        )
     cols = data["columns"]
     lines += [
         "",

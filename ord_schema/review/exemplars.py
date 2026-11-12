@@ -31,7 +31,6 @@ listed once. :func:`write_txtpb` writes them as a readable subset of the dataset
 import dataclasses
 import os
 import pathlib
-import re
 from typing import Protocol
 
 import numpy as np
@@ -81,17 +80,13 @@ class Exemplar:
 
 
 # A repeated field's index in a column name; map keys are kept.
-_INDEX = re.compile(r"\[\d+\]")
-
-
 def _keyed_path(column: str) -> str:
     """A column's field path, keeping which input or map entry it is in.
 
-    ``inputs["base"].components[0].amount.moles.value`` becomes
-    ``inputs["base"].components.amount.moles.value``: the position in a list does
-    not change what a reaction records, but which input it records it in does.
+    The position in a list does not change what a reaction records, but which input
+    it records it in does.
     """
-    return _INDEX.sub("", column)
+    return flat.field_path(column, keep_keys=True)
 
 
 def _shapes(table: flat.FlatTable) -> list[tuple[frozenset[str], list[int]]]:

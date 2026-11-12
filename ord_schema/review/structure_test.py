@@ -138,6 +138,15 @@ def test_placeholder_text_is_found_in_free_text_fields():
     assert finding.fields == ["notes.procedure_details"]
 
 
+def test_sodium_by_name_is_not_a_placeholder():
+    reactions = [_reaction(f"r{i}") for i in range(3)]
+    for reaction in reactions:
+        reaction.inputs["metal"].components.append(
+            message_helpers.build_compound(name="Na", role="reagent")
+        )
+    assert _findings(reactions, "placeholder-value") == []
+
+
 def test_an_enum_none_is_a_real_value_not_a_placeholder():
     # stirring.type NONE means the reaction was not stirred.
     reactions = [_reaction(f"r{i}") for i in range(3)]
