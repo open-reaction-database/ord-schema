@@ -81,8 +81,19 @@ _DATE_FORMATS: dict[str, str] = {
     "second": "%Y-%m-%d %H:%M:%S",
 }
 
-# A map key or repeated-field index in a message_to_row column name.
-_SUBSCRIPT = re.compile(r'\["[^"]*"\]|\[\d+\]')
+# A repeated-field index, and a map key or index, in a message_to_row column name.
+_INDEX = re.compile(r"\[\d+\]")
+_SUBSCRIPT = re.compile(rf'\["[^"]*"\]|{_INDEX.pattern}')
+
+
+def field_path(column: str, *, keep_keys: bool = False) -> str:
+    """The field path a column names, without its indices and, by default, map keys.
+
+    ``inputs["base"].components[0].identifiers[1].value`` names the field
+    ``inputs.components.identifiers.value``; with ``keep_keys``, the field in that
+    input, ``inputs["base"].components.identifiers.value``.
+    """
+    return (_INDEX if keep_keys else _SUBSCRIPT).sub("", column)
 
 
 def is_provenance(column: str) -> bool:
@@ -99,7 +110,7 @@ def field_for(column: str) -> "FieldDescriptor | None":
     its value type. Read from the proto descriptors, so it follows the schema.
     """
     descriptor = cast("Descriptor", reaction_pb2.Reaction.DESCRIPTOR)
-    names = _SUBSCRIPT.sub("", column).split(".")
+    names = field_path(column).split(".")
     field = None
     for index, name in enumerate(names):
         field = descriptor.fields_by_name.get(name)

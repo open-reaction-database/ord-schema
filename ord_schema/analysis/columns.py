@@ -173,7 +173,7 @@ def _is_number(value: object) -> bool:
     )
 
 
-def _format(value: object) -> str:
+def format_value(value: object) -> str:
     """A value as it reads in a chart or CSV: numbers to 4 significant figures."""
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return "(empty)"
@@ -292,7 +292,7 @@ def write_csv(stats: list[ColumnStats], path: str | os.PathLike[str]) -> None:
                 "empty": stat.empty,
                 "distinct": stat.distinct,
                 "values": "; ".join(
-                    f"{' | '.join(_format(v) for v in values)} ({count})"
+                    f"{' | '.join(format_value(v) for v in values)} ({count})"
                     for values, count in stat.categories
                 ),
             }
@@ -411,7 +411,7 @@ def _value_html(values: tuple[object, ...], max_lines: int | None = None) -> str
     """
     parts = []
     for value in values:
-        text = _format(value)
+        text = format_value(value)
         if "\n" not in text:
             parts.append(f'<div class="value">{html.escape(text)}</div>')
             continue
@@ -434,7 +434,7 @@ def _panels(
     """
     panels = {}
     for index, (values, count) in enumerate(stat.categories[:MAX_CHART_CATEGORIES]):
-        name = " | ".join(_format(v) for v in values)
+        name = " | ".join(format_value(v) for v in values)
         tip = None
         if drawing is not None:
             tip = next((t for v in values if v is not None and (t := drawing(v))), None)
@@ -469,7 +469,9 @@ def _categories_svg(
     rest = (
         sum(count for _, count in stat.categories[MAX_CHART_CATEGORIES:]) + stat.other
     )
-    bars = [(" | ".join(_format(v) for v in values), count) for values, count in shown]
+    bars = [
+        (" | ".join(format_value(v) for v in values), count) for values, count in shown
+    ]
     # Scaled to the categories drawn: the folded rest is a line of text, not a bar,
     # since its total would dwarf them.
     top = max((count for _, count in bars), default=1)
@@ -542,7 +544,7 @@ def _histogram_svg(stat: ColumnStats, label: str) -> str:
         bar_height = _HIST_HEIGHT * count / top
         x = left + index * slot + _GAP / 2
         tooltip = (
-            f"{_format(edges[index])} to {_format(edges[index + 1])}: "
+            f"{format_value(edges[index])} to {format_value(edges[index + 1])}: "
             f"{count:,} reactions"
         )
         path = _bar_path(x, baseline - bar_height, slot - _GAP, bar_height, up=True)
@@ -550,13 +552,15 @@ def _histogram_svg(stat: ColumnStats, label: str) -> str:
             f"<g><title>{html.escape(tooltip)}</title>"
             f'<path d="{path}" fill="var(--series-1, #2a78d6)"/></g>'
         )
-    parts.append(_text(left, baseline + 15, _format(edges[0])))
-    parts.append(_text(_WIDTH - 8, baseline + 15, _format(edges[-1]), anchor="end"))
+    parts.append(_text(left, baseline + 15, format_value(edges[0])))
+    parts.append(
+        _text(_WIDTH - 8, baseline + 15, format_value(edges[-1]), anchor="end")
+    )
     parts.append(
         _text(
             left + plot_width / 2,
             baseline + 15,
-            f"median {_format(stat.summary['median'])}",
+            f"median {format_value(stat.summary['median'])}",
             anchor="middle",
         )
     )

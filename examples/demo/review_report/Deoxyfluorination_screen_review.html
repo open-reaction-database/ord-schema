@@ -20,9 +20,12 @@
   }
 }
 * { box-sizing: border-box; }
-body { margin: 0; padding: 24px; background: var(--surface);
+body { margin: 0; padding: 24px 16px; background: var(--surface);
   color: var(--text-primary); font: 14px/1.5 system-ui, -apple-system, sans-serif; }
 main { max-width: 1280px; margin: 0 auto; display: grid; gap: 32px; }
+/* A grid item is as wide as its widest content unless told otherwise; this lets
+   long tables and reaction text scroll in place instead of widening the page. */
+main > * { min-width: 0; }
 h1 { font-size: 26px; margin: 0; text-wrap: balance; }
 h2 { font-size: 20px; margin: 0 0 8px; padding-bottom: 4px;
   border-bottom: 2px solid var(--grid); }
@@ -52,7 +55,7 @@ td ul { margin: 0; padding-left: 16px; }
 .pill.WARNING { color: var(--warning); background: var(--warning-bg); }
 .pill.INFO { color: var(--info); background: var(--info-bg); }
 .grid { display: grid; gap: 14px;
-  grid-template-columns: repeat(auto-fill, minmax(390px, 1fr)); }
+  grid-template-columns: repeat(auto-fill, minmax(min(390px, 100%), 1fr)); }
 figure { margin: 0; padding: 12px; background: var(--card); min-width: 0;
   border: 1px solid var(--grid); border-radius: 8px; position: relative; }
 figure svg { max-width: 100%; height: auto; }
@@ -65,6 +68,13 @@ tr.flagged td.structure { background: #ffffff; }
 .conflict { color: var(--error); font-weight: 600; }
 .note { color: var(--warning); }
 details summary { cursor: pointer; color: var(--text-secondary); }
+a { color: var(--series-1); }
+a.download { font-weight: 600; }
+details pre { background: var(--card); border: 1px solid var(--grid);
+  border-radius: 6px; padding: 10px; font-size: 12px; overflow-x: auto;
+  max-height: 480px; }
+section > details { margin: 6px 0; }
+details summary, details li { overflow-wrap: anywhere; }
 @media print {
   body { padding: 0; font-size: 10pt; }
   section { break-before: page; }
@@ -1636,7 +1646,697 @@ L 63.6 36.5
 L 63.6 25.4
 L 65.4 25.4
 ' fill='#0000FF'/>
-</symbol></defs></svg><main><header><h1>Review: Deoxyfluorination screen</h1><p class="meta">profile <b>uniform</b> · generated 2026-11-12 17:21 UTC · ord-schema 0.9.6</p><p>Reactions from Figure 1 of DOI: 10.1021/jacs.8b01523</p><div class="tiles"><div class="tile"><b>80</b><span>reactions</span></div><div class="tile"><b>0</b><span>errors</span></div><div class="tile"><b>1</b><span>warnings</span></div><div class="tile"><b>0</b><span>notes</span></div><div class="tile"><b>20</b><span>compounds</span></div><div class="tile"><b>4</b><span>varying fields</span></div></div></header><p class="notice">This report is for the reviewer. Nothing in it blocks a submission; the reviewer decides what needs changing. Every table is complete in <code>tables/</code>; this page caps long lists. Not yet included: completeness scores (#1054) and exemplar reactions (#1052).</p><section><h2>Dataset-level findings</h2><p>None of the checks that ran found anything.</p><p class="muted">Checks run: <code>coverage-gap</code>, <code>placeholder-value</code>, <code>grid-gap</code>, <code>duplicate-well</code>, <code>mixed-units</code>, <code>name-structure-conflict</code>, <code>conflicting-roles</code>, <code>duplicate-reaction</code>, <code>mixed-sourcing</code>.</p></section><section><h2>Reaction validation</h2><p class="muted">Each message from validating the reactions one at a time, with how many reactions raised it. Messages that differ only in numbers are counted together; the first is shown.</p><div class="scroll"><table><thead><tr><th>Severity</th><th>Message</th><th>Reactions</th><th>Examples</th></tr></thead><tbody><tr><td><span class="pill WARNING">WARNING</span></td><td>Reaction.provenance.record_created.time: Time 2020-08-08T15:01:25 has no UTC offset, so the instant it names is ambiguous; add the offset it was written under (+00:00) where known</td><td>80</td><td><div class="examples"><code>reaction #1</code><code>reaction #2</code><code>reaction #3</code><code>reaction #4</code><code>reaction #5</code></div></td></tr></tbody></table></div></section><section><h2>How reactions are recorded</h2><p>1 distinct shape: sets of fields a reaction fills. In a uniform dataset one shape is expected; more can be controls, or fields some reactions miss.</p></section><section><h2>What the dataset varies</h2><p>5 varying columns in 4 groups; columns that always change together, such as a compound's name and SMILES, are one group. Hover over a bar for its full value.</p><div class="grid"><figure><figcaption><div><code>inputs[&quot;alcohol in THF&quot;].components[0].identifiers[0].value</code></div><div><span class="muted">with outcomes[0].products[0].identifiers[0].value</span></div><div><span class="muted">categorical, 80 filled, 0 empty, 4 distinct</span></div></figcaption><div class="chart"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 112" width="360" height="112" role="img" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11"><title>inputs[&quot;alcohol in THF&quot;].components[0].identifiers[0].value</title><line x1="150" y1="2" x2="150" y2="108" stroke="var(--grid, #e2e1dc)" stroke-width="1"/><g class="b0" tabindex="0"><title>O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1 | F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1: 20 reactions</title><path d="M150.0,8.0H308.0Q312.0,8.0 312.0,12.0V22.0Q312.0,26.0 308.0,26.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="21.0" text-anchor="end" fill="var(--text-secondary, #52514e)">O[C@@H]1C[C@H](OC…</text><text x="316.0" y="21.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g><g class="b1" tabindex="0"><title>O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1 | F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1: 20 reactions</title><path d="M150.0,34.0H308.0Q312.0,34.0 312.0,38.0V48.0Q312.0,52.0 308.0,52.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="47.0" text-anchor="end" fill="var(--text-secondary, #52514e)">O[C@H]1C[C@@H](C(…</text><text x="316.0" y="47.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g><g class="b2" tabindex="0"><title>c1ccccc1-c2ccc(CO)cc2 | c1ccccc1-c2ccc(CF)cc2: 20 reactions</title><path d="M150.0,60.0H308.0Q312.0,60.0 312.0,64.0V74.0Q312.0,78.0 308.0,78.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="73.0" text-anchor="end" fill="var(--text-secondary, #52514e)">c1ccccc1-c2ccc(CO)c…</text><text x="316.0" y="73.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g><g class="b3" tabindex="0"><title>c1ccccc1CCC(O)C | c1ccccc1CCC(F)C: 20 reactions</title><path d="M150.0,86.0H308.0Q312.0,86.0 312.0,90.0V100.0Q312.0,104.0 308.0,104.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="99.0" text-anchor="end" fill="var(--text-secondary, #52514e)">c1ccccc1CCC(O)C | c…</text><text x="316.0" y="99.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g></svg><div class="moltip t0" aria-hidden="true" style="left: 8px; top: 30px"><div class="value">O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1</div><div class="value">F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-0"/></svg></div><div class="moltip t1" aria-hidden="true" style="left: 8px; top: 56px"><div class="value">O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1</div><div class="value">F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-1"/></svg></div><div class="moltip t2" aria-hidden="true" style="left: 8px; top: 82px"><div class="value">c1ccccc1-c2ccc(CO)cc2</div><div class="value">c1ccccc1-c2ccc(CF)cc2</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-2"/></svg></div><div class="moltip t3" aria-hidden="true" style="left: 8px; top: 108px"><div class="value">c1ccccc1CCC(O)C</div><div class="value">c1ccccc1CCC(F)C</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-3"/></svg></div></div><details class="values"><summary>Values shown, in full (4)</summary><table><thead><tr><th>Reactions</th><th>Value</th></tr></thead><tbody><tr><td>20</td><td><div class="value">O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1</div><div class="value">F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1</div></td></tr><tr><td>20</td><td><div class="value">O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1</div><div class="value">F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1</div></td></tr><tr><td>20</td><td><div class="value">c1ccccc1-c2ccc(CO)cc2</div><div class="value">c1ccccc1-c2ccc(CF)cc2</div></td></tr><tr><td>20</td><td><div class="value">c1ccccc1CCC(O)C</div><div class="value">c1ccccc1CCC(F)C</div></td></tr></tbody></table></details></figure><figure><figcaption><div><code>inputs[&quot;base&quot;].components[0].identifiers[0].value</code></div><div><span class="muted">categorical, 80 filled, 0 empty, 4 distinct</span></div></figcaption><div class="chart"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 112" width="360" height="112" role="img" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11"><title>inputs[&quot;base&quot;].components[0].identifiers[0].value</title><line x1="150" y1="2" x2="150" y2="108" stroke="var(--grid, #e2e1dc)" stroke-width="1"/><g class="b0" tabindex="0"><title>CC(C)(C)N=C(N(C)C)N(C)C: 20 reactions</title><path d="M150.0,8.0H308.0Q312.0,8.0 312.0,12.0V22.0Q312.0,26.0 308.0,26.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="21.0" text-anchor="end" fill="var(--text-secondary, #52514e)">CC(C)(C)N=C(N(C)C)…</text><text x="316.0" y="21.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g><g class="b1" tabindex="0"><title>CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3: 20 reactions</title><path d="M150.0,34.0H308.0Q312.0,34.0 312.0,38.0V48.0Q312.0,52.0 308.0,52.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="47.0" text-anchor="end" fill="var(--text-secondary, #52514e)">CC(C)(C)N=P(N1CCC…</text><text x="316.0" y="47.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g><g class="b2" tabindex="0"><title>CN1CCCN2C1=NCCC2: 20 reactions</title><path d="M150.0,60.0H308.0Q312.0,60.0 312.0,64.0V74.0Q312.0,78.0 308.0,78.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="73.0" text-anchor="end" fill="var(--text-secondary, #52514e)">CN1CCCN2C1=NCCC2</text><text x="316.0" y="73.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g><g class="b3" tabindex="0"><title>N\2=C1\N(CCCCC1)CCC/2: 20 reactions</title><path d="M150.0,86.0H308.0Q312.0,86.0 312.0,90.0V100.0Q312.0,104.0 308.0,104.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="99.0" text-anchor="end" fill="var(--text-secondary, #52514e)">N\2=C1\N(CCCCC1)…</text><text x="316.0" y="99.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g></svg><div class="moltip t0" aria-hidden="true" style="left: 8px; top: 30px"><div class="value">CC(C)(C)N=C(N(C)C)N(C)C</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-4"/></svg></div><div class="moltip t1" aria-hidden="true" style="left: 8px; top: 56px"><div class="value">CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-5"/></svg></div><div class="moltip t2" aria-hidden="true" style="left: 8px; top: 82px"><div class="value">CN1CCCN2C1=NCCC2</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-6"/></svg></div><div class="moltip t3" aria-hidden="true" style="left: 8px; top: 108px"><div class="value">N\2=C1\N(CCCCC1)CCC/2</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-7"/></svg></div></div><details class="values"><summary>Values shown, in full (4)</summary><table><thead><tr><th>Reactions</th><th>Value</th></tr></thead><tbody><tr><td>20</td><td><div class="value">CC(C)(C)N=C(N(C)C)N(C)C</div></td></tr><tr><td>20</td><td><div class="value">CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3</div></td></tr><tr><td>20</td><td><div class="value">CN1CCCN2C1=NCCC2</div></td></tr><tr><td>20</td><td><div class="value">N\2=C1\N(CCCCC1)CCC/2</div></td></tr></tbody></table></details></figure><figure><figcaption><div><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[0].identifiers[0].value</code></div><div><span class="muted">categorical, 80 filled, 0 empty, 5 distinct</span></div></figcaption><div class="chart"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 138" width="360" height="138" role="img" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11"><title>inputs[&quot;sulfonyl fluoride solution&quot;].components[0].identifiers[0].value</title><line x1="150" y1="2" x2="150" y2="134" stroke="var(--grid, #e2e1dc)" stroke-width="1"/><g class="b0" tabindex="0"><title>C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F: 16 reactions</title><path d="M150.0,8.0H308.0Q312.0,8.0 312.0,12.0V22.0Q312.0,26.0 308.0,26.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="21.0" text-anchor="end" fill="var(--text-secondary, #52514e)">C(C(C(F)(F)S(=O)(=O)…</text><text x="316.0" y="21.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">16</text></g><g class="b1" tabindex="0"><title>Clc1ccc(S(=O)(=O)F)cc1: 16 reactions</title><path d="M150.0,34.0H308.0Q312.0,34.0 312.0,38.0V48.0Q312.0,52.0 308.0,52.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="47.0" text-anchor="end" fill="var(--text-secondary, #52514e)">Clc1ccc(S(=O)(=O)F)…</text><text x="316.0" y="47.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">16</text></g><g class="b2" tabindex="0"><title>O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O: 16 reactions</title><path d="M150.0,60.0H308.0Q312.0,60.0 312.0,64.0V74.0Q312.0,78.0 308.0,78.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="73.0" text-anchor="end" fill="var(--text-secondary, #52514e)">O=S(C1=CC=C(C(F)(…</text><text x="316.0" y="73.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">16</text></g><g class="b3" tabindex="0"><title>O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O: 16 reactions</title><path d="M150.0,86.0H308.0Q312.0,86.0 312.0,90.0V100.0Q312.0,104.0 308.0,104.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="99.0" text-anchor="end" fill="var(--text-secondary, #52514e)">O=S(C1=CC=C([N+]([…</text><text x="316.0" y="99.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">16</text></g><g class="b4" tabindex="0"><title>O=S(C1=CC=CC=N1)(F)=O: 16 reactions</title><path d="M150.0,112.0H308.0Q312.0,112.0 312.0,116.0V126.0Q312.0,130.0 308.0,130.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="125.0" text-anchor="end" fill="var(--text-secondary, #52514e)">O=S(C1=CC=CC=N1)…</text><text x="316.0" y="125.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">16</text></g></svg><div class="moltip t0" aria-hidden="true" style="left: 8px; top: 30px"><div class="value">C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F</div><div class="count">16 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-8"/></svg></div><div class="moltip t1" aria-hidden="true" style="left: 8px; top: 56px"><div class="value">Clc1ccc(S(=O)(=O)F)cc1</div><div class="count">16 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-9"/></svg></div><div class="moltip t2" aria-hidden="true" style="left: 8px; top: 82px"><div class="value">O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O</div><div class="count">16 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-10"/></svg></div><div class="moltip t3" aria-hidden="true" style="left: 8px; top: 108px"><div class="value">O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O</div><div class="count">16 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-11"/></svg></div><div class="moltip t4" aria-hidden="true" style="left: 8px; top: 134px"><div class="value">O=S(C1=CC=CC=N1)(F)=O</div><div class="count">16 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-12"/></svg></div></div><details class="values"><summary>Values shown, in full (5)</summary><table><thead><tr><th>Reactions</th><th>Value</th></tr></thead><tbody><tr><td>16</td><td><div class="value">C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F</div></td></tr><tr><td>16</td><td><div class="value">Clc1ccc(S(=O)(=O)F)cc1</div></td></tr><tr><td>16</td><td><div class="value">O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O</div></td></tr><tr><td>16</td><td><div class="value">O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O</div></td></tr><tr><td>16</td><td><div class="value">O=S(C1=CC=CC=N1)(F)=O</div></td></tr></tbody></table></details></figure><figure><figcaption><div><code>outcomes[0].products[0].measurements[1].percentage.value</code></div><div><span class="muted">numeric, 80 filled, 0 empty, 51 distinct</span></div></figcaption><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 156" width="360" height="156" role="img" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11"><title>outcomes[0].products[0].measurements[1].percentage.value</title><line x1="36" y1="134" x2="352" y2="134" stroke="var(--grid, #e2e1dc)" stroke-width="1"/><text x="32.0" y="18.0" text-anchor="end" fill="var(--text-secondary, #52514e)">11</text><text x="32.0" y="134.0" text-anchor="end" fill="var(--text-secondary, #52514e)">0</text><g><title>1 to 5.9: 11 reactions</title><path d="M37.0,134.0V18.0Q37.0,14.0 41.0,14.0H46.8Q50.8,14.0 50.8,18.0V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>10.8 to 15.7: 6 reactions</title><path d="M68.6,134.0V72.5Q68.6,68.5 72.6,68.5H78.4Q82.4,68.5 82.4,72.5V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>15.7 to 20.6: 1 reactions</title><path d="M84.4,134.0V127.1Q84.4,123.1 88.4,123.1H94.2Q98.2,123.1 98.2,127.1V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>20.6 to 25.5: 4 reactions</title><path d="M100.2,134.0V94.4Q100.2,90.4 104.2,90.4H110.0Q114.0,90.4 114.0,94.4V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>25.5 to 30.4: 4 reactions</title><path d="M116.0,134.0V94.4Q116.0,90.4 120.0,90.4H125.8Q129.8,90.4 129.8,94.4V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>30.4 to 35.3: 3 reactions</title><path d="M131.8,134.0V105.3Q131.8,101.3 135.8,101.3H141.6Q145.6,101.3 145.6,105.3V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>35.3 to 40.2: 9 reactions</title><path d="M147.6,134.0V39.8Q147.6,35.8 151.6,35.8H157.4Q161.4,35.8 161.4,39.8V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>40.2 to 45.1: 5 reactions</title><path d="M163.4,134.0V83.5Q163.4,79.5 167.4,79.5H173.2Q177.2,79.5 177.2,83.5V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>45.1 to 50: 5 reactions</title><path d="M179.2,134.0V83.5Q179.2,79.5 183.2,79.5H189.0Q193.0,79.5 193.0,83.5V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>50 to 54.9: 5 reactions</title><path d="M195.0,134.0V83.5Q195.0,79.5 199.0,79.5H204.8Q208.8,79.5 208.8,83.5V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>54.9 to 59.8: 7 reactions</title><path d="M210.8,134.0V61.6Q210.8,57.6 214.8,57.6H220.6Q224.6,57.6 224.6,61.6V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>59.8 to 64.7: 5 reactions</title><path d="M226.6,134.0V83.5Q226.6,79.5 230.6,79.5H236.4Q240.4,79.5 240.4,83.5V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>64.7 to 69.6: 3 reactions</title><path d="M242.4,134.0V105.3Q242.4,101.3 246.4,101.3H252.2Q256.2,101.3 256.2,105.3V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>69.6 to 74.5: 1 reactions</title><path d="M258.2,134.0V127.1Q258.2,123.1 262.2,123.1H268.0Q272.0,123.1 272.0,127.1V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>74.5 to 79.4: 2 reactions</title><path d="M274.0,134.0V116.2Q274.0,112.2 278.0,112.2H283.8Q287.8,112.2 287.8,116.2V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>79.4 to 84.3: 5 reactions</title><path d="M289.8,134.0V83.5Q289.8,79.5 293.8,79.5H299.6Q303.6,79.5 303.6,83.5V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>84.3 to 89.2: 1 reactions</title><path d="M305.6,134.0V127.1Q305.6,123.1 309.6,123.1H315.4Q319.4,123.1 319.4,127.1V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>89.2 to 94.1: 2 reactions</title><path d="M321.4,134.0V116.2Q321.4,112.2 325.4,112.2H331.2Q335.2,112.2 335.2,116.2V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>94.1 to 99: 1 reactions</title><path d="M337.2,134.0V127.1Q337.2,123.1 341.2,123.1H347.0Q351.0,123.1 351.0,127.1V134.0Z" fill="var(--series-1, #2a78d6)"/></g><text x="36.0" y="149.0" text-anchor="start" fill="var(--text-secondary, #52514e)">1</text><text x="352.0" y="149.0" text-anchor="end" fill="var(--text-secondary, #52514e)">99</text><text x="194.0" y="149.0" text-anchor="middle" fill="var(--text-secondary, #52514e)">median 41</text></svg></figure></div><h3>Provenance</h3><p class="muted">The same for every reaction; see below.</p><details><summary>85 fields every reaction holds the same way</summary><div class="scroll"><table><thead><tr><th>Field</th><th>Value</th><th>Section</th></tr></thead><tbody><tr><td><code>identifiers[0].type</code></td><td>REACTION_TYPE</td><td>experiment</td></tr><tr><td><code>identifiers[0].value</code></td><td>deoxyfluorination</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[0].identifiers[0].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[0].amount.moles.value</code></td><td>0.10000000149011612</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[0].amount.moles.units</code></td><td>MILLIMOLE</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[0].reaction_role</code></td><td>REACTANT</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[0].is_limiting</code></td><td>True</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[1].identifiers[0].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[1].identifiers[0].value</code></td><td>C1CCOC1</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[1].amount.volume.value</code></td><td>125.0</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[1].amount.volume.units</code></td><td>MICROLITER</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[1].amount.volume_includes_solutes</code></td><td>True</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[1].reaction_role</code></td><td>SOLVENT</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[1].preparations[0].type</code></td><td>DRIED</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].addition_order</code></td><td>1</td><td>experiment</td></tr><tr><td><code>inputs[&quot;base&quot;].components[0].identifiers[0].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>inputs[&quot;base&quot;].components[0].amount.moles.value</code></td><td>0.15000000596046448</td><td>experiment</td></tr><tr><td><code>inputs[&quot;base&quot;].components[0].amount.moles.units</code></td><td>MILLIMOLE</td><td>experiment</td></tr><tr><td><code>inputs[&quot;base&quot;].components[0].reaction_role</code></td><td>REAGENT</td><td>experiment</td></tr><tr><td><code>inputs[&quot;base&quot;].addition_order</code></td><td>3</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[0].identifiers[0].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[0].amount.moles.value</code></td><td>0.10999999940395355</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[0].amount.moles.units</code></td><td>MILLIMOLE</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[0].reaction_role</code></td><td>REACTANT</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[0].is_limiting</code></td><td>False</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[1].identifiers[0].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[1].identifiers[0].value</code></td><td>C1CCOC1</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[1].amount.volume.value</code></td><td>125.0</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[1].amount.volume.units</code></td><td>MICROLITER</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[1].amount.volume_includes_solutes</code></td><td>True</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[1].reaction_role</code></td><td>SOLVENT</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[1].preparations[0].type</code></td><td>DRIED</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].addition_order</code></td><td>2</td><td>experiment</td></tr><tr><td><code>setup.vessel.type</code></td><td>VIAL</td><td>experiment</td></tr><tr><td><code>setup.vessel.material.type</code></td><td>GLASS</td><td>experiment</td></tr><tr><td><code>setup.vessel.attachments[0].type</code></td><td>CAP</td><td>experiment</td></tr><tr><td><code>setup.vessel.volume.value</code></td><td>1.0</td><td>experiment</td></tr><tr><td><code>setup.vessel.volume.units</code></td><td>MILLILITER</td><td>experiment</td></tr><tr><td><code>setup.is_automated</code></td><td>False</td><td>experiment</td></tr><tr><td><code>conditions.temperature.control.type</code></td><td>AMBIENT</td><td>experiment</td></tr><tr><td><code>conditions.temperature.setpoint.value</code></td><td>20.0</td><td>experiment</td></tr><tr><td><code>conditions.temperature.setpoint.precision</code></td><td>5.0</td><td>experiment</td></tr><tr><td><code>conditions.temperature.setpoint.units</code></td><td>CELSIUS</td><td>experiment</td></tr><tr><td><code>conditions.pressure.control.type</code></td><td>SEALED</td><td>experiment</td></tr><tr><td><code>conditions.pressure.atmosphere.type</code></td><td>AIR</td><td>experiment</td></tr><tr><td><code>conditions.stirring.type</code></td><td>STIR_BAR</td><td>experiment</td></tr><tr><td><code>conditions.stirring.rate.type</code></td><td>HIGH</td><td>experiment</td></tr><tr><td><code>conditions.stirring.rate.rpm</code></td><td>600</td><td>experiment</td></tr><tr><td><code>workups[0].type</code></td><td>ADDITION</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[0].identifiers[0].type</code></td><td>NAME</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[0].identifiers[0].value</code></td><td>1-fluoronaphthalene</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[0].identifiers[1].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[0].identifiers[1].value</code></td><td>C1=CC=C2C(=C1)C=CC=C2F</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[0].amount.moles.value</code></td><td>0.10000000149011612</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[0].amount.moles.units</code></td><td>MILLIMOLE</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[0].reaction_role</code></td><td>INTERNAL_STANDARD</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].identifiers[0].type</code></td><td>NAME</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].identifiers[0].value</code></td><td>CDCl3</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].identifiers[1].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].identifiers[1].value</code></td><td>[2H]C(Cl)(Cl)Cl</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].amount.volume.value</code></td><td>250.0</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].amount.volume.units</code></td><td>MICROLITER</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].amount.volume_includes_solutes</code></td><td>True</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].reaction_role</code></td><td>WORKUP</td><td>experiment</td></tr><tr><td><code>outcomes[0].reaction_time.value</code></td><td>48.0</td><td>experiment</td></tr><tr><td><code>outcomes[0].reaction_time.units</code></td><td>HOUR</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].identifiers[0].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].is_desired_product</code></td><td>True</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].measurements[0].analysis_key</code></td><td>19f nmr of crude</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].measurements[0].type</code></td><td>IDENTITY</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].measurements[1].analysis_key</code></td><td>19f nmr of crude</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].measurements[1].type</code></td><td>YIELD</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].measurements[1].uses_internal_standard</code></td><td>True</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].measurements[1].percentage.precision</code></td><td>4.800000190734863</td><td>experiment</td></tr><tr><td><code>outcomes[0].analyses[&quot;19f nmr of crude&quot;].type</code></td><td>NMR_OTHER</td><td>experiment</td></tr><tr><td><code>outcomes[0].analyses[&quot;19f nmr of crude&quot;].details</code></td><td>19F NMR using 1 equiv 1-fluoronaphthalene in chloroform as internal standard</td><td>experiment</td></tr><tr><td><code>outcomes[0].analyses[&quot;19f nmr of crude&quot;].instrument_manufacturer</code></td><td>Bruker</td><td>experiment</td></tr><tr><td><code>provenance.city</code></td><td>Princeton, NJ</td><td>provenance</td></tr><tr><td><code>provenance.doi</code></td><td>10.1021/jacs.8b01523</td><td>provenance</td></tr><tr><td><code>provenance.publication_url</code></td><td>https://pubs.acs.org/doi/10.1021/jacs.8b01523</td><td>provenance</td></tr><tr><td><code>provenance.record_created.time.value</code></td><td>2020-08-08</td><td>provenance</td></tr><tr><td><code>provenance.record_created.person.name</code></td><td>Connor W. Coley</td><td>provenance</td></tr><tr><td><code>provenance.record_created.person.orcid</code></td><td>0000-0002-8271-8723</td><td>provenance</td></tr><tr><td><code>provenance.record_created.person.organization</code></td><td>MIT</td><td>provenance</td></tr><tr><td><code>provenance.record_created.person.email</code></td><td>ccoley@mit.edu</td><td>provenance</td></tr></tbody></table></div></details></section><section><h2>Compounds</h2><p>20 distinct compounds, grouped by role. Values that disagree are listed, not resolved; rows with something to check are shaded.</p><section><h3>REACTANT (9)</h3>
+</symbol></defs></svg><main><header><h1>Review: Deoxyfluorination screen</h1><p class="meta">profile <b>uniform</b> · generated 2026-11-12 17:23 UTC · ord-schema 0.9.6</p><p>Reactions from Figure 1 of DOI: 10.1021/jacs.8b01523</p><div class="tiles"><div class="tile"><b>80</b><span>reactions</span></div><div class="tile"><b>0</b><span>errors</span></div><div class="tile"><b>1</b><span>warnings</span></div><div class="tile"><b>0</b><span>notes</span></div><div class="tile"><b>20</b><span>compounds</span></div><div class="tile"><b>4</b><span>varying fields</span></div></div></header><p class="notice">This report is for the reviewer. Nothing in it blocks a submission; the reviewer decides what needs changing. Every table is complete in <code>tables/</code>; this page caps long lists. Not yet included: completeness scores (#1054).</p><section><h2>Dataset-level findings</h2><p>None of the checks that ran found anything.</p><p class="muted">Checks run: <code>coverage-gap</code>, <code>placeholder-value</code>, <code>grid-gap</code>, <code>duplicate-well</code>, <code>mixed-units</code>, <code>name-structure-conflict</code>, <code>conflicting-roles</code>, <code>duplicate-reaction</code>, <code>mixed-sourcing</code>.</p></section><section><h2>Reaction validation</h2><p class="muted">Each message from validating the reactions one at a time, with how many reactions raised it. Messages that differ only in numbers are counted together; the first is shown.</p><div class="scroll"><table><thead><tr><th>Severity</th><th>Message</th><th>Reactions</th><th>Examples</th></tr></thead><tbody><tr><td><span class="pill WARNING">WARNING</span></td><td>Reaction.provenance.record_created.time: Time 2020-08-08T15:01:25 has no UTC offset, so the instant it names is ambiguous; add the offset it was written under (+00:00) where known</td><td>80</td><td><div class="examples"><code>reaction #1</code><code>reaction #2</code><code>reaction #3</code><code>reaction #4</code><code>reaction #5</code></div></td></tr></tbody></table></div></section><section><h2>How reactions are recorded</h2><p>1 distinct shape: sets of fields a reaction fills. In a uniform dataset one shape is expected; more can be controls, or fields some reactions miss.</p></section><section><h2>Exemplar reactions</h2><p>3 reactions to read in full: one of each shape, the extremes of each measured value and, in a uniform dataset, inputs no other reaction uses. All are in <code>tables/exemplars.txtpb</code>.</p><p class="notice">To see an exemplar rendered, download it and import it into the <a href="https://editor.open-reaction-database.org">ORD reaction editor</a>: one reaction with <b>Create Reaction from File</b>, or all of them as a dataset with <b>Create Dataset from File</b>. Imported reactions are saved to your editor account.<br><a class="download" download="Deoxyfluorination_screen_exemplars.txtpb" href="data:text/plain;charset=utf-8;base64,bmFtZTogIkRlb3h5Zmx1b3JpbmF0aW9uIHNjcmVlbiBleGVtcGxhcnMiCmRlc2NyaXB0aW9uOiAiRXhlbXBsYXIgcmVhY3Rpb25zIHBpY2tlZCBmb3IgcmV2aWV3IGZyb20gRGVveHlmbHVvcmluYXRpb24gc2NyZWVuOlxuMS4gcmVhY3Rpb24gIzE6IHRoZSBtb3N0IGNvbW1vbiBzaGFwZSAoODAgcmVhY3Rpb25zKVxuMi4gcmVhY3Rpb24gIzQxOiBsb3dlc3QgcHJvZHVjdHNbMF0ubWVhc3VyZW1lbnRzWzFdLnBlcmNlbnRhZ2UgKDEpXG4zLiByZWFjdGlvbiAjMzI6IGhpZ2hlc3QgcHJvZHVjdHNbMF0ubWVhc3VyZW1lbnRzWzFdLnBlcmNlbnRhZ2UgKDk5KSIKcmVhY3Rpb25zIHsKICBpZGVudGlmaWVycyB7CiAgICB0eXBlOiBSRUFDVElPTl9UWVBFCiAgICB2YWx1ZTogImRlb3h5Zmx1b3JpbmF0aW9uIgogIH0KICBpbnB1dHMgewogICAga2V5OiAiYWxjb2hvbCBpbiBUSEYiCiAgICB2YWx1ZSB7CiAgICAgIGNvbXBvbmVudHMgewogICAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgICAgdmFsdWU6ICJjMWNjY2NjMUNDQyhPKUMiCiAgICAgICAgfQogICAgICAgIGFtb3VudCB7CiAgICAgICAgICBtb2xlcyB7CiAgICAgICAgICAgIHZhbHVlOiAwLjEKICAgICAgICAgICAgdW5pdHM6IE1JTExJTU9MRQogICAgICAgICAgfQogICAgICAgIH0KICAgICAgICByZWFjdGlvbl9yb2xlOiBSRUFDVEFOVAogICAgICAgIGlzX2xpbWl0aW5nOiB0cnVlCiAgICAgIH0KICAgICAgY29tcG9uZW50cyB7CiAgICAgICAgaWRlbnRpZmllcnMgewogICAgICAgICAgdHlwZTogU01JTEVTCiAgICAgICAgICB2YWx1ZTogIkMxQ0NPQzEiCiAgICAgICAgfQogICAgICAgIGFtb3VudCB7CiAgICAgICAgICB2b2x1bWUgewogICAgICAgICAgICB2YWx1ZTogMTI1LjAKICAgICAgICAgICAgdW5pdHM6IE1JQ1JPTElURVIKICAgICAgICAgIH0KICAgICAgICAgIHZvbHVtZV9pbmNsdWRlc19zb2x1dGVzOiB0cnVlCiAgICAgICAgfQogICAgICAgIHJlYWN0aW9uX3JvbGU6IFNPTFZFTlQKICAgICAgICBwcmVwYXJhdGlvbnMgewogICAgICAgICAgdHlwZTogRFJJRUQKICAgICAgICB9CiAgICAgIH0KICAgICAgYWRkaXRpb25fb3JkZXI6IDEKICAgIH0KICB9CiAgaW5wdXRzIHsKICAgIGtleTogImJhc2UiCiAgICB2YWx1ZSB7CiAgICAgIGNvbXBvbmVudHMgewogICAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgICAgdmFsdWU6ICJOXFwyPUMxXFxOKENDQ0NDMSlDQ0MvMiIKICAgICAgICB9CiAgICAgICAgYW1vdW50IHsKICAgICAgICAgIG1vbGVzIHsKICAgICAgICAgICAgdmFsdWU6IDAuMTUKICAgICAgICAgICAgdW5pdHM6IE1JTExJTU9MRQogICAgICAgICAgfQogICAgICAgIH0KICAgICAgICByZWFjdGlvbl9yb2xlOiBSRUFHRU5UCiAgICAgIH0KICAgICAgYWRkaXRpb25fb3JkZXI6IDMKICAgIH0KICB9CiAgaW5wdXRzIHsKICAgIGtleTogInN1bGZvbnlsIGZsdW9yaWRlIHNvbHV0aW9uIgogICAgdmFsdWUgewogICAgICBjb21wb25lbnRzIHsKICAgICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICAgIHZhbHVlOiAiQ2xjMWNjYyhTKD1PKSg9TylGKWNjMSIKICAgICAgICB9CiAgICAgICAgYW1vdW50IHsKICAgICAgICAgIG1vbGVzIHsKICAgICAgICAgICAgdmFsdWU6IDAuMTEKICAgICAgICAgICAgdW5pdHM6IE1JTExJTU9MRQogICAgICAgICAgfQogICAgICAgIH0KICAgICAgICByZWFjdGlvbl9yb2xlOiBSRUFDVEFOVAogICAgICAgIGlzX2xpbWl0aW5nOiBmYWxzZQogICAgICB9CiAgICAgIGNvbXBvbmVudHMgewogICAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgICAgdmFsdWU6ICJDMUNDT0MxIgogICAgICAgIH0KICAgICAgICBhbW91bnQgewogICAgICAgICAgdm9sdW1lIHsKICAgICAgICAgICAgdmFsdWU6IDEyNS4wCiAgICAgICAgICAgIHVuaXRzOiBNSUNST0xJVEVSCiAgICAgICAgICB9CiAgICAgICAgICB2b2x1bWVfaW5jbHVkZXNfc29sdXRlczogdHJ1ZQogICAgICAgIH0KICAgICAgICByZWFjdGlvbl9yb2xlOiBTT0xWRU5UCiAgICAgICAgcHJlcGFyYXRpb25zIHsKICAgICAgICAgIHR5cGU6IERSSUVECiAgICAgICAgfQogICAgICB9CiAgICAgIGFkZGl0aW9uX29yZGVyOiAyCiAgICB9CiAgfQogIHNldHVwIHsKICAgIHZlc3NlbCB7CiAgICAgIHR5cGU6IFZJQUwKICAgICAgbWF0ZXJpYWwgewogICAgICAgIHR5cGU6IEdMQVNTCiAgICAgIH0KICAgICAgYXR0YWNobWVudHMgewogICAgICAgIHR5cGU6IENBUAogICAgICB9CiAgICAgIHZvbHVtZSB7CiAgICAgICAgdmFsdWU6IDEuMAogICAgICAgIHVuaXRzOiBNSUxMSUxJVEVSCiAgICAgIH0KICAgIH0KICAgIGlzX2F1dG9tYXRlZDogZmFsc2UKICB9CiAgY29uZGl0aW9ucyB7CiAgICB0ZW1wZXJhdHVyZSB7CiAgICAgIGNvbnRyb2wgewogICAgICAgIHR5cGU6IEFNQklFTlQKICAgICAgfQogICAgICBzZXRwb2ludCB7CiAgICAgICAgdmFsdWU6IDIwLjAKICAgICAgICBwcmVjaXNpb246IDUuMAogICAgICAgIHVuaXRzOiBDRUxTSVVTCiAgICAgIH0KICAgIH0KICAgIHByZXNzdXJlIHsKICAgICAgY29udHJvbCB7CiAgICAgICAgdHlwZTogU0VBTEVECiAgICAgIH0KICAgICAgYXRtb3NwaGVyZSB7CiAgICAgICAgdHlwZTogQUlSCiAgICAgIH0KICAgIH0KICAgIHN0aXJyaW5nIHsKICAgICAgdHlwZTogU1RJUl9CQVIKICAgICAgcmF0ZSB7CiAgICAgICAgdHlwZTogSElHSAogICAgICAgIHJwbTogNjAwCiAgICAgIH0KICAgIH0KICB9CiAgd29ya3VwcyB7CiAgICB0eXBlOiBBRERJVElPTgogICAgaW5wdXQgewogICAgICBjb21wb25lbnRzIHsKICAgICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgICB0eXBlOiBOQU1FCiAgICAgICAgICB2YWx1ZTogIjEtZmx1b3JvbmFwaHRoYWxlbmUiCiAgICAgICAgfQogICAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgICAgdmFsdWU6ICJDMT1DQz1DMkMoPUMxKUM9Q0M9QzJGIgogICAgICAgIH0KICAgICAgICBhbW91bnQgewogICAgICAgICAgbW9sZXMgewogICAgICAgICAgICB2YWx1ZTogMC4xCiAgICAgICAgICAgIHVuaXRzOiBNSUxMSU1PTEUKICAgICAgICAgIH0KICAgICAgICB9CiAgICAgICAgcmVhY3Rpb25fcm9sZTogSU5URVJOQUxfU1RBTkRBUkQKICAgICAgfQogICAgICBjb21wb25lbnRzIHsKICAgICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgICB0eXBlOiBOQU1FCiAgICAgICAgICB2YWx1ZTogIkNEQ2wzIgogICAgICAgIH0KICAgICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICAgIHZhbHVlOiAiWzJIXUMoQ2wpKENsKUNsIgogICAgICAgIH0KICAgICAgICBhbW91bnQgewogICAgICAgICAgdm9sdW1lIHsKICAgICAgICAgICAgdmFsdWU6IDI1MC4wCiAgICAgICAgICAgIHVuaXRzOiBNSUNST0xJVEVSCiAgICAgICAgICB9CiAgICAgICAgICB2b2x1bWVfaW5jbHVkZXNfc29sdXRlczogdHJ1ZQogICAgICAgIH0KICAgICAgICByZWFjdGlvbl9yb2xlOiBXT1JLVVAKICAgICAgfQogICAgfQogIH0KICBvdXRjb21lcyB7CiAgICByZWFjdGlvbl90aW1lIHsKICAgICAgdmFsdWU6IDQ4LjAKICAgICAgdW5pdHM6IEhPVVIKICAgIH0KICAgIHByb2R1Y3RzIHsKICAgICAgaWRlbnRpZmllcnMgewogICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgIHZhbHVlOiAiYzFjY2NjYzFDQ0MoRilDIgogICAgICB9CiAgICAgIGlzX2Rlc2lyZWRfcHJvZHVjdDogdHJ1ZQogICAgICBtZWFzdXJlbWVudHMgewogICAgICAgIGFuYWx5c2lzX2tleTogIjE5ZiBubXIgb2YgY3J1ZGUiCiAgICAgICAgdHlwZTogSURFTlRJVFkKICAgICAgfQogICAgICBtZWFzdXJlbWVudHMgewogICAgICAgIGFuYWx5c2lzX2tleTogIjE5ZiBubXIgb2YgY3J1ZGUiCiAgICAgICAgdHlwZTogWUlFTEQKICAgICAgICB1c2VzX2ludGVybmFsX3N0YW5kYXJkOiB0cnVlCiAgICAgICAgcGVyY2VudGFnZSB7CiAgICAgICAgICB2YWx1ZTogNDAuMAogICAgICAgICAgcHJlY2lzaW9uOiA0LjgKICAgICAgICB9CiAgICAgIH0KICAgIH0KICAgIGFuYWx5c2VzIHsKICAgICAga2V5OiAiMTlmIG5tciBvZiBjcnVkZSIKICAgICAgdmFsdWUgewogICAgICAgIHR5cGU6IE5NUl9PVEhFUgogICAgICAgIGRldGFpbHM6ICIxOUYgTk1SIHVzaW5nIDEgZXF1aXYgMS1mbHVvcm9uYXBodGhhbGVuZSBpbiBjaGxvcm9mb3JtIGFzIGludGVybmFsIHN0YW5kYXJkIgogICAgICAgIGluc3RydW1lbnRfbWFudWZhY3R1cmVyOiAiQnJ1a2VyIgogICAgICB9CiAgICB9CiAgfQogIHByb3ZlbmFuY2UgewogICAgY2l0eTogIlByaW5jZXRvbiwgTkoiCiAgICBkb2k6ICIxMC4xMDIxL2phY3MuOGIwMTUyMyIKICAgIHB1YmxpY2F0aW9uX3VybDogImh0dHBzOi8vcHVicy5hY3Mub3JnL2RvaS8xMC4xMDIxL2phY3MuOGIwMTUyMyIKICAgIHJlY29yZF9jcmVhdGVkIHsKICAgICAgdGltZSB7CiAgICAgICAgdmFsdWU6ICIyMDIwLTA4LTA4VDE1OjAxOjI1IgogICAgICB9CiAgICAgIHBlcnNvbiB7CiAgICAgICAgbmFtZTogIkNvbm5vciBXLiBDb2xleSIKICAgICAgICBvcmNpZDogIjAwMDAtMDAwMi04MjcxLTg3MjMiCiAgICAgICAgb3JnYW5pemF0aW9uOiAiTUlUIgogICAgICAgIGVtYWlsOiAiY2NvbGV5QG1pdC5lZHUiCiAgICAgIH0KICAgIH0KICB9Cn0KcmVhY3Rpb25zIHsKICBpZGVudGlmaWVycyB7CiAgICB0eXBlOiBSRUFDVElPTl9UWVBFCiAgICB2YWx1ZTogImRlb3h5Zmx1b3JpbmF0aW9uIgogIH0KICBpbnB1dHMgewogICAga2V5OiAiYWxjb2hvbCBpbiBUSEYiCiAgICB2YWx1ZSB7CiAgICAgIGNvbXBvbmVudHMgewogICAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgICAgdmFsdWU6ICJPW0NAQEhdMUNbQ0BIXShPQ0MyPUNDPUNDPUMyKUMxIgogICAgICAgIH0KICAgICAgICBhbW91bnQgewogICAgICAgICAgbW9sZXMgewogICAgICAgICAgICB2YWx1ZTogMC4xCiAgICAgICAgICAgIHVuaXRzOiBNSUxMSU1PTEUKICAgICAgICAgIH0KICAgICAgICB9CiAgICAgICAgcmVhY3Rpb25fcm9sZTogUkVBQ1RBTlQKICAgICAgICBpc19saW1pdGluZzogdHJ1ZQogICAgICB9CiAgICAgIGNvbXBvbmVudHMgewogICAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgICAgdmFsdWU6ICJDMUNDT0MxIgogICAgICAgIH0KICAgICAgICBhbW91bnQgewogICAgICAgICAgdm9sdW1lIHsKICAgICAgICAgICAgdmFsdWU6IDEyNS4wCiAgICAgICAgICAgIHVuaXRzOiBNSUNST0xJVEVSCiAgICAgICAgICB9CiAgICAgICAgICB2b2x1bWVfaW5jbHVkZXNfc29sdXRlczogdHJ1ZQogICAgICAgIH0KICAgICAgICByZWFjdGlvbl9yb2xlOiBTT0xWRU5UCiAgICAgICAgcHJlcGFyYXRpb25zIHsKICAgICAgICAgIHR5cGU6IERSSUVECiAgICAgICAgfQogICAgICB9CiAgICAgIGFkZGl0aW9uX29yZGVyOiAxCiAgICB9CiAgfQogIGlucHV0cyB7CiAgICBrZXk6ICJiYXNlIgogICAgdmFsdWUgewogICAgICBjb21wb25lbnRzIHsKICAgICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICAgIHZhbHVlOiAiTlxcMj1DMVxcTihDQ0NDQzEpQ0NDLzIiCiAgICAgICAgfQogICAgICAgIGFtb3VudCB7CiAgICAgICAgICBtb2xlcyB7CiAgICAgICAgICAgIHZhbHVlOiAwLjE1CiAgICAgICAgICAgIHVuaXRzOiBNSUxMSU1PTEUKICAgICAgICAgIH0KICAgICAgICB9CiAgICAgICAgcmVhY3Rpb25fcm9sZTogUkVBR0VOVAogICAgICB9CiAgICAgIGFkZGl0aW9uX29yZGVyOiAzCiAgICB9CiAgfQogIGlucHV0cyB7CiAgICBrZXk6ICJzdWxmb255bCBmbHVvcmlkZSBzb2x1dGlvbiIKICAgIHZhbHVlIHsKICAgICAgY29tcG9uZW50cyB7CiAgICAgICAgaWRlbnRpZmllcnMgewogICAgICAgICAgdHlwZTogU01JTEVTCiAgICAgICAgICB2YWx1ZTogIkNsYzFjY2MoUyg9TykoPU8pRiljYzEiCiAgICAgICAgfQogICAgICAgIGFtb3VudCB7CiAgICAgICAgICBtb2xlcyB7CiAgICAgICAgICAgIHZhbHVlOiAwLjExCiAgICAgICAgICAgIHVuaXRzOiBNSUxMSU1PTEUKICAgICAgICAgIH0KICAgICAgICB9CiAgICAgICAgcmVhY3Rpb25fcm9sZTogUkVBQ1RBTlQKICAgICAgICBpc19saW1pdGluZzogZmFsc2UKICAgICAgfQogICAgICBjb21wb25lbnRzIHsKICAgICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICAgIHZhbHVlOiAiQzFDQ09DMSIKICAgICAgICB9CiAgICAgICAgYW1vdW50IHsKICAgICAgICAgIHZvbHVtZSB7CiAgICAgICAgICAgIHZhbHVlOiAxMjUuMAogICAgICAgICAgICB1bml0czogTUlDUk9MSVRFUgogICAgICAgICAgfQogICAgICAgICAgdm9sdW1lX2luY2x1ZGVzX3NvbHV0ZXM6IHRydWUKICAgICAgICB9CiAgICAgICAgcmVhY3Rpb25fcm9sZTogU09MVkVOVAogICAgICAgIHByZXBhcmF0aW9ucyB7CiAgICAgICAgICB0eXBlOiBEUklFRAogICAgICAgIH0KICAgICAgfQogICAgICBhZGRpdGlvbl9vcmRlcjogMgogICAgfQogIH0KICBzZXR1cCB7CiAgICB2ZXNzZWwgewogICAgICB0eXBlOiBWSUFMCiAgICAgIG1hdGVyaWFsIHsKICAgICAgICB0eXBlOiBHTEFTUwogICAgICB9CiAgICAgIGF0dGFjaG1lbnRzIHsKICAgICAgICB0eXBlOiBDQVAKICAgICAgfQogICAgICB2b2x1bWUgewogICAgICAgIHZhbHVlOiAxLjAKICAgICAgICB1bml0czogTUlMTElMSVRFUgogICAgICB9CiAgICB9CiAgICBpc19hdXRvbWF0ZWQ6IGZhbHNlCiAgfQogIGNvbmRpdGlvbnMgewogICAgdGVtcGVyYXR1cmUgewogICAgICBjb250cm9sIHsKICAgICAgICB0eXBlOiBBTUJJRU5UCiAgICAgIH0KICAgICAgc2V0cG9pbnQgewogICAgICAgIHZhbHVlOiAyMC4wCiAgICAgICAgcHJlY2lzaW9uOiA1LjAKICAgICAgICB1bml0czogQ0VMU0lVUwogICAgICB9CiAgICB9CiAgICBwcmVzc3VyZSB7CiAgICAgIGNvbnRyb2wgewogICAgICAgIHR5cGU6IFNFQUxFRAogICAgICB9CiAgICAgIGF0bW9zcGhlcmUgewogICAgICAgIHR5cGU6IEFJUgogICAgICB9CiAgICB9CiAgICBzdGlycmluZyB7CiAgICAgIHR5cGU6IFNUSVJfQkFSCiAgICAgIHJhdGUgewogICAgICAgIHR5cGU6IEhJR0gKICAgICAgICBycG06IDYwMAogICAgICB9CiAgICB9CiAgfQogIHdvcmt1cHMgewogICAgdHlwZTogQURESVRJT04KICAgIGlucHV0IHsKICAgICAgY29tcG9uZW50cyB7CiAgICAgICAgaWRlbnRpZmllcnMgewogICAgICAgICAgdHlwZTogTkFNRQogICAgICAgICAgdmFsdWU6ICIxLWZsdW9yb25hcGh0aGFsZW5lIgogICAgICAgIH0KICAgICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICAgIHZhbHVlOiAiQzE9Q0M9QzJDKD1DMSlDPUNDPUMyRiIKICAgICAgICB9CiAgICAgICAgYW1vdW50IHsKICAgICAgICAgIG1vbGVzIHsKICAgICAgICAgICAgdmFsdWU6IDAuMQogICAgICAgICAgICB1bml0czogTUlMTElNT0xFCiAgICAgICAgICB9CiAgICAgICAgfQogICAgICAgIHJlYWN0aW9uX3JvbGU6IElOVEVSTkFMX1NUQU5EQVJECiAgICAgIH0KICAgICAgY29tcG9uZW50cyB7CiAgICAgICAgaWRlbnRpZmllcnMgewogICAgICAgICAgdHlwZTogTkFNRQogICAgICAgICAgdmFsdWU6ICJDRENsMyIKICAgICAgICB9CiAgICAgICAgaWRlbnRpZmllcnMgewogICAgICAgICAgdHlwZTogU01JTEVTCiAgICAgICAgICB2YWx1ZTogIlsySF1DKENsKShDbClDbCIKICAgICAgICB9CiAgICAgICAgYW1vdW50IHsKICAgICAgICAgIHZvbHVtZSB7CiAgICAgICAgICAgIHZhbHVlOiAyNTAuMAogICAgICAgICAgICB1bml0czogTUlDUk9MSVRFUgogICAgICAgICAgfQogICAgICAgICAgdm9sdW1lX2luY2x1ZGVzX3NvbHV0ZXM6IHRydWUKICAgICAgICB9CiAgICAgICAgcmVhY3Rpb25fcm9sZTogV09SS1VQCiAgICAgIH0KICAgIH0KICB9CiAgb3V0Y29tZXMgewogICAgcmVhY3Rpb25fdGltZSB7CiAgICAgIHZhbHVlOiA0OC4wCiAgICAgIHVuaXRzOiBIT1VSCiAgICB9CiAgICBwcm9kdWN0cyB7CiAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICB2YWx1ZTogIkZbQ0BASF0xQ1tDQEhdKE9DQzI9Q0M9Q0M9QzIpQzEiCiAgICAgIH0KICAgICAgaXNfZGVzaXJlZF9wcm9kdWN0OiB0cnVlCiAgICAgIG1lYXN1cmVtZW50cyB7CiAgICAgICAgYW5hbHlzaXNfa2V5OiAiMTlmIG5tciBvZiBjcnVkZSIKICAgICAgICB0eXBlOiBJREVOVElUWQogICAgICB9CiAgICAgIG1lYXN1cmVtZW50cyB7CiAgICAgICAgYW5hbHlzaXNfa2V5OiAiMTlmIG5tciBvZiBjcnVkZSIKICAgICAgICB0eXBlOiBZSUVMRAogICAgICAgIHVzZXNfaW50ZXJuYWxfc3RhbmRhcmQ6IHRydWUKICAgICAgICBwZXJjZW50YWdlIHsKICAgICAgICAgIHZhbHVlOiAxLjAKICAgICAgICAgIHByZWNpc2lvbjogNC44CiAgICAgICAgfQogICAgICB9CiAgICB9CiAgICBhbmFseXNlcyB7CiAgICAgIGtleTogIjE5ZiBubXIgb2YgY3J1ZGUiCiAgICAgIHZhbHVlIHsKICAgICAgICB0eXBlOiBOTVJfT1RIRVIKICAgICAgICBkZXRhaWxzOiAiMTlGIE5NUiB1c2luZyAxIGVxdWl2IDEtZmx1b3JvbmFwaHRoYWxlbmUgaW4gY2hsb3JvZm9ybSBhcyBpbnRlcm5hbCBzdGFuZGFyZCIKICAgICAgICBpbnN0cnVtZW50X21hbnVmYWN0dXJlcjogIkJydWtlciIKICAgICAgfQogICAgfQogIH0KICBwcm92ZW5hbmNlIHsKICAgIGNpdHk6ICJQcmluY2V0b24sIE5KIgogICAgZG9pOiAiMTAuMTAyMS9qYWNzLjhiMDE1MjMiCiAgICBwdWJsaWNhdGlvbl91cmw6ICJodHRwczovL3B1YnMuYWNzLm9yZy9kb2kvMTAuMTAyMS9qYWNzLjhiMDE1MjMiCiAgICByZWNvcmRfY3JlYXRlZCB7CiAgICAgIHRpbWUgewogICAgICAgIHZhbHVlOiAiMjAyMC0wOC0wOFQxNTowMToyNSIKICAgICAgfQogICAgICBwZXJzb24gewogICAgICAgIG5hbWU6ICJDb25ub3IgVy4gQ29sZXkiCiAgICAgICAgb3JjaWQ6ICIwMDAwLTAwMDItODI3MS04NzIzIgogICAgICAgIG9yZ2FuaXphdGlvbjogIk1JVCIKICAgICAgICBlbWFpbDogImNjb2xleUBtaXQuZWR1IgogICAgICB9CiAgICB9CiAgfQp9CnJlYWN0aW9ucyB7CiAgaWRlbnRpZmllcnMgewogICAgdHlwZTogUkVBQ1RJT05fVFlQRQogICAgdmFsdWU6ICJkZW94eWZsdW9yaW5hdGlvbiIKICB9CiAgaW5wdXRzIHsKICAgIGtleTogImFsY29ob2wgaW4gVEhGIgogICAgdmFsdWUgewogICAgICBjb21wb25lbnRzIHsKICAgICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICAgIHZhbHVlOiAiYzFjY2NjYzEtYzJjY2MoQ08pY2MyIgogICAgICAgIH0KICAgICAgICBhbW91bnQgewogICAgICAgICAgbW9sZXMgewogICAgICAgICAgICB2YWx1ZTogMC4xCiAgICAgICAgICAgIHVuaXRzOiBNSUxMSU1PTEUKICAgICAgICAgIH0KICAgICAgICB9CiAgICAgICAgcmVhY3Rpb25fcm9sZTogUkVBQ1RBTlQKICAgICAgICBpc19saW1pdGluZzogdHJ1ZQogICAgICB9CiAgICAgIGNvbXBvbmVudHMgewogICAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgICAgdmFsdWU6ICJDMUNDT0MxIgogICAgICAgIH0KICAgICAgICBhbW91bnQgewogICAgICAgICAgdm9sdW1lIHsKICAgICAgICAgICAgdmFsdWU6IDEyNS4wCiAgICAgICAgICAgIHVuaXRzOiBNSUNST0xJVEVSCiAgICAgICAgICB9CiAgICAgICAgICB2b2x1bWVfaW5jbHVkZXNfc29sdXRlczogdHJ1ZQogICAgICAgIH0KICAgICAgICByZWFjdGlvbl9yb2xlOiBTT0xWRU5UCiAgICAgICAgcHJlcGFyYXRpb25zIHsKICAgICAgICAgIHR5cGU6IERSSUVECiAgICAgICAgfQogICAgICB9CiAgICAgIGFkZGl0aW9uX29yZGVyOiAxCiAgICB9CiAgfQogIGlucHV0cyB7CiAgICBrZXk6ICJiYXNlIgogICAgdmFsdWUgewogICAgICBjb21wb25lbnRzIHsKICAgICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICAgIHZhbHVlOiAiQ0MoQykoQylOPVAoTjFDQ0NDMSkoTjJDQ0NDMilOM0NDQ0MzIgogICAgICAgIH0KICAgICAgICBhbW91bnQgewogICAgICAgICAgbW9sZXMgewogICAgICAgICAgICB2YWx1ZTogMC4xNQogICAgICAgICAgICB1bml0czogTUlMTElNT0xFCiAgICAgICAgICB9CiAgICAgICAgfQogICAgICAgIHJlYWN0aW9uX3JvbGU6IFJFQUdFTlQKICAgICAgfQogICAgICBhZGRpdGlvbl9vcmRlcjogMwogICAgfQogIH0KICBpbnB1dHMgewogICAga2V5OiAic3VsZm9ueWwgZmx1b3JpZGUgc29sdXRpb24iCiAgICB2YWx1ZSB7CiAgICAgIGNvbXBvbmVudHMgewogICAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgICAgdmFsdWU6ICJPPVMoQzE9Q0M9QyhDKEYpKEYpRilDPUMxKShGKT1PIgogICAgICAgIH0KICAgICAgICBhbW91bnQgewogICAgICAgICAgbW9sZXMgewogICAgICAgICAgICB2YWx1ZTogMC4xMQogICAgICAgICAgICB1bml0czogTUlMTElNT0xFCiAgICAgICAgICB9CiAgICAgICAgfQogICAgICAgIHJlYWN0aW9uX3JvbGU6IFJFQUNUQU5UCiAgICAgICAgaXNfbGltaXRpbmc6IGZhbHNlCiAgICAgIH0KICAgICAgY29tcG9uZW50cyB7CiAgICAgICAgaWRlbnRpZmllcnMgewogICAgICAgICAgdHlwZTogU01JTEVTCiAgICAgICAgICB2YWx1ZTogIkMxQ0NPQzEiCiAgICAgICAgfQogICAgICAgIGFtb3VudCB7CiAgICAgICAgICB2b2x1bWUgewogICAgICAgICAgICB2YWx1ZTogMTI1LjAKICAgICAgICAgICAgdW5pdHM6IE1JQ1JPTElURVIKICAgICAgICAgIH0KICAgICAgICAgIHZvbHVtZV9pbmNsdWRlc19zb2x1dGVzOiB0cnVlCiAgICAgICAgfQogICAgICAgIHJlYWN0aW9uX3JvbGU6IFNPTFZFTlQKICAgICAgICBwcmVwYXJhdGlvbnMgewogICAgICAgICAgdHlwZTogRFJJRUQKICAgICAgICB9CiAgICAgIH0KICAgICAgYWRkaXRpb25fb3JkZXI6IDIKICAgIH0KICB9CiAgc2V0dXAgewogICAgdmVzc2VsIHsKICAgICAgdHlwZTogVklBTAogICAgICBtYXRlcmlhbCB7CiAgICAgICAgdHlwZTogR0xBU1MKICAgICAgfQogICAgICBhdHRhY2htZW50cyB7CiAgICAgICAgdHlwZTogQ0FQCiAgICAgIH0KICAgICAgdm9sdW1lIHsKICAgICAgICB2YWx1ZTogMS4wCiAgICAgICAgdW5pdHM6IE1JTExJTElURVIKICAgICAgfQogICAgfQogICAgaXNfYXV0b21hdGVkOiBmYWxzZQogIH0KICBjb25kaXRpb25zIHsKICAgIHRlbXBlcmF0dXJlIHsKICAgICAgY29udHJvbCB7CiAgICAgICAgdHlwZTogQU1CSUVOVAogICAgICB9CiAgICAgIHNldHBvaW50IHsKICAgICAgICB2YWx1ZTogMjAuMAogICAgICAgIHByZWNpc2lvbjogNS4wCiAgICAgICAgdW5pdHM6IENFTFNJVVMKICAgICAgfQogICAgfQogICAgcHJlc3N1cmUgewogICAgICBjb250cm9sIHsKICAgICAgICB0eXBlOiBTRUFMRUQKICAgICAgfQogICAgICBhdG1vc3BoZXJlIHsKICAgICAgICB0eXBlOiBBSVIKICAgICAgfQogICAgfQogICAgc3RpcnJpbmcgewogICAgICB0eXBlOiBTVElSX0JBUgogICAgICByYXRlIHsKICAgICAgICB0eXBlOiBISUdICiAgICAgICAgcnBtOiA2MDAKICAgICAgfQogICAgfQogIH0KICB3b3JrdXBzIHsKICAgIHR5cGU6IEFERElUSU9OCiAgICBpbnB1dCB7CiAgICAgIGNvbXBvbmVudHMgewogICAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICAgIHR5cGU6IE5BTUUKICAgICAgICAgIHZhbHVlOiAiMS1mbHVvcm9uYXBodGhhbGVuZSIKICAgICAgICB9CiAgICAgICAgaWRlbnRpZmllcnMgewogICAgICAgICAgdHlwZTogU01JTEVTCiAgICAgICAgICB2YWx1ZTogIkMxPUNDPUMyQyg9QzEpQz1DQz1DMkYiCiAgICAgICAgfQogICAgICAgIGFtb3VudCB7CiAgICAgICAgICBtb2xlcyB7CiAgICAgICAgICAgIHZhbHVlOiAwLjEKICAgICAgICAgICAgdW5pdHM6IE1JTExJTU9MRQogICAgICAgICAgfQogICAgICAgIH0KICAgICAgICByZWFjdGlvbl9yb2xlOiBJTlRFUk5BTF9TVEFOREFSRAogICAgICB9CiAgICAgIGNvbXBvbmVudHMgewogICAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICAgIHR5cGU6IE5BTUUKICAgICAgICAgIHZhbHVlOiAiQ0RDbDMiCiAgICAgICAgfQogICAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgICAgdmFsdWU6ICJbMkhdQyhDbCkoQ2wpQ2wiCiAgICAgICAgfQogICAgICAgIGFtb3VudCB7CiAgICAgICAgICB2b2x1bWUgewogICAgICAgICAgICB2YWx1ZTogMjUwLjAKICAgICAgICAgICAgdW5pdHM6IE1JQ1JPTElURVIKICAgICAgICAgIH0KICAgICAgICAgIHZvbHVtZV9pbmNsdWRlc19zb2x1dGVzOiB0cnVlCiAgICAgICAgfQogICAgICAgIHJlYWN0aW9uX3JvbGU6IFdPUktVUAogICAgICB9CiAgICB9CiAgfQogIG91dGNvbWVzIHsKICAgIHJlYWN0aW9uX3RpbWUgewogICAgICB2YWx1ZTogNDguMAogICAgICB1bml0czogSE9VUgogICAgfQogICAgcHJvZHVjdHMgewogICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgdHlwZTogU01JTEVTCiAgICAgICAgdmFsdWU6ICJjMWNjY2NjMS1jMmNjYyhDRiljYzIiCiAgICAgIH0KICAgICAgaXNfZGVzaXJlZF9wcm9kdWN0OiB0cnVlCiAgICAgIG1lYXN1cmVtZW50cyB7CiAgICAgICAgYW5hbHlzaXNfa2V5OiAiMTlmIG5tciBvZiBjcnVkZSIKICAgICAgICB0eXBlOiBJREVOVElUWQogICAgICB9CiAgICAgIG1lYXN1cmVtZW50cyB7CiAgICAgICAgYW5hbHlzaXNfa2V5OiAiMTlmIG5tciBvZiBjcnVkZSIKICAgICAgICB0eXBlOiBZSUVMRAogICAgICAgIHVzZXNfaW50ZXJuYWxfc3RhbmRhcmQ6IHRydWUKICAgICAgICBwZXJjZW50YWdlIHsKICAgICAgICAgIHZhbHVlOiA5OS4wCiAgICAgICAgICBwcmVjaXNpb246IDQuOAogICAgICAgIH0KICAgICAgfQogICAgfQogICAgYW5hbHlzZXMgewogICAgICBrZXk6ICIxOWYgbm1yIG9mIGNydWRlIgogICAgICB2YWx1ZSB7CiAgICAgICAgdHlwZTogTk1SX09USEVSCiAgICAgICAgZGV0YWlsczogIjE5RiBOTVIgdXNpbmcgMSBlcXVpdiAxLWZsdW9yb25hcGh0aGFsZW5lIGluIGNobG9yb2Zvcm0gYXMgaW50ZXJuYWwgc3RhbmRhcmQiCiAgICAgICAgaW5zdHJ1bWVudF9tYW51ZmFjdHVyZXI6ICJCcnVrZXIiCiAgICAgIH0KICAgIH0KICB9CiAgcHJvdmVuYW5jZSB7CiAgICBjaXR5OiAiUHJpbmNldG9uLCBOSiIKICAgIGRvaTogIjEwLjEwMjEvamFjcy44YjAxNTIzIgogICAgcHVibGljYXRpb25fdXJsOiAiaHR0cHM6Ly9wdWJzLmFjcy5vcmcvZG9pLzEwLjEwMjEvamFjcy44YjAxNTIzIgogICAgcmVjb3JkX2NyZWF0ZWQgewogICAgICB0aW1lIHsKICAgICAgICB2YWx1ZTogIjIwMjAtMDgtMDhUMTU6MDE6MjUiCiAgICAgIH0KICAgICAgcGVyc29uIHsKICAgICAgICBuYW1lOiAiQ29ubm9yIFcuIENvbGV5IgogICAgICAgIG9yY2lkOiAiMDAwMC0wMDAyLTgyNzEtODcyMyIKICAgICAgICBvcmdhbml6YXRpb246ICJNSVQiCiAgICAgICAgZW1haWw6ICJjY29sZXlAbWl0LmVkdSIKICAgICAgfQogICAgfQogIH0KfQo=">Download all 3 exemplars (.txtpb)</a></p><details><summary><b>reaction #1</b>: the most common shape (80 reactions)</summary><ul><li>the most common shape (80 reactions)</li></ul><p><a class="download" download="reaction_1.txtpb" href="data:text/plain;charset=utf-8;base64,aWRlbnRpZmllcnMgewogIHR5cGU6IFJFQUNUSU9OX1RZUEUKICB2YWx1ZTogImRlb3h5Zmx1b3JpbmF0aW9uIgp9CmlucHV0cyB7CiAga2V5OiAiYWxjb2hvbCBpbiBUSEYiCiAgdmFsdWUgewogICAgY29tcG9uZW50cyB7CiAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICB2YWx1ZTogImMxY2NjY2MxQ0NDKE8pQyIKICAgICAgfQogICAgICBhbW91bnQgewogICAgICAgIG1vbGVzIHsKICAgICAgICAgIHZhbHVlOiAwLjEKICAgICAgICAgIHVuaXRzOiBNSUxMSU1PTEUKICAgICAgICB9CiAgICAgIH0KICAgICAgcmVhY3Rpb25fcm9sZTogUkVBQ1RBTlQKICAgICAgaXNfbGltaXRpbmc6IHRydWUKICAgIH0KICAgIGNvbXBvbmVudHMgewogICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgdHlwZTogU01JTEVTCiAgICAgICAgdmFsdWU6ICJDMUNDT0MxIgogICAgICB9CiAgICAgIGFtb3VudCB7CiAgICAgICAgdm9sdW1lIHsKICAgICAgICAgIHZhbHVlOiAxMjUuMAogICAgICAgICAgdW5pdHM6IE1JQ1JPTElURVIKICAgICAgICB9CiAgICAgICAgdm9sdW1lX2luY2x1ZGVzX3NvbHV0ZXM6IHRydWUKICAgICAgfQogICAgICByZWFjdGlvbl9yb2xlOiBTT0xWRU5UCiAgICAgIHByZXBhcmF0aW9ucyB7CiAgICAgICAgdHlwZTogRFJJRUQKICAgICAgfQogICAgfQogICAgYWRkaXRpb25fb3JkZXI6IDEKICB9Cn0KaW5wdXRzIHsKICBrZXk6ICJiYXNlIgogIHZhbHVlIHsKICAgIGNvbXBvbmVudHMgewogICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgdHlwZTogU01JTEVTCiAgICAgICAgdmFsdWU6ICJOXFwyPUMxXFxOKENDQ0NDMSlDQ0MvMiIKICAgICAgfQogICAgICBhbW91bnQgewogICAgICAgIG1vbGVzIHsKICAgICAgICAgIHZhbHVlOiAwLjE1CiAgICAgICAgICB1bml0czogTUlMTElNT0xFCiAgICAgICAgfQogICAgICB9CiAgICAgIHJlYWN0aW9uX3JvbGU6IFJFQUdFTlQKICAgIH0KICAgIGFkZGl0aW9uX29yZGVyOiAzCiAgfQp9CmlucHV0cyB7CiAga2V5OiAic3VsZm9ueWwgZmx1b3JpZGUgc29sdXRpb24iCiAgdmFsdWUgewogICAgY29tcG9uZW50cyB7CiAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICB2YWx1ZTogIkNsYzFjY2MoUyg9TykoPU8pRiljYzEiCiAgICAgIH0KICAgICAgYW1vdW50IHsKICAgICAgICBtb2xlcyB7CiAgICAgICAgICB2YWx1ZTogMC4xMQogICAgICAgICAgdW5pdHM6IE1JTExJTU9MRQogICAgICAgIH0KICAgICAgfQogICAgICByZWFjdGlvbl9yb2xlOiBSRUFDVEFOVAogICAgICBpc19saW1pdGluZzogZmFsc2UKICAgIH0KICAgIGNvbXBvbmVudHMgewogICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgdHlwZTogU01JTEVTCiAgICAgICAgdmFsdWU6ICJDMUNDT0MxIgogICAgICB9CiAgICAgIGFtb3VudCB7CiAgICAgICAgdm9sdW1lIHsKICAgICAgICAgIHZhbHVlOiAxMjUuMAogICAgICAgICAgdW5pdHM6IE1JQ1JPTElURVIKICAgICAgICB9CiAgICAgICAgdm9sdW1lX2luY2x1ZGVzX3NvbHV0ZXM6IHRydWUKICAgICAgfQogICAgICByZWFjdGlvbl9yb2xlOiBTT0xWRU5UCiAgICAgIHByZXBhcmF0aW9ucyB7CiAgICAgICAgdHlwZTogRFJJRUQKICAgICAgfQogICAgfQogICAgYWRkaXRpb25fb3JkZXI6IDIKICB9Cn0Kc2V0dXAgewogIHZlc3NlbCB7CiAgICB0eXBlOiBWSUFMCiAgICBtYXRlcmlhbCB7CiAgICAgIHR5cGU6IEdMQVNTCiAgICB9CiAgICBhdHRhY2htZW50cyB7CiAgICAgIHR5cGU6IENBUAogICAgfQogICAgdm9sdW1lIHsKICAgICAgdmFsdWU6IDEuMAogICAgICB1bml0czogTUlMTElMSVRFUgogICAgfQogIH0KICBpc19hdXRvbWF0ZWQ6IGZhbHNlCn0KY29uZGl0aW9ucyB7CiAgdGVtcGVyYXR1cmUgewogICAgY29udHJvbCB7CiAgICAgIHR5cGU6IEFNQklFTlQKICAgIH0KICAgIHNldHBvaW50IHsKICAgICAgdmFsdWU6IDIwLjAKICAgICAgcHJlY2lzaW9uOiA1LjAKICAgICAgdW5pdHM6IENFTFNJVVMKICAgIH0KICB9CiAgcHJlc3N1cmUgewogICAgY29udHJvbCB7CiAgICAgIHR5cGU6IFNFQUxFRAogICAgfQogICAgYXRtb3NwaGVyZSB7CiAgICAgIHR5cGU6IEFJUgogICAgfQogIH0KICBzdGlycmluZyB7CiAgICB0eXBlOiBTVElSX0JBUgogICAgcmF0ZSB7CiAgICAgIHR5cGU6IEhJR0gKICAgICAgcnBtOiA2MDAKICAgIH0KICB9Cn0Kd29ya3VwcyB7CiAgdHlwZTogQURESVRJT04KICBpbnB1dCB7CiAgICBjb21wb25lbnRzIHsKICAgICAgaWRlbnRpZmllcnMgewogICAgICAgIHR5cGU6IE5BTUUKICAgICAgICB2YWx1ZTogIjEtZmx1b3JvbmFwaHRoYWxlbmUiCiAgICAgIH0KICAgICAgaWRlbnRpZmllcnMgewogICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgIHZhbHVlOiAiQzE9Q0M9QzJDKD1DMSlDPUNDPUMyRiIKICAgICAgfQogICAgICBhbW91bnQgewogICAgICAgIG1vbGVzIHsKICAgICAgICAgIHZhbHVlOiAwLjEKICAgICAgICAgIHVuaXRzOiBNSUxMSU1PTEUKICAgICAgICB9CiAgICAgIH0KICAgICAgcmVhY3Rpb25fcm9sZTogSU5URVJOQUxfU1RBTkRBUkQKICAgIH0KICAgIGNvbXBvbmVudHMgewogICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgdHlwZTogTkFNRQogICAgICAgIHZhbHVlOiAiQ0RDbDMiCiAgICAgIH0KICAgICAgaWRlbnRpZmllcnMgewogICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgIHZhbHVlOiAiWzJIXUMoQ2wpKENsKUNsIgogICAgICB9CiAgICAgIGFtb3VudCB7CiAgICAgICAgdm9sdW1lIHsKICAgICAgICAgIHZhbHVlOiAyNTAuMAogICAgICAgICAgdW5pdHM6IE1JQ1JPTElURVIKICAgICAgICB9CiAgICAgICAgdm9sdW1lX2luY2x1ZGVzX3NvbHV0ZXM6IHRydWUKICAgICAgfQogICAgICByZWFjdGlvbl9yb2xlOiBXT1JLVVAKICAgIH0KICB9Cn0Kb3V0Y29tZXMgewogIHJlYWN0aW9uX3RpbWUgewogICAgdmFsdWU6IDQ4LjAKICAgIHVuaXRzOiBIT1VSCiAgfQogIHByb2R1Y3RzIHsKICAgIGlkZW50aWZpZXJzIHsKICAgICAgdHlwZTogU01JTEVTCiAgICAgIHZhbHVlOiAiYzFjY2NjYzFDQ0MoRilDIgogICAgfQogICAgaXNfZGVzaXJlZF9wcm9kdWN0OiB0cnVlCiAgICBtZWFzdXJlbWVudHMgewogICAgICBhbmFseXNpc19rZXk6ICIxOWYgbm1yIG9mIGNydWRlIgogICAgICB0eXBlOiBJREVOVElUWQogICAgfQogICAgbWVhc3VyZW1lbnRzIHsKICAgICAgYW5hbHlzaXNfa2V5OiAiMTlmIG5tciBvZiBjcnVkZSIKICAgICAgdHlwZTogWUlFTEQKICAgICAgdXNlc19pbnRlcm5hbF9zdGFuZGFyZDogdHJ1ZQogICAgICBwZXJjZW50YWdlIHsKICAgICAgICB2YWx1ZTogNDAuMAogICAgICAgIHByZWNpc2lvbjogNC44CiAgICAgIH0KICAgIH0KICB9CiAgYW5hbHlzZXMgewogICAga2V5OiAiMTlmIG5tciBvZiBjcnVkZSIKICAgIHZhbHVlIHsKICAgICAgdHlwZTogTk1SX09USEVSCiAgICAgIGRldGFpbHM6ICIxOUYgTk1SIHVzaW5nIDEgZXF1aXYgMS1mbHVvcm9uYXBodGhhbGVuZSBpbiBjaGxvcm9mb3JtIGFzIGludGVybmFsIHN0YW5kYXJkIgogICAgICBpbnN0cnVtZW50X21hbnVmYWN0dXJlcjogIkJydWtlciIKICAgIH0KICB9Cn0KcHJvdmVuYW5jZSB7CiAgY2l0eTogIlByaW5jZXRvbiwgTkoiCiAgZG9pOiAiMTAuMTAyMS9qYWNzLjhiMDE1MjMiCiAgcHVibGljYXRpb25fdXJsOiAiaHR0cHM6Ly9wdWJzLmFjcy5vcmcvZG9pLzEwLjEwMjEvamFjcy44YjAxNTIzIgogIHJlY29yZF9jcmVhdGVkIHsKICAgIHRpbWUgewogICAgICB2YWx1ZTogIjIwMjAtMDgtMDhUMTU6MDE6MjUiCiAgICB9CiAgICBwZXJzb24gewogICAgICBuYW1lOiAiQ29ubm9yIFcuIENvbGV5IgogICAgICBvcmNpZDogIjAwMDAtMDAwMi04MjcxLTg3MjMiCiAgICAgIG9yZ2FuaXphdGlvbjogIk1JVCIKICAgICAgZW1haWw6ICJjY29sZXlAbWl0LmVkdSIKICAgIH0KICB9Cn0K">Download this reaction (.txtpb)</a></p><pre>identifiers {
+  type: REACTION_TYPE
+  value: &quot;deoxyfluorination&quot;
+}
+inputs {
+  key: &quot;alcohol in THF&quot;
+  value {
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;c1ccccc1CCC(O)C&quot;
+      }
+      amount {
+        moles {
+          value: 0.1
+          units: MILLIMOLE
+        }
+      }
+      reaction_role: REACTANT
+      is_limiting: true
+    }
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;C1CCOC1&quot;
+      }
+      amount {
+        volume {
+          value: 125.0
+          units: MICROLITER
+        }
+        volume_includes_solutes: true
+      }
+      reaction_role: SOLVENT
+      preparations {
+        type: DRIED
+      }
+    }
+    addition_order: 1
+  }
+}
+inputs {
+  key: &quot;base&quot;
+  value {
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;N\\2=C1\\N(CCCCC1)CCC/2&quot;
+      }
+      amount {
+        moles {
+          value: 0.15
+          units: MILLIMOLE
+        }
+      }
+      reaction_role: REAGENT
+    }
+    addition_order: 3
+  }
+}
+inputs {
+  key: &quot;sulfonyl fluoride solution&quot;
+  value {
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;Clc1ccc(S(=O)(=O)F)cc1&quot;
+      }
+      amount {
+        moles {
+          value: 0.11
+          units: MILLIMOLE
+        }
+      }
+      reaction_role: REACTANT
+      is_limiting: false
+    }
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;C1CCOC1&quot;
+      }
+      amount {
+        volume {
+          value: 125.0
+          units: MICROLITER
+        }
+        volume_includes_solutes: true
+      }
+      reaction_role: SOLVENT
+      preparations {
+        type: DRIED
+      }
+    }
+    addition_order: 2
+  }
+}
+setup {
+  vessel {
+    type: VIAL
+    material {
+      type: GLASS
+    }
+    attachments {
+      type: CAP
+    }
+    volume {
+      value: 1.0
+      units: MILLILITER
+    }
+  }
+  is_automated: false
+}
+conditions {
+  temperature {
+    control {
+      type: AMBIENT
+    }
+    setpoint {
+      value: 20.0
+      precision: 5.0
+      units: CELSIUS
+    }
+  }
+  pressure {
+    control {
+      type: SEALED
+    }
+    atmosphere {
+      type: AIR
+    }
+  }
+  stirring {
+    type: STIR_BAR
+    rate {
+      type: HIGH
+      rpm: 600
+    }
+  }
+}
+workups {
+  type: ADDITION
+  input {
+    components {
+      identifiers {
+        type: NAME
+        value: &quot;1-fluoronaphthalene&quot;
+      }
+      identifiers {
+        type: SMILES
+        value: &quot;C1=CC=C2C(=C1)C=CC=C2F&quot;
+      }
+      amount {
+        moles {
+          value: 0.1
+          units: MILLIMOLE
+        }
+      }
+      reaction_role: INTERNAL_STANDARD
+    }
+    components {
+      identifiers {
+        type: NAME
+        value: &quot;CDCl3&quot;
+      }
+      identifiers {
+        type: SMILES
+        value: &quot;[2H]C(Cl)(Cl)Cl&quot;
+      }
+      amount {
+        volume {
+          value: 250.0
+          units: MICROLITER
+        }
+        volume_includes_solutes: true
+      }
+      reaction_role: WORKUP
+    }
+  }
+}
+outcomes {
+  reaction_time {
+    value: 48.0
+    units: HOUR
+  }
+  products {
+    identifiers {
+      type: SMILES
+      value: &quot;c1ccccc1CCC(F)C&quot;
+    }
+    is_desired_product: true
+    measurements {
+      analysis_key: &quot;19f nmr of crude&quot;
+      type: IDENTITY
+    }
+    measurements {
+      analysis_key: &quot;19f nmr of crude&quot;
+      type: YIELD
+      uses_internal_standard: true
+      percentage {
+        value: 40.0
+        precision: 4.8
+      }
+    }
+  }
+  analyses {
+    key: &quot;19f nmr of crude&quot;
+    value {
+      type: NMR_OTHER
+      details: &quot;19F NMR using 1 equiv 1-fluoronaphthalene in chloroform as internal standard&quot;
+      instrument_manufacturer: &quot;Bruker&quot;
+    }
+  }
+}
+provenance {
+  city: &quot;Princeton, NJ&quot;
+  doi: &quot;10.1021/jacs.8b01523&quot;
+  publication_url: &quot;https://pubs.acs.org/doi/10.1021/jacs.8b01523&quot;
+  record_created {
+    time {
+      value: &quot;2020-08-08T15:01:25&quot;
+    }
+    person {
+      name: &quot;Connor W. Coley&quot;
+      orcid: &quot;0000-0002-8271-8723&quot;
+      organization: &quot;MIT&quot;
+      email: &quot;ccoley@mit.edu&quot;
+    }
+  }
+}
+</pre></details><details><summary><b>reaction #41</b>: lowest products[0].measurements[1].percentage (1)</summary><ul><li>lowest products[0].measurements[1].percentage (1)</li></ul><p><a class="download" download="reaction_41.txtpb" href="data:text/plain;charset=utf-8;base64,aWRlbnRpZmllcnMgewogIHR5cGU6IFJFQUNUSU9OX1RZUEUKICB2YWx1ZTogImRlb3h5Zmx1b3JpbmF0aW9uIgp9CmlucHV0cyB7CiAga2V5OiAiYWxjb2hvbCBpbiBUSEYiCiAgdmFsdWUgewogICAgY29tcG9uZW50cyB7CiAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICB2YWx1ZTogIk9bQ0BASF0xQ1tDQEhdKE9DQzI9Q0M9Q0M9QzIpQzEiCiAgICAgIH0KICAgICAgYW1vdW50IHsKICAgICAgICBtb2xlcyB7CiAgICAgICAgICB2YWx1ZTogMC4xCiAgICAgICAgICB1bml0czogTUlMTElNT0xFCiAgICAgICAgfQogICAgICB9CiAgICAgIHJlYWN0aW9uX3JvbGU6IFJFQUNUQU5UCiAgICAgIGlzX2xpbWl0aW5nOiB0cnVlCiAgICB9CiAgICBjb21wb25lbnRzIHsKICAgICAgaWRlbnRpZmllcnMgewogICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgIHZhbHVlOiAiQzFDQ09DMSIKICAgICAgfQogICAgICBhbW91bnQgewogICAgICAgIHZvbHVtZSB7CiAgICAgICAgICB2YWx1ZTogMTI1LjAKICAgICAgICAgIHVuaXRzOiBNSUNST0xJVEVSCiAgICAgICAgfQogICAgICAgIHZvbHVtZV9pbmNsdWRlc19zb2x1dGVzOiB0cnVlCiAgICAgIH0KICAgICAgcmVhY3Rpb25fcm9sZTogU09MVkVOVAogICAgICBwcmVwYXJhdGlvbnMgewogICAgICAgIHR5cGU6IERSSUVECiAgICAgIH0KICAgIH0KICAgIGFkZGl0aW9uX29yZGVyOiAxCiAgfQp9CmlucHV0cyB7CiAga2V5OiAiYmFzZSIKICB2YWx1ZSB7CiAgICBjb21wb25lbnRzIHsKICAgICAgaWRlbnRpZmllcnMgewogICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgIHZhbHVlOiAiTlxcMj1DMVxcTihDQ0NDQzEpQ0NDLzIiCiAgICAgIH0KICAgICAgYW1vdW50IHsKICAgICAgICBtb2xlcyB7CiAgICAgICAgICB2YWx1ZTogMC4xNQogICAgICAgICAgdW5pdHM6IE1JTExJTU9MRQogICAgICAgIH0KICAgICAgfQogICAgICByZWFjdGlvbl9yb2xlOiBSRUFHRU5UCiAgICB9CiAgICBhZGRpdGlvbl9vcmRlcjogMwogIH0KfQppbnB1dHMgewogIGtleTogInN1bGZvbnlsIGZsdW9yaWRlIHNvbHV0aW9uIgogIHZhbHVlIHsKICAgIGNvbXBvbmVudHMgewogICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgdHlwZTogU01JTEVTCiAgICAgICAgdmFsdWU6ICJDbGMxY2NjKFMoPU8pKD1PKUYpY2MxIgogICAgICB9CiAgICAgIGFtb3VudCB7CiAgICAgICAgbW9sZXMgewogICAgICAgICAgdmFsdWU6IDAuMTEKICAgICAgICAgIHVuaXRzOiBNSUxMSU1PTEUKICAgICAgICB9CiAgICAgIH0KICAgICAgcmVhY3Rpb25fcm9sZTogUkVBQ1RBTlQKICAgICAgaXNfbGltaXRpbmc6IGZhbHNlCiAgICB9CiAgICBjb21wb25lbnRzIHsKICAgICAgaWRlbnRpZmllcnMgewogICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgIHZhbHVlOiAiQzFDQ09DMSIKICAgICAgfQogICAgICBhbW91bnQgewogICAgICAgIHZvbHVtZSB7CiAgICAgICAgICB2YWx1ZTogMTI1LjAKICAgICAgICAgIHVuaXRzOiBNSUNST0xJVEVSCiAgICAgICAgfQogICAgICAgIHZvbHVtZV9pbmNsdWRlc19zb2x1dGVzOiB0cnVlCiAgICAgIH0KICAgICAgcmVhY3Rpb25fcm9sZTogU09MVkVOVAogICAgICBwcmVwYXJhdGlvbnMgewogICAgICAgIHR5cGU6IERSSUVECiAgICAgIH0KICAgIH0KICAgIGFkZGl0aW9uX29yZGVyOiAyCiAgfQp9CnNldHVwIHsKICB2ZXNzZWwgewogICAgdHlwZTogVklBTAogICAgbWF0ZXJpYWwgewogICAgICB0eXBlOiBHTEFTUwogICAgfQogICAgYXR0YWNobWVudHMgewogICAgICB0eXBlOiBDQVAKICAgIH0KICAgIHZvbHVtZSB7CiAgICAgIHZhbHVlOiAxLjAKICAgICAgdW5pdHM6IE1JTExJTElURVIKICAgIH0KICB9CiAgaXNfYXV0b21hdGVkOiBmYWxzZQp9CmNvbmRpdGlvbnMgewogIHRlbXBlcmF0dXJlIHsKICAgIGNvbnRyb2wgewogICAgICB0eXBlOiBBTUJJRU5UCiAgICB9CiAgICBzZXRwb2ludCB7CiAgICAgIHZhbHVlOiAyMC4wCiAgICAgIHByZWNpc2lvbjogNS4wCiAgICAgIHVuaXRzOiBDRUxTSVVTCiAgICB9CiAgfQogIHByZXNzdXJlIHsKICAgIGNvbnRyb2wgewogICAgICB0eXBlOiBTRUFMRUQKICAgIH0KICAgIGF0bW9zcGhlcmUgewogICAgICB0eXBlOiBBSVIKICAgIH0KICB9CiAgc3RpcnJpbmcgewogICAgdHlwZTogU1RJUl9CQVIKICAgIHJhdGUgewogICAgICB0eXBlOiBISUdICiAgICAgIHJwbTogNjAwCiAgICB9CiAgfQp9Cndvcmt1cHMgewogIHR5cGU6IEFERElUSU9OCiAgaW5wdXQgewogICAgY29tcG9uZW50cyB7CiAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICB0eXBlOiBOQU1FCiAgICAgICAgdmFsdWU6ICIxLWZsdW9yb25hcGh0aGFsZW5lIgogICAgICB9CiAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICB2YWx1ZTogIkMxPUNDPUMyQyg9QzEpQz1DQz1DMkYiCiAgICAgIH0KICAgICAgYW1vdW50IHsKICAgICAgICBtb2xlcyB7CiAgICAgICAgICB2YWx1ZTogMC4xCiAgICAgICAgICB1bml0czogTUlMTElNT0xFCiAgICAgICAgfQogICAgICB9CiAgICAgIHJlYWN0aW9uX3JvbGU6IElOVEVSTkFMX1NUQU5EQVJECiAgICB9CiAgICBjb21wb25lbnRzIHsKICAgICAgaWRlbnRpZmllcnMgewogICAgICAgIHR5cGU6IE5BTUUKICAgICAgICB2YWx1ZTogIkNEQ2wzIgogICAgICB9CiAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICB2YWx1ZTogIlsySF1DKENsKShDbClDbCIKICAgICAgfQogICAgICBhbW91bnQgewogICAgICAgIHZvbHVtZSB7CiAgICAgICAgICB2YWx1ZTogMjUwLjAKICAgICAgICAgIHVuaXRzOiBNSUNST0xJVEVSCiAgICAgICAgfQogICAgICAgIHZvbHVtZV9pbmNsdWRlc19zb2x1dGVzOiB0cnVlCiAgICAgIH0KICAgICAgcmVhY3Rpb25fcm9sZTogV09SS1VQCiAgICB9CiAgfQp9Cm91dGNvbWVzIHsKICByZWFjdGlvbl90aW1lIHsKICAgIHZhbHVlOiA0OC4wCiAgICB1bml0czogSE9VUgogIH0KICBwcm9kdWN0cyB7CiAgICBpZGVudGlmaWVycyB7CiAgICAgIHR5cGU6IFNNSUxFUwogICAgICB2YWx1ZTogIkZbQ0BASF0xQ1tDQEhdKE9DQzI9Q0M9Q0M9QzIpQzEiCiAgICB9CiAgICBpc19kZXNpcmVkX3Byb2R1Y3Q6IHRydWUKICAgIG1lYXN1cmVtZW50cyB7CiAgICAgIGFuYWx5c2lzX2tleTogIjE5ZiBubXIgb2YgY3J1ZGUiCiAgICAgIHR5cGU6IElERU5USVRZCiAgICB9CiAgICBtZWFzdXJlbWVudHMgewogICAgICBhbmFseXNpc19rZXk6ICIxOWYgbm1yIG9mIGNydWRlIgogICAgICB0eXBlOiBZSUVMRAogICAgICB1c2VzX2ludGVybmFsX3N0YW5kYXJkOiB0cnVlCiAgICAgIHBlcmNlbnRhZ2UgewogICAgICAgIHZhbHVlOiAxLjAKICAgICAgICBwcmVjaXNpb246IDQuOAogICAgICB9CiAgICB9CiAgfQogIGFuYWx5c2VzIHsKICAgIGtleTogIjE5ZiBubXIgb2YgY3J1ZGUiCiAgICB2YWx1ZSB7CiAgICAgIHR5cGU6IE5NUl9PVEhFUgogICAgICBkZXRhaWxzOiAiMTlGIE5NUiB1c2luZyAxIGVxdWl2IDEtZmx1b3JvbmFwaHRoYWxlbmUgaW4gY2hsb3JvZm9ybSBhcyBpbnRlcm5hbCBzdGFuZGFyZCIKICAgICAgaW5zdHJ1bWVudF9tYW51ZmFjdHVyZXI6ICJCcnVrZXIiCiAgICB9CiAgfQp9CnByb3ZlbmFuY2UgewogIGNpdHk6ICJQcmluY2V0b24sIE5KIgogIGRvaTogIjEwLjEwMjEvamFjcy44YjAxNTIzIgogIHB1YmxpY2F0aW9uX3VybDogImh0dHBzOi8vcHVicy5hY3Mub3JnL2RvaS8xMC4xMDIxL2phY3MuOGIwMTUyMyIKICByZWNvcmRfY3JlYXRlZCB7CiAgICB0aW1lIHsKICAgICAgdmFsdWU6ICIyMDIwLTA4LTA4VDE1OjAxOjI1IgogICAgfQogICAgcGVyc29uIHsKICAgICAgbmFtZTogIkNvbm5vciBXLiBDb2xleSIKICAgICAgb3JjaWQ6ICIwMDAwLTAwMDItODI3MS04NzIzIgogICAgICBvcmdhbml6YXRpb246ICJNSVQiCiAgICAgIGVtYWlsOiAiY2NvbGV5QG1pdC5lZHUiCiAgICB9CiAgfQp9Cg==">Download this reaction (.txtpb)</a></p><pre>identifiers {
+  type: REACTION_TYPE
+  value: &quot;deoxyfluorination&quot;
+}
+inputs {
+  key: &quot;alcohol in THF&quot;
+  value {
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1&quot;
+      }
+      amount {
+        moles {
+          value: 0.1
+          units: MILLIMOLE
+        }
+      }
+      reaction_role: REACTANT
+      is_limiting: true
+    }
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;C1CCOC1&quot;
+      }
+      amount {
+        volume {
+          value: 125.0
+          units: MICROLITER
+        }
+        volume_includes_solutes: true
+      }
+      reaction_role: SOLVENT
+      preparations {
+        type: DRIED
+      }
+    }
+    addition_order: 1
+  }
+}
+inputs {
+  key: &quot;base&quot;
+  value {
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;N\\2=C1\\N(CCCCC1)CCC/2&quot;
+      }
+      amount {
+        moles {
+          value: 0.15
+          units: MILLIMOLE
+        }
+      }
+      reaction_role: REAGENT
+    }
+    addition_order: 3
+  }
+}
+inputs {
+  key: &quot;sulfonyl fluoride solution&quot;
+  value {
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;Clc1ccc(S(=O)(=O)F)cc1&quot;
+      }
+      amount {
+        moles {
+          value: 0.11
+          units: MILLIMOLE
+        }
+      }
+      reaction_role: REACTANT
+      is_limiting: false
+    }
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;C1CCOC1&quot;
+      }
+      amount {
+        volume {
+          value: 125.0
+          units: MICROLITER
+        }
+        volume_includes_solutes: true
+      }
+      reaction_role: SOLVENT
+      preparations {
+        type: DRIED
+      }
+    }
+    addition_order: 2
+  }
+}
+setup {
+  vessel {
+    type: VIAL
+    material {
+      type: GLASS
+    }
+    attachments {
+      type: CAP
+    }
+    volume {
+      value: 1.0
+      units: MILLILITER
+    }
+  }
+  is_automated: false
+}
+conditions {
+  temperature {
+    control {
+      type: AMBIENT
+    }
+    setpoint {
+      value: 20.0
+      precision: 5.0
+      units: CELSIUS
+    }
+  }
+  pressure {
+    control {
+      type: SEALED
+    }
+    atmosphere {
+      type: AIR
+    }
+  }
+  stirring {
+    type: STIR_BAR
+    rate {
+      type: HIGH
+      rpm: 600
+    }
+  }
+}
+workups {
+  type: ADDITION
+  input {
+    components {
+      identifiers {
+        type: NAME
+        value: &quot;1-fluoronaphthalene&quot;
+      }
+      identifiers {
+        type: SMILES
+        value: &quot;C1=CC=C2C(=C1)C=CC=C2F&quot;
+      }
+      amount {
+        moles {
+          value: 0.1
+          units: MILLIMOLE
+        }
+      }
+      reaction_role: INTERNAL_STANDARD
+    }
+    components {
+      identifiers {
+        type: NAME
+        value: &quot;CDCl3&quot;
+      }
+      identifiers {
+        type: SMILES
+        value: &quot;[2H]C(Cl)(Cl)Cl&quot;
+      }
+      amount {
+        volume {
+          value: 250.0
+          units: MICROLITER
+        }
+        volume_includes_solutes: true
+      }
+      reaction_role: WORKUP
+    }
+  }
+}
+outcomes {
+  reaction_time {
+    value: 48.0
+    units: HOUR
+  }
+  products {
+    identifiers {
+      type: SMILES
+      value: &quot;F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1&quot;
+    }
+    is_desired_product: true
+    measurements {
+      analysis_key: &quot;19f nmr of crude&quot;
+      type: IDENTITY
+    }
+    measurements {
+      analysis_key: &quot;19f nmr of crude&quot;
+      type: YIELD
+      uses_internal_standard: true
+      percentage {
+        value: 1.0
+        precision: 4.8
+      }
+    }
+  }
+  analyses {
+    key: &quot;19f nmr of crude&quot;
+    value {
+      type: NMR_OTHER
+      details: &quot;19F NMR using 1 equiv 1-fluoronaphthalene in chloroform as internal standard&quot;
+      instrument_manufacturer: &quot;Bruker&quot;
+    }
+  }
+}
+provenance {
+  city: &quot;Princeton, NJ&quot;
+  doi: &quot;10.1021/jacs.8b01523&quot;
+  publication_url: &quot;https://pubs.acs.org/doi/10.1021/jacs.8b01523&quot;
+  record_created {
+    time {
+      value: &quot;2020-08-08T15:01:25&quot;
+    }
+    person {
+      name: &quot;Connor W. Coley&quot;
+      orcid: &quot;0000-0002-8271-8723&quot;
+      organization: &quot;MIT&quot;
+      email: &quot;ccoley@mit.edu&quot;
+    }
+  }
+}
+</pre></details><details><summary><b>reaction #32</b>: highest products[0].measurements[1].percentage (99)</summary><ul><li>highest products[0].measurements[1].percentage (99)</li></ul><p><a class="download" download="reaction_32.txtpb" href="data:text/plain;charset=utf-8;base64,aWRlbnRpZmllcnMgewogIHR5cGU6IFJFQUNUSU9OX1RZUEUKICB2YWx1ZTogImRlb3h5Zmx1b3JpbmF0aW9uIgp9CmlucHV0cyB7CiAga2V5OiAiYWxjb2hvbCBpbiBUSEYiCiAgdmFsdWUgewogICAgY29tcG9uZW50cyB7CiAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICB2YWx1ZTogImMxY2NjY2MxLWMyY2NjKENPKWNjMiIKICAgICAgfQogICAgICBhbW91bnQgewogICAgICAgIG1vbGVzIHsKICAgICAgICAgIHZhbHVlOiAwLjEKICAgICAgICAgIHVuaXRzOiBNSUxMSU1PTEUKICAgICAgICB9CiAgICAgIH0KICAgICAgcmVhY3Rpb25fcm9sZTogUkVBQ1RBTlQKICAgICAgaXNfbGltaXRpbmc6IHRydWUKICAgIH0KICAgIGNvbXBvbmVudHMgewogICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgdHlwZTogU01JTEVTCiAgICAgICAgdmFsdWU6ICJDMUNDT0MxIgogICAgICB9CiAgICAgIGFtb3VudCB7CiAgICAgICAgdm9sdW1lIHsKICAgICAgICAgIHZhbHVlOiAxMjUuMAogICAgICAgICAgdW5pdHM6IE1JQ1JPTElURVIKICAgICAgICB9CiAgICAgICAgdm9sdW1lX2luY2x1ZGVzX3NvbHV0ZXM6IHRydWUKICAgICAgfQogICAgICByZWFjdGlvbl9yb2xlOiBTT0xWRU5UCiAgICAgIHByZXBhcmF0aW9ucyB7CiAgICAgICAgdHlwZTogRFJJRUQKICAgICAgfQogICAgfQogICAgYWRkaXRpb25fb3JkZXI6IDEKICB9Cn0KaW5wdXRzIHsKICBrZXk6ICJiYXNlIgogIHZhbHVlIHsKICAgIGNvbXBvbmVudHMgewogICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgdHlwZTogU01JTEVTCiAgICAgICAgdmFsdWU6ICJDQyhDKShDKU49UChOMUNDQ0MxKShOMkNDQ0MyKU4zQ0NDQzMiCiAgICAgIH0KICAgICAgYW1vdW50IHsKICAgICAgICBtb2xlcyB7CiAgICAgICAgICB2YWx1ZTogMC4xNQogICAgICAgICAgdW5pdHM6IE1JTExJTU9MRQogICAgICAgIH0KICAgICAgfQogICAgICByZWFjdGlvbl9yb2xlOiBSRUFHRU5UCiAgICB9CiAgICBhZGRpdGlvbl9vcmRlcjogMwogIH0KfQppbnB1dHMgewogIGtleTogInN1bGZvbnlsIGZsdW9yaWRlIHNvbHV0aW9uIgogIHZhbHVlIHsKICAgIGNvbXBvbmVudHMgewogICAgICBpZGVudGlmaWVycyB7CiAgICAgICAgdHlwZTogU01JTEVTCiAgICAgICAgdmFsdWU6ICJPPVMoQzE9Q0M9QyhDKEYpKEYpRilDPUMxKShGKT1PIgogICAgICB9CiAgICAgIGFtb3VudCB7CiAgICAgICAgbW9sZXMgewogICAgICAgICAgdmFsdWU6IDAuMTEKICAgICAgICAgIHVuaXRzOiBNSUxMSU1PTEUKICAgICAgICB9CiAgICAgIH0KICAgICAgcmVhY3Rpb25fcm9sZTogUkVBQ1RBTlQKICAgICAgaXNfbGltaXRpbmc6IGZhbHNlCiAgICB9CiAgICBjb21wb25lbnRzIHsKICAgICAgaWRlbnRpZmllcnMgewogICAgICAgIHR5cGU6IFNNSUxFUwogICAgICAgIHZhbHVlOiAiQzFDQ09DMSIKICAgICAgfQogICAgICBhbW91bnQgewogICAgICAgIHZvbHVtZSB7CiAgICAgICAgICB2YWx1ZTogMTI1LjAKICAgICAgICAgIHVuaXRzOiBNSUNST0xJVEVSCiAgICAgICAgfQogICAgICAgIHZvbHVtZV9pbmNsdWRlc19zb2x1dGVzOiB0cnVlCiAgICAgIH0KICAgICAgcmVhY3Rpb25fcm9sZTogU09MVkVOVAogICAgICBwcmVwYXJhdGlvbnMgewogICAgICAgIHR5cGU6IERSSUVECiAgICAgIH0KICAgIH0KICAgIGFkZGl0aW9uX29yZGVyOiAyCiAgfQp9CnNldHVwIHsKICB2ZXNzZWwgewogICAgdHlwZTogVklBTAogICAgbWF0ZXJpYWwgewogICAgICB0eXBlOiBHTEFTUwogICAgfQogICAgYXR0YWNobWVudHMgewogICAgICB0eXBlOiBDQVAKICAgIH0KICAgIHZvbHVtZSB7CiAgICAgIHZhbHVlOiAxLjAKICAgICAgdW5pdHM6IE1JTExJTElURVIKICAgIH0KICB9CiAgaXNfYXV0b21hdGVkOiBmYWxzZQp9CmNvbmRpdGlvbnMgewogIHRlbXBlcmF0dXJlIHsKICAgIGNvbnRyb2wgewogICAgICB0eXBlOiBBTUJJRU5UCiAgICB9CiAgICBzZXRwb2ludCB7CiAgICAgIHZhbHVlOiAyMC4wCiAgICAgIHByZWNpc2lvbjogNS4wCiAgICAgIHVuaXRzOiBDRUxTSVVTCiAgICB9CiAgfQogIHByZXNzdXJlIHsKICAgIGNvbnRyb2wgewogICAgICB0eXBlOiBTRUFMRUQKICAgIH0KICAgIGF0bW9zcGhlcmUgewogICAgICB0eXBlOiBBSVIKICAgIH0KICB9CiAgc3RpcnJpbmcgewogICAgdHlwZTogU1RJUl9CQVIKICAgIHJhdGUgewogICAgICB0eXBlOiBISUdICiAgICAgIHJwbTogNjAwCiAgICB9CiAgfQp9Cndvcmt1cHMgewogIHR5cGU6IEFERElUSU9OCiAgaW5wdXQgewogICAgY29tcG9uZW50cyB7CiAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICB0eXBlOiBOQU1FCiAgICAgICAgdmFsdWU6ICIxLWZsdW9yb25hcGh0aGFsZW5lIgogICAgICB9CiAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICB2YWx1ZTogIkMxPUNDPUMyQyg9QzEpQz1DQz1DMkYiCiAgICAgIH0KICAgICAgYW1vdW50IHsKICAgICAgICBtb2xlcyB7CiAgICAgICAgICB2YWx1ZTogMC4xCiAgICAgICAgICB1bml0czogTUlMTElNT0xFCiAgICAgICAgfQogICAgICB9CiAgICAgIHJlYWN0aW9uX3JvbGU6IElOVEVSTkFMX1NUQU5EQVJECiAgICB9CiAgICBjb21wb25lbnRzIHsKICAgICAgaWRlbnRpZmllcnMgewogICAgICAgIHR5cGU6IE5BTUUKICAgICAgICB2YWx1ZTogIkNEQ2wzIgogICAgICB9CiAgICAgIGlkZW50aWZpZXJzIHsKICAgICAgICB0eXBlOiBTTUlMRVMKICAgICAgICB2YWx1ZTogIlsySF1DKENsKShDbClDbCIKICAgICAgfQogICAgICBhbW91bnQgewogICAgICAgIHZvbHVtZSB7CiAgICAgICAgICB2YWx1ZTogMjUwLjAKICAgICAgICAgIHVuaXRzOiBNSUNST0xJVEVSCiAgICAgICAgfQogICAgICAgIHZvbHVtZV9pbmNsdWRlc19zb2x1dGVzOiB0cnVlCiAgICAgIH0KICAgICAgcmVhY3Rpb25fcm9sZTogV09SS1VQCiAgICB9CiAgfQp9Cm91dGNvbWVzIHsKICByZWFjdGlvbl90aW1lIHsKICAgIHZhbHVlOiA0OC4wCiAgICB1bml0czogSE9VUgogIH0KICBwcm9kdWN0cyB7CiAgICBpZGVudGlmaWVycyB7CiAgICAgIHR5cGU6IFNNSUxFUwogICAgICB2YWx1ZTogImMxY2NjY2MxLWMyY2NjKENGKWNjMiIKICAgIH0KICAgIGlzX2Rlc2lyZWRfcHJvZHVjdDogdHJ1ZQogICAgbWVhc3VyZW1lbnRzIHsKICAgICAgYW5hbHlzaXNfa2V5OiAiMTlmIG5tciBvZiBjcnVkZSIKICAgICAgdHlwZTogSURFTlRJVFkKICAgIH0KICAgIG1lYXN1cmVtZW50cyB7CiAgICAgIGFuYWx5c2lzX2tleTogIjE5ZiBubXIgb2YgY3J1ZGUiCiAgICAgIHR5cGU6IFlJRUxECiAgICAgIHVzZXNfaW50ZXJuYWxfc3RhbmRhcmQ6IHRydWUKICAgICAgcGVyY2VudGFnZSB7CiAgICAgICAgdmFsdWU6IDk5LjAKICAgICAgICBwcmVjaXNpb246IDQuOAogICAgICB9CiAgICB9CiAgfQogIGFuYWx5c2VzIHsKICAgIGtleTogIjE5ZiBubXIgb2YgY3J1ZGUiCiAgICB2YWx1ZSB7CiAgICAgIHR5cGU6IE5NUl9PVEhFUgogICAgICBkZXRhaWxzOiAiMTlGIE5NUiB1c2luZyAxIGVxdWl2IDEtZmx1b3JvbmFwaHRoYWxlbmUgaW4gY2hsb3JvZm9ybSBhcyBpbnRlcm5hbCBzdGFuZGFyZCIKICAgICAgaW5zdHJ1bWVudF9tYW51ZmFjdHVyZXI6ICJCcnVrZXIiCiAgICB9CiAgfQp9CnByb3ZlbmFuY2UgewogIGNpdHk6ICJQcmluY2V0b24sIE5KIgogIGRvaTogIjEwLjEwMjEvamFjcy44YjAxNTIzIgogIHB1YmxpY2F0aW9uX3VybDogImh0dHBzOi8vcHVicy5hY3Mub3JnL2RvaS8xMC4xMDIxL2phY3MuOGIwMTUyMyIKICByZWNvcmRfY3JlYXRlZCB7CiAgICB0aW1lIHsKICAgICAgdmFsdWU6ICIyMDIwLTA4LTA4VDE1OjAxOjI1IgogICAgfQogICAgcGVyc29uIHsKICAgICAgbmFtZTogIkNvbm5vciBXLiBDb2xleSIKICAgICAgb3JjaWQ6ICIwMDAwLTAwMDItODI3MS04NzIzIgogICAgICBvcmdhbml6YXRpb246ICJNSVQiCiAgICAgIGVtYWlsOiAiY2NvbGV5QG1pdC5lZHUiCiAgICB9CiAgfQp9Cg==">Download this reaction (.txtpb)</a></p><pre>identifiers {
+  type: REACTION_TYPE
+  value: &quot;deoxyfluorination&quot;
+}
+inputs {
+  key: &quot;alcohol in THF&quot;
+  value {
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;c1ccccc1-c2ccc(CO)cc2&quot;
+      }
+      amount {
+        moles {
+          value: 0.1
+          units: MILLIMOLE
+        }
+      }
+      reaction_role: REACTANT
+      is_limiting: true
+    }
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;C1CCOC1&quot;
+      }
+      amount {
+        volume {
+          value: 125.0
+          units: MICROLITER
+        }
+        volume_includes_solutes: true
+      }
+      reaction_role: SOLVENT
+      preparations {
+        type: DRIED
+      }
+    }
+    addition_order: 1
+  }
+}
+inputs {
+  key: &quot;base&quot;
+  value {
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3&quot;
+      }
+      amount {
+        moles {
+          value: 0.15
+          units: MILLIMOLE
+        }
+      }
+      reaction_role: REAGENT
+    }
+    addition_order: 3
+  }
+}
+inputs {
+  key: &quot;sulfonyl fluoride solution&quot;
+  value {
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O&quot;
+      }
+      amount {
+        moles {
+          value: 0.11
+          units: MILLIMOLE
+        }
+      }
+      reaction_role: REACTANT
+      is_limiting: false
+    }
+    components {
+      identifiers {
+        type: SMILES
+        value: &quot;C1CCOC1&quot;
+      }
+      amount {
+        volume {
+          value: 125.0
+          units: MICROLITER
+        }
+        volume_includes_solutes: true
+      }
+      reaction_role: SOLVENT
+      preparations {
+        type: DRIED
+      }
+    }
+    addition_order: 2
+  }
+}
+setup {
+  vessel {
+    type: VIAL
+    material {
+      type: GLASS
+    }
+    attachments {
+      type: CAP
+    }
+    volume {
+      value: 1.0
+      units: MILLILITER
+    }
+  }
+  is_automated: false
+}
+conditions {
+  temperature {
+    control {
+      type: AMBIENT
+    }
+    setpoint {
+      value: 20.0
+      precision: 5.0
+      units: CELSIUS
+    }
+  }
+  pressure {
+    control {
+      type: SEALED
+    }
+    atmosphere {
+      type: AIR
+    }
+  }
+  stirring {
+    type: STIR_BAR
+    rate {
+      type: HIGH
+      rpm: 600
+    }
+  }
+}
+workups {
+  type: ADDITION
+  input {
+    components {
+      identifiers {
+        type: NAME
+        value: &quot;1-fluoronaphthalene&quot;
+      }
+      identifiers {
+        type: SMILES
+        value: &quot;C1=CC=C2C(=C1)C=CC=C2F&quot;
+      }
+      amount {
+        moles {
+          value: 0.1
+          units: MILLIMOLE
+        }
+      }
+      reaction_role: INTERNAL_STANDARD
+    }
+    components {
+      identifiers {
+        type: NAME
+        value: &quot;CDCl3&quot;
+      }
+      identifiers {
+        type: SMILES
+        value: &quot;[2H]C(Cl)(Cl)Cl&quot;
+      }
+      amount {
+        volume {
+          value: 250.0
+          units: MICROLITER
+        }
+        volume_includes_solutes: true
+      }
+      reaction_role: WORKUP
+    }
+  }
+}
+outcomes {
+  reaction_time {
+    value: 48.0
+    units: HOUR
+  }
+  products {
+    identifiers {
+      type: SMILES
+      value: &quot;c1ccccc1-c2ccc(CF)cc2&quot;
+    }
+    is_desired_product: true
+    measurements {
+      analysis_key: &quot;19f nmr of crude&quot;
+      type: IDENTITY
+    }
+    measurements {
+      analysis_key: &quot;19f nmr of crude&quot;
+      type: YIELD
+      uses_internal_standard: true
+      percentage {
+        value: 99.0
+        precision: 4.8
+      }
+    }
+  }
+  analyses {
+    key: &quot;19f nmr of crude&quot;
+    value {
+      type: NMR_OTHER
+      details: &quot;19F NMR using 1 equiv 1-fluoronaphthalene in chloroform as internal standard&quot;
+      instrument_manufacturer: &quot;Bruker&quot;
+    }
+  }
+}
+provenance {
+  city: &quot;Princeton, NJ&quot;
+  doi: &quot;10.1021/jacs.8b01523&quot;
+  publication_url: &quot;https://pubs.acs.org/doi/10.1021/jacs.8b01523&quot;
+  record_created {
+    time {
+      value: &quot;2020-08-08T15:01:25&quot;
+    }
+    person {
+      name: &quot;Connor W. Coley&quot;
+      orcid: &quot;0000-0002-8271-8723&quot;
+      organization: &quot;MIT&quot;
+      email: &quot;ccoley@mit.edu&quot;
+    }
+  }
+}
+</pre></details></section><section><h2>What the dataset varies</h2><p>5 varying columns in 4 groups; columns that always change together, such as a compound's name and SMILES, are one group. Hover over a bar for its full value.</p><div class="grid"><figure><figcaption><div><code>inputs[&quot;alcohol in THF&quot;].components[0].identifiers[0].value</code></div><div><span class="muted">with outcomes[0].products[0].identifiers[0].value</span></div><div><span class="muted">categorical, 80 filled, 0 empty, 4 distinct</span></div></figcaption><div class="chart"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 112" width="360" height="112" role="img" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11"><title>inputs[&quot;alcohol in THF&quot;].components[0].identifiers[0].value</title><line x1="150" y1="2" x2="150" y2="108" stroke="var(--grid, #e2e1dc)" stroke-width="1"/><g class="b0" tabindex="0"><title>O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1 | F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1: 20 reactions</title><path d="M150.0,8.0H308.0Q312.0,8.0 312.0,12.0V22.0Q312.0,26.0 308.0,26.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="21.0" text-anchor="end" fill="var(--text-secondary, #52514e)">O[C@@H]1C[C@H](OC…</text><text x="316.0" y="21.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g><g class="b1" tabindex="0"><title>O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1 | F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1: 20 reactions</title><path d="M150.0,34.0H308.0Q312.0,34.0 312.0,38.0V48.0Q312.0,52.0 308.0,52.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="47.0" text-anchor="end" fill="var(--text-secondary, #52514e)">O[C@H]1C[C@@H](C(…</text><text x="316.0" y="47.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g><g class="b2" tabindex="0"><title>c1ccccc1-c2ccc(CO)cc2 | c1ccccc1-c2ccc(CF)cc2: 20 reactions</title><path d="M150.0,60.0H308.0Q312.0,60.0 312.0,64.0V74.0Q312.0,78.0 308.0,78.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="73.0" text-anchor="end" fill="var(--text-secondary, #52514e)">c1ccccc1-c2ccc(CO)c…</text><text x="316.0" y="73.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g><g class="b3" tabindex="0"><title>c1ccccc1CCC(O)C | c1ccccc1CCC(F)C: 20 reactions</title><path d="M150.0,86.0H308.0Q312.0,86.0 312.0,90.0V100.0Q312.0,104.0 308.0,104.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="99.0" text-anchor="end" fill="var(--text-secondary, #52514e)">c1ccccc1CCC(O)C | c…</text><text x="316.0" y="99.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g></svg><div class="moltip t0" aria-hidden="true" style="left: 8px; top: 30px"><div class="value">O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1</div><div class="value">F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-0"/></svg></div><div class="moltip t1" aria-hidden="true" style="left: 8px; top: 56px"><div class="value">O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1</div><div class="value">F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-1"/></svg></div><div class="moltip t2" aria-hidden="true" style="left: 8px; top: 82px"><div class="value">c1ccccc1-c2ccc(CO)cc2</div><div class="value">c1ccccc1-c2ccc(CF)cc2</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-2"/></svg></div><div class="moltip t3" aria-hidden="true" style="left: 8px; top: 108px"><div class="value">c1ccccc1CCC(O)C</div><div class="value">c1ccccc1CCC(F)C</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-3"/></svg></div></div><details class="values"><summary>Values shown, in full (4)</summary><table><thead><tr><th>Reactions</th><th>Value</th></tr></thead><tbody><tr><td>20</td><td><div class="value">O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1</div><div class="value">F[C@@H]1C[C@H](OCC2=CC=CC=C2)C1</div></td></tr><tr><td>20</td><td><div class="value">O[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1</div><div class="value">F[C@H]1C[C@@H](C(OC)=O)N(C(OC(C)(C)C)=O)C1</div></td></tr><tr><td>20</td><td><div class="value">c1ccccc1-c2ccc(CO)cc2</div><div class="value">c1ccccc1-c2ccc(CF)cc2</div></td></tr><tr><td>20</td><td><div class="value">c1ccccc1CCC(O)C</div><div class="value">c1ccccc1CCC(F)C</div></td></tr></tbody></table></details></figure><figure><figcaption><div><code>inputs[&quot;base&quot;].components[0].identifiers[0].value</code></div><div><span class="muted">categorical, 80 filled, 0 empty, 4 distinct</span></div></figcaption><div class="chart"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 112" width="360" height="112" role="img" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11"><title>inputs[&quot;base&quot;].components[0].identifiers[0].value</title><line x1="150" y1="2" x2="150" y2="108" stroke="var(--grid, #e2e1dc)" stroke-width="1"/><g class="b0" tabindex="0"><title>CC(C)(C)N=C(N(C)C)N(C)C: 20 reactions</title><path d="M150.0,8.0H308.0Q312.0,8.0 312.0,12.0V22.0Q312.0,26.0 308.0,26.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="21.0" text-anchor="end" fill="var(--text-secondary, #52514e)">CC(C)(C)N=C(N(C)C)…</text><text x="316.0" y="21.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g><g class="b1" tabindex="0"><title>CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3: 20 reactions</title><path d="M150.0,34.0H308.0Q312.0,34.0 312.0,38.0V48.0Q312.0,52.0 308.0,52.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="47.0" text-anchor="end" fill="var(--text-secondary, #52514e)">CC(C)(C)N=P(N1CCC…</text><text x="316.0" y="47.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g><g class="b2" tabindex="0"><title>CN1CCCN2C1=NCCC2: 20 reactions</title><path d="M150.0,60.0H308.0Q312.0,60.0 312.0,64.0V74.0Q312.0,78.0 308.0,78.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="73.0" text-anchor="end" fill="var(--text-secondary, #52514e)">CN1CCCN2C1=NCCC2</text><text x="316.0" y="73.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g><g class="b3" tabindex="0"><title>N\2=C1\N(CCCCC1)CCC/2: 20 reactions</title><path d="M150.0,86.0H308.0Q312.0,86.0 312.0,90.0V100.0Q312.0,104.0 308.0,104.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="99.0" text-anchor="end" fill="var(--text-secondary, #52514e)">N\2=C1\N(CCCCC1)…</text><text x="316.0" y="99.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">20</text></g></svg><div class="moltip t0" aria-hidden="true" style="left: 8px; top: 30px"><div class="value">CC(C)(C)N=C(N(C)C)N(C)C</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-4"/></svg></div><div class="moltip t1" aria-hidden="true" style="left: 8px; top: 56px"><div class="value">CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-5"/></svg></div><div class="moltip t2" aria-hidden="true" style="left: 8px; top: 82px"><div class="value">CN1CCCN2C1=NCCC2</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-6"/></svg></div><div class="moltip t3" aria-hidden="true" style="left: 8px; top: 108px"><div class="value">N\2=C1\N(CCCCC1)CCC/2</div><div class="count">20 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-7"/></svg></div></div><details class="values"><summary>Values shown, in full (4)</summary><table><thead><tr><th>Reactions</th><th>Value</th></tr></thead><tbody><tr><td>20</td><td><div class="value">CC(C)(C)N=C(N(C)C)N(C)C</div></td></tr><tr><td>20</td><td><div class="value">CC(C)(C)N=P(N1CCCC1)(N2CCCC2)N3CCCC3</div></td></tr><tr><td>20</td><td><div class="value">CN1CCCN2C1=NCCC2</div></td></tr><tr><td>20</td><td><div class="value">N\2=C1\N(CCCCC1)CCC/2</div></td></tr></tbody></table></details></figure><figure><figcaption><div><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[0].identifiers[0].value</code></div><div><span class="muted">categorical, 80 filled, 0 empty, 5 distinct</span></div></figcaption><div class="chart"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 138" width="360" height="138" role="img" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11"><title>inputs[&quot;sulfonyl fluoride solution&quot;].components[0].identifiers[0].value</title><line x1="150" y1="2" x2="150" y2="134" stroke="var(--grid, #e2e1dc)" stroke-width="1"/><g class="b0" tabindex="0"><title>C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F: 16 reactions</title><path d="M150.0,8.0H308.0Q312.0,8.0 312.0,12.0V22.0Q312.0,26.0 308.0,26.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="21.0" text-anchor="end" fill="var(--text-secondary, #52514e)">C(C(C(F)(F)S(=O)(=O)…</text><text x="316.0" y="21.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">16</text></g><g class="b1" tabindex="0"><title>Clc1ccc(S(=O)(=O)F)cc1: 16 reactions</title><path d="M150.0,34.0H308.0Q312.0,34.0 312.0,38.0V48.0Q312.0,52.0 308.0,52.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="47.0" text-anchor="end" fill="var(--text-secondary, #52514e)">Clc1ccc(S(=O)(=O)F)…</text><text x="316.0" y="47.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">16</text></g><g class="b2" tabindex="0"><title>O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O: 16 reactions</title><path d="M150.0,60.0H308.0Q312.0,60.0 312.0,64.0V74.0Q312.0,78.0 308.0,78.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="73.0" text-anchor="end" fill="var(--text-secondary, #52514e)">O=S(C1=CC=C(C(F)(…</text><text x="316.0" y="73.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">16</text></g><g class="b3" tabindex="0"><title>O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O: 16 reactions</title><path d="M150.0,86.0H308.0Q312.0,86.0 312.0,90.0V100.0Q312.0,104.0 308.0,104.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="99.0" text-anchor="end" fill="var(--text-secondary, #52514e)">O=S(C1=CC=C([N+]([…</text><text x="316.0" y="99.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">16</text></g><g class="b4" tabindex="0"><title>O=S(C1=CC=CC=N1)(F)=O: 16 reactions</title><path d="M150.0,112.0H308.0Q312.0,112.0 312.0,116.0V126.0Q312.0,130.0 308.0,130.0H150.0Z" fill="var(--series-1, #2a78d6)"/><text x="144.0" y="125.0" text-anchor="end" fill="var(--text-secondary, #52514e)">O=S(C1=CC=CC=N1)…</text><text x="316.0" y="125.0" text-anchor="start" fill="var(--text-primary, #0b0b0b)">16</text></g></svg><div class="moltip t0" aria-hidden="true" style="left: 8px; top: 30px"><div class="value">C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F</div><div class="count">16 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-8"/></svg></div><div class="moltip t1" aria-hidden="true" style="left: 8px; top: 56px"><div class="value">Clc1ccc(S(=O)(=O)F)cc1</div><div class="count">16 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-9"/></svg></div><div class="moltip t2" aria-hidden="true" style="left: 8px; top: 82px"><div class="value">O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O</div><div class="count">16 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-10"/></svg></div><div class="moltip t3" aria-hidden="true" style="left: 8px; top: 108px"><div class="value">O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O</div><div class="count">16 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-11"/></svg></div><div class="moltip t4" aria-hidden="true" style="left: 8px; top: 134px"><div class="value">O=S(C1=CC=CC=N1)(F)=O</div><div class="count">16 reactions</div><svg width="180" height="130" viewBox="0 0 180 130"><use href="#mol-12"/></svg></div></div><details class="values"><summary>Values shown, in full (5)</summary><table><thead><tr><th>Reactions</th><th>Value</th></tr></thead><tbody><tr><td>16</td><td><div class="value">C(C(C(F)(F)S(=O)(=O)F)(F)F)(C(F)(F)F)(F)F</div></td></tr><tr><td>16</td><td><div class="value">Clc1ccc(S(=O)(=O)F)cc1</div></td></tr><tr><td>16</td><td><div class="value">O=S(C1=CC=C(C(F)(F)F)C=C1)(F)=O</div></td></tr><tr><td>16</td><td><div class="value">O=S(C1=CC=C([N+]([O-])=O)C=C1)(F)=O</div></td></tr><tr><td>16</td><td><div class="value">O=S(C1=CC=CC=N1)(F)=O</div></td></tr></tbody></table></details></figure><figure><figcaption><div><code>outcomes[0].products[0].measurements[1].percentage.value</code></div><div><span class="muted">numeric, 80 filled, 0 empty, 51 distinct</span></div></figcaption><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 156" width="360" height="156" role="img" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11"><title>outcomes[0].products[0].measurements[1].percentage.value</title><line x1="36" y1="134" x2="352" y2="134" stroke="var(--grid, #e2e1dc)" stroke-width="1"/><text x="32.0" y="18.0" text-anchor="end" fill="var(--text-secondary, #52514e)">11</text><text x="32.0" y="134.0" text-anchor="end" fill="var(--text-secondary, #52514e)">0</text><g><title>1 to 5.9: 11 reactions</title><path d="M37.0,134.0V18.0Q37.0,14.0 41.0,14.0H46.8Q50.8,14.0 50.8,18.0V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>10.8 to 15.7: 6 reactions</title><path d="M68.6,134.0V72.5Q68.6,68.5 72.6,68.5H78.4Q82.4,68.5 82.4,72.5V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>15.7 to 20.6: 1 reactions</title><path d="M84.4,134.0V127.1Q84.4,123.1 88.4,123.1H94.2Q98.2,123.1 98.2,127.1V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>20.6 to 25.5: 4 reactions</title><path d="M100.2,134.0V94.4Q100.2,90.4 104.2,90.4H110.0Q114.0,90.4 114.0,94.4V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>25.5 to 30.4: 4 reactions</title><path d="M116.0,134.0V94.4Q116.0,90.4 120.0,90.4H125.8Q129.8,90.4 129.8,94.4V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>30.4 to 35.3: 3 reactions</title><path d="M131.8,134.0V105.3Q131.8,101.3 135.8,101.3H141.6Q145.6,101.3 145.6,105.3V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>35.3 to 40.2: 9 reactions</title><path d="M147.6,134.0V39.8Q147.6,35.8 151.6,35.8H157.4Q161.4,35.8 161.4,39.8V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>40.2 to 45.1: 5 reactions</title><path d="M163.4,134.0V83.5Q163.4,79.5 167.4,79.5H173.2Q177.2,79.5 177.2,83.5V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>45.1 to 50: 5 reactions</title><path d="M179.2,134.0V83.5Q179.2,79.5 183.2,79.5H189.0Q193.0,79.5 193.0,83.5V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>50 to 54.9: 5 reactions</title><path d="M195.0,134.0V83.5Q195.0,79.5 199.0,79.5H204.8Q208.8,79.5 208.8,83.5V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>54.9 to 59.8: 7 reactions</title><path d="M210.8,134.0V61.6Q210.8,57.6 214.8,57.6H220.6Q224.6,57.6 224.6,61.6V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>59.8 to 64.7: 5 reactions</title><path d="M226.6,134.0V83.5Q226.6,79.5 230.6,79.5H236.4Q240.4,79.5 240.4,83.5V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>64.7 to 69.6: 3 reactions</title><path d="M242.4,134.0V105.3Q242.4,101.3 246.4,101.3H252.2Q256.2,101.3 256.2,105.3V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>69.6 to 74.5: 1 reactions</title><path d="M258.2,134.0V127.1Q258.2,123.1 262.2,123.1H268.0Q272.0,123.1 272.0,127.1V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>74.5 to 79.4: 2 reactions</title><path d="M274.0,134.0V116.2Q274.0,112.2 278.0,112.2H283.8Q287.8,112.2 287.8,116.2V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>79.4 to 84.3: 5 reactions</title><path d="M289.8,134.0V83.5Q289.8,79.5 293.8,79.5H299.6Q303.6,79.5 303.6,83.5V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>84.3 to 89.2: 1 reactions</title><path d="M305.6,134.0V127.1Q305.6,123.1 309.6,123.1H315.4Q319.4,123.1 319.4,127.1V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>89.2 to 94.1: 2 reactions</title><path d="M321.4,134.0V116.2Q321.4,112.2 325.4,112.2H331.2Q335.2,112.2 335.2,116.2V134.0Z" fill="var(--series-1, #2a78d6)"/></g><g><title>94.1 to 99: 1 reactions</title><path d="M337.2,134.0V127.1Q337.2,123.1 341.2,123.1H347.0Q351.0,123.1 351.0,127.1V134.0Z" fill="var(--series-1, #2a78d6)"/></g><text x="36.0" y="149.0" text-anchor="start" fill="var(--text-secondary, #52514e)">1</text><text x="352.0" y="149.0" text-anchor="end" fill="var(--text-secondary, #52514e)">99</text><text x="194.0" y="149.0" text-anchor="middle" fill="var(--text-secondary, #52514e)">median 41</text></svg></figure></div><h3>Provenance</h3><p class="muted">The same for every reaction; see below.</p><details><summary>85 fields every reaction holds the same way</summary><div class="scroll"><table><thead><tr><th>Field</th><th>Value</th><th>Section</th></tr></thead><tbody><tr><td><code>identifiers[0].type</code></td><td>REACTION_TYPE</td><td>experiment</td></tr><tr><td><code>identifiers[0].value</code></td><td>deoxyfluorination</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[0].identifiers[0].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[0].amount.moles.value</code></td><td>0.10000000149011612</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[0].amount.moles.units</code></td><td>MILLIMOLE</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[0].reaction_role</code></td><td>REACTANT</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[0].is_limiting</code></td><td>True</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[1].identifiers[0].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[1].identifiers[0].value</code></td><td>C1CCOC1</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[1].amount.volume.value</code></td><td>125.0</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[1].amount.volume.units</code></td><td>MICROLITER</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[1].amount.volume_includes_solutes</code></td><td>True</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[1].reaction_role</code></td><td>SOLVENT</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].components[1].preparations[0].type</code></td><td>DRIED</td><td>experiment</td></tr><tr><td><code>inputs[&quot;alcohol in THF&quot;].addition_order</code></td><td>1</td><td>experiment</td></tr><tr><td><code>inputs[&quot;base&quot;].components[0].identifiers[0].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>inputs[&quot;base&quot;].components[0].amount.moles.value</code></td><td>0.15000000596046448</td><td>experiment</td></tr><tr><td><code>inputs[&quot;base&quot;].components[0].amount.moles.units</code></td><td>MILLIMOLE</td><td>experiment</td></tr><tr><td><code>inputs[&quot;base&quot;].components[0].reaction_role</code></td><td>REAGENT</td><td>experiment</td></tr><tr><td><code>inputs[&quot;base&quot;].addition_order</code></td><td>3</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[0].identifiers[0].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[0].amount.moles.value</code></td><td>0.10999999940395355</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[0].amount.moles.units</code></td><td>MILLIMOLE</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[0].reaction_role</code></td><td>REACTANT</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[0].is_limiting</code></td><td>False</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[1].identifiers[0].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[1].identifiers[0].value</code></td><td>C1CCOC1</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[1].amount.volume.value</code></td><td>125.0</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[1].amount.volume.units</code></td><td>MICROLITER</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[1].amount.volume_includes_solutes</code></td><td>True</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[1].reaction_role</code></td><td>SOLVENT</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].components[1].preparations[0].type</code></td><td>DRIED</td><td>experiment</td></tr><tr><td><code>inputs[&quot;sulfonyl fluoride solution&quot;].addition_order</code></td><td>2</td><td>experiment</td></tr><tr><td><code>setup.vessel.type</code></td><td>VIAL</td><td>experiment</td></tr><tr><td><code>setup.vessel.material.type</code></td><td>GLASS</td><td>experiment</td></tr><tr><td><code>setup.vessel.attachments[0].type</code></td><td>CAP</td><td>experiment</td></tr><tr><td><code>setup.vessel.volume.value</code></td><td>1.0</td><td>experiment</td></tr><tr><td><code>setup.vessel.volume.units</code></td><td>MILLILITER</td><td>experiment</td></tr><tr><td><code>setup.is_automated</code></td><td>False</td><td>experiment</td></tr><tr><td><code>conditions.temperature.control.type</code></td><td>AMBIENT</td><td>experiment</td></tr><tr><td><code>conditions.temperature.setpoint.value</code></td><td>20.0</td><td>experiment</td></tr><tr><td><code>conditions.temperature.setpoint.precision</code></td><td>5.0</td><td>experiment</td></tr><tr><td><code>conditions.temperature.setpoint.units</code></td><td>CELSIUS</td><td>experiment</td></tr><tr><td><code>conditions.pressure.control.type</code></td><td>SEALED</td><td>experiment</td></tr><tr><td><code>conditions.pressure.atmosphere.type</code></td><td>AIR</td><td>experiment</td></tr><tr><td><code>conditions.stirring.type</code></td><td>STIR_BAR</td><td>experiment</td></tr><tr><td><code>conditions.stirring.rate.type</code></td><td>HIGH</td><td>experiment</td></tr><tr><td><code>conditions.stirring.rate.rpm</code></td><td>600</td><td>experiment</td></tr><tr><td><code>workups[0].type</code></td><td>ADDITION</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[0].identifiers[0].type</code></td><td>NAME</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[0].identifiers[0].value</code></td><td>1-fluoronaphthalene</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[0].identifiers[1].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[0].identifiers[1].value</code></td><td>C1=CC=C2C(=C1)C=CC=C2F</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[0].amount.moles.value</code></td><td>0.10000000149011612</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[0].amount.moles.units</code></td><td>MILLIMOLE</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[0].reaction_role</code></td><td>INTERNAL_STANDARD</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].identifiers[0].type</code></td><td>NAME</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].identifiers[0].value</code></td><td>CDCl3</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].identifiers[1].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].identifiers[1].value</code></td><td>[2H]C(Cl)(Cl)Cl</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].amount.volume.value</code></td><td>250.0</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].amount.volume.units</code></td><td>MICROLITER</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].amount.volume_includes_solutes</code></td><td>True</td><td>experiment</td></tr><tr><td><code>workups[0].input.components[1].reaction_role</code></td><td>WORKUP</td><td>experiment</td></tr><tr><td><code>outcomes[0].reaction_time.value</code></td><td>48.0</td><td>experiment</td></tr><tr><td><code>outcomes[0].reaction_time.units</code></td><td>HOUR</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].identifiers[0].type</code></td><td>SMILES</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].is_desired_product</code></td><td>True</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].measurements[0].analysis_key</code></td><td>19f nmr of crude</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].measurements[0].type</code></td><td>IDENTITY</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].measurements[1].analysis_key</code></td><td>19f nmr of crude</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].measurements[1].type</code></td><td>YIELD</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].measurements[1].uses_internal_standard</code></td><td>True</td><td>experiment</td></tr><tr><td><code>outcomes[0].products[0].measurements[1].percentage.precision</code></td><td>4.800000190734863</td><td>experiment</td></tr><tr><td><code>outcomes[0].analyses[&quot;19f nmr of crude&quot;].type</code></td><td>NMR_OTHER</td><td>experiment</td></tr><tr><td><code>outcomes[0].analyses[&quot;19f nmr of crude&quot;].details</code></td><td>19F NMR using 1 equiv 1-fluoronaphthalene in chloroform as internal standard</td><td>experiment</td></tr><tr><td><code>outcomes[0].analyses[&quot;19f nmr of crude&quot;].instrument_manufacturer</code></td><td>Bruker</td><td>experiment</td></tr><tr><td><code>provenance.city</code></td><td>Princeton, NJ</td><td>provenance</td></tr><tr><td><code>provenance.doi</code></td><td>10.1021/jacs.8b01523</td><td>provenance</td></tr><tr><td><code>provenance.publication_url</code></td><td>https://pubs.acs.org/doi/10.1021/jacs.8b01523</td><td>provenance</td></tr><tr><td><code>provenance.record_created.time.value</code></td><td>2020-08-08</td><td>provenance</td></tr><tr><td><code>provenance.record_created.person.name</code></td><td>Connor W. Coley</td><td>provenance</td></tr><tr><td><code>provenance.record_created.person.orcid</code></td><td>0000-0002-8271-8723</td><td>provenance</td></tr><tr><td><code>provenance.record_created.person.organization</code></td><td>MIT</td><td>provenance</td></tr><tr><td><code>provenance.record_created.person.email</code></td><td>ccoley@mit.edu</td><td>provenance</td></tr></tbody></table></div></details></section><section><h2>Compounds</h2><p>20 distinct compounds, grouped by role. Values that disagree are listed, not resolved; rows with something to check are shaded.</p><div class="scroll"><section><h3>REACTANT (9)</h3>
 <table><thead><tr><th>Structure</th><th>Compound</th>
 <th>SMILES</th>
 <th>NAME</th>
@@ -3952,4 +4652,4 @@ Q 87.2 58.7, 88.2 58.7
 <td></td>
 <td></td></tr>
 </tbody></table>
-</section></section></main></body></html>
+</section></div></section></main></body></html>
