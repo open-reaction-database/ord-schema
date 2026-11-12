@@ -16,10 +16,12 @@
 
 import csv
 import pathlib
+import re
 
 import pytest
 
 from ord_schema import datasets, message_helpers, parquet
+from ord_schema.analysis.compounds import CompoundTable, StructureDrawings
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.review import report, structure
 from ord_schema.scripts import review_dataset
@@ -191,3 +193,52 @@ def test_the_script_refuses_an_unknown_profile(tmp_path):
         review_dataset.main(
             [f"--input={_NIELSEN}", f"--output_dir={tmp_path}", "--profile=bulk"]
         )
+
+
+def test_a_compounds_structure_is_drawn_once_and_shown_on_hover():
+    reactions = [
+        _reaction(f"r{i}", base=base, yield_=float(10 + i))
+        for i, base in enumerate(["CCN(CC)CC", "CN(C)C", "C1CCNCC1"] * 4)
+    ]
+    # Triethylamine as a solvent too, so it is in the cross-role index.
+    reactions[0].inputs["solvent"].components[0].identifiers[0].value = "CCN(CC)CC"
+    page = report.render_html(
+        report.build_report(dataset_pb2.Dataset(name="x", reactions=reactions))
+    )
+    # One symbol per structure, defined before the content that uses it.
+    symbols = re.findall(r'<symbol id="(mol-\d+)"', page)
+    assert len(symbols) == len(set(symbols)) >= 3
+    assert page.index("<symbol") < page.index("<main>")
+    for symbol in symbols:
+        assert f'href="#{symbol}"' in page
+    # The base chart's bars, and the cross-role index.
+    assert '<div class="chart"><svg' in page
+    assert re.search(r'<g class="b\d+" tabindex="0">', page)
+    cross = page[page.index("Compounds used in more than one role") :]
+    assert '<span class="mol" tabindex="0"><code>CCN(CC)CC</code>' in cross
+    assert ".moltip" in page
+
+
+def test_a_name_that_parses_as_smiles_gets_no_drawing():
+    drawings = StructureDrawings(CompoundTable())
+    assert drawings.tip("CO") is None
+    assert drawings.code("CO") == "<code>CO</code>"
+    assert drawings.defs() == ""
+
+
+def test_smiles_in_finding_examples_show_their_structure_on_hover():
+    reactions = [
+        _reaction(f"r{i}", base=base, yield_=float(10 + i))
+        for i, base in enumerate(["CCN(CC)CC", "CN(C)C"] * 3)
+    ]
+    # One name for two structures: the finding's examples are their SMILES.
+    for reaction in reactions:
+        reaction.inputs["base"].components[0].identifiers.add(type="NAME", value="base")
+    page = report.render_html(
+        report.build_report(dataset_pb2.Dataset(name="x", reactions=reactions))
+    )
+    findings = page[
+        page.index("Dataset-level findings") : page.index("Reaction validation")
+    ]
+    assert "name-structure-conflict" in findings
+    assert '<span class="mol" tabindex="0"><code>CN(C)C</code>' in findings
