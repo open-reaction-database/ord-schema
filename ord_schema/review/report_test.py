@@ -19,6 +19,7 @@ import pathlib
 import re
 
 import pytest
+from rdkit import Chem
 
 from ord_schema import datasets, message_helpers, parquet
 from ord_schema.analysis.compounds import CompoundTable, StructureDrawings
@@ -242,3 +243,24 @@ def test_smiles_in_finding_examples_show_their_structure_on_hover():
     ]
     assert "name-structure-conflict" in findings
     assert '<span class="mol" tabindex="0"><code>CN(C)C</code>' in findings
+
+
+def test_a_molblock_or_inchi_value_shows_its_structure_too():
+    reactions = []
+    for i, smiles in enumerate(["c1ccc2ccccc2c1", "N#Cc1ccc(C#N)cc1"] * 3):
+        reaction = _reaction(f"r{i}", base="CCN(CC)CC", yield_=float(10 + i))
+        catalyst = reaction.inputs["catalyst"].components.add()
+        catalyst.identifiers.add(
+            type="MOLBLOCK", value=Chem.MolToMolBlock(Chem.MolFromSmiles(smiles))
+        )
+        catalyst.reaction_role = reaction_pb2.ReactionRole.CATALYST
+        reactions.append(reaction)
+    review = report.build_report(dataset_pb2.Dataset(name="x", reactions=reactions))
+    drawings = StructureDrawings(review.evidence.summary.compounds)
+    molblock = reactions[0].inputs["catalyst"].components[0].identifiers[0].value
+    assert drawings.tip(molblock) is not None
+    assert drawings.tip(Chem.MolToInchi(Chem.MolFromSmiles("c1ccc2ccccc2c1")))
+    # A structure the dataset doesn't record gets none.
+    assert drawings.tip(Chem.MolToMolBlock(Chem.MolFromSmiles("CCCC"))) is None
+    page = report.render_html(review)
+    assert re.search(r'<g class="b\d+" tabindex="0">', page)
