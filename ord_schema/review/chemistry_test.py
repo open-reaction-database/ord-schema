@@ -267,3 +267,26 @@ def test_the_report_and_packet_carry_the_chemistry_findings(tmp_path):
     data = json.loads((tmp_path / "packet" / "review.json").read_text())
     assert [f["check"] for f in data["chemistry_findings"]] == ["element-conservation"]
     assert review.severity_counts()[Severity.WARNING] >= 1
+
+
+def test_a_crude_input_could_bring_the_element():
+    # Step 2 uses step 1's crude product, which carries the bromine.
+    reaction = _reaction("OB(O)c1ccccc1", product="Brc1ccc(-c2ccccc2)cc1")
+    reaction.inputs["crude"].crude_components.add(reaction_id="step-1")
+    assert "element-conservation" not in _checks(reaction)
+
+
+def test_a_yield_measured_two_ways_counts_once():
+    reaction = _reaction()
+    product = reaction.outcomes[0].products[0]
+    del product.measurements[:]
+    product.measurements.add(type="YIELD", analysis_key="nmr").percentage.value = 82
+    product.measurements.add(
+        type="YIELD", analysis_key="isolated"
+    ).percentage.value = 74
+    assert "yield-sum" not in _checks(reaction)
+
+
+def test_every_check_is_keyed_by_the_id_its_findings_carry():
+    assert {"radical", "net-charge"} <= set(chemistry.CHECKS)
+    assert "radicals-and-charges" not in chemistry.CHECKS
