@@ -182,7 +182,8 @@ def test_categories_beyond_the_chart_fold_into_a_line_of_text(monkeypatch):
 
 def test_an_empty_value_listed_does_not_count_against_the_distinct_ones():
     # 14 distinct values plus empty, the most common; the chart shows 12 bars.
-    categories = [((None,), 30)] + [((f"v{i}",), 20 - i) for i in range(14)]
+    categories: list[tuple[tuple[object, ...], int]] = [((None,), 30)]
+    categories += [((f"v{i}",), 20 - i) for i in range(14)]
     stat = columns.ColumnStats(
         column="c",
         columns=["c"],
