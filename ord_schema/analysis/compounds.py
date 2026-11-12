@@ -380,7 +380,11 @@ class CompoundTable:
         return _render_html(self, title or "Compounds")
 
     def to_html_sections(
-        self, *, heading: str = "h3", max_rows: int | None = None
+        self,
+        *,
+        heading: str = "h3",
+        max_rows: int | None = None,
+        drawings: "StructureDrawings | None" = None,
     ) -> str:
         """Returns the table's sections as HTML to embed in another page.
 
@@ -393,8 +397,14 @@ class CompoundTable:
             max_rows: The most compounds to show in the cross-role index and per
                 role; the rest are counted in a line pointing to the CSV, which
                 always holds every compound.
+            drawings: If given, the cross-role index shows each SMILES's drawing on
+                hover, from these; the page must include ``drawings.defs()``.
         """
-        return "\n".join(_render_sections(self, heading=heading, max_rows=max_rows))
+        return "\n".join(
+            _render_sections(
+                self, heading=heading, max_rows=max_rows, drawings=drawings
+            )
+        )
 
 
 def _counts(counter: Counter[str]) -> str:
@@ -512,12 +522,96 @@ def _record_for(
 
 
 @functools.lru_cache(maxsize=4096)
+def _smiles_cell(smiles: str, drawings: "StructureDrawings | None") -> str:
+    if drawings is None:
+        return f"<code>{html.escape(smiles)}</code>"
+    return drawings.code(smiles)
+
+
+class StructureDrawings:
+    """Structure drawings for a page, each drawn once and shown on hover.
+
+    Built from a compound table, so a value gets a drawing only if it is the SMILES
+    of a compound the dataset records, never a name that happens to parse as one.
+    Each structure used is drawn once, as an SVG ``<symbol>`` in :meth:`defs`, and
+    every hover panel refers to it, so a compound shown in many places costs one
+    drawing. A page styles the panels with ``columns.TOOLTIP_CSS`` and ``CSS``.
+    """
+
+    # Shows a value's drawing in the window's corner while it is hovered or
+    # focused: fixed in place, it can't be cut off by a table that scrolls or move
+    # the table's layout, and it ignores the pointer.
+    CSS = (
+        ".mol .moltip { position: fixed; right: 16px; bottom: 16px; z-index: 30; "
+        "pointer-events: none; }\n"
+        ".mol:hover > .moltip, .mol:focus > .moltip { display: block; }\n"
+    )
+
+    def __init__(self, table: CompoundTable) -> None:
+        """Indexes every SMILES the table's compounds were recorded with."""
+        self._canonical: dict[str, str] = {}
+        for record in table.records():
+            if not record.smiles:
+                continue
+            for value in {record.smiles, *record.smiles_variants}:
+                self._canonical.setdefault(value, record.smiles)
+        self._symbols: dict[str, tuple[str, str]] = {}
+
+    def tip(self, value: object) -> str | None:
+        """The drawing to show for ``value``, or None if it is no known SMILES."""
+        smiles = self._canonical.get(str(value))
+        if smiles is None:
+            return None
+        if smiles not in self._symbols:
+            svg = _structure_svg(smiles)
+            body = svg[svg.index(">") + 1 : svg.rindex("</svg>")] if svg else ""
+            self._symbols[smiles] = (f"mol-{len(self._symbols)}", body)
+        symbol, body = self._symbols[smiles]
+        if not body:
+            return None
+        return (
+            f'<svg width="{_DRAWING_WIDTH}" height="{_DRAWING_HEIGHT}" '
+            f'viewBox="0 0 {_DRAWING_WIDTH} {_DRAWING_HEIGHT}">'
+            f'<use href="#{symbol}"/></svg>'
+        )
+
+    def code(self, value: str) -> str:
+        """``value`` as code, with its drawing on hover if it has one."""
+        text = f"<code>{html.escape(value)}</code>"
+        tip = self.tip(value)
+        if tip is None:
+            return text
+        return (
+            f'<span class="mol" tabindex="0">{text}'
+            f'<span class="moltip" aria-hidden="true">{tip}</span></span>'
+        )
+
+    def defs(self) -> str:
+        """The drawings used so far, for the page to include once, anywhere."""
+        symbols = "".join(
+            f'<symbol id="{symbol}" viewBox="0 0 {_DRAWING_WIDTH} {_DRAWING_HEIGHT}">'
+            f"{body}</symbol>"
+            for symbol, body in self._symbols.values()
+            if body
+        )
+        if not symbols:
+            return ""
+        return (
+            '<svg width="0" height="0" style="position: absolute" aria-hidden="true">'
+            f"<defs>{symbols}</defs></svg>"
+        )
+
+
+_DRAWING_WIDTH = 180
+_DRAWING_HEIGHT = 130
+
+
 def _structure_svg(smiles: str) -> str:
     """Returns an inline SVG drawing of ``smiles``, or "" if it cannot be drawn."""
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return ""
-    drawer = rdMolDraw2D.MolDraw2DSVG(180, 130)
+    drawer = rdMolDraw2D.MolDraw2DSVG(_DRAWING_WIDTH, _DRAWING_HEIGHT)
     drawer.drawOptions().clearBackground = False
     try:
         rdMolDraw2D.PrepareAndDrawMolecule(drawer, mol)
@@ -608,7 +702,11 @@ def _render_html(table: CompoundTable, title: str) -> str:
 
 
 def _render_sections(
-    table: CompoundTable, *, heading: str, max_rows: int | None
+    table: CompoundTable,
+    *,
+    heading: str,
+    max_rows: int | None,
+    drawings: "StructureDrawings | None" = None,
 ) -> list[str]:
     """The cross-role index and one table per role, as HTML parts."""
     parts: list[str] = []
@@ -624,7 +722,7 @@ def _render_sections(
         parts.extend(
             f"<tr><td>{html.escape(record.label)}</td>"
             f"<td>{html.escape(_counts(record.roles))}</td>"
-            f"<td><code>{html.escape(record.smiles)}</code></td></tr>"
+            f"<td>{_smiles_cell(record.smiles, drawings)}</td></tr>"
             for record in shown
         )
         parts.append("</tbody></table>")

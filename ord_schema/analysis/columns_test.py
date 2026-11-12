@@ -16,6 +16,7 @@
 
 import csv
 import pathlib
+import re
 import xml.etree.ElementTree as ET
 
 import pytest
@@ -214,3 +215,45 @@ def test_a_real_screen():
     kinds = [stat.kind for stat in stats]
     assert kinds == ["categorical", "categorical", "categorical", "numeric"]
     assert [stat.distinct for stat in stats] == [4, 4, 5, 51]
+
+
+def test_bars_with_a_drawing_show_it_on_hover_and_focus():
+    stat = _stats()[_BASE_SMILES]
+
+    def drawing(value: object) -> str | None:
+        return "<svg>trimethylamine</svg>" if value == "CN(C)C" else None
+
+    page = stat.to_html(drawing=drawing)
+    assert page.startswith('<div class="chart"><svg')
+    svg = page[page.index("<svg") : page.index("</svg>") + len("</svg>")]
+    root = _parse(svg)
+    marked = [g for g in root.iter(f"{_SVG}g") if g.get("class")]
+    (bar,) = marked
+    assert bar.get("tabindex") == "0"
+    index = str(bar.get("class"))[1:]
+    tip = re.search(
+        rf'<div class="moltip t{index}" aria-hidden="true" style="([^"]*)">', page
+    )
+    assert tip is not None
+    assert page[tip.end() :].startswith("<svg>trimethylamine")
+    # Placed beside its bar, inside the chart, so nothing around it clips it.
+    left, top = (int(n) for n in re.findall(r"(\d+)px", tip.group(1)))
+    assert left + columns.TIP_WIDTH <= 360
+    assert top >= 0
+    assert f".chart:has(.b{index}:hover, .b{index}:focus) .t{index}" in (
+        columns.TOOLTIP_CSS
+    )
+
+
+def test_a_chart_with_no_drawings_is_the_bare_svg():
+    stat = _stats()[_BASE_SMILES]
+    assert stat.to_html(drawing=lambda value: None) == stat.to_svg()
+
+
+@pytest.mark.parametrize("index", range(3))
+def test_a_drawing_fits_inside_its_chart(index):
+    stat = _stats()[_BASE_SMILES]
+    top = columns._tip_top(stat, index)
+    room = max(len(stat.categories) * columns._ROW + 8, columns.TIP_HEIGHT + 8)
+    assert top >= 0
+    assert top + columns.TIP_HEIGHT <= room
