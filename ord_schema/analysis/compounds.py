@@ -54,6 +54,13 @@ from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
 
 _IdentifierType = reaction_pb2.CompoundIdentifier.CompoundIdentifierType
+
+# The CSV columns every row has, before and after one column per identifier type.
+_LEADING_COLUMNS = ["key", "label", "smiles", "roles", "locations", "reaction_count"]
+_TRAILING_COLUMNS = ["smiles_variants", "details", "conflicts", "example_reaction_ids"]
+
+# Identifier types whose values are SMILES strings, so can be variants of one.
+_SMILES_TYPES = (_IdentifierType.SMILES, _IdentifierType.CXSMILES)
 _RoleType = reaction_pb2.ReactionRole.ReactionRoleType
 
 # Where in a reaction a compound was recorded.
@@ -357,11 +364,7 @@ class CompoundTable:
     def write_csv(self, path: str | os.PathLike[str]) -> None:
         """Writes the table as CSV, one row per compound."""
         rows = list(self.rows())
-        fields = (
-            list(rows[0])
-            if rows
-            else ["key", "label", "smiles", "roles", "locations", "reaction_count"]
-        )
+        fields = list(rows[0]) if rows else _LEADING_COLUMNS + _TRAILING_COLUMNS
         with pathlib.Path(path).open("w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fields)
             writer.writeheader()
@@ -422,6 +425,7 @@ def _record_for(
     """Returns a one-observation record for a compound, keyed by its identity."""
     assert compound is not None
     structures: dict[str, str] = {}
+    smiles_values: set[str] = set()
     problems: set[str] = set()
     for identifier in message_helpers.structural_identifiers(compound):
         canonical = message_helpers.canonical_smiles_for_identifier(
@@ -432,6 +436,8 @@ def _record_for(
             problems.add(f"unreadable {type_name}: {identifier.value}")
         else:
             structures[identifier.value] = canonical
+            if identifier.type in _SMILES_TYPES:
+                smiles_values.add(identifier.value)
     distinct = sorted(set(structures.values()))
     if len(distinct) > 1:
         problems.add(
@@ -456,8 +462,12 @@ def _record_for(
         key = "unidentified"
 
     record = CompoundRecord(key=key, smiles=smiles, problems=problems)
+    # Only SMILES-type values: an InChI or MOLBLOCK for the same structure is not a
+    # second way of writing its SMILES.
     record.smiles_variants = {
-        value for value, canonical in structures.items() if canonical == smiles
+        value
+        for value, canonical in structures.items()
+        if canonical == smiles and value in smiles_values
     }
     role = compound.reaction_role
     if (

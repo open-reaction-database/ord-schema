@@ -16,6 +16,8 @@
 
 import csv
 
+from rdkit import Chem
+
 from ord_schema import message_helpers
 from ord_schema.analysis import compounds
 from ord_schema.proto import reaction_pb2
@@ -220,7 +222,42 @@ def test_the_csv_has_a_column_for_each_identifier_type_in_use(tmp_path):
 def test_an_empty_table_still_writes_a_csv_header(tmp_path):
     path = tmp_path / "compounds.csv"
     compounds.CompoundTable().write_csv(path)
-    assert path.read_text().startswith("key,label,smiles")
+    assert path.read_text().splitlines() == [
+        "key,label,smiles,roles,locations,reaction_count,"
+        "smiles_variants,details,conflicts,example_reaction_ids"
+    ]
+    # A non-empty table has the same columns, plus one per identifier type in use.
+    table = _table(
+        _reaction("r1", message_helpers.build_compound(smiles="CCO", role="solvent"))
+    )
+    table.write_csv(path)
+    header = path.read_text().splitlines()[0].split(",")
+    assert [c for c in header if c != "SMILES"] == [
+        "key",
+        "label",
+        "smiles",
+        "roles",
+        "locations",
+        "reaction_count",
+        "smiles_variants",
+        "details",
+        "conflicts",
+        "example_reaction_ids",
+    ]
+
+
+def test_an_inchi_or_molblock_is_not_a_smiles_variant():
+    ethanol = message_helpers.build_compound(smiles="CCO", role="solvent")
+    ethanol.identifiers.add(type="INCHI", value="InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3")
+    benzene = message_helpers.build_compound(smiles="c1ccccc1", role="solvent")
+    benzene.identifiers.add(
+        type="MOLBLOCK",
+        value=Chem.MolToMolBlock(Chem.MolFromSmiles("c1ccccc1")),
+    )
+    table = _table(_reaction("r1", ethanol, benzene))
+    for record in table.records():
+        assert len(record.smiles_variants) == 1
+    assert all(row["smiles_variants"] == "" for row in table.rows())
 
 
 def test_the_html_page_is_self_contained_and_escapes_what_it_shows(tmp_path):
