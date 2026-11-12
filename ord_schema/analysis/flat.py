@@ -20,9 +20,10 @@ one input. A column is *constant* when every reaction holds it with the same val
 those are left out of the table and listed separately, with their values, so a reader
 sees what the dataset varies and, beside it, what it held fixed.
 
-The columns kept and dropped are exactly those of
+With ``date_resolution=None``, the columns kept and dropped are exactly those of
 ``message_helpers.messages_to_dataframe(reactions, drop_constant_columns=True)``,
-with ``reaction_id`` moved to the front.
+with ``reaction_id`` moved to the front. At the default ``"day"``, two times on one
+day are one value here, so a column that varies only within a day is constant.
 That helper builds every column of every reaction before dropping the constant ones,
 and does not return them. This reads the reactions once, keeping values only for
 columns that have varied so far: while a column is constant, all it needs to remember
@@ -80,17 +81,19 @@ _DATE_FORMATS: dict[str, str] = {
     "second": "%Y-%m-%d %H:%M:%S",
 }
 
-# A map key or repeated-field index in a message_to_row column name.
-_SUBSCRIPT = re.compile(r'\["[^"]*"\]|\[\d+\]')
+# A repeated-field index, and a map key or index, in a message_to_row column name.
+_INDEX = re.compile(r"\[\d+\]")
+_SUBSCRIPT = re.compile(rf'\["[^"]*"\]|{_INDEX.pattern}')
 
 
-def field_path(column: str) -> str:
-    """The field path a column names, without its map keys and indices.
+def field_path(column: str, *, keep_keys: bool = False) -> str:
+    """The field path a column names, without its indices and, by default, map keys.
 
     ``inputs["base"].components[0].identifiers[1].value`` names the field
-    ``inputs.components.identifiers.value``.
+    ``inputs.components.identifiers.value``; with ``keep_keys``, the field in that
+    input, ``inputs["base"].components.identifiers.value``.
     """
-    return _SUBSCRIPT.sub("", column)
+    return (_INDEX if keep_keys else _SUBSCRIPT).sub("", column)
 
 
 def is_provenance(column: str) -> bool:
@@ -306,7 +309,7 @@ class FlatTable:
             self.varying.to_csv(f, index=False)
 
     def write_constants_csv(self, path: str | os.PathLike[str]) -> None:
-        """Writes the constant fields, one row each: ``field`` and ``value``."""
+        """Writes the constant fields, one row each: field, value and section."""
         with pathlib.Path(path).open("w", newline="", encoding="utf-8") as f:
             self.constants_frame().to_csv(f, index=False)
 
