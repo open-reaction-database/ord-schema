@@ -194,3 +194,18 @@ def test_scoring_does_not_change_the_reaction():
     before = reaction.SerializeToString(deterministic=True)
     completeness.score_reaction(reaction)
     assert reaction.SerializeToString(deterministic=True) == before
+
+
+def test_levels_follow_the_rubric_scored_against():
+    shipped = completeness.load_rubric()
+    rubric = dataclasses.replace(
+        shipped,
+        levels=("everything",),
+        items=tuple(
+            dataclasses.replace(item, level="everything") for item in shipped.items
+        ),
+    )
+    reaction = _complete_reaction()
+    score = completeness.score_reaction(reaction, rubric=rubric)
+    assert list(score.levels) == ["everything"]
+    assert score.levels["everything"] == score.overall

@@ -66,6 +66,12 @@ class _Row:
     score: completeness.CompletenessScore
 
 
+def _mean(values: list[float | None]) -> float | None:
+    """The mean of the values present, or None if none is."""
+    present = [v for v in values if v is not None]
+    return sum(present) / len(present) if present else None
+
+
 class CompletenessRollup:
     """Scores a dataset's reactions as they stream past, and rolls the scores up."""
 
@@ -115,20 +121,15 @@ class CompletenessRollup:
         """How many reactions have been scored."""
         return len(self._rows)
 
-    @staticmethod
-    def _mean(values: list[float | None]) -> float | None:
-        present = [v for v in values if v is not None]
-        return sum(present) / len(present) if present else None
-
     def mean_overall(self) -> float | None:
         """The mean of the reactions' overall scores."""
-        return self._mean([row.score.overall for row in self._rows])
+        return _mean([row.score.overall for row in self._rows])
 
     def mean_levels(self) -> dict[str, float | None]:
         """The mean score of each message level, in rubric order."""
         levels = [row.score.levels for row in self._rows]
         return {
-            level: self._mean([scores[level] for scores in levels])
+            level: _mean([scores[level] for scores in levels])
             for level in self.rubric.levels
         }
 

@@ -15,9 +15,11 @@
 """Tests for ord_schema.review.completeness."""
 
 import csv
+import dataclasses
 
 import pytest
 
+from ord_schema import completeness as core
 from ord_schema import completeness_test
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.review import completeness, report
@@ -85,3 +87,17 @@ def test_the_report_rolls_completeness_up(tmp_path):
     assert [(r["check"], r["severity"], r["reactions"]) for r in rows] == [
         ("atmosphere", "INFO", "3")
     ]
+
+
+def test_a_rollup_against_a_custom_rubric_reports_its_levels():
+    shipped = core.load_rubric()
+    rubric = dataclasses.replace(
+        shipped,
+        levels=("everything",),
+        items=tuple(
+            dataclasses.replace(item, level="everything") for item in shipped.items
+        ),
+    )
+    rollup = completeness.CompletenessRollup(rubric=rubric)
+    rollup.observe(reaction_pb2.Reaction(reaction_id="r1"), "r1")
+    assert list(rollup.mean_levels()) == ["everything"]

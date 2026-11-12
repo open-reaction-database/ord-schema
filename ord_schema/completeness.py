@@ -249,6 +249,15 @@ class ItemScore:
         return (self.have or 0) / self.of
 
 
+def _weighted(scores: list[ItemScore]) -> float | None:
+    """The weighted mean score of the items that apply, or None if none does."""
+    applying = [s for s in scores if s.score is not None]
+    total = sum(s.weight for s in applying)
+    if not total:
+        return None
+    return sum(s.weight * (s.score or 0.0) for s in applying) / total
+
+
 @dataclasses.dataclass(frozen=True)
 class CompletenessScore:
     """A reaction's completeness against the rubric.
@@ -257,33 +266,25 @@ class CompletenessScore:
         profile: The profile the weights came from.
         rubric_version: The rubric's version.
         items: Each rubric item's score, in rubric order.
+        rubric_levels: The rubric's message levels, in its order.
     """
 
     profile: str
     rubric_version: str
     items: tuple[ItemScore, ...]
-
-    @staticmethod
-    def _weighted(scores: list[ItemScore]) -> float | None:
-        applying = [s for s in scores if s.score is not None]
-        total = sum(s.weight for s in applying)
-        if not total:
-            return None
-        return sum(s.weight * (s.score or 0.0) for s in applying) / total
+    rubric_levels: tuple[str, ...]
 
     @property
     def overall(self) -> float | None:
         """The weighted mean over every item that applies, or None if none does."""
-        return self._weighted(list(self.items))
+        return _weighted(list(self.items))
 
     @property
     def levels(self) -> dict[str, float | None]:
-        """The weighted mean for each message level, in rubric order."""
-        levels = dict.fromkeys(load_rubric().levels)
+        """The weighted mean for each of the rubric's message levels, in its order."""
+        levels: dict[str, float | None] = dict.fromkeys(self.rubric_levels)
         for level in levels:
-            levels[level] = self._weighted(
-                [s for s in self.items if s.item.level == level]
-            )
+            levels[level] = _weighted([s for s in self.items if s.item.level == level])
         return levels
 
     def missing(self) -> list[ItemScore]:
@@ -337,7 +338,10 @@ def score_reaction(
             ItemScore(item=item, weight=item.weights[profile], have=have, of=of)
         )
     return CompletenessScore(
-        profile=profile, rubric_version=rubric.version, items=tuple(scores)
+        profile=profile,
+        rubric_version=rubric.version,
+        items=tuple(scores),
+        rubric_levels=rubric.levels,
     )
 
 
