@@ -21,7 +21,7 @@ import re
 
 from ord_schema import datasets, message_helpers
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.review import packet, report
+from ord_schema.review import packet, report, structure
 from ord_schema.scripts import review_dataset
 
 _NIELSEN = (
@@ -185,3 +185,31 @@ def test_tidying_spaces_blocks_but_never_touches_code():
         "# Title\n\ntext\n\n- a\n- b\n\nmore\n\n"
         "````text\n# not a heading\n- not a list\n\n\n````\n\n### End\n"
     )
+
+
+def test_shapes_are_capped_with_a_count_of_the_rest():
+    flags = [
+        "is_heterogeneous",
+        "forms_precipitate",
+        "is_exothermic",
+        "offgasses",
+        "is_sensitive_to_moisture",
+        "is_sensitive_to_oxygen",
+        "is_sensitive_to_light",
+    ]
+    reactions = []
+    for i in range(2 ** len(flags)):
+        reaction = _reaction(i)
+        for bit, flag in enumerate(flags):
+            if i >> bit & 1:
+                setattr(reaction.notes, flag, True)
+        reactions.append(reaction)
+    review = report.build_report(
+        dataset_pb2.Dataset(name="varied", reactions=reactions),
+        structure.ValidationProfile.VARIED,
+    )
+    built = packet.build_packet(review)
+    data = json.loads(built.json_text)
+    assert data["shapes_total"] == 2 ** len(flags)
+    assert len(data["shapes"]) == packet._Limits().shapes
+    assert "more ways, each used by fewer reactions" in built.markdown

@@ -9,7 +9,7 @@
   "reactions": 80,
   "profile": "uniform"
  },
- "generated": "2026-11-11 08:57 UTC",
+ "generated": "2026-11-12 15:28 UTC",
  "ord_schema_version": "0.9.6",
  "counts": {
   "INFO": 0,
@@ -83,6 +83,7 @@
    "fields": 98
   }
  ],
+ "shapes_total": 1,
  "columns": {
   "varying": 5,
   "constant": 85,
@@ -239,6 +240,7 @@
   "total": 20,
   "with_something_to_check": 0,
   "name_conflicts": {},
+  "name_conflicts_total": 0,
   "flagged": [],
   "in_more_than_one_role": []
  },
