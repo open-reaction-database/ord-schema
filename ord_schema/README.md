@@ -95,7 +95,10 @@ its own extra:
   installs `analysis`.
 
 `review_dataset` writes the review report bundle: one HTML page for the reviewer and
-the tables behind it ([example](../examples/demo/review_report/)).
+the tables behind it ([example](../examples/demo/review_report/)). `review_corpus` runs
+the same review over many datasets, local or fetched from the ord-data mirror, and
+tabulates the findings, one row per dataset and profile; it also needs the
+`huggingface` extra.
 
 `review` may import from `analysis`, never the reverse;
 [`dependencies_test.py`](dependencies_test.py) holds both to that.
@@ -106,6 +109,8 @@ the tables behind it ([example](../examples/demo/review_report/)).
 python -m ord_schema.scripts.validate_dataset --input_pattern='data/*/*.parquet'
 
 python -m ord_schema.scripts.review_dataset --input=dataset.pb.gz --output_dir=review/
+
+python -m ord_schema.scripts.review_corpus --from_huggingface --output_dir=corpus/
 
 python -m ord_schema.scripts.build_dataset --input_pattern='reactions/*.pbtxt' \
     --name=... --description=... --output=dataset.pb.gz
