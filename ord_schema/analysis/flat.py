@@ -69,7 +69,7 @@ from ord_schema import message_helpers, validations
 from ord_schema.proto import reaction_pb2
 
 if TYPE_CHECKING:
-    from google.protobuf.descriptor import Descriptor
+    from google.protobuf.descriptor import Descriptor, FieldDescriptor
 
 # How finely DateTime values are compared, as strftime formats.
 DateResolution = Literal["month", "day", "hour", "minute", "second"]
@@ -91,25 +91,46 @@ def is_provenance(column: str) -> bool:
 
 
 @functools.lru_cache(maxsize=4096)
+def field_for(column: str) -> "FieldDescriptor | None":
+    """Returns the proto field a column or field path names, or None if none.
+
+    Accepts ``message_to_row`` columns and summary paths alike: map keys and
+    repeated-field indices are ignored, and a map's entries are looked up through
+    its value type. Read from the proto descriptors, so it follows the schema.
+    """
+    descriptor = cast("Descriptor", reaction_pb2.Reaction.DESCRIPTOR)
+    names = _SUBSCRIPT.sub("", column).split(".")
+    field = None
+    for index, name in enumerate(names):
+        field = descriptor.fields_by_name.get(name)
+        if field is None:
+            return None
+        if index == len(names) - 1:
+            break
+        if field.message_type is None:
+            return None
+        descriptor = field.message_type
+        if descriptor.GetOptions().map_entry:
+            value = descriptor.fields_by_name["value"]
+            if value.message_type is None:
+                # A map of scalars: the next name is the entry's own "value".
+                return value if names[index + 1 :] == ["value"] else None
+            descriptor = value.message_type
+    return field
+
+
 def is_datetime(column: str) -> bool:
     """Whether ``column`` is the value of a ``DateTime`` message.
 
     Read from the proto descriptors, so a ``DateTime`` field added to the schema is
     recognized without a change here.
     """
-    descriptor = cast("Descriptor", reaction_pb2.Reaction.DESCRIPTOR)
-    names = _SUBSCRIPT.sub("", column).split(".")
-    for name in names[:-1]:
-        field = descriptor.fields_by_name.get(name)
-        if field is None or field.message_type is None:
-            return False
-        descriptor = field.message_type
-        if descriptor.GetOptions().map_entry:
-            value_type = descriptor.fields_by_name["value"].message_type
-            if value_type is None:
-                return False
-            descriptor = value_type
-    return descriptor is reaction_pb2.DateTime.DESCRIPTOR and names[-1] == "value"
+    field = field_for(column)
+    return (
+        field is not None
+        and field.containing_type is reaction_pb2.DateTime.DESCRIPTOR
+        and field.name == "value"
+    )
 
 
 def _bin_date(
