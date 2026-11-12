@@ -80,6 +80,22 @@ in favor of the derived Parquet above:
 - [`orm/`](orm/) maps the protos into PostgreSQL through SQLAlchemy, one table per
   message type. ([README](orm/README.md))
 
+## Reviewing a dataset
+
+Two subpackages, in development under
+[#1043](https://github.com/open-reaction-database/ord-schema/issues/1043), each behind
+its own extra:
+
+- [`analysis/`](analysis/) summarizes what a dataset holds: which fields its reactions
+  populate, its compounds and their roles, the same reactions as a table. Useful beyond
+  review. Needs the `analysis` extra.
+- [`review/`](review/) builds peer review on those summaries: dataset-level checks, a
+  completeness score, and the report a reviewer reads. Needs the `review` extra, which
+  installs `analysis`.
+
+`review` may import from `analysis`, never the reverse;
+[`dependencies_test.py`](dependencies_test.py) holds both to that.
+
 ## Command-line entry points
 
 ```bash
