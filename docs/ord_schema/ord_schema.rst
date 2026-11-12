@@ -28,6 +28,14 @@ ord\_schema.atomic\_io
    :show-inheritance:
    :undoc-members:
 
+ord\_schema.completeness
+------------------------
+
+.. automodule:: ord_schema.completeness
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 ord\_schema.datasets
 --------------------
 

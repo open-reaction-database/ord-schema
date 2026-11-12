@@ -8,7 +8,8 @@ as `review_dataset` writes it:
   page a reviewer reads. Download it and open it in a browser. It is self-contained and
   follows the browser's light or dark theme.
 - [`tables/`](tables/): every table behind the page, complete:
-  - `findings.csv`: dataset-level and validation findings;
+  - `findings.csv`: dataset-level, validation and completeness findings;
+  - `completeness.csv`: each reaction's completeness score, and what it lacks;
   - `compounds.csv`: every compound;
   - `flat.csv`: the varying fields, one row per reaction;
   - `constants.csv`: the fields every reaction holds the same way;
@@ -20,6 +21,7 @@ as `review_dataset` writes it:
 
 The screen is recorded consistently, so the dataset-level checks find nothing. The one
 validation warning, raised by all 80 reactions, is a record time without a UTC offset.
+Completeness is 96%: every reaction gives its compounds as SMILES without names.
 The exemplars are one reaction for its single shape, and the reactions with the lowest
 and highest yield.
 

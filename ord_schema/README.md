@@ -43,6 +43,7 @@ flowchart TB
 | [`templating.py`](templating.py) | enumerates a Dataset from one template reaction and a spreadsheet |
 | [`resolvers.py`](resolvers.py) | turns a name or an identifier string into a structured message; calls external services |
 | [`validations.py`](validations.py) | what a message must satisfy to be publishable |
+| [`completeness.py`](completeness.py) | how completely a reaction records the details a reader expects, scored against [`completeness_rubric.json`](completeness_rubric.json); advisory, never part of validation |
 | [`updates.py`](updates.py) | automated edits applied to a `Reaction` before it is stored |
 
 ## Storing a dataset

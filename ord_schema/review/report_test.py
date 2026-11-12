@@ -107,10 +107,15 @@ def test_the_bundle_holds_the_page_and_every_table(tmp_path):
         "constants.csv",
         "column_stats.csv",
         "exemplars.txtpb",
+        "completeness.csv",
     }
     with (tmp_path / "tables" / "findings.csv").open(newline="") as f:
         rows = list(csv.DictReader(f))
-    assert {row["source"] for row in rows} == {"structure", "validation"}
+    assert {row["source"] for row in rows} == {
+        "structure",
+        "validation",
+        "completeness",
+    }
     assert any(row["check"] == "mixed-sourcing" for row in rows)
 
 
@@ -125,6 +130,7 @@ def test_the_page_is_self_contained_and_escaped():
     for heading in (
         "Dataset-level findings",
         "Reaction validation",
+        "Completeness",
         "How reactions are recorded",
         "Exemplar reactions",
         "What the dataset varies",
