@@ -30,7 +30,8 @@ dataset finishes, to long-format tables in the output directory:
   completeness, with its dataset and profile.
 - ``completeness_items.csv``: for each rubric item, how many reactions it applied
   to and how many lacked it, per dataset and profile.
-- ``failures.csv``: datasets that could not be read or reviewed, and why.
+- ``failures.csv``: datasets that could not be read or reviewed, or were skipped,
+  and why.
 
 ``--sample=N`` picks N datasets spread evenly across file sizes, so a sample spans
 small screens and large bulk datasets alike. ``--bundles=N`` also writes the full
@@ -39,10 +40,16 @@ datasets are fetched from the ord-data mirror one at a time and deleted once
 reviewed, unless ``--keep_downloads`` keeps them under the output directory. A
 worker that dies, most often killed for memory, takes the datasets in flight with
 it; those are retried one at a time, and one that still kills its worker is
-recorded in ``failures.csv``. ``--resume`` skips datasets already in
-``summary.csv``. ``--skip_names`` (by default ``^uspto``) records datasets whose name
-matches as skipped: a year of USPTO grants flattens to tens of thousands of columns,
-and is better reviewed on its own. Needs the ``review`` and ``huggingface`` extras.
+recorded in ``failures.csv``.
+
+``--skip_names`` (by default ``^uspto``) records datasets whose name matches as
+skipped: a year of USPTO grants flattens to tens of thousands of columns, and is
+better reviewed on its own. A Parquet file's name is read from its footer, which for
+the mirror is fetched alone, so a skipped dataset is not downloaded; any other format
+is checked once loaded. ``--resume`` passes over the datasets already reviewed,
+skipped or failed; with ``--retry_failures`` it reviews the failed ones again.
+
+Needs the ``review`` and ``huggingface`` extras.
 """
 
 import argparse
@@ -62,11 +69,12 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 from typing import Any
 
-from huggingface_hub import HfApi
+import pyarrow.parquet as pq
+from huggingface_hub import HfApi, HfFileSystem
 
-from ord_schema import datasets, huggingface
+from ord_schema import completeness, datasets, huggingface
 from ord_schema.logging import get_logger, silence_rdkit_logs
-from ord_schema.review import report, structure
+from ord_schema.review import packet, report, structure
 from ord_schema.validations import Severity
 
 logger = get_logger(__name__)
@@ -86,11 +94,7 @@ _SUMMARY_FIELDS = [
     "chemistry_findings",
     "validation_messages",
     "completeness_overall",
-    "completeness_inputs",
-    "completeness_conditions",
-    "completeness_workups",
-    "completeness_outcomes",
-    "completeness_provenance",
+    *(f"completeness_{level}" for level in completeness.load_rubric().levels),
     "shapes",
     "compounds",
     "varying_columns",
@@ -128,11 +132,13 @@ class DatasetRef:
         dataset_id: Its ID, as the file is named.
         path: A local file, or empty to fetch from the mirror.
         size: The file's size in bytes, for sampling.
+        remote: The file's path in the mirror, for one fetched from there.
     """
 
     dataset_id: str
     path: str
     size: int
+    remote: str = ""
 
 
 def _local_refs(pattern: str) -> list[DatasetRef]:
@@ -156,8 +162,43 @@ def _mirror_refs(revision: str) -> list[DatasetRef]:
         if sibling.rfilename.startswith("data/") and name.endswith(
             (".parquet", ".pb.gz")
         ):
-            refs.append(DatasetRef(name.split(".")[0], "", sibling.size or 0))
+            refs.append(
+                DatasetRef(name.split(".")[0], "", sibling.size or 0, sibling.rfilename)
+            )
     return sorted(refs, key=lambda ref: ref.dataset_id)
+
+
+_SKIPPED = "skipped: "
+
+
+def footer_name(ref: DatasetRef, revision: str) -> str | None:
+    """A Parquet dataset's name, read from its footer without reading the reactions.
+
+    For one in the mirror only the footer is fetched, so a dataset can be skipped by
+    name before it is downloaded. None for other formats, or if the footer can't be
+    read; the name is then checked once the dataset is loaded.
+    """
+    try:
+        if ref.path.endswith(".parquet"):
+            metadata = pq.ParquetFile(ref.path).metadata.metadata
+        elif ref.remote.endswith(".parquet"):
+            remote = f"datasets/{huggingface.ORD_DATA_HF_REPO}@{revision}/{ref.remote}"
+            with HfFileSystem().open(remote, "rb") as f:
+                metadata = pq.ParquetFile(f).metadata.metadata
+        else:
+            return None
+    except Exception:  # noqa: BLE001 -- unreadable here is checked again after loading
+        return None
+    name = (metadata or {}).get(b"ord.name")
+    return name.decode() if name else None
+
+
+def _skipped(ref: DatasetRef, source: str, name: str, pattern: str) -> dict[str, Any]:
+    return {
+        "dataset_id": ref.dataset_id,
+        "source": source,
+        "error": f"{_SKIPPED}name {name!r} matches {pattern!r}",
+    }
 
 
 def spread_sample(refs: list[DatasetRef], n: int) -> list[DatasetRef]:
@@ -315,13 +356,7 @@ def review_one(
         dataset = datasets.load_dataset(path)
         load_seconds = time.monotonic() - start
         if skip_names and re.search(skip_names, dataset.name):
-            rows["failures"].append(
-                {
-                    "dataset_id": ref.dataset_id,
-                    "source": source,
-                    "error": f"skipped: name {dataset.name!r} matches {skip_names!r}",
-                }
-            )
+            rows["failures"].append(_skipped(ref, source, dataset.name, skip_names))
             profiles = []
         for profile in profiles:
             start = time.monotonic()
@@ -375,11 +410,19 @@ class _Tables:
                 with path.open("w", newline="", encoding="utf-8") as f:
                     csv.DictWriter(f, fieldnames=fields).writeheader()
 
-    def done(self) -> set[str]:
-        """The datasets ``summary.csv`` already holds."""
+    def done(self, *, retry_failures: bool) -> set[str]:
+        """The datasets already reviewed, skipped or, unless retrying, failed."""
         path, _ = self.paths["summary"]
         with path.open(newline="", encoding="utf-8") as f:
-            return {row["dataset_id"] for row in csv.DictReader(f)}
+            done = {row["dataset_id"] for row in csv.DictReader(f)}
+        path, _ = self.paths["failures"]
+        with path.open(newline="", encoding="utf-8") as f:
+            done |= {
+                row["dataset_id"]
+                for row in csv.DictReader(f)
+                if not retry_failures or row["error"].startswith(_SKIPPED)
+            }
+        return done
 
     def append(self, rows: dict[str, list[dict[str, Any]]]) -> None:
         for table, new in rows.items():
@@ -424,7 +467,15 @@ def _parse(argv: list[str] | None) -> argparse.Namespace:
     )
     parser.add_argument("--resume", action="store_true")
     parser.add_argument(
-        "--packet_budget_tokens", type=int, default=100_000, help="For the bundles."
+        "--retry_failures",
+        action="store_true",
+        help="With --resume, review again the datasets that failed; skips stay done.",
+    )
+    parser.add_argument(
+        "--packet_budget_tokens",
+        type=int,
+        default=packet.DEFAULT_BUDGET_TOKENS,
+        help="For the bundles.",
     )
     args = parser.parse_args(argv)
     known = {p.value for p in structure.ValidationProfile}
@@ -528,10 +579,25 @@ def main(argv: list[str] | None = None) -> int:
     tables = _Tables(output_dir, resume=args.resume)
     refs = _select(args)
     if args.resume:
-        done = tables.done()
+        done = tables.done(retry_failures=args.retry_failures)
         refs = [ref for ref in refs if ref.dataset_id not in done]
-    logger.info(f"reviewing {len(refs)} datasets under {args.profile_list}")
-    failed = 0
+    skipped = 0
+    if args.skip_names:
+        kept = []
+        for ref in refs:
+            name = footer_name(ref, args.revision)
+            if name is not None and re.search(args.skip_names, name):
+                source = ref.path or f"{huggingface.ORD_DATA_HF_REPO}@{args.revision}"
+                tables.append(
+                    {"failures": [_skipped(ref, source, name, args.skip_names)]}
+                )
+                skipped += 1
+            else:
+                kept.append(ref)
+        refs = kept
+    by_name = f"; skipped {skipped} by name" if skipped else ""
+    logger.info(f"reviewing {len(refs)} datasets under {args.profile_list}{by_name}")
+    failed = reviewed = 0
     if args.keep_downloads:
         download_root = output_dir / "downloads"
         download_root.mkdir(exist_ok=True)
@@ -542,14 +608,18 @@ def main(argv: list[str] | None = None) -> int:
     try:
         for count, rows in enumerate(_results(refs, args, str(download_root)), start=1):
             tables.append(rows)
-            failed += bool(rows["failures"])
+            errors = [row["error"] for row in rows["failures"]]
+            skipped += any(e.startswith(_SKIPPED) for e in errors)
+            failed += any(not e.startswith(_SKIPPED) for e in errors)
+            reviewed += bool(rows["summary"])
             names = {row["dataset_id"] for row in rows["summary"] + rows["failures"]}
             logger.info(f"[{count}/{len(refs)}] {', '.join(sorted(names))}")
     finally:
         if not args.keep_downloads:
             shutil.rmtree(download_root, ignore_errors=True)
     logger.info(
-        f"done: {len(refs) - failed} reviewed, {failed} failed; see {output_dir}"
+        f"done: {reviewed} reviewed, {skipped} skipped, "
+        f"{failed} failed; see {output_dir}"
     )
     return 0
 

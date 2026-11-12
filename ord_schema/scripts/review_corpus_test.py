@@ -37,14 +37,16 @@ def _read(path: pathlib.Path) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
-def _small_dataset(path: pathlib.Path) -> None:
+def _small_dataset(path: pathlib.Path, name: str = "small") -> None:
     reaction = reaction_pb2.Reaction(reaction_id="r1")
     reaction.inputs["a"].components.append(
         message_helpers.build_compound(smiles="Nc1ccccc1", role="reactant")
     )
     product = reaction.outcomes.add().products.add()
     product.identifiers.add(type="SMILES", value="Brc1ccccc1N")
-    dataset = dataset_pb2.Dataset(name="small", reactions=[reaction])
+    dataset = dataset_pb2.Dataset(
+        name=name, description="a test dataset", reactions=[reaction]
+    )
     datasets.save_dataset(dataset, path)
 
 
@@ -168,3 +170,37 @@ def test_resume_refuses_tables_written_with_other_columns(corpus, tmp_path):
         review_corpus.main(
             [f"--input_pattern={corpus}/*.pbtxt", f"--output_dir={output}", "--resume"]
         )
+
+
+def test_resume_passes_over_skips_and_failures_unless_retrying(corpus, tmp_path):
+    output = tmp_path / "out"
+    args = [
+        f"--input_pattern={corpus}/*.pbtxt",
+        f"--output_dir={output}",
+        "--profiles=uniform",
+        "--skip_names=^sma",
+    ]
+    review_corpus.main(args)
+    review_corpus.main([*args, "--resume"])
+    errors = sorted(r["error"].split(":")[0] for r in _read(output / "failures.csv"))
+    assert errors == ["ValueError", "skipped"]
+    review_corpus.main([*args, "--resume", "--retry_failures"])
+    errors = sorted(r["error"].split(":")[0] for r in _read(output / "failures.csv"))
+    assert errors == ["ValueError", "ValueError", "skipped"]
+
+
+def test_a_parquet_dataset_is_skipped_by_its_footer_without_loading(
+    tmp_path, monkeypatch
+):
+    folder = tmp_path / "corpus"
+    folder.mkdir()
+    _small_dataset(folder / "uspto.parquet", name="uspto-grants-1999")
+
+    def never(*args, **kwargs):
+        raise AssertionError("a skipped dataset was loaded")
+
+    monkeypatch.setattr(review_corpus.datasets, "load_dataset", never)
+    output = tmp_path / "out"
+    review_corpus.main([f"--input_pattern={folder}/*", f"--output_dir={output}"])
+    (skipped,) = _read(output / "failures.csv")
+    assert skipped["error"] == "skipped: name 'uspto-grants-1999' matches '^uspto'"
