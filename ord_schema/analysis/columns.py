@@ -103,6 +103,19 @@ class ColumnStats:
     )
     other: int = 0
 
+    def values_not_listed(self, listed: int) -> int:
+        """How many distinct values the first ``listed`` categories leave out.
+
+        ``distinct`` does not count the empty value, but the categories can include
+        it, so only the non-empty categories listed are taken off.
+        """
+        shown = sum(
+            1
+            for values, _ in self.categories[:listed]
+            if any(v is not None for v in values)
+        )
+        return self.distinct - shown
+
     def to_svg(self, *, title: str | None = None) -> str:
         """Returns the group's chart as an inline SVG element.
 
@@ -356,7 +369,7 @@ def _categories_svg(stat: ColumnStats, label: str) -> str:
             + "</g>"
         )
     if rest:
-        folded = stat.distinct - len(shown)
+        folded = stat.values_not_listed(len(shown))
         y = 4 + len(bars) * _ROW + _ROW / 2 + 4
         parts.append(
             _text(

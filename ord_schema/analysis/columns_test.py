@@ -180,6 +180,23 @@ def test_categories_beyond_the_chart_fold_into_a_line_of_text(monkeypatch):
     assert "+ 1 more values, 10 reactions" in svg
 
 
+def test_an_empty_value_listed_does_not_count_against_the_distinct_ones():
+    # 14 distinct values plus empty, the most common; the chart shows 12 bars.
+    categories = [((None,), 30)] + [((f"v{i}",), 20 - i) for i in range(14)]
+    stat = columns.ColumnStats(
+        column="c",
+        columns=["c"],
+        section="experiment",
+        kind="categorical",
+        filled=sum(n for _, n in categories[1:]),
+        empty=30,
+        distinct=14,
+        categories=categories,
+    )
+    assert stat.values_not_listed(12) == 3
+    assert stat.values_not_listed(len(categories)) == 0
+
+
 @pytest.mark.parametrize(
     "label",
     ["short", "O[C@@H]1C[C@H](OCC2=CC=CC=C2)C1 | c1ccccc1", "W" * 80, ""],
