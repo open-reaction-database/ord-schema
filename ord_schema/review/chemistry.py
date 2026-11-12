@@ -33,6 +33,7 @@ Not checked, because the schema has no field for it: a stated concentration that
 disagrees with a volume, since ``Reaction`` records no concentrations.
 """
 
+import collections
 import dataclasses
 import re
 from collections.abc import Callable, Iterable, Iterator
@@ -54,6 +55,11 @@ YIELD_SUM_TOLERANCE = 0.5
 
 # Examples kept per finding.
 MAX_EXAMPLES = 5
+
+# Each check keeps at most this many findings. A message names its compound, so in
+# a reaction-mining dataset one check can otherwise give a finding per product:
+# 378,467 of them in a 409,035-reaction dataset.
+MAX_GROUPS_PER_CHECK = 20
 
 # Stereodescriptors in a name: (R), (S), (1R,2S), (E), (Z), (+), (-), cis-, trans-,
 # and amino-acid style L- and D-. Racemic markers ("rac-", "(±)", "RS") say the
@@ -407,6 +413,8 @@ class ChemistryRollup:
     def __init__(self) -> None:
         """Starts an empty rollup."""
         self._groups: dict[tuple[str, str], _Group] = {}
+        # How many reactions raised each check at all, for the capped summary.
+        self._check_reactions: collections.Counter[str] = collections.Counter()
         self.reaction_count = 0
 
     def observe(self, reaction: reaction_pb2.Reaction, label: str) -> None:
@@ -424,6 +432,7 @@ class ChemistryRollup:
             group.reactions += 1
             if len(group.examples) < MAX_EXAMPLES:
                 group.examples.append(label)
+        self._check_reactions.update({check for check, _ in seen})
 
     def watch(
         self, reactions: Iterable[reaction_pb2.Reaction]
@@ -437,12 +446,37 @@ class ChemistryRollup:
         """What the checks found, most serious and most widespread first.
 
         Messages that differ only in numbers are one finding; its message is the
-        first seen, and ``reactions`` counts every reaction that raised it.
+        first seen, and ``reactions`` counts every reaction that raised it. Each
+        check keeps its MAX_GROUPS_PER_CHECK most widespread findings; the rest
+        become one finding, whose examples are the first messages it covers.
         """
-        groups = sorted(
+        ranked = sorted(
             self._groups.values(),
             key=lambda g: (-g.severity, -g.reactions, g.check, g.message),
         )
+        by_check: dict[str, list[_Group]] = {}
+        for group in ranked:
+            by_check.setdefault(group.check, []).append(group)
+        groups = []
+        summaries = []
+        for check, found in by_check.items():
+            groups.extend(found[:MAX_GROUPS_PER_CHECK])
+            rest = found[MAX_GROUPS_PER_CHECK:]
+            if rest:
+                summaries.append(
+                    Finding(
+                        check=check,
+                        severity=rest[0].severity,
+                        message=(
+                            f"and {len(rest):,} more findings like these, each in "
+                            f"fewer reactions; {self._check_reactions[check]:,} "
+                            "reactions raise this check in all"
+                        ),
+                        reactions=self._check_reactions[check],
+                        examples=[g.message for g in rest[:MAX_EXAMPLES]],
+                    )
+                )
+        groups.sort(key=lambda g: (-g.severity, -g.reactions, g.check, g.message))
         return [
             Finding(
                 check=g.check,
@@ -457,4 +491,4 @@ class ChemistryRollup:
                 examples=g.examples,
             )
             for g in groups
-        ]
+        ] + summaries
