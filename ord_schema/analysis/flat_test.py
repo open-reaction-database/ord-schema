@@ -378,3 +378,15 @@ def test_provenance_is_kept_but_reported_in_its_own_section():
     constants = table.constants_frame().set_index("field")["section"]
     sections = constants.to_dict()
     assert sections['inputs["solvent"].components[0].reaction_role'] == "experiment"
+
+
+@pytest.mark.parametrize(
+    ("keep_keys", "expected"),
+    [
+        (False, "inputs.components.identifiers.value"),
+        (True, 'inputs["base"].components.identifiers.value'),
+    ],
+)
+def test_a_field_path_drops_indices_and_optionally_keys(keep_keys, expected):
+    column = 'inputs["base"].components[0].identifiers[1].value'
+    assert flat.field_path(column, keep_keys=keep_keys) == expected

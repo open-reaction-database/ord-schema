@@ -20,7 +20,7 @@ import pytest
 
 from ord_schema import datasets, message_helpers
 from ord_schema.analysis import summary
-from ord_schema.proto import reaction_pb2
+from ord_schema.proto import reaction_pb2, test_pb2
 
 _NIELSEN = (
     pathlib.Path(__file__).resolve().parents[2]
@@ -337,3 +337,10 @@ def test_any_key_round_trips_to_its_merged_path(key):
     for path in keyed:
         assert summary.merged_path(path) in result.field_counts
         assert not summary.is_keyed(summary.merged_path(path))
+
+
+def test_a_scalar_map_entry_keyed_path_merges_to_its_merged_path():
+    walked = list(summary._walk(test_pb2.Map(values={"a": 1.5})))
+    scalars = [(path, keyed) for path, keyed, value, _ in walked if value is not None]
+    assert scalars == [("values.value", 'values["a"].value')]
+    assert summary.merged_path(scalars[0][1]) == scalars[0][0]

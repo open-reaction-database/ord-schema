@@ -267,6 +267,11 @@ def _is_placeholder(path: str, value: object) -> bool:
         field = flat.field_for(path)
         if field is None or field.type != field.TYPE_STRING:
             return False
+        # An identifier's value is a name or structure, and "Na" or "None" can be a
+        # real one. A placeholder name is a compound with no structure, which the
+        # compound table shows.
+        if path.endswith("identifiers.value"):
+            return False
         return value.strip().casefold() in PLACEHOLDER_STRINGS
     if isinstance(value, int | float) and not isinstance(value, bool):
         # A zero amount stands in for an unknown one; a zero elsewhere (a

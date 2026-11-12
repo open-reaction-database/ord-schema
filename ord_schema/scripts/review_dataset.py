@@ -26,14 +26,37 @@ report is written, and non-zero only when the dataset cannot be read. Needs the
 """
 
 import argparse
+import pathlib
 import sys
 
 from ord_schema import datasets
 from ord_schema.logging import get_logger, silence_rdkit_logs
 from ord_schema.review import packet, report, structure
-from ord_schema.scripts.validate_dataset import _describe_failure
+from ord_schema.validations import Severity
 
 logger = get_logger(__name__)
+
+_LFS_POINTER_HEADER = b"version https://git-lfs.github.com/spec/"
+
+
+def describe_read_failure(filename: str, error: BaseException) -> str:
+    """Says why a dataset file could not be read.
+
+    A Git LFS pointer, the usual cause in an ord-data checkout, is named as one, with
+    what to do about it. Kept here rather than imported from validate_dataset, so the
+    review tooling does not depend on another script's internals.
+    """
+    try:
+        with pathlib.Path(filename).open("rb") as f:
+            is_pointer = f.read(len(_LFS_POINTER_HEADER)) == _LFS_POINTER_HEADER
+    except OSError:
+        is_pointer = False
+    if is_pointer:
+        return (
+            f"{filename}: file is a Git LFS pointer, not dataset content; "
+            "run `git lfs pull` to fetch it"
+        )
+    return f"{filename}: {type(error).__name__}: {error}"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -63,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
         dataset = datasets.load_dataset(args.input)
     except Exception as error:  # noqa: BLE001 -- any read failure is reported the same way
         # Without the traceback: the description says what to do.
-        logger.error(_describe_failure(args.input, error))  # noqa: TRY400
+        logger.error(describe_read_failure(args.input, error))  # noqa: TRY400
         return 1
     review = report.build_report(dataset, structure.ValidationProfile(args.profile))
     page = report.write_bundle(
@@ -71,8 +94,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     counts = review.severity_counts()
     logger.info(
-        f"{review.reaction_count:,} reactions: {counts[report.Severity.ERROR]} errors, "
-        f"{counts[report.Severity.WARNING]} warnings, {counts[report.Severity.INFO]} "
+        f"{review.reaction_count:,} reactions: {counts[Severity.ERROR]} errors, "
+        f"{counts[Severity.WARNING]} warnings, {counts[Severity.INFO]} "
         f"notes; wrote {page}"
     )
     return 0
