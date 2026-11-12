@@ -82,6 +82,12 @@ MAX_FACTOR_CANDIDATES = 40
 # Examples kept per finding.
 MAX_EXAMPLES = 5
 
+# A check that reports compound by compound lists at most this many, the most
+# frequent first, and sums up the rest in one finding: an aggregate such as a
+# reaction-mining dataset can otherwise yield one finding for each of 100,000
+# compounds.
+MAX_COMPOUND_FINDINGS = 20
+
 # Values recorded where a real value was not known.
 PLACEHOLDER_STRINGS = frozenset(
     {"", "-", "--", "?", "n/a", "na", "nan", "none", "null", "tbd", "unknown"}
@@ -488,10 +494,36 @@ def _check_mixed_units(evidence: DatasetEvidence) -> list[Finding]:
     return findings
 
 
+def _capped(findings: list[Finding], noun: str) -> list[Finding]:
+    """The MAX_COMPOUND_FINDINGS most frequent findings, and one for the rest.
+
+    Args:
+        findings: One check's findings, one per compound.
+        noun: What each finding is about, in the plural, for the summary.
+
+    Returns:
+        The findings, capped; the summary's examples are the first messages it covers.
+    """
+    if len(findings) <= MAX_COMPOUND_FINDINGS:
+        return findings
+    ranked = sorted(findings, key=lambda f: -(f.reactions or 0))
+    kept, rest = ranked[:MAX_COMPOUND_FINDINGS], ranked[MAX_COMPOUND_FINDINGS:]
+    counted = [f.reactions for f in rest if f.reactions is not None]
+    summary = Finding(
+        check=rest[0].check,
+        severity=rest[0].severity,
+        message=f"and {len(rest)} more {noun}, each in fewer reactions",
+        fields=rest[0].fields,
+        reactions=sum(counted) if counted else None,
+        examples=[f.message for f in rest[:MAX_EXAMPLES]],
+    )
+    return [*kept, summary]
+
+
 def _check_name_structure(evidence: DatasetEvidence) -> list[Finding]:
     """One name for several structures, or one structure under several names."""
     compounds = evidence.summary.compounds
-    findings = [
+    conflicts = [
         Finding(
             check="name-structure-conflict",
             severity=Severity.WARNING,
@@ -501,10 +533,11 @@ def _check_name_structure(evidence: DatasetEvidence) -> list[Finding]:
         )
         for name, smiles in compounds.name_conflicts().items()
     ]
+    variants = []
     for record in compounds.records():
         names = record.names
         if record.smiles and len(names) > 1:
-            findings.append(
+            variants.append(
                 Finding(
                     check="structure-name-variants",
                     severity=Severity.INFO,
@@ -517,12 +550,14 @@ def _check_name_structure(evidence: DatasetEvidence) -> list[Finding]:
                     examples=record.example_reaction_ids,
                 )
             )
-    return findings
+    return _capped(conflicts, "names used for several structures") + _capped(
+        variants, "structures under several names"
+    )
 
 
 def _check_conflicting_roles(evidence: DatasetEvidence) -> list[Finding]:
     """The same compound in different roles in different reactions."""
-    return [
+    findings = [
         Finding(
             check="conflicting-roles",
             severity=Severity.INFO,
@@ -536,6 +571,7 @@ def _check_conflicting_roles(evidence: DatasetEvidence) -> list[Finding]:
         )
         for record in evidence.summary.compounds.cross_role()
     ]
+    return _capped(findings, "compounds in more than one role")
 
 
 def _check_duplicate_reactions(evidence: DatasetEvidence) -> list[Finding]:
