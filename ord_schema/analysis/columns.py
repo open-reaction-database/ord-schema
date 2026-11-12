@@ -411,7 +411,7 @@ def _value_html(values: tuple[object, ...], max_lines: int | None = None) -> str
     """
     parts = []
     for value in values:
-        text = _format(value)
+        text = format_value(value)
         if "\n" not in text:
             parts.append(f'<div class="value">{html.escape(text)}</div>')
             continue
@@ -434,7 +434,7 @@ def _panels(
     """
     panels = {}
     for index, (values, count) in enumerate(stat.categories[:MAX_CHART_CATEGORIES]):
-        name = " | ".join(_format(v) for v in values)
+        name = " | ".join(format_value(v) for v in values)
         tip = None
         if drawing is not None:
             tip = next((t for v in values if v is not None and (t := drawing(v))), None)
