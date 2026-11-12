@@ -227,33 +227,65 @@ def test_bars_with_a_drawing_show_it_on_hover_and_focus():
     assert page.startswith('<div class="chart"><svg')
     svg = page[page.index("<svg") : page.index("</svg>") + len("</svg>")]
     root = _parse(svg)
-    marked = [g for g in root.iter(f"{_SVG}g") if g.get("class")]
-    (bar,) = marked
+    (bar,) = [
+        g
+        for g in root.iter(f"{_SVG}g")
+        if g.get("class") and g.findtext(f"{_SVG}title", "").startswith("CN(C)C")
+    ]
     assert bar.get("tabindex") == "0"
     index = str(bar.get("class"))[1:]
     tip = re.search(
-        rf'<div class="moltip t{index}" aria-hidden="true" style="([^"]*)">', page
+        rf'<div class="moltip t{index}" aria-hidden="true" style="[^"]*">(.*?)</svg>',
+        page,
     )
     assert tip is not None
-    assert page[tip.end() :].startswith("<svg>trimethylamine")
-    # Placed beside its bar, inside the chart, so nothing around it clips it.
-    left, top = (int(n) for n in re.findall(r"(\d+)px", tip.group(1)))
-    assert left + columns.TIP_WIDTH <= 360
-    assert top >= 0
+    # The value in full, its count, then the drawing.
+    assert tip.group(1).startswith(
+        '<div class="value">CN(C)C</div><div class="value">Me3N</div>'
+    )
+    assert "10 reactions" in tip.group(1)
+    assert tip.group(1).endswith("<svg>trimethylamine")
     assert f".chart:has(.b{index}:hover, .b{index}:focus) .t{index}" in (
         columns.TOOLTIP_CSS
     )
 
 
-def test_a_chart_with_no_drawings_is_the_bare_svg():
-    stat = _stats()[_BASE_SMILES]
+def test_a_chart_whose_labels_are_whole_is_the_bare_svg():
+    stat = _long_value_stats("CCN")
     assert stat.to_html(drawing=lambda value: None) == stat.to_svg()
 
 
-@pytest.mark.parametrize("index", range(3))
-def test_a_drawing_fits_inside_its_chart(index):
-    stat = _stats()[_BASE_SMILES]
-    top = columns._tip_top(stat, index)
-    room = max(len(stat.categories) * columns._ROW + 8, columns.TIP_HEIGHT + 8)
-    assert top >= 0
-    assert top + columns.TIP_HEIGHT <= room
+def _long_value_stats(value: str) -> columns.ColumnStats:
+    return columns.ColumnStats(
+        column="c",
+        columns=["c"],
+        section="experiment",
+        kind="categorical",
+        filled=3,
+        empty=0,
+        distinct=2,
+        categories=[((value,), 2), (("CCO",), 1)],
+    )
+
+
+def test_a_cut_label_gets_its_full_value_on_hover_and_in_the_list():
+    smiles = "CC(C)(C)P(C1=CC=CC=C1)C1=CC=CC=C1C1=C(C(C)C)C=C(C(C)C)C=C1C(C)C"
+    page = _long_value_stats(smiles).to_html()
+    # The label is cut; the panel and the list both hold the whole SMILES.
+    assert page.count(f'<div class="value">{smiles}</div>') == 2
+    assert '<div class="moltip t0"' in page
+    assert '<div class="moltip t1"' not in page  # "CCO" shows whole already.
+    values = page[page.index('<details class="values">') :]
+    assert "Values shown, in full (2)" in values
+    assert "<td>2</td>" in values
+
+
+def test_a_molblock_is_cut_in_the_panel_but_whole_in_the_list():
+    molblock = "\n".join(f"line {i}" for i in range(40))
+    page = _long_value_stats(molblock).to_html()
+    panel = page[page.index('<div class="moltip t0"') : page.index("</div></div>")]
+    assert "line 14" in panel
+    assert "line 15" not in panel
+    assert "... 25 more lines" in panel
+    values = page[page.index('<details class="values">') :]
+    assert "line 39" in values
