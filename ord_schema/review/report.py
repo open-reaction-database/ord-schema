@@ -668,7 +668,7 @@ def _exemplars_section(report: ReviewReport) -> str:
             f'into the <a href="{EDITOR_URL}">ORD reaction editor</a>: one reaction '
             "with <b>Create Reaction from File</b>, or all of them as a dataset with "
             "<b>Create Dataset from File</b>. Imported reactions are saved to your "
-            "editor account, so import only data you may share there."
+            "editor account."
             + (
                 f" Images and other binary attachments ({omitted:,} bytes in all) are "
                 "left out of these downloads and the text below; "

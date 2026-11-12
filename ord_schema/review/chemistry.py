@@ -129,8 +129,12 @@ def _check_element_conservation(reaction: reaction_pb2.Reaction) -> list[Problem
     """A product with an element that no input or workup compound brings."""
     inputs = _inputs(reaction)
     mols = [_mol(c) for c in inputs]
-    # An input without a structure could be what brings the element.
-    if not inputs or any(m is None for m in mols):
+    # An input without a structure could be what brings the element; so could a
+    # crude product carried over from an earlier step.
+    crude = any(value.crude_components for value in reaction.inputs.values()) or any(
+        workup.input.crude_components for workup in reaction.workups
+    )
+    if not inputs or crude or any(m is None for m in mols):
         return []
     available = set().union(*(_elements(m) for m in mols if m is not None))
     problems = []
@@ -229,13 +233,20 @@ def _check_reaction_smiles(reaction: reaction_pb2.Reaction) -> list[Problem]:
     return problems
 
 
-def _check_radicals_and_charges(reaction: reaction_pb2.Reaction) -> list[Problem]:
-    """A structure with unpaired electrons, or a net charge without a counterion."""
-    problems = []
+def _structures(
+    reaction: reaction_pb2.Reaction,
+) -> Iterator[tuple[_Compound, Chem.Mol]]:
+    """Each input, workup input and product with a structure, and its molecule."""
     for compound in [*_inputs(reaction), *_products(reaction)]:
         mol = _mol(compound)
-        if mol is None:
-            continue
+        if mol is not None:
+            yield compound, mol
+
+
+def _check_radicals(reaction: reaction_pb2.Reaction) -> list[Problem]:
+    """A structure with unpaired electrons, other than on a transition metal."""
+    problems = []
+    for compound, mol in _structures(reaction):
         # Open-shell metals are expected: copper(II) has an unpaired electron.
         radicals = sum(
             atom.GetNumRadicalElectrons()
@@ -251,6 +262,13 @@ def _check_radicals_and_charges(reaction: reaction_pb2.Reaction) -> list[Problem
                     "for missing hydrogens or a mistyped atom",
                 )
             )
+    return problems
+
+
+def _check_net_charge(reaction: reaction_pb2.Reaction) -> list[Problem]:
+    """A structure with a net charge, which suggests a missing counterion."""
+    problems = []
+    for compound, mol in _structures(reaction):
         charge = Chem.GetFormalCharge(mol)
         if charge:
             problems.append(
@@ -294,15 +312,24 @@ def _check_stereo_in_name(reaction: reaction_pb2.Reaction) -> list[Problem]:
 
 
 def _check_yield_sum(reaction: reaction_pb2.Reaction) -> list[Problem]:
-    """Product yields in one outcome that add up past 100%."""
+    """Product yields in one outcome that add up past 100%.
+
+    Each product counts once, at its highest yield: a yield measured two ways (by NMR
+    and isolated, say) is one share of the material, not two.
+    """
     problems = []
     for index, outcome in enumerate(reaction.outcomes):
         total = sum(
-            m.percentage.value
-            for p in outcome.products
-            for m in p.measurements
-            if m.type == reaction_pb2.ProductMeasurement.YIELD
-            and m.HasField("percentage")
+            max(yields, default=0.0)
+            for yields in (
+                [
+                    m.percentage.value
+                    for m in p.measurements
+                    if m.type == reaction_pb2.ProductMeasurement.YIELD
+                    and m.HasField("percentage")
+                ]
+                for p in outcome.products
+            )
         )
         if total > 100 + YIELD_SUM_TOLERANCE:
             problems.append(
@@ -374,7 +401,8 @@ def _check_unmeasured_products(reaction: reaction_pb2.Reaction) -> list[Problem]
 CHECKS: dict[str, Callable[[reaction_pb2.Reaction], list[Problem]]] = {
     "element-conservation": _check_element_conservation,
     "reaction-smiles-mismatch": _check_reaction_smiles,
-    "radicals-and-charges": _check_radicals_and_charges,
+    "radical": _check_radicals,
+    "net-charge": _check_net_charge,
     "stereo-unspecified": _check_stereo_in_name,
     "yield-sum": _check_yield_sum,
     "implausible-temperature": _check_temperature,
