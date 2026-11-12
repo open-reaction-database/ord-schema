@@ -93,6 +93,9 @@ its own extra:
   completeness score, and the report a reviewer reads. Needs the `review` extra, which
   installs `analysis`.
 
+`review_dataset` writes the review report bundle: one HTML page for the reviewer and
+the tables behind it ([example](../examples/demo/review_report/)).
+
 `review` may import from `analysis`, never the reverse;
 [`dependencies_test.py`](dependencies_test.py) holds both to that.
 
@@ -100,6 +103,8 @@ its own extra:
 
 ```bash
 python -m ord_schema.scripts.validate_dataset --input_pattern='data/*/*.parquet'
+
+python -m ord_schema.scripts.review_dataset --input=dataset.pb.gz --output_dir=review/
 
 python -m ord_schema.scripts.build_dataset --input_pattern='reactions/*.pbtxt' \
     --name=... --description=... --output=dataset.pb.gz

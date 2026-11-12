@@ -7,6 +7,14 @@ ord\_schema.review
    :undoc-members:
 
 
+ord\_schema.review.report
+-------------------------
+
+.. automodule:: ord_schema.review.report
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 ord\_schema.review.structure
 ----------------------------
 

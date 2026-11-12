@@ -283,3 +283,22 @@ def test_the_html_page_is_self_contained_and_escapes_what_it_shows(tmp_path):
     assert "@media print" in page
     assert "<h2>SOLVENT (1)</h2>" in page
     assert "<h2>WORKUP (1)</h2>" in page
+
+
+def test_the_cross_role_index_is_capped_like_the_role_tables():
+    reactions = []
+    for i, smiles in enumerate(["CCO", "CCCO", "CCCCO"]):
+        reactions.append(
+            _reaction(
+                f"a{i}", message_helpers.build_compound(smiles=smiles, role="solvent")
+            )
+        )
+        reactions.append(
+            _reaction(
+                f"b{i}", message_helpers.build_compound(smiles=smiles, role="reactant")
+            )
+        )
+    sections = _table(*reactions).to_html_sections(max_rows=1)
+    cross = sections.split("<section>")[1]
+    assert cross.count("<tr><td>") == 1
+    assert "2 more compounds used in more than one role" in cross

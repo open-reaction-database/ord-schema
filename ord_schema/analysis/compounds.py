@@ -379,6 +379,33 @@ class CompoundTable:
         """Returns a self-contained HTML page of the table, one section per role."""
         return _render_html(self, title or "Compounds")
 
+    def to_html_sections(
+        self,
+        *,
+        heading: str = "h3",
+        max_rows: int | None = None,
+        drawings: "StructureDrawings | None" = None,
+    ) -> str:
+        """Returns the table's sections as HTML to embed in another page.
+
+        The cross-role index, then one table per role, without the page around them
+        or its stylesheet: the embedding page styles the ``structure``, ``flagged``,
+        ``conflict``, ``note`` and ``muted`` classes.
+
+        Args:
+            heading: The element each section's heading uses.
+            max_rows: The most compounds to show in the cross-role index and per
+                role; the rest are counted in a line pointing to the CSV, which
+                always holds every compound.
+            drawings: If given, the cross-role index shows each SMILES's drawing on
+                hover, from these; the page must include ``drawings.defs()``.
+        """
+        return "\n".join(
+            _render_sections(
+                self, heading=heading, max_rows=max_rows, drawings=drawings
+            )
+        )
+
 
 def _counts(counter: Counter[str]) -> str:
     """Returns ``counter`` as ``A (3); B (1)``, most common first."""
@@ -495,12 +522,120 @@ def _record_for(
 
 
 @functools.lru_cache(maxsize=4096)
+def _smiles_cell(smiles: str, drawings: "StructureDrawings | None") -> str:
+    if drawings is None:
+        return f"<code>{html.escape(smiles)}</code>"
+    return drawings.code(smiles)
+
+
+class StructureDrawings:
+    """Structure drawings for a page, each drawn once and shown on hover.
+
+    Built from a compound table, so a value gets a drawing only if it is the SMILES
+    of a compound the dataset records, never a name that happens to parse as one.
+    Each structure used is drawn once, as an SVG ``<symbol>`` in :meth:`defs`, and
+    every hover panel refers to it, so a compound shown in many places costs one
+    drawing. A page styles the panels with ``columns.TOOLTIP_CSS`` and ``CSS``.
+    """
+
+    # Shows a value's drawing in the window's corner while it is hovered or
+    # focused: fixed in place, it can't be cut off by a table that scrolls or move
+    # the table's layout, and it ignores the pointer.
+    CSS = (
+        ".mol .moltip { position: fixed; right: 16px; bottom: 16px; z-index: 30; "
+        "pointer-events: none; }\n"
+        ".mol:hover > .moltip, .mol:focus > .moltip { display: block; }\n"
+    )
+
+    def __init__(self, table: CompoundTable) -> None:
+        """Indexes every SMILES the table's compounds were recorded with."""
+        self._canonical: dict[str, str | None] = {}
+        self._known: set[str] = set()
+        for record in table.records():
+            if not record.smiles:
+                continue
+            self._known.add(record.smiles)
+            for value in {record.smiles, *record.smiles_variants}:
+                self._canonical.setdefault(value, record.smiles)
+        self._symbols: dict[str, tuple[str, str]] = {}
+
+    def _structure_of(self, text: str) -> str | None:
+        """The recorded compound ``text`` is a SMILES, MOLBLOCK or InChI of, if any.
+
+        SMILES are looked up as recorded. A MOLBLOCK or InChI, which the table keeps
+        only shortened, is converted and looked up by its structure; once per value.
+        """
+        if text in self._canonical:
+            return self._canonical[text]
+        if text.startswith("InChI="):
+            kind = _IdentifierType.INCHI
+        elif "M  END" in text:
+            kind = _IdentifierType.MOLBLOCK
+        else:
+            return None
+        canonical = message_helpers.canonical_smiles_for_identifier(kind, text)
+        smiles = canonical if canonical in self._known else None
+        self._canonical[text] = smiles
+        return smiles
+
+    def tip(self, value: object) -> str | None:
+        """The drawing to show for ``value``, or None if it names no recorded compound.
+
+        ``value`` can be a SMILES, MOLBLOCK or InChI.
+        """
+        smiles = self._structure_of(str(value))
+        if smiles is None:
+            return None
+        if smiles not in self._symbols:
+            svg = _structure_svg(smiles)
+            body = svg[svg.index(">") + 1 : svg.rindex("</svg>")] if svg else ""
+            self._symbols[smiles] = (f"mol-{len(self._symbols)}", body)
+        symbol, body = self._symbols[smiles]
+        if not body:
+            return None
+        return (
+            f'<svg width="{_DRAWING_WIDTH}" height="{_DRAWING_HEIGHT}" '
+            f'viewBox="0 0 {_DRAWING_WIDTH} {_DRAWING_HEIGHT}">'
+            f'<use href="#{symbol}"/></svg>'
+        )
+
+    def code(self, value: str) -> str:
+        """``value`` as code, with its drawing on hover if it has one."""
+        text = f"<code>{html.escape(value)}</code>"
+        tip = self.tip(value)
+        if tip is None:
+            return text
+        return (
+            f'<span class="mol" tabindex="0">{text}'
+            f'<span class="moltip" aria-hidden="true">{tip}</span></span>'
+        )
+
+    def defs(self) -> str:
+        """The drawings used so far, for the page to include once, anywhere."""
+        symbols = "".join(
+            f'<symbol id="{symbol}" viewBox="0 0 {_DRAWING_WIDTH} {_DRAWING_HEIGHT}">'
+            f"{body}</symbol>"
+            for symbol, body in self._symbols.values()
+            if body
+        )
+        if not symbols:
+            return ""
+        return (
+            '<svg width="0" height="0" style="position: absolute" aria-hidden="true">'
+            f"<defs>{symbols}</defs></svg>"
+        )
+
+
+_DRAWING_WIDTH = 180
+_DRAWING_HEIGHT = 130
+
+
 def _structure_svg(smiles: str) -> str:
     """Returns an inline SVG drawing of ``smiles``, or "" if it cannot be drawn."""
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return ""
-    drawer = rdMolDraw2D.MolDraw2DSVG(180, 130)
+    drawer = rdMolDraw2D.MolDraw2DSVG(_DRAWING_WIDTH, _DRAWING_HEIGHT)
     drawer.drawOptions().clearBackground = False
     try:
         rdMolDraw2D.PrepareAndDrawMolecule(drawer, mol)
@@ -561,7 +696,6 @@ def _cell_list(values: Iterable[str], css: str = "") -> str:
 
 def _render_html(table: CompoundTable, title: str) -> str:
     summary = table.summary()
-    types = table.identifier_types()
     labels = {
         "reactions": "reactions",
         "compounds": "distinct compounds",
@@ -586,22 +720,51 @@ def _render_html(table: CompoundTable, title: str) -> str:
         for key, label in labels.items()
     )
     parts.append("</dl>")
+    parts.extend(_render_sections(table, heading="h2", max_rows=None))
+    parts.append("</body></html>")
+    return "\n".join(parts)
 
+
+def _render_sections(
+    table: CompoundTable,
+    *,
+    heading: str,
+    max_rows: int | None,
+    drawings: "StructureDrawings | None" = None,
+) -> list[str]:
+    """The cross-role index and one table per role, as HTML parts."""
+    parts: list[str] = []
+    types = table.identifier_types()
     cross = table.cross_role()
     if cross:
-        parts.append("<section><h2>Compounds used in more than one role</h2>")
+        parts.append(
+            f"<section><{heading}>Compounds used in more than one role</{heading}>"
+        )
         parts.append("<table><thead><tr><th>Compound</th><th>Roles</th><th>SMILES</th>")
         parts.append("</tr></thead><tbody>")
+        shown = cross if max_rows is None else cross[:max_rows]
         parts.extend(
             f"<tr><td>{html.escape(record.label)}</td>"
             f"<td>{html.escape(_counts(record.roles))}</td>"
-            f"<td><code>{html.escape(record.smiles)}</code></td></tr>"
-            for record in cross
+            f"<td>{_smiles_cell(record.smiles, drawings)}</td></tr>"
+            for record in shown
         )
-        parts.append("</tbody></table></section>")
+        parts.append("</tbody></table>")
+        if len(cross) > len(shown):
+            parts.append(
+                f'<p class="muted">{len(cross) - len(shown):,} more compounds used in '
+                "more than one role, the least used, are in compounds.csv.</p>"
+            )
+        parts.append("</section>")
 
     for role, records in table.by_role().items():
-        parts.append(f"<section><h2>{html.escape(role)} ({len(records)})</h2>")
+        parts.append(
+            f"<section><{heading}>{html.escape(role)} ({len(records)})</{heading}>"
+        )
+        hidden = 0
+        if max_rows is not None and len(records) > max_rows:
+            hidden = len(records) - max_rows
+            records = records[:max_rows]  # noqa: PLW2901
         parts.append("<table><thead><tr><th>Structure</th><th>Compound</th>")
         parts.extend(f"<th>{html.escape(name)}</th>" for name in types)
         parts.append("<th>Reactions</th><th>Details</th><th>To check</th>")
@@ -640,6 +803,11 @@ def _render_html(table: CompoundTable, title: str) -> str:
                 to_check += '<div class="note">written more than one way:</div>'
                 to_check += _cell_list(sorted(record.smiles_variants), "note")
             parts.append(f"<td>{to_check}</td></tr>")
-        parts.append("</tbody></table></section>")
-    parts.append("</body></html>")
-    return "\n".join(parts)
+        parts.append("</tbody></table>")
+        if hidden:
+            parts.append(
+                f'<p class="muted">{hidden:,} more {html.escape(role)} compounds, '
+                "the least used, are in compounds.csv.</p>"
+            )
+        parts.append("</section>")
+    return parts
