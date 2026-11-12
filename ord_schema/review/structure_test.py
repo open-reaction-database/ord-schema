@@ -298,11 +298,11 @@ def test_compound_by_compound_findings_are_capped_with_a_summary(monkeypatch):
         for n in (3, 9, 1, 5)
     ]
     capped = structure._capped(findings, "compounds in more than one role")
-    assert [f.reactions for f in capped] == [9, 5, 4]
+    assert [f.reactions for f in capped] == [9, 5, None]
     summary = capped[-1]
     assert (
         summary.message
-        == "and 2 more compounds in more than one role, each in fewer reactions"
+        == "and 2 more compounds in more than one role, each in at most 3 reactions"
     )
     assert summary.examples == [
         "compound 3 appears as ...",
