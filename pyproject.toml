@@ -76,8 +76,7 @@ nl = [
     "ord-schema[search]",
 ]
 # Optional: ord_schema.analysis summarizes what a dataset holds -- field usage, compounds
-# and their roles, a flattened table. Empty until a module there needs more than the base
-# install; each dependency arrives with the module that imports it.
+# and their roles, a flattened table.
 analysis = []
 # Optional: ord_schema.review holds the dataset-level checks, scoring, and the report a
 # peer reviewer reads. It builds on the analysis summaries, so it installs that extra.
