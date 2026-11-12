@@ -508,18 +508,24 @@ def _capped(findings: list[Finding], noun: str) -> list[Finding]:
 
     Returns:
         The findings, capped; the summary's examples are the first messages it covers.
+        The summary leaves ``reactions`` unset: one reaction can hold several of the
+        compounds it covers, so their counts don't add up to a count of reactions.
+        Its message gives the most any one of them is in instead.
     """
     if len(findings) <= MAX_COMPOUND_FINDINGS:
         return findings
     ranked = sorted(findings, key=lambda f: -(f.reactions or 0))
     kept, rest = ranked[:MAX_COMPOUND_FINDINGS], ranked[MAX_COMPOUND_FINDINGS:]
-    counted = [f.reactions for f in rest if f.reactions is not None]
+    most = max((f.reactions for f in rest if f.reactions is not None), default=None)
+    message = f"and {len(rest):,} more {noun}"
+    if most is not None:
+        message += f", each in at most {most:,} reactions"
     summary = Finding(
         check=rest[0].check,
         severity=rest[0].severity,
-        message=f"and {len(rest)} more {noun}, each in fewer reactions",
+        message=message,
         fields=rest[0].fields,
-        reactions=sum(counted) if counted else None,
+        reactions=None,
         examples=[f.message for f in rest[:MAX_EXAMPLES]],
     )
     return [*kept, summary]
