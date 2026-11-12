@@ -35,6 +35,9 @@
             column_stats.csv    statistics for each group of varying columns
             exemplars.txtpb     the reactions picked for the reviewer to read
             completeness.csv    each reaction's completeness score, and what it lacks
+        packet/
+            review_packet.md    the review for an AI reviewer, sized to fit its context
+            review.json         the same, structured
 
 The CSVs are always complete; only the page caps what it shows. Nothing here blocks
 a submission: the report is for the reviewer, who decides.
@@ -54,10 +57,10 @@ from collections.abc import Iterable, Iterator
 from google.protobuf import text_format
 
 from ord_schema import parquet, validations
-from ord_schema.analysis import columns
+from ord_schema.analysis import columns, flat
 from ord_schema.analysis.compounds import StructureDrawings
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.review import completeness, exemplars, structure
+from ord_schema.review import completeness, exemplars, packet, structure
 from ord_schema.validations import Severity
 
 # What the page shows before pointing to the CSVs.
@@ -277,13 +280,18 @@ def _file_stem(report: ReviewReport) -> str:
 
 
 def write_bundle(
-    report: ReviewReport, output_dir: str | os.PathLike[str]
+    report: ReviewReport,
+    output_dir: str | os.PathLike[str],
+    *,
+    packet_budget_tokens: int = packet.DEFAULT_BUDGET_TOKENS,
 ) -> pathlib.Path:
     """Writes the report's page and tables into ``output_dir``.
 
     Args:
         report: The report.
         output_dir: Where to write; created if it does not exist.
+        packet_budget_tokens: The most estimated tokens each file of the AI review
+            packet may hold; see :mod:`ord_schema.review.packet`.
 
     Returns:
         The path of the HTML page.
@@ -301,6 +309,7 @@ def write_bundle(
     exemplars.write_txtpb(
         report.exemplars, tables / "exemplars.txtpb", name=report.name
     )
+    packet.write_packet(report, root, packet_budget_tokens)
     page = root / f"{_file_stem(report)}_review.html"
     page.write_text(render_html(report), encoding="utf-8")
     return page
@@ -619,6 +628,14 @@ def _exemplars_section(report: ReviewReport) -> str:
         "uniform dataset, inputs no other reaction uses. All are in "
         "<code>tables/exemplars.txtpb</code>.</p>",
     ]
+    # The page carries each exemplar without its binary payloads: an image in every
+    # reaction would make the page tens of megabytes. tables/exemplars.txtpb has them.
+    stripped = [exemplars.without_binary(e.reaction) for e in picked]
+    picked = [
+        dataclasses.replace(e, reaction=reaction)
+        for e, (reaction, _) in zip(picked, stripped, strict=True)
+    ]
+    omitted = sum(size for _, size in stripped)
     if picked:
         everything = text_format.MessageToString(
             exemplars.to_dataset(picked, name=report.name)
@@ -628,7 +645,15 @@ def _exemplars_section(report: ReviewReport) -> str:
             f'into the <a href="{EDITOR_URL}">ORD reaction editor</a>: one reaction '
             "with <b>Create Reaction from File</b>, or all of them as a dataset with "
             "<b>Create Dataset from File</b>. Imported reactions are saved to your "
-            "editor account.<br>"
+            "editor account."
+            + (
+                f" Images and other binary attachments ({omitted:,} bytes in all) are "
+                "left out of these downloads and the text below; "
+                "<code>tables/exemplars.txtpb</code> holds them."
+                if omitted
+                else ""
+            )
+            + "<br>"
             + _download(
                 everything,
                 f"{_file_stem(report)}_exemplars.txtpb",
@@ -720,7 +745,7 @@ def _columns_section(report: ReviewReport, drawings: StructureDrawings) -> str:
     constants = table.constants_frame()
     shown = constants.head(MAX_CONSTANTS_SHOWN)
     rows = "".join(
-        f"<tr><td><code>{_e(field)}</code></td><td>{_e(value)}</td>"
+        f"<tr><td><code>{_e(field)}</code></td><td>{_e(flat.display_value(value))}</td>"
         f"<td>{_e(section)}</td></tr>"
         for field, value, section in zip(
             shown["field"], shown["value"], shown["section"], strict=True

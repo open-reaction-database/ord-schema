@@ -23,6 +23,14 @@ ord\_schema.review.exemplars
    :show-inheritance:
    :undoc-members:
 
+ord\_schema.review.packet
+-------------------------
+
+.. automodule:: ord_schema.review.packet
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 ord\_schema.review.report
 -------------------------
 

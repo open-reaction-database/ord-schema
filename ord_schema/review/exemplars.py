@@ -36,6 +36,7 @@ from typing import Protocol
 import numpy as np
 from google.protobuf import text_format
 
+from ord_schema import message_helpers
 from ord_schema.analysis import columns, flat
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.review import structure
@@ -237,6 +238,33 @@ def pick(
             )
         )
     return exemplars
+
+
+def without_binary(
+    reaction: reaction_pb2.Reaction,
+) -> tuple[reaction_pb2.Reaction, int]:
+    """A copy of ``reaction`` with its binary payloads left out, and their total size.
+
+    Images and instrument files stored as ``Data.bytes_value`` can be megabytes each:
+    a plate photograph in every reaction makes a page of exemplars tens of megabytes,
+    and means nothing to a language model. Each payload is replaced by a note in its
+    ``description`` giving its size; ``tables/exemplars.txtpb`` keeps them.
+    """
+    copy = reaction_pb2.Reaction()
+    copy.CopyFrom(reaction)
+    omitted = 0
+    for data in message_helpers.find_submessages(copy, reaction_pb2.Data):
+        if data.WhichOneof("kind") != "bytes_value":
+            continue
+        size = len(data.bytes_value)
+        omitted += size
+        data.ClearField("bytes_value")
+        note = (
+            f"[{size:,} bytes of {data.format or 'binary'} data left out here; "
+            "tables/exemplars.txtpb holds them]"
+        )
+        data.description = f"{data.description} {note}".strip()
+    return copy, omitted
 
 
 def to_dataset(exemplars: list[Exemplar], *, name: str) -> dataset_pb2.Dataset:

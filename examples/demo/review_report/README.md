@@ -25,6 +25,11 @@ Completeness is 96%: every reaction gives its compounds as SMILES without names.
 The exemplars are one reaction for its single shape, and the reactions with the lowest
 and highest yield.
 
+- [`packet/`](packet/): the AI review packet, the same review sized for a model's
+  context window and made for an AI reviewer to read:
+  [`review_packet.md`](packet/review_packet.md) and its structured twin
+  [`review.json`](packet/review.json).
+
 ## Rebuilding it
 
 From the repository root:

@@ -86,6 +86,17 @@ _INDEX = re.compile(r"\[\d+\]")
 _SUBSCRIPT = re.compile(rf'\["[^"]*"\]|{_INDEX.pattern}')
 
 
+def display_value(value: object) -> object:
+    """``value`` as a table shows it: binary data as its size, anything else as is.
+
+    A field holding an image would otherwise put megabytes of escaped bytes in a CSV
+    cell or on a page.
+    """
+    if isinstance(value, bytes):
+        return f"({len(value):,} bytes)"
+    return value
+
+
 def field_path(column: str, *, keep_keys: bool = False) -> str:
     """The field path a column names, without its indices and, by default, map keys.
 
@@ -304,14 +315,21 @@ class FlatTable:
         raise KeyError(column)
 
     def write_csv(self, path: str | os.PathLike[str]) -> None:
-        """Writes the varying fields, one row per reaction."""
+        """Writes the varying fields, one row per reaction; binary data as its size."""
         with pathlib.Path(path).open("w", newline="", encoding="utf-8") as f:
-            self.varying.to_csv(f, index=False)
+            # Column by column: DataFrame.map is pandas 2.1+, and the base install
+            # allows older pandas.
+            self.varying.apply(lambda c: c.map(display_value)).to_csv(f, index=False)
 
     def write_constants_csv(self, path: str | os.PathLike[str]) -> None:
-        """Writes the constant fields, one row each: field, value and section."""
+        """Writes the constant fields, one row each: field, value and section.
+
+        Binary data is written as its size.
+        """
+        frame = self.constants_frame()
+        frame["value"] = frame["value"].map(display_value)
         with pathlib.Path(path).open("w", newline="", encoding="utf-8") as f:
-            self.constants_frame().to_csv(f, index=False)
+            frame.to_csv(f, index=False)
 
 
 def _section(column: str) -> str:
