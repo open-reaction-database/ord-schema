@@ -390,8 +390,9 @@ class CompoundTable:
 
         Args:
             heading: The element each section's heading uses.
-            max_rows: The most compounds to show per role; the rest are counted in a
-                line pointing to the CSV, which always holds every compound.
+            max_rows: The most compounds to show in the cross-role index and per
+                role; the rest are counted in a line pointing to the CSV, which
+                always holds every compound.
         """
         return "\n".join(_render_sections(self, heading=heading, max_rows=max_rows))
 
@@ -619,13 +620,20 @@ def _render_sections(
         )
         parts.append("<table><thead><tr><th>Compound</th><th>Roles</th><th>SMILES</th>")
         parts.append("</tr></thead><tbody>")
+        shown = cross if max_rows is None else cross[:max_rows]
         parts.extend(
             f"<tr><td>{html.escape(record.label)}</td>"
             f"<td>{html.escape(_counts(record.roles))}</td>"
             f"<td><code>{html.escape(record.smiles)}</code></td></tr>"
-            for record in cross
+            for record in shown
         )
-        parts.append("</tbody></table></section>")
+        parts.append("</tbody></table>")
+        if len(cross) > len(shown):
+            parts.append(
+                f'<p class="muted">{len(cross) - len(shown):,} more compounds used in '
+                "more than one role, the least used, are in compounds.csv.</p>"
+            )
+        parts.append("</section>")
 
     for role, records in table.by_role().items():
         parts.append(
