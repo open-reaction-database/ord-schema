@@ -225,6 +225,30 @@ def test_the_rollup_counts_each_problem_once_per_reaction():
     assert "and 2 more reactions like it" in findings["implausible-temperature"].message
 
 
+def test_each_check_keeps_its_most_widespread_findings_and_sums_up_the_rest(
+    monkeypatch,
+):
+    monkeypatch.setattr(chemistry, "MAX_GROUPS_PER_CHECK", 2)
+    rollup = chemistry.ChemistryRollup()
+    products = ["CCO", "CCCO", "CCCCO", "CCCCCO"]
+    for i, smiles in enumerate(products):
+        for j in range(4 - i):  # CCO in 4 reactions, CCCO in 3, ...
+            reaction = _reaction(product=smiles)
+            del reaction.outcomes[0].products[0].measurements[:]
+            rollup.observe(reaction, f"r{i}-{j}")
+    findings = [
+        f for f in rollup.findings() if f.check == "product-without-measurement"
+    ]
+    assert [f.reactions for f in findings] == [4, 3, 10]
+    summary = findings[-1]
+    assert summary.message.startswith("and 2 more findings like these")
+    assert "10 reactions raise this check in all" in summary.message
+    assert summary.examples == [
+        "product CCCCO has no measurement",
+        "product CCCCCO has no measurement",
+    ]
+
+
 def test_a_consistent_real_screen_raises_nothing():
     rollup = chemistry.ChemistryRollup()
     for _ in rollup.watch(datasets.load_dataset(_NIELSEN).reactions):
