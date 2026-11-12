@@ -163,7 +163,12 @@ def _walk(
                 yield path, keyed, None, str(key)
                 entry_path = f"{keyed}{_key_segment(key)}"
                 if value_field.message_type is None:
-                    yield f"{path}.value", entry_path, _value(value_field, entry), None
+                    yield (
+                        f"{path}.value",
+                        f"{entry_path}.value",
+                        _value(value_field, entry),
+                        None,
+                    )
                 else:
                     yield path, entry_path, None, None
                     yield from _walk(entry, f"{path}.", f"{entry_path}.")
