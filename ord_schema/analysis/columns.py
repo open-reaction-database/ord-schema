@@ -123,7 +123,10 @@ class ColumnStats:
         Args:
             title: The chart's accessible name; by default the column.
         """
-        return self.to_html(title=title)
+        label = title or self.column
+        if self.kind == "numeric":
+            return _histogram_svg(self, label)
+        return _categories_svg(self, label)
 
     def to_html(
         self,
@@ -131,33 +134,37 @@ class ColumnStats:
         title: str | None = None,
         drawing: Callable[[object], str | None] | None = None,
     ) -> str:
-        """Returns the group's chart, with a drawing on hover for bars that have one.
+        """Returns the group's chart, with each value in full where its bar can't.
+
+        A bar whose label is cut short, whose value runs over several lines (a
+        MOLBLOCK, say) or that has a drawing shows a panel while hovered or
+        focused: the value in full, its count and the drawing. Under such a chart,
+        a folded list gives every bar's value in full, to read and copy.
 
         Args:
             title: The chart's accessible name; by default the column.
-            drawing: Returns the HTML to show when a bar's value is hovered or
-                focused, e.g. a structure drawing for a SMILES, or None for none.
-                A bar of a group's values shows the first of them that has one.
+            drawing: Returns the HTML to show for a value, e.g. a structure drawing
+                for a SMILES, or None for none. A bar of a group's values shows the
+                first of them that has one.
 
         Returns:
-            The bare SVG when no bar has a drawing. Otherwise the SVG and the
-            drawings, in a ``div.chart``; a page shows them with
-            :data:`TOOLTIP_CSS`.
+            The bare SVG when every bar shows its value whole and none has a
+            drawing. Otherwise the SVG and its panels in a ``div.chart``, and the
+            values list; a page styles them with :data:`TOOLTIP_CSS`, and must let
+            a panel overflow the chart's box.
         """
-        label = title or self.column
         if self.kind == "numeric":
-            return _histogram_svg(self, label)
-        drawings = _bar_drawings(self, drawing) if drawing else {}
-        svg = _categories_svg(self, label, set(drawings))
-        if not drawings:
+            return self.to_svg(title=title)
+        panels = _panels(self, drawing)
+        svg = _categories_svg(self, title or self.column, set(panels))
+        if not panels:
             return svg
         tips = "".join(
             f'<div class="moltip t{index}" aria-hidden="true" '
-            f'style="left: {_LABEL_WIDTH}px; top: {_tip_top(self, index)}px">'
-            f"{tip}</div>"
-            for index, tip in drawings.items()
+            f'style="left: 8px; top: {4 + (index + 1) * _ROW}px">{panel}</div>'
+            for index, panel in panels.items()
         )
-        return f'<div class="chart">{svg}{tips}</div>'
+        return f'<div class="chart">{svg}{tips}</div>{_values_list(self)}'
 
 
 def _is_number(value: object) -> bool:
@@ -362,53 +369,101 @@ def _fit(value: str, room: float) -> str:
 _LABEL_ROOM = _LABEL_WIDTH - 12
 
 
-# The largest drawing a chart makes room for, border and padding included: a
-# 180 x 130 structure drawing.
-TIP_WIDTH = 190
-TIP_HEIGHT = 140
+# How many lines of a multi-line value, such as a MOLBLOCK, a hover panel shows;
+# the values list under the chart shows them all.
+MAX_TIP_LINES = 15
 
-# A drawing shown on hover. In a chart it sits beside the bar, inside the chart, so
-# a scrolling box around the chart can't cut it off; it ignores the pointer, so it
-# never takes the hover from the bar it covers. Each bar i shows the drawing t{i}.
+# The hover panel and the values list. In a chart the panel opens below its bar;
+# the page must let it overflow the chart's box. It ignores the pointer, so it
+# never takes the hover from the bar it covers. Each bar i shows the panel t{i}.
 TOOLTIP_CSS = (
-    ".moltip { display: none; padding: 4px; background: #fff; "
-    "border: 1px solid var(--grid, #e2e1dc); border-radius: 6px; "
-    "box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); width: fit-content; }\n"
+    ".moltip { display: none; padding: 6px; background: #fff; color: #0b0b0b; "
+    "border: 1px solid var(--grid, #e2e1dc); border-radius: 6px; font-size: 11px; "
+    "box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); width: max-content; "
+    "max-width: 344px; }\n"
     ".moltip svg { display: block; }\n"
-    f".chart {{ position: relative; min-height: {TIP_HEIGHT + 8}px; }}\n"
+    ".moltip .count { color: #52514e; margin: 2px 0 4px; }\n"
+    ".moltip pre { overflow: hidden; }\n"
+    ".value { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; "
+    "overflow-wrap: anywhere; }\n"
+    "pre.value { margin: 0; font-size: 10px; line-height: 1.25; "
+    "white-space: pre; overflow-wrap: normal; }\n"
+    ".chart { position: relative; }\n"
     ".chart .moltip { position: absolute; z-index: 2; pointer-events: none; }\n"
     + "".join(
         f".chart:has(.b{i}:hover, .b{i}:focus) .t{i} {{ display: block; }}\n"
         for i in range(MAX_CHART_CATEGORIES)
     )
+    + "details.values { margin-top: 6px; font-size: 12px; }\n"
+    "details.values table { table-layout: fixed; width: 100%; }\n"
+    "details.values th:first-child { width: 6em; }\n"
+    "details.values pre.value { overflow-x: auto; font-size: 11px; }\n"
 )
 
 
-def _tip_top(stat: ColumnStats, index: int) -> int:
-    """Where bar ``index``'s drawing goes: below the bar, or above it if no room."""
-    shown = len(stat.categories[:MAX_CHART_CATEGORIES])
-    rows = shown + (1 if len(stat.categories) > shown or stat.other else 0)
-    room = max(rows * _ROW + 8, TIP_HEIGHT + 8)
-    below = 4 + (index + 1) * _ROW
-    if below + TIP_HEIGHT <= room:
-        return below
-    return max(0, 4 + index * _ROW - TIP_HEIGHT)
+def _value_html(values: tuple[object, ...], max_lines: int | None = None) -> str:
+    """A bar's values in full, one per line; a multi-line one as preformatted text.
+
+    Args:
+        values: The bar's value in each column of the group.
+        max_lines: The most lines of a multi-line value to show; the rest are
+            counted. None shows them all.
+    """
+    parts = []
+    for value in values:
+        text = format_value(value)
+        if "\n" not in text:
+            parts.append(f'<div class="value">{html.escape(text)}</div>')
+            continue
+        lines = text.split("\n")
+        if max_lines is not None and len(lines) > max_lines:
+            hidden = len(lines) - max_lines
+            lines = [*lines[:max_lines], f"... {hidden} more lines"]
+        parts.append(f'<pre class="value">{html.escape(chr(10).join(lines))}</pre>')
+    return "".join(parts)
 
 
-def _bar_drawings(
-    stat: ColumnStats, drawing: Callable[[object], str | None]
+def _panels(
+    stat: ColumnStats, drawing: Callable[[object], str | None] | None
 ) -> dict[int, str]:
-    """The drawing for each bar that has one, by the bar's position."""
-    found = {}
-    for index, (values, _) in enumerate(stat.categories[:MAX_CHART_CATEGORIES]):
-        tip = next((t for v in values if v is not None and (t := drawing(v))), None)
-        if tip:
-            found[index] = tip
-    return found
+    """The hover panel for each bar whose label doesn't show it all, by position.
+
+    A bar gets a panel when its label is cut short, its value runs over more than
+    one line, or it has a drawing: the panel shows the value in full, with the
+    drawing if there is one.
+    """
+    panels = {}
+    for index, (values, count) in enumerate(stat.categories[:MAX_CHART_CATEGORIES]):
+        name = " | ".join(format_value(v) for v in values)
+        tip = None
+        if drawing is not None:
+            tip = next((t for v in values if v is not None and (t := drawing(v))), None)
+        if tip is None and "\n" not in name and _fit(name, _LABEL_ROOM) == name:
+            continue
+        panels[index] = (
+            _value_html(values, MAX_TIP_LINES)
+            + f'<div class="count">{count:,} reactions</div>'
+            + (tip or "")
+        )
+    return panels
+
+
+def _values_list(stat: ColumnStats) -> str:
+    """Each bar's values in full, to read and copy, folded under the chart."""
+    shown = stat.categories[:MAX_CHART_CATEGORIES]
+    rows = "".join(
+        f"<tr><td>{count:,}</td><td>{_value_html(values)}</td></tr>"
+        for values, count in shown
+    )
+    return (
+        f'<details class="values"><summary>Values shown, in full ({len(shown)})'
+        "</summary><table><thead><tr><th>Reactions</th><th>Value</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table></details>"
+    )
 
 
 def _categories_svg(
-    stat: ColumnStats, label: str, with_drawing: Collection[int] = ()
+    stat: ColumnStats, label: str, with_panel: Collection[int] = ()
 ) -> str:
     shown = stat.categories[:MAX_CHART_CATEGORIES]
     rest = (
@@ -434,8 +489,8 @@ def _categories_svg(
         y = 4 + index * _ROW + (_ROW - _BAR) / 2
         width = max(1.0, plot * count / top)
         tooltip = f"{name}: {count:,} reactions"
-        # A bar with a drawing can be focused, so the keyboard can show it too.
-        marked = f' class="b{index}" tabindex="0"' if index in with_drawing else ""
+        # A bar with a panel can be focused, so the keyboard can show it too.
+        marked = f' class="b{index}" tabindex="0"' if index in with_panel else ""
         parts.append(
             f"<g{marked}><title>{html.escape(tooltip)}</title>"
             f'<path d="{_bar_path(_LABEL_WIDTH, y, width, _BAR, up=False)}" '
