@@ -321,8 +321,10 @@ td ul { margin: 0; padding-left: 16px; }
 .pill.INFO { color: var(--info); background: var(--info-bg); }
 .grid { display: grid; gap: 14px;
   grid-template-columns: repeat(auto-fill, minmax(390px, 1fr)); }
-figure { margin: 0; padding: 12px; background: var(--card);
-  border: 1px solid var(--grid); border-radius: 8px; overflow-x: auto; }
+figure { margin: 0; padding: 12px; background: var(--card); min-width: 0;
+  border: 1px solid var(--grid); border-radius: 8px; position: relative; }
+figure svg { max-width: 100%; height: auto; }
+figure:hover, figure:focus-within { z-index: 5; }
 figcaption { font-size: 12px; margin-bottom: 8px; display: grid; gap: 2px; }
 td.structure { width: 190px; background: #ffffff; }
 td.structure svg { display: block; }
