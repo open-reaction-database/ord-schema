@@ -152,7 +152,9 @@ class ColumnStats:
         if not drawings:
             return svg
         tips = "".join(
-            f'<div class="moltip t{index}" aria-hidden="true">{tip}</div>'
+            f'<div class="moltip t{index}" aria-hidden="true" '
+            f'style="left: {_LABEL_WIDTH}px; top: {_tip_top(self, index)}px">'
+            f"{tip}</div>"
             for index, tip in drawings.items()
         )
         return f'<div class="chart">{svg}{tips}</div>'
@@ -360,19 +362,37 @@ def _fit(value: str, room: float) -> str:
 _LABEL_ROOM = _LABEL_WIDTH - 12
 
 
-# A drawing shown on hover. Fixed, without offsets, it opens where it sits in the
-# page, below the chart or after the text, yet is not cut off by a scrolling box
-# around it. Each bar i of a chart shows the drawing t{i}.
+# The largest drawing a chart makes room for, border and padding included: a
+# 180 x 130 structure drawing.
+TIP_WIDTH = 190
+TIP_HEIGHT = 140
+
+# A drawing shown on hover. In a chart it sits beside the bar, inside the chart, so
+# a scrolling box around the chart can't cut it off; it ignores the pointer, so it
+# never takes the hover from the bar it covers. Each bar i shows the drawing t{i}.
 TOOLTIP_CSS = (
-    ".moltip { display: none; position: fixed; z-index: 20; padding: 4px; "
-    "background: #fff; border: 1px solid var(--grid, #e2e1dc); border-radius: 6px; "
-    "box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); }\n"
+    ".moltip { display: none; padding: 4px; background: #fff; "
+    "border: 1px solid var(--grid, #e2e1dc); border-radius: 6px; "
+    "box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); width: fit-content; }\n"
     ".moltip svg { display: block; }\n"
+    f".chart {{ position: relative; min-height: {TIP_HEIGHT + 8}px; }}\n"
+    ".chart .moltip { position: absolute; z-index: 2; pointer-events: none; }\n"
     + "".join(
         f".chart:has(.b{i}:hover, .b{i}:focus) .t{i} {{ display: block; }}\n"
         for i in range(MAX_CHART_CATEGORIES)
     )
 )
+
+
+def _tip_top(stat: ColumnStats, index: int) -> int:
+    """Where bar ``index``'s drawing goes: below the bar, or above it if no room."""
+    shown = len(stat.categories[:MAX_CHART_CATEGORIES])
+    rows = shown + (1 if len(stat.categories) > shown or stat.other else 0)
+    room = max(rows * _ROW + 8, TIP_HEIGHT + 8)
+    below = 4 + (index + 1) * _ROW
+    if below + TIP_HEIGHT <= room:
+        return below
+    return max(0, 4 + index * _ROW - TIP_HEIGHT)
 
 
 def _bar_drawings(
