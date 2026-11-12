@@ -20,9 +20,10 @@ one input. A column is *constant* when every reaction holds it with the same val
 those are left out of the table and listed separately, with their values, so a reader
 sees what the dataset varies and, beside it, what it held fixed.
 
-The columns kept and dropped are exactly those of
+With ``date_resolution=None``, the columns kept and dropped are exactly those of
 ``message_helpers.messages_to_dataframe(reactions, drop_constant_columns=True)``,
-with ``reaction_id`` moved to the front.
+with ``reaction_id`` moved to the front. At the default ``"day"``, two times on one
+day are one value here, so a column that varies only within a day is constant.
 That helper builds every column of every reaction before dropping the constant ones,
 and does not return them. This reads the reactions once, keeping values only for
 columns that have varied so far: while a column is constant, all it needs to remember
@@ -289,7 +290,7 @@ class FlatTable:
             self.varying.to_csv(f, index=False)
 
     def write_constants_csv(self, path: str | os.PathLike[str]) -> None:
-        """Writes the constant fields, one row each: ``field`` and ``value``."""
+        """Writes the constant fields, one row each: field, value and section."""
         with pathlib.Path(path).open("w", newline="", encoding="utf-8") as f:
             self.constants_frame().to_csv(f, index=False)
 
