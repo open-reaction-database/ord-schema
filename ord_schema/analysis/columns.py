@@ -39,6 +39,7 @@ import html
 import math
 import os
 import pathlib
+from collections.abc import Callable, Collection
 from typing import cast
 
 import numpy as np
@@ -122,10 +123,39 @@ class ColumnStats:
         Args:
             title: The chart's accessible name; by default the column.
         """
+        return self.to_html(title=title)
+
+    def to_html(
+        self,
+        *,
+        title: str | None = None,
+        drawing: Callable[[object], str | None] | None = None,
+    ) -> str:
+        """Returns the group's chart, with a drawing on hover for bars that have one.
+
+        Args:
+            title: The chart's accessible name; by default the column.
+            drawing: Returns the HTML to show when a bar's value is hovered or
+                focused, e.g. a structure drawing for a SMILES, or None for none.
+                A bar of a group's values shows the first of them that has one.
+
+        Returns:
+            The bare SVG when no bar has a drawing. Otherwise the SVG and the
+            drawings, in a ``div.chart``; a page shows them with
+            :data:`TOOLTIP_CSS`.
+        """
         label = title or self.column
         if self.kind == "numeric":
             return _histogram_svg(self, label)
-        return _categories_svg(self, label)
+        drawings = _bar_drawings(self, drawing) if drawing else {}
+        svg = _categories_svg(self, label, set(drawings))
+        if not drawings:
+            return svg
+        tips = "".join(
+            f'<div class="moltip t{index}" aria-hidden="true">{tip}</div>'
+            for index, tip in drawings.items()
+        )
+        return f'<div class="chart">{svg}{tips}</div>'
 
 
 def _is_number(value: object) -> bool:
@@ -330,7 +360,36 @@ def _fit(value: str, room: float) -> str:
 _LABEL_ROOM = _LABEL_WIDTH - 12
 
 
-def _categories_svg(stat: ColumnStats, label: str) -> str:
+# A drawing shown on hover. Fixed, without offsets, it opens where it sits in the
+# page, below the chart or after the text, yet is not cut off by a scrolling box
+# around it. Each bar i of a chart shows the drawing t{i}.
+TOOLTIP_CSS = (
+    ".moltip { display: none; position: fixed; z-index: 20; padding: 4px; "
+    "background: #fff; border: 1px solid var(--grid, #e2e1dc); border-radius: 6px; "
+    "box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); }\n"
+    ".moltip svg { display: block; }\n"
+    + "".join(
+        f".chart:has(.b{i}:hover, .b{i}:focus) .t{i} {{ display: block; }}\n"
+        for i in range(MAX_CHART_CATEGORIES)
+    )
+)
+
+
+def _bar_drawings(
+    stat: ColumnStats, drawing: Callable[[object], str | None]
+) -> dict[int, str]:
+    """The drawing for each bar that has one, by the bar's position."""
+    found = {}
+    for index, (values, _) in enumerate(stat.categories[:MAX_CHART_CATEGORIES]):
+        tip = next((t for v in values if v is not None and (t := drawing(v))), None)
+        if tip:
+            found[index] = tip
+    return found
+
+
+def _categories_svg(
+    stat: ColumnStats, label: str, with_drawing: Collection[int] = ()
+) -> str:
     shown = stat.categories[:MAX_CHART_CATEGORIES]
     rest = (
         sum(count for _, count in stat.categories[MAX_CHART_CATEGORIES:]) + stat.other
@@ -353,8 +412,10 @@ def _categories_svg(stat: ColumnStats, label: str) -> str:
         y = 4 + index * _ROW + (_ROW - _BAR) / 2
         width = max(1.0, plot * count / top)
         tooltip = f"{name}: {count:,} reactions"
+        # A bar with a drawing can be focused, so the keyboard can show it too.
+        marked = f' class="b{index}" tabindex="0"' if index in with_drawing else ""
         parts.append(
-            f"<g><title>{html.escape(tooltip)}</title>"
+            f"<g{marked}><title>{html.escape(tooltip)}</title>"
             f'<path d="{_bar_path(_LABEL_WIDTH, y, width, _BAR, up=False)}" '
             'fill="var(--series-1, #2a78d6)"/>'
             + _text(

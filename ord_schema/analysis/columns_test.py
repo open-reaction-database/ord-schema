@@ -214,3 +214,30 @@ def test_a_real_screen():
     kinds = [stat.kind for stat in stats]
     assert kinds == ["categorical", "categorical", "categorical", "numeric"]
     assert [stat.distinct for stat in stats] == [4, 4, 5, 51]
+
+
+def test_bars_with_a_drawing_show_it_on_hover_and_focus():
+    stat = _stats()[_BASE_SMILES]
+
+    def drawing(value: object) -> str | None:
+        return "<svg>trimethylamine</svg>" if value == "CN(C)C" else None
+
+    page = stat.to_html(drawing=drawing)
+    assert page.startswith('<div class="chart"><svg')
+    svg = page[page.index("<svg") : page.index("</svg>") + len("</svg>")]
+    root = _parse(svg)
+    marked = [g for g in root.iter(f"{_SVG}g") if g.get("class")]
+    (bar,) = marked
+    assert bar.get("tabindex") == "0"
+    index = str(bar.get("class"))[1:]
+    assert (
+        f'<div class="moltip t{index}" aria-hidden="true"><svg>trimethylamine' in page
+    )
+    assert f".chart:has(.b{index}:hover, .b{index}:focus) .t{index}" in (
+        columns.TOOLTIP_CSS
+    )
+
+
+def test_a_chart_with_no_drawings_is_the_bare_svg():
+    stat = _stats()[_BASE_SMILES]
+    assert stat.to_html(drawing=lambda value: None) == stat.to_svg()
