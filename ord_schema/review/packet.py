@@ -205,6 +205,16 @@ def _data(
                 for f in findings[: limits.findings]
             ],
         },
+        "chemistry_findings": [
+            {
+                "check": f.check,
+                "severity": f.severity.name,
+                "message": f.message,
+                "reactions": f.reactions,
+                "examples": f.examples,
+            }
+            for f in report.chemistry[: limits.findings]
+        ],
         "validation": {
             "total": len(report.validation),
             "messages": [
@@ -425,6 +435,15 @@ def _markdown(data: dict[str, Any], report: "ReviewReport", limits: _Limits) -> 
     hidden = data["structural_findings"]["total"] - shown
     if hidden > 0:
         lines.append(f"- … {hidden} more in `tables/findings.csv`")
+    lines += ["", "## Chemistry checks", ""]
+    if not data["chemistry_findings"]:
+        lines.append("None.")
+    for f in data["chemistry_findings"]:
+        examples = ", ".join(_code(e) for e in f["examples"][:3])
+        lines.append(
+            f"- **{f['severity']}** `{f['check']}` in {f['reactions']:,} reactions "
+            f"(e.g. {examples}): {_code(f['message'])}"
+        )
     lines += ["", "## Reaction validation", ""]
     if not data["validation"]["messages"]:
         lines.append("Every reaction validates with nothing to report.")

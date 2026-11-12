@@ -32,6 +32,7 @@
   "total": 0,
   "findings": []
  },
+ "chemistry_findings": [],
  "validation": {
   "total": 1,
   "messages": [

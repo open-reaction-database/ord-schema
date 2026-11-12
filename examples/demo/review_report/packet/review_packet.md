@@ -22,6 +22,10 @@ Checks run: coverage-gap, placeholder-value, grid-gap, duplicate-well, mixed-uni
 
 None.
 
+## Chemistry checks
+
+None.
+
 ## Reaction validation
 
 - **WARNING** in 80 reactions (e.g. `reaction #1`, `reaction #2`, `reaction #3`): `Reaction.provenance.record_created.time: Time 2020-08-08T15:01:25 has no UTC offset, so the instant it names is ambiguous; add the offset it was written under (+00:00) where known`

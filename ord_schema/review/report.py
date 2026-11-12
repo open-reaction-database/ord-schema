@@ -60,7 +60,7 @@ from ord_schema import parquet, validations
 from ord_schema.analysis import columns, flat
 from ord_schema.analysis.compounds import StructureDrawings
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.review import completeness, exemplars, packet, structure
+from ord_schema.review import chemistry, completeness, exemplars, packet, structure
 from ord_schema.validations import Severity
 
 # What the page shows before pointing to the CSVs.
@@ -112,6 +112,7 @@ class ReviewReport:
         column_stats: Statistics for each group of varying columns.
         exemplars: The reactions picked for the reviewer to read, and why.
         completeness: The reactions' completeness scores, rolled up.
+        chemistry: What the chemistry sanity checks found, rolled up.
         generated: When the report was made, in UTC.
         ord_schema_version: The ord-schema that made it.
     """
@@ -126,6 +127,7 @@ class ReviewReport:
     column_stats: list[columns.ColumnStats]
     exemplars: list[exemplars.Exemplar]
     completeness: completeness.CompletenessRollup
+    chemistry: list[structure.Finding]
     generated: str
     ord_schema_version: str
 
@@ -137,7 +139,7 @@ class ReviewReport:
     def severity_counts(self) -> dict[Severity, int]:
         """Findings at each severity: structural findings, and validation messages."""
         counts = dict.fromkeys(Severity, 0)
-        for finding in self.structure.findings:
+        for finding in [*self.structure.findings, *self.chemistry]:
             counts[finding.severity] += 1
         for group in self.validation:
             counts[group.severity] += 1
@@ -203,7 +205,10 @@ def build_report(
     """
     validator = _Validator(options or validations.ValidationOptions())
     scores = completeness.CompletenessRollup(profile.value)
-    evidence = structure.gather(scores.watch(validator.watch(dataset.reactions)))
+    sanity = chemistry.ChemistryRollup()
+    evidence = structure.gather(
+        sanity.watch(scores.watch(validator.watch(dataset.reactions)))
+    )
     stats = columns.column_statistics(evidence.table)
     return ReviewReport(
         name=dataset.name,
@@ -217,6 +222,7 @@ def build_report(
         # Fetched back by position, which a Dataset and a DatasetView both allow.
         exemplars=exemplars.pick(evidence.table, stats, dataset.reactions, profile),
         completeness=scores,
+        chemistry=sanity.findings(),
         generated=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M UTC"),
         ord_schema_version=importlib.metadata.version("ord-schema"),
     )
@@ -235,10 +241,13 @@ def _write_findings_csv(report: ReviewReport, path: pathlib.Path) -> None:
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
-        for finding in report.structure.findings:
+        for source, finding in [
+            *(("structure", f) for f in report.structure.findings),
+            *(("chemistry", f) for f in report.chemistry),
+        ]:
             writer.writerow(
                 {
-                    "source": "structure",
+                    "source": source,
                     "check": finding.check,
                     "severity": finding.severity.name,
                     "message": finding.message,
@@ -453,35 +462,43 @@ def _header(report: ReviewReport) -> str:
     )
 
 
+def _findings_table(
+    findings: list[structure.Finding], drawings: StructureDrawings | None = None
+) -> str:
+    """Findings as a table, capped, pointing to findings.csv for the rest."""
+    parts = [
+        '<div class="scroll"><table><thead><tr><th>Severity</th><th>Check</th>'
+        "<th>Finding</th><th>Reactions</th><th>Examples</th></tr></thead><tbody>"
+    ]
+    parts.extend(
+        f"<tr><td>{_pill(f.severity)}</td>"
+        f'<td class="check"><code>{_e(f.check)}</code></td>'
+        f"<td>{_e(f.message)}"
+        + (
+            f'<div class="muted">{_e(", ".join(f.fields[:3]))}'
+            + (f" and {len(f.fields) - 3} more" if len(f.fields) > 3 else "")
+            + "</div>"
+            if f.fields
+            else ""
+        )
+        + f"</td><td>{'' if f.reactions is None else f'{f.reactions:,}'}</td>"
+        f"<td>{_list(f.examples, drawings)}</td></tr>"
+        for f in findings[:MAX_FINDINGS_SHOWN]
+    )
+    parts.append("</tbody></table></div>")
+    if len(findings) > MAX_FINDINGS_SHOWN:
+        parts.append(
+            f'<p class="muted">{len(findings) - MAX_FINDINGS_SHOWN:,} more in '
+            "tables/findings.csv.</p>"
+        )
+    return "".join(parts)
+
+
 def _findings_section(report: ReviewReport, drawings: StructureDrawings) -> str:
     findings = report.structure.findings
     parts = ["<section><h2>Dataset-level findings</h2>"]
     if findings:
-        parts.append(
-            '<div class="scroll"><table><thead><tr><th>Severity</th><th>Check</th>'
-            "<th>Finding</th><th>Reactions</th><th>Examples</th></tr></thead><tbody>"
-        )
-        parts.extend(
-            f"<tr><td>{_pill(f.severity)}</td>"
-            f'<td class="check"><code>{_e(f.check)}</code></td>'
-            f"<td>{_e(f.message)}"
-            + (
-                f'<div class="muted">{_e(", ".join(f.fields[:3]))}'
-                + (f" and {len(f.fields) - 3} more" if len(f.fields) > 3 else "")
-                + "</div>"
-                if f.fields
-                else ""
-            )
-            + f"</td><td>{'' if f.reactions is None else f'{f.reactions:,}'}</td>"
-            f"<td>{_list(f.examples, drawings)}</td></tr>"
-            for f in findings[:MAX_FINDINGS_SHOWN]
-        )
-        parts.append("</tbody></table></div>")
-        if len(findings) > MAX_FINDINGS_SHOWN:
-            parts.append(
-                f'<p class="muted">{len(findings) - MAX_FINDINGS_SHOWN:,} more in '
-                "tables/findings.csv.</p>"
-            )
+        parts.append(_findings_table(findings, drawings))
     else:
         parts.append("<p>None of the checks that ran found anything.</p>")
     applied = ", ".join(f"<code>{_e(c)}</code>" for c in report.structure.applied)
@@ -496,6 +513,24 @@ def _findings_section(report: ReviewReport, drawings: StructureDrawings) -> str:
         )
     parts.append("</section>")
     return "".join(parts)
+
+
+def _chemistry_section(report: ReviewReport) -> str:
+    checks = ", ".join(f"<code>{_e(c)}</code>" for c in chemistry.CHECKS)
+    return (
+        "<section><h2>Chemistry checks</h2>"
+        "<p>Whether each reaction makes chemical sense: elements conserved, a stated "
+        "reaction SMILES matching the recorded compounds, no stray radicals or "
+        "unbalanced charges, stereochemistry where a name implies it, and plausible "
+        "yields, temperatures and times. Messages that differ only in numbers are "
+        "counted together.</p>"
+        + (
+            _findings_table(report.chemistry)
+            if report.chemistry
+            else "<p>No reaction raised a chemistry check.</p>"
+        )
+        + f'<p class="muted">Checks run: {checks}.</p></section>'
+    )
 
 
 def _validation_section(report: ReviewReport) -> str:
@@ -790,6 +825,7 @@ def render_html(report: ReviewReport) -> str:
     body = (
         _header(report)
         + _findings_section(report, drawings)
+        + _chemistry_section(report)
         + _validation_section(report)
         + _completeness_section(report)
         + _shapes_section(report)
