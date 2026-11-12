@@ -277,6 +277,31 @@ def test_a_compound_in_two_roles_is_noted():
     assert "REACTANT (1)" in finding.message
 
 
+def test_compound_by_compound_findings_are_capped_with_a_summary(monkeypatch):
+    monkeypatch.setattr(structure, "MAX_COMPOUND_FINDINGS", 2)
+    findings = [
+        structure.Finding(
+            check="conflicting-roles",
+            severity=Severity.INFO,
+            message=f"compound {n} appears as ...",
+            reactions=n,
+        )
+        for n in (3, 9, 1, 5)
+    ]
+    capped = structure._capped(findings, "compounds in more than one role")
+    assert [f.reactions for f in capped] == [9, 5, 4]
+    summary = capped[-1]
+    assert (
+        summary.message
+        == "and 2 more compounds in more than one role, each in fewer reactions"
+    )
+    assert summary.examples == [
+        "compound 3 appears as ...",
+        "compound 1 appears as ...",
+    ]
+    assert structure._capped(findings[:2], "x") == findings[:2]
+
+
 def test_reactions_identical_but_for_ids_and_record_times_are_duplicates():
     reactions = [_reaction("r1"), _reaction("r2"), _reaction("r3", base="CN(C)C")]
     reactions[0].provenance.record_created.time.value = "2026-01-05"
