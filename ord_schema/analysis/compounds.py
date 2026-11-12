@@ -549,17 +549,41 @@ class StructureDrawings:
 
     def __init__(self, table: CompoundTable) -> None:
         """Indexes every SMILES the table's compounds were recorded with."""
-        self._canonical: dict[str, str] = {}
+        self._canonical: dict[str, str | None] = {}
+        self._known: set[str] = set()
         for record in table.records():
             if not record.smiles:
                 continue
+            self._known.add(record.smiles)
             for value in {record.smiles, *record.smiles_variants}:
                 self._canonical.setdefault(value, record.smiles)
         self._symbols: dict[str, tuple[str, str]] = {}
 
+    def _structure_of(self, text: str) -> str | None:
+        """The recorded compound ``text`` is a SMILES, MOLBLOCK or InChI of, if any.
+
+        SMILES are looked up as recorded. A MOLBLOCK or InChI, which the table keeps
+        only shortened, is converted and looked up by its structure; once per value.
+        """
+        if text in self._canonical:
+            return self._canonical[text]
+        if text.startswith("InChI="):
+            kind = _IdentifierType.INCHI
+        elif "M  END" in text:
+            kind = _IdentifierType.MOLBLOCK
+        else:
+            return None
+        canonical = message_helpers.canonical_smiles_for_identifier(kind, text)
+        smiles = canonical if canonical in self._known else None
+        self._canonical[text] = smiles
+        return smiles
+
     def tip(self, value: object) -> str | None:
-        """The drawing to show for ``value``, or None if it is no known SMILES."""
-        smiles = self._canonical.get(str(value))
+        """The drawing to show for ``value``, or None if it names no recorded compound.
+
+        ``value`` can be a SMILES, MOLBLOCK or InChI.
+        """
+        smiles = self._structure_of(str(value))
         if smiles is None:
             return None
         if smiles not in self._symbols:
