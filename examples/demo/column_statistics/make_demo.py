@@ -18,7 +18,7 @@ Usage:
     python make_demo.py --output column_statistics.html DATASET [DATASET ...]
 
 Each DATASET is a path to a Dataset file (``.pb.gz``, ``.pbtxt``, ``.parquet``),
-optionally with a display name after an equals sign: ``Nielsen=path.pbtxt``.
+optionally with a display name before an equals sign: ``Nielsen=path.pbtxt``.
 """
 
 import argparse
