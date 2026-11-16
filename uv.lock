@@ -2106,7 +2106,7 @@ requires-dist = [
     { name = "ord-schema", extras = ["search"], marker = "extra == 'nl'" },
     { name = "ord-schema", extras = ["search", "nl", "huggingface", "orm"], marker = "extra == 'tests'" },
     { name = "pandas", specifier = ">=1.0.4" },
-    { name = "protobuf", specifier = ">=4.22.3,<6" },
+    { name = "protobuf", specifier = ">=4.22.3,<7" },
     { name = "psycopg", extras = ["binary", "pool"], marker = "extra == 'orm'", specifier = ">=3" },
     { name = "pyarrow", specifier = ">=14" },
     { name = "pydantic", marker = "extra == 'search'", specifier = ">=2" },

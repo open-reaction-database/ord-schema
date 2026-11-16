@@ -39,7 +39,7 @@ dependencies = [
     "numpy>=1.26.4",
     "openpyxl>=3.0.5",
     "pandas>=1.0.4",
-    "protobuf>=4.22.3,<6",
+    "protobuf>=4.22.3,<7",
     "pyarrow>=14",
     # 2025.03.1 introduced Chem.ValenceType and deprecated Atom.GetExplicitValence,
     # which set_dative_bonds calls the replacement for; 2025.03.4 is the first release
