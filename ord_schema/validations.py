@@ -324,7 +324,7 @@ def _validate_message(
         trace: Tuple containing a string "stack trace" to track the position of
             the current message relative to the recursion root.
     """
-    if field.label == field.LABEL_REPEATED:
+    if message_helpers.is_repeated(field):
         if field.message_type.GetOptions().map_entry:
             if field.message_type.fields_by_name["value"].type == field.TYPE_MESSAGE:
                 for key, submessage in value.items():

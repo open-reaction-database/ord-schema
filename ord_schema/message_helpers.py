@@ -303,6 +303,26 @@ def build_data(filename: str, description: str) -> reaction_pb2.Data:
     return data
 
 
+def is_repeated(field: ord_schema.FieldDescriptor) -> bool:
+    """Returns whether a field is repeated, map fields included.
+
+    protobuf 6.31 added FieldDescriptor.is_repeated and deprecated label, which
+    protobuf 7 removes. Reading label on 6.x raises a DeprecationWarning that
+    is attributed to the caller's frame, so it reaches users (and notebook
+    output) on every validation. Older runtimes have only label.
+
+    Args:
+        field: FieldDescriptor instance.
+
+    Returns:
+        True if the field is repeated.
+    """
+    repeated = getattr(field, "is_repeated", None)
+    if repeated is not None:
+        return bool(repeated)
+    return field.label == ord_schema.FieldDescriptor.LABEL_REPEATED
+
+
 def find_submessages(
     message: ord_schema.Message, submessage_type: type[MessageType]
 ) -> list[MessageType]:
@@ -328,7 +348,7 @@ def find_submessages(
         if field.type != field.TYPE_MESSAGE:
             continue
         if field.message_type.full_name == submessage_name:
-            if field.label == field.LABEL_REPEATED:
+            if is_repeated(field):
                 submessages.extend(value)
             else:
                 submessages.append(value)
@@ -344,7 +364,7 @@ def find_submessages(
             else:
                 for submessage in value.values():
                     submessages.extend(find_submessages(submessage, submessage_type))
-        elif field.label == field.LABEL_REPEATED:
+        elif is_repeated(field):
             # Standard repeated field.
             for submessage in value:
                 submessages.extend(find_submessages(submessage, submessage_type))
@@ -1391,7 +1411,7 @@ def message_to_row(
         trace = ()
     row = {}
     for field, value in message.ListFields():
-        if field.label == field.LABEL_REPEATED:
+        if is_repeated(field):
             if (
                 field.type == field.TYPE_MESSAGE
                 and field.message_type.GetOptions().map_entry

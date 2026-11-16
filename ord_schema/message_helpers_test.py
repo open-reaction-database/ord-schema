@@ -15,10 +15,14 @@
 
 import pathlib
 import tempfile
+import warnings
+from types import SimpleNamespace
+from typing import cast
 
 import pandas as pd
 import pytest
 from google.protobuf import json_format, text_format
+from google.protobuf.descriptor import FieldDescriptor
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
@@ -268,6 +272,39 @@ class TestMessageHelpers:
     )
     def test_parse_doi(self, doi, expected):
         assert message_helpers.parse_doi(doi) == expected
+
+
+class TestIsRepeated:
+    @pytest.mark.parametrize(
+        ("message_type", "field_name", "expected"),
+        [
+            (test_pb2.RepeatedNested, "children", True),
+            (test_pb2.RepeatedScalar, "values", True),
+            (test_pb2.MapNested, "children", True),
+            (test_pb2.Nested, "child", False),
+            (test_pb2.Scalar, "int32_value", False),
+            (test_pb2.Scalar, "float_value", False),
+        ],
+    )
+    def test_descriptor(self, message_type, field_name, expected):
+        field = message_type.DESCRIPTOR.fields_by_name[field_name]
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            assert message_helpers.is_repeated(field) is expected
+        # protobuf 6 deprecates FieldDescriptor.label; reading it would warn here.
+        assert not [w for w in caught if "label()" in str(w.message)]
+
+    @pytest.mark.parametrize(
+        ("label", "expected"),
+        [
+            (FieldDescriptor.LABEL_REPEATED, True),
+            (FieldDescriptor.LABEL_OPTIONAL, False),
+        ],
+    )
+    def test_label_fallback(self, label, expected):
+        # Runtimes before protobuf 6.31 have no is_repeated attribute.
+        field = cast(FieldDescriptor, SimpleNamespace(label=label))
+        assert message_helpers.is_repeated(field) is expected
 
 
 class TestFindSubmessages:
