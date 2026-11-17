@@ -14,7 +14,6 @@
 """Tests for ord_schema.validations."""
 
 import re
-import warnings
 
 import pytest
 
@@ -89,22 +88,6 @@ def test_units(message):
 def test_units_should_fail(message, expected):
     with pytest.raises(validations.ValidationError, match=expected):
         _run_validation(message)
-
-
-def test_no_label_deprecation_warning():
-    # protobuf 6 deprecates FieldDescriptor.label and attributes the warning to the
-    # caller, so reading it while recursing put the warning on every user's stderr.
-    reaction = reaction_pb2.Reaction()
-    reaction.identifiers.add(type="REACTION_SMILES", value="C>>C")
-    reaction.inputs["methane"].components.add().CopyFrom(
-        message_helpers.build_compound(smiles="C", role="reactant", amount="1 mol")
-    )
-    product = reaction.outcomes.add().products.add()
-    product.identifiers.add(type="SMILES", value="C")
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        _run_validation(reaction)
-    assert not [w for w in caught if "label()" in str(w.message)]
 
 
 def test_orcid():

@@ -15,7 +15,6 @@
 
 import pathlib
 import tempfile
-import warnings
 from types import SimpleNamespace
 from typing import cast
 
@@ -288,11 +287,29 @@ class TestIsRepeated:
     )
     def test_descriptor(self, message_type, field_name, expected):
         field = message_type.DESCRIPTOR.fields_by_name[field_name]
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            assert message_helpers.is_repeated(field) is expected
-        # protobuf 6 deprecates FieldDescriptor.label; reading it would warn here.
-        assert not [w for w in caught if "label()" in str(w.message)]
+        assert message_helpers.is_repeated(field) is expected
+
+    @pytest.mark.parametrize(
+        ("message_type", "field_name", "expected"),
+        [
+            (test_pb2.RepeatedScalar, "values", True),
+            (test_pb2.Scalar, "int32_value", False),
+        ],
+    )
+    def test_does_not_read_label(self, message_type, field_name, expected):
+        # The warning filter cannot prove this on upb: it returns the label value
+        # with the error still set, which Python 3.11 and 3.12 can drop.
+        field = message_type.DESCRIPTOR.fields_by_name[field_name]
+        if not hasattr(field, "is_repeated"):
+            pytest.skip("FieldDescriptor.is_repeated arrives in protobuf 6.31")
+
+        class NoLabel:
+            def __getattr__(self, name):
+                if name == "label":
+                    raise AssertionError("read FieldDescriptor.label")
+                return getattr(field, name)
+
+        assert message_helpers.is_repeated(cast(FieldDescriptor, NoLabel())) is expected
 
     @pytest.mark.parametrize(
         ("label", "expected"),
@@ -336,6 +353,14 @@ class TestFindSubmessages:
             )
             == 2
         )
+
+    def test_repeated_within_repeated(self):
+        message = reaction_pb2.Reaction()
+        message.outcomes.add().products.add().measurements.add(type="YIELD")
+        submessages = message_helpers.find_submessages(
+            message, reaction_pb2.ProductMeasurement
+        )
+        assert len(submessages) == 1
 
     def test_map_nested(self):
         message = test_pb2.MapNested()

@@ -145,6 +145,18 @@ tests = [
     "ty>=0.0.28",
 ]
 
+[tool.pytest.ini_options]
+# protobuf 6.32+ deprecates FieldDescriptor.label (message_helpers.is_repeated is the
+# replacement) and stops warning after 100 deprecated reads in a process, so a recorded
+# warning cannot prove a code path is clean once collection has spent that budget.
+# Erroring on the first read can, with one gap: upb returns the value with the error
+# still set, which Python 3.11 and 3.12 can drop silently (3.13+ raise SystemError), so
+# message_helpers_test also checks is_repeated without relying on warnings. upb and the
+# pure-Python runtime word the warning differently.
+filterwarnings = [
+    'error:(label\(\) is deprecated|Call to deprecated label property):DeprecationWarning',
+]
+
 [tool.setuptools.packages.find]
 include = ["ord_schema*"]
 

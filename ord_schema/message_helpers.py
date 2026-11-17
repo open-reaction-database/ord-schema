@@ -30,7 +30,7 @@ from google.protobuf import (
     json_format,
     text_format,
 )
-from google.protobuf.descriptor import Descriptor
+from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import DecodeError
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions, rdmolfiles
@@ -303,16 +303,16 @@ def build_data(filename: str, description: str) -> reaction_pb2.Data:
     return data
 
 
-def is_repeated(field: ord_schema.FieldDescriptor) -> bool:
+def is_repeated(field: FieldDescriptor) -> bool:
     """Returns whether a field is repeated, map fields included.
 
-    protobuf 6.31 added FieldDescriptor.is_repeated and deprecated label, which
-    protobuf 7 removes. Reading label on 6.x raises a DeprecationWarning that
-    is attributed to the caller's frame, so it reaches users (and notebook
-    output) on every validation. Older runtimes have only label.
+    Reads FieldDescriptor.is_repeated where the runtime has it (protobuf 6.31+) and
+    falls back to label otherwise. From 6.32 reading label emits a
+    DeprecationWarning (up to 100 per process); upb attributes it to a frame
+    further up the stack, so it reaches users' stderr. protobuf 7 removes label.
 
     Args:
-        field: FieldDescriptor instance.
+        field: Descriptor of the field to check.
 
     Returns:
         True if the field is repeated.
@@ -320,7 +320,7 @@ def is_repeated(field: ord_schema.FieldDescriptor) -> bool:
     repeated = getattr(field, "is_repeated", None)
     if repeated is not None:
         return bool(repeated)
-    return field.label == ord_schema.FieldDescriptor.LABEL_REPEATED
+    return field.label == FieldDescriptor.LABEL_REPEATED
 
 
 def find_submessages(

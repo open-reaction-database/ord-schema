@@ -23,7 +23,7 @@ from typing import cast
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-from google.protobuf.descriptor import Descriptor, FieldDescriptor
+from google.protobuf.descriptor import Descriptor
 from rdkit import Chem
 
 from ord_schema import parquet, validations
@@ -565,7 +565,7 @@ def test_a_repeated_united_field_is_refused():
         name="durations",
         full_name="ord.Fake.durations",
         message_type=SimpleNamespace(name="Time"),
-        label=FieldDescriptor.LABEL_REPEATED,
+        is_repeated=True,
     )
     descriptor = SimpleNamespace(name="Fake", full_name="ord.Fake", fields=[field])
     with pytest.raises(ValueError, match="repeated united message"):
