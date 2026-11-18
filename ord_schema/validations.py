@@ -849,6 +849,11 @@ _TEXTURE_TO_STATE = {
     reaction_pb2.Texture.AMORPHOUS_SOLID: _StateOfMatter.SOLID,
     reaction_pb2.Texture.SEMI_SOLID: _StateOfMatter.SOLID,
     reaction_pb2.Texture.SOLID: _StateOfMatter.SOLID,
+    reaction_pb2.Texture.SOLUTION: _StateOfMatter.LIQUID,
+    reaction_pb2.Texture.EMULSION: _StateOfMatter.LIQUID,
+    # A suspension holds both a solid and a liquid, so no one state fits it.
+    reaction_pb2.Texture.SUSPENSION: None,
+    reaction_pb2.Texture.GUM: _StateOfMatter.SOLID,
 }
 
 
@@ -1572,6 +1577,9 @@ _VALIDATOR_SWITCH: dict[type, Callable[..., None]] = {
     reaction_pb2.Analysis: _validate_analysis,
     # Metadata
     reaction_pb2.ReactionProvenance: _validate_reaction_provenance,
+    reaction_pb2.Publication: _skip_validation,
+    reaction_pb2.AdditionalSource: _check_type_and_details,
+    reaction_pb2.ExtractionMetadata: _skip_validation,
     reaction_pb2.RecordEvent: _validate_record_event,
     reaction_pb2.Person: _validate_person,
     # Units

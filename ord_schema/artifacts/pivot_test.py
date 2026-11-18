@@ -61,11 +61,11 @@ def test_element_type_drops_repeated_fields_and_keeps_structs():
     element = pivot.repeated_levels()["outcomes.products"].element_type
     names = [field.name for field in element]
     assert "isolated_color" in names
-    assert "texture" in names
+    assert "isolated_texture" in names
     assert "measurements" not in names
     assert "identifiers" not in names
     assert "analyses" not in names
-    assert [field.name for field in element.field("texture").type] == [
+    assert [field.name for field in element.field("isolated_texture").type] == [
         "type",
         "details",
     ]
@@ -216,7 +216,7 @@ def _second_reaction() -> reaction_pb2.Reaction:
     _fill_input(reaction.inputs["only"], components=1)
     reaction.setup.vessel.attachments.add(type=reaction_pb2.VesselAttachment.CAP)
     reaction.setup.vessel.preparations.add(type=reaction_pb2.VesselPreparation.PURGED)
-    reaction.setup.automation_code["other"].string_value = "recorded"
+    reaction.setup.procedure_code["other"].string_value = "recorded"
     reaction.conditions.temperature.measurements.add(
         type=reaction_pb2.TemperatureConditions.TemperatureMeasurement.THERMOCOUPLE_EXTERNAL
     )
@@ -244,6 +244,10 @@ def _second_reaction() -> reaction_pb2.Reaction:
     _fill_compound(measurement.authentic_standard)
     reaction.provenance.record_modified.add(details="also recorded")
     reaction.provenance.reaction_metadata["other"].string_value = "recorded"
+    reaction.provenance.publication.authors.add(name="also recorded")
+    reaction.provenance.additional_sources.add(
+        type=reaction_pb2.AdditionalSource.RELATED
+    ).publication.authors.add(name="also recorded")
     return reaction
 
 
@@ -275,7 +279,7 @@ def populated(tmp_path_factory) -> pathlib.Path:
     reaction.setup.vessel.preparations.add(
         type=reaction_pb2.VesselPreparation.OVEN_DRIED
     )
-    reaction.setup.automation_code["code"].string_value = "recorded"
+    reaction.setup.procedure_code["code"].string_value = "recorded"
     reaction.conditions.temperature.measurements.add(
         type=reaction_pb2.TemperatureConditions.TemperatureMeasurement.THERMOCOUPLE_INTERNAL
     )
@@ -310,6 +314,10 @@ def populated(tmp_path_factory) -> pathlib.Path:
     _fill_compound(measurement.authentic_standard)
     reaction.provenance.record_modified.add(details="recorded")
     reaction.provenance.reaction_metadata["note"].string_value = "recorded"
+    reaction.provenance.publication.authors.add(name="recorded")
+    reaction.provenance.additional_sources.add(
+        type=reaction_pb2.AdditionalSource.SAME_TEXT
+    ).publication.authors.add(name="recorded")
     source = root / "ord_dataset-pvfull.parquet"
     parquet.save_dataset(
         dataset_pb2.Dataset(
