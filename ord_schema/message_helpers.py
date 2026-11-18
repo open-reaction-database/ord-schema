@@ -30,7 +30,7 @@ from google.protobuf import (
     json_format,
     text_format,
 )
-from google.protobuf.descriptor import Descriptor
+from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import DecodeError
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions, rdmolfiles
@@ -303,6 +303,26 @@ def build_data(filename: str, description: str) -> reaction_pb2.Data:
     return data
 
 
+def is_repeated(field: FieldDescriptor) -> bool:
+    """Returns whether a field is repeated, map fields included.
+
+    Reads FieldDescriptor.is_repeated where the runtime has it (protobuf 6.31+) and
+    falls back to label otherwise. From 6.32 reading label emits a
+    DeprecationWarning (up to 100 per process); upb attributes it to a frame
+    further up the stack, so it reaches users' stderr. protobuf 7 removes label.
+
+    Args:
+        field: Descriptor of the field to check.
+
+    Returns:
+        True if the field is repeated.
+    """
+    repeated = getattr(field, "is_repeated", None)
+    if repeated is not None:
+        return bool(repeated)
+    return field.label == FieldDescriptor.LABEL_REPEATED
+
+
 def find_submessages(
     message: ord_schema.Message, submessage_type: type[MessageType]
 ) -> list[MessageType]:
@@ -328,7 +348,7 @@ def find_submessages(
         if field.type != field.TYPE_MESSAGE:
             continue
         if field.message_type.full_name == submessage_name:
-            if field.label == field.LABEL_REPEATED:
+            if is_repeated(field):
                 submessages.extend(value)
             else:
                 submessages.append(value)
@@ -344,7 +364,7 @@ def find_submessages(
             else:
                 for submessage in value.values():
                     submessages.extend(find_submessages(submessage, submessage_type))
-        elif field.label == field.LABEL_REPEATED:
+        elif is_repeated(field):
             # Standard repeated field.
             for submessage in value:
                 submessages.extend(find_submessages(submessage, submessage_type))
@@ -1391,7 +1411,7 @@ def message_to_row(
         trace = ()
     row = {}
     for field, value in message.ListFields():
-        if field.label == field.LABEL_REPEATED:
+        if is_repeated(field):
             if (
                 field.type == field.TYPE_MESSAGE
                 and field.message_type.GetOptions().map_entry

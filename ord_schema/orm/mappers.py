@@ -63,6 +63,7 @@ from uuid6 import uuid7
 # Register the rdkit and derived tables on Base for string relationship() targets.
 import ord_schema.orm.derived_mappers
 import ord_schema.orm.rdkit_mappers  # noqa: F401
+from ord_schema import message_helpers
 from ord_schema.logging import get_logger
 from ord_schema.orm import Base
 from ord_schema.orm.public_mappers import DatasetMetadata, ReactionProto
@@ -124,7 +125,7 @@ def _get_message_contexts(
                 field_message_type,
                 parent=descriptor.full_name,
                 field_name=field.name,
-                unique=field.label != FieldDescriptor.LABEL_REPEATED,
+                unique=not message_helpers.is_repeated(field),
             )
     return counts
 
@@ -204,7 +205,7 @@ def build_mapper(
             attrs[field.name] = Column(ARRAY(Text))
         elif field.type == FieldDescriptor.TYPE_MESSAGE:
             kwargs = {}
-            if field.label != FieldDescriptor.LABEL_REPEATED:
+            if not message_helpers.is_repeated(field):
                 kwargs["uselist"] = False
             # All relationships are to polymorphic child classes.
             child_class_name = f"_{msg_desc.name}{field.name.capitalize()}"
@@ -364,7 +365,7 @@ def from_proto(
                 kwargs[field.name] = [
                     from_proto(v, mapper=field_mapper, key=k) for k, v in value.items()
                 ]
-            elif field.label == FieldDescriptor.LABEL_REPEATED:
+            elif message_helpers.is_repeated(field):
                 kwargs[field.name] = [from_proto(v, mapper=field_mapper) for v in value]
             else:
                 kwargs[field.name] = from_proto(value, mapper=field_mapper)

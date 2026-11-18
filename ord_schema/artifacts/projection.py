@@ -559,7 +559,7 @@ def _field_type(field: FieldDescriptor, stack: frozenset[str]) -> pa.DataType:
         inner = pa.struct(_struct_fields(message_type, stack))
     else:
         inner = _ARROW_SCALARS[field.type]
-    if field.label == FieldDescriptor.LABEL_REPEATED:
+    if message_helpers.is_repeated(field):
         return pa.list_(inner)
     return inner
 
@@ -613,7 +613,7 @@ def _struct_fields(descriptor: Descriptor, stack: frozenset[str]) -> list[pa.Fie
                 )
             )
             continue
-        if field.label == FieldDescriptor.LABEL_REPEATED:
+        if message_helpers.is_repeated(field):
             # Two scalar columns cannot carry a list of measurements, and expanding one
             # anyway would publish a schema that quietly holds a single value per
             # reaction where the source holds several.
@@ -762,7 +762,7 @@ def message_row(
             else:
                 row[name] = list(items) or None
             continue
-        if field.label == FieldDescriptor.LABEL_REPEATED:
+        if message_helpers.is_repeated(field):
             values = getattr(message, field.name)
             if field.name == "identifiers":
                 values = _kept_identifiers(values, collapsed)

@@ -15,10 +15,13 @@
 
 import pathlib
 import tempfile
+from types import SimpleNamespace
+from typing import cast
 
 import pandas as pd
 import pytest
 from google.protobuf import json_format, text_format
+from google.protobuf.descriptor import FieldDescriptor
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
@@ -270,6 +273,57 @@ class TestMessageHelpers:
         assert message_helpers.parse_doi(doi) == expected
 
 
+class TestIsRepeated:
+    @pytest.mark.parametrize(
+        ("message_type", "field_name", "expected"),
+        [
+            (test_pb2.RepeatedNested, "children", True),
+            (test_pb2.RepeatedScalar, "values", True),
+            (test_pb2.MapNested, "children", True),
+            (test_pb2.Nested, "child", False),
+            (test_pb2.Scalar, "int32_value", False),
+            (test_pb2.Scalar, "float_value", False),
+        ],
+    )
+    def test_descriptor(self, message_type, field_name, expected):
+        field = message_type.DESCRIPTOR.fields_by_name[field_name]
+        assert message_helpers.is_repeated(field) is expected
+
+    @pytest.mark.parametrize(
+        ("message_type", "field_name", "expected"),
+        [
+            (test_pb2.RepeatedScalar, "values", True),
+            (test_pb2.Scalar, "int32_value", False),
+        ],
+    )
+    def test_does_not_read_label(self, message_type, field_name, expected):
+        # The warning filter cannot prove this on upb: it returns the label value
+        # with the error still set, which Python 3.11 and 3.12 can drop.
+        field = message_type.DESCRIPTOR.fields_by_name[field_name]
+        if not hasattr(field, "is_repeated"):
+            pytest.skip("FieldDescriptor.is_repeated arrives in protobuf 6.31")
+
+        class NoLabel:
+            def __getattr__(self, name):
+                if name == "label":
+                    raise AssertionError("read FieldDescriptor.label")
+                return getattr(field, name)
+
+        assert message_helpers.is_repeated(cast(FieldDescriptor, NoLabel())) is expected
+
+    @pytest.mark.parametrize(
+        ("label", "expected"),
+        [
+            (FieldDescriptor.LABEL_REPEATED, True),
+            (FieldDescriptor.LABEL_OPTIONAL, False),
+        ],
+    )
+    def test_label_fallback(self, label, expected):
+        # Runtimes before protobuf 6.31 have no is_repeated attribute.
+        field = cast(FieldDescriptor, SimpleNamespace(label=label))
+        assert message_helpers.is_repeated(field) is expected
+
+
 class TestFindSubmessages:
     def test_scalar(self):
         message = test_pb2.Scalar(int32_value=5, float_value=6.7)
@@ -299,6 +353,14 @@ class TestFindSubmessages:
             )
             == 2
         )
+
+    def test_repeated_within_repeated(self):
+        message = reaction_pb2.Reaction()
+        message.outcomes.add().products.add().measurements.add(type="YIELD")
+        submessages = message_helpers.find_submessages(
+            message, reaction_pb2.ProductMeasurement
+        )
+        assert len(submessages) == 1
 
     def test_map_nested(self):
         message = test_pb2.MapNested()

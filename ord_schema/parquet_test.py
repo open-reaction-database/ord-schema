@@ -17,8 +17,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
+from ord_schema import message_helpers, updates
 from ord_schema import parquet as dataset
-from ord_schema import updates
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -791,7 +791,7 @@ def test_dataset_view_to_proto_carries_every_scalar_field(tmp_path):
     assert descriptor is not None  # Type hint.
     expected = {}
     for field in descriptor.fields:
-        if field.label == field.LABEL_REPEATED:
+        if message_helpers.is_repeated(field):
             continue
         assert field.type == field.TYPE_STRING, (
             f"non-string scalar {field.name!r} added to Dataset; extend this test"
