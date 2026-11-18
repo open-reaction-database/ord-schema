@@ -13,6 +13,8 @@
 # limitations under the License.
 """Tests for ord_schema.macros.workups."""
 
+import textwrap
+
 import pytest
 
 from ord_schema import validations
@@ -67,6 +69,13 @@ def test_drying_agent():
     validations.validate_message(workup)
 
 
+def test_drying_agent_records_cxsmiles_as_cxsmiles():
+    workup = workups.drying_agent("C[C@H](N)C(=O)O |&1:1|")
+    identifier = workup.input.components[0].identifiers[0]
+    assert identifier.type == reaction_pb2.CompoundIdentifier.CXSMILES
+    assert not validations.validate_message(workup).warnings
+
+
 @pytest.mark.parametrize("keep_phase", ["filtrate", "solid"])
 def test_filtration(keep_phase):
     workup = workups.filtration(keep_phase=keep_phase)
@@ -79,3 +88,15 @@ def test_rotovap():
     workup = workups.rotovap()
     assert workup.type == reaction_pb2.ReactionWorkup.CONCENTRATION
     validations.validate_message(workup)
+
+
+def test_module_docstring_example():
+    assert workups.__doc__ is not None
+    _, marker, example = workups.__doc__.partition("is recorded as::")
+    assert marker, "the module docstring's example follows 'is recorded as::'"
+    reaction = reaction_pb2.Reaction()
+    # The code is this module's own docstring.
+    exec(textwrap.dedent(example), {"reaction": reaction})  # noqa: S102
+    assert len(reaction.workups) == 11
+    for workup in reaction.workups:
+        assert not validations.validate_message(workup, raise_on_error=False).errors

@@ -17,8 +17,8 @@ r"""Derives pivot artifacts from projections, one per repeated level.
 A quantifier over a repeated level is answered by a semi-join against a pivot -- one row
 per element, carrying the ordinals that say which element it was and the element's own
 fields with the repeated ones removed; see ``ord_schema.artifacts.pivot`` for the shape
-and why. Building one unnests the projection, which is minutes per level over ORD, so it
-belongs here rather than in whichever query asks first.
+and why. Building one unnests the projection, a pass over every reaction per level, so
+it belongs here rather than in whichever query asks first.
 
 Each level gets its own subdirectory, and each projection its own file within it::
 
@@ -33,16 +33,20 @@ That is the layout ``Corpus(..., pivots_dir=...)`` reads. Levels are chosen with
 usually asked about, so naming the ones a deployment answers questions over is the
 cheaper run.
 
-Artifacts whose footer already records the current source content, library version, and
-artifact version are skipped, so re-running is cheap; --force rewrites them anyway.
+Artifacts whose footer already records the current source content, artifact schema
+version, and RDKit version are skipped, so re-running is cheap; --force rewrites them
+anyway.
 
 A match that is not a projection -- a source dataset, or an artifact from an earlier
 run -- is ignored rather than derived from, so --output_dir may sit inside a recursive
 pattern's reach. These are errors: an --output_dir that would write over any input, an
 input that cannot be read as Parquet at all, a level the schema does not have or that
 is named twice, a projection that changed while the run was deriving from it or whose
-count and unnest disagreed, a run that finds no projections at all, and a level whose
-artifacts cannot be found once it has derived them.
+count and unnest disagreed, a run that finds no projections at all, a level whose
+artifacts cannot be found once it has derived them, and a level the tree already holds
+that this run did not name and whose artifacts the current schema has outgrown -- a
+subset run is the cheaper run, but the levels it leaves behind still have to match the
+projections a corpus reads them beside.
 
 Every run reports, per level, how many of the artifacts on disk hold no rows, and warns
 when all of them do. That is ordinary for a level nothing in the corpus records, and it
@@ -135,9 +139,8 @@ def _counts(
 
     Cached because derive_tree drives one level at a time: the levels share ancestors,
     so counting them together reads the projection once where a count per level reads
-    it once per level -- measured at 15x deriving every level of a two-shard tree of
-    projections that record them all. The margin grows with the bytes each level
-    carries, since that is what the count reads and what the extra reads repeat.
+    it once per level. The margin grows with the bytes each level carries, since that
+    is what the count reads and what the extra reads repeat.
 
     Asked for every level being derived rather than only the one at hand, which is the
     trade: a run rebuilding one stale level of a projection reads the columns of all of
@@ -220,8 +223,9 @@ def main(args: argparse.Namespace) -> None:
             which usually means it was aimed at the source tree, or at an output tree,
             rather than at the projections; or if a level's artifacts cannot be found
             after the run derived them, which means they were written somewhere no
-            reader looks. Silence in any of those would let a pipeline step downstream
-            proceed as though the artifacts had been built.
+            reader looks; or if the tree holds a level this run did not derive whose
+            artifacts no longer match the schema. Silence in any of those would let a
+            pipeline step downstream proceed as though the artifacts had been built.
     """
     levels = pivot.check_levels(args.levels)
     for level_path in levels:
@@ -235,11 +239,11 @@ def main(args: argparse.Namespace) -> None:
                 level_path=level_path,
                 level_paths=tuple(levels),
             ),
-            # Reaches the ordinals, which are top-level columns: a repeated level added
-            # to the schema above this one gives every level beneath it another one,
-            # and the artifacts carrying the old set are derived again rather than
-            # stamping as current. What it does not reach is the element struct, which
-            # is one column however its fields change; that is what a version is for.
+            # Reaches the ordinals, which are top-level columns, and the fields of the
+            # element struct, which are compared down through it: a level added above
+            # this one gives every level beneath it another ordinal, and a field added
+            # to the element gives it another leaf. Artifacts carrying the old set of
+            # either are derived again rather than stamping as current.
             schema=pivot.schema(pivot.LEVELS[level_path]),
             force=args.force,
             parent_artifact=projection.ARTIFACT,
@@ -290,6 +294,22 @@ def main(args: argparse.Namespace) -> None:
             # the two apart. Nothing else in the chain aggregates rows across a tree,
             # or says anything about them above INFO.
             logger.warning("%s: every artifact is empty at this level", level_path)
+    behind = base.left_behind(
+        args.output_dir,
+        pivot.ARTIFACT,
+        {level: pivot.schema(pivot.LEVELS[level]) for level in pivot.LEVELS},
+        pivot.artifact_paths,
+        levels,
+    )
+    if behind:
+        # Raised rather than reported: the run succeeded at what it was asked to do and
+        # still left a tree a corpus refuses, and a pipeline that reads the exit status
+        # would go on to publish it. Naming the levels says which to add to --levels.
+        raise ValueError(
+            f"{args.output_dir} holds {len(behind)} levels this run did not derive "
+            "whose artifacts no longer match the schema: "
+            + "; ".join(f"{level} ({reason})" for level, reason in behind.items())
+        )
 
 
 if __name__ == "__main__":

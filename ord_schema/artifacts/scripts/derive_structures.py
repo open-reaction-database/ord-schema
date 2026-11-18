@@ -24,8 +24,9 @@ the inputs' directory layout beneath ``--output_dir``::
 
     projections/aa/ord_dataset-<id>.parquet -> structures/aa/ord_dataset-<id>.parquet
 
-Artifacts whose footer already records the current source content, library version, and
-artifact version are skipped, so re-running is cheap; --force rewrites them anyway.
+Artifacts whose footer already records the current source content, artifact schema
+version, and RDKit version are skipped, so re-running is cheap; --force rewrites them
+anyway.
 
 A match that is not a projection -- a source dataset, or a structures artifact from an
 earlier run -- is ignored rather than derived from, so --output_dir may sit inside a

@@ -17,8 +17,8 @@
 A quantifier asks whether some element of a repeated level satisfies a body. Answering
 that from the projection means decoding the whole nested column and filtering its
 elements; answering it from a *pivot* -- one row per element -- means a semi-join
-against a flat table. Over ORD the second is milliseconds where the first is seconds,
-because the cost was never the predicate but the reconstruction of lists of structs.
+against a flat table. Over ORD the second is far faster than the first, because the
+cost was never the predicate but the reconstruction of lists of structs.
 
 A pivot row carries three things:
 
@@ -309,9 +309,9 @@ def stage(
     A step given a table of its own can run on its own, where a whole level reached in
     one query -- every unnest and the element prune in a single pipeline, which is what
     ``select`` returns -- runs largely serially. The work is the same either way; what
-    differs is how much of the machine it can occupy. Over the 1.77M-reaction ORD
-    projection the two cost about the same CPU and staging spends it some six times
-    faster in wall clock on 18 cores, so expect the margin to fall with the core count.
+    differs is how much of the machine it can occupy. Over an ORD projection the two
+    cost about the same CPU and staging spends it faster in wall clock on a many-core
+    machine, so expect the margin to fall with the core count.
 
     Every step but the last gets a table. Fusing more than one re-serializes them, so a
     single-step level is the case that must be staged rather than the case that can be
@@ -705,10 +705,8 @@ def _count_expression(level: RepeatedLevel) -> str:
     elements -- not because it reads less of the column. Reaching an element to measure
     its list pulls the whole nested payload off disk either way, and the count scales
     with the payload's width, so the margin is a property of the corpus and not of this
-    expression: it was roughly nine times on a populated level of an ORD projection
-    holding 8% of the corpus by bytes. What it buys reliably is on the levels a corpus
-    never records, where the answer is nothing and the unnest would still walk every
-    ancestor to say so.
+    expression. What it buys reliably is on the levels a corpus never records, where
+    the answer is nothing and the unnest would still walk every ancestor to say so.
 
     Args:
         level: The level to count.
@@ -814,10 +812,10 @@ def write_pivot(
 
     One artifact holds one level of one projection, because the levels have different
     schemas and a reader globs the one it wants. The rows stream out of DuckDB a batch
-    at a time, so a level that explodes -- a corpus of long measurement lists -- costs a
-    batch rather than the whole level on the way out. Its ancestors are another matter:
-    ``stage`` holds each one whole, repeated fields and all, under DuckDB's memory limit
-    rather than the caller's.
+    at a time, so the caller holds a batch of a level that explodes -- a corpus of long
+    measurement lists -- rather than the whole level. DuckDB holds more, under its own
+    memory limit rather than the caller's: the sort that orders the rows holds the
+    whole level, and ``stage`` holds each ancestor whole, repeated fields and all.
 
     The output is published atomically, so a failure partway leaves any existing
     artifact untouched.
@@ -832,8 +830,8 @@ def write_pivot(
         source_dataset_id: Source dataset ID to stamp, if the caller already read one.
             Taken from the projection's stamps when omitted.
         compression: Parquet codec, any name ``pq.ParquetWriter`` accepts.
-        row_group_size: Rows per output row group, which is also how many elements are
-            held in memory at a time.
+        row_group_size: Rows per output row group, which is also how many elements the
+            caller holds at a time.
         counts: What ``count_levels`` read off ``source``, where the caller has already
             counted. Counted here when omitted. A build deriving every level counts
             them together, since one query answers for all of them at the cost of
@@ -879,12 +877,9 @@ def write_pivot(
     connection = duckdb.connect()
     written = 0
     try:
-        # A pivot has no row order to keep: a reader semi-joins it on reaction_id and
-        # the ordinals, and which element came back first says nothing. Keeping one
-        # costs the parallelism of the unnest that produces it, which over ORD's
-        # largest projection is most of what a build costs. The price is that two
-        # builds of one artifact need not agree byte for byte, which nothing checks --
-        # currency is keyed on the source hash, not on the bytes written.
+        # Holding insertion order would cost the unnest the parallelism that is most of
+        # a build's time over a large projection; the sort below fixes the order a file
+        # is written in.
         connection.execute("SET preserve_insertion_order=false")
         # Through the relational API rather than a path interpolated into SQL, which a
         # filename holding a quote would otherwise close. One view serves the count and
@@ -905,8 +900,12 @@ def write_pivot(
             if element_count:
                 # Counting settled the other case: the unnest would walk every ancestor
                 # of a level this projection never records to reach the same nothing.
+                # Sorted on reaction_id and every ordinal, which name one element in a
+                # dataset whose reaction IDs are unique -- what every reader of a pivot
+                # assumes -- so a rebuild writes the same bytes and an upload skips it.
+                key = ", ".join([REACTION_ID, *level.ordinals])
                 reader = connection.execute(
-                    stage(connection, level, "reactions")
+                    f"{stage(connection, level, 'reactions')} ORDER BY {key}"
                 ).to_arrow_reader(row_group_size)
                 for batch in reader:
                     # Cast rather than trust: DuckDB's own widths are its business, and

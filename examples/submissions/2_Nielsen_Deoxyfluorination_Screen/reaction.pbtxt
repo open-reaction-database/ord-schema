@@ -218,7 +218,7 @@ provenance {
   publication_url: "https://pubs.acs.org/doi/10.1021/jacs.8b01523"
   record_created {
     time {
-      value: "8/8/2020, 3:01:25 PM"
+      value: "2020-08-08T15:01:25"
     }
     person {
       name: "Connor W. Coley"

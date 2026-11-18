@@ -13,17 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Compiles protocol buffers.
-# Make sure you have protoc in your PATH; see https://grpc.io/docs/protoc-installation/.
+# Compiles protocol buffers with the plugins pinned in buf.gen.yaml. Requires Node.js.
 set -ex
+cd "$(dirname "${BASH_SOURCE[0]}")"
 
-protoc \
-  --proto_path=.. \
-  --python_out=. \
-  --pyi_out=. \
-  --js_out=import_style=commonjs,binary:js \
-  ../ord-schema/proto/*.proto \
-  --ts_out=./js/ \
+# buf comes from the version package-lock.json pins. It needs no install script:
+# @bufbuild/buf reaches its binary through a platform package.
+npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
+export PATH="${PWD}/node_modules/.bin:${PATH}"
 
-pbjs -p proto/*.proto -o js/ord-schema-protobufjs/index.js -w es6 -t static-module
-pbts js/ord-schema-protobufjs/index.js -o js/ord-schema-protobufjs/index.d.ts
+# proto/ is the module root in buf.yaml, and a file's path under it is what buf embeds in
+# the descriptor and places generated code by. proto/ord-schema/proto/reaction.proto yields
+# ord_schema/proto/reaction_pb2.py, since the Python generator spells the hyphen as an
+# underscore.
+buf generate

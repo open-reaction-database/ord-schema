@@ -17,10 +17,12 @@
 A quantifier whose body is a structure predicate on the element's own ``smiles`` is
 answered by a semi-join rather than by reading the projection: which reactions hold a
 match is a separate cost from the chemistry, and the larger one. The relation that
-answers it is one row per occurrence, carrying the reaction, the structure, and the
-element's own ``reaction_role`` -- keeping the role beside the structure is what makes
-"pyridine as the solvent" a condition on one row rather than an intersection of two
-reaction sets, which over-returns.
+answers it is one row per occurrence, carrying the reaction and the structure and
+nothing of the element. Whether the molecule went in or came out is the indexed path,
+which names the directory a file sits under. Every element field, the role among them,
+is in the pivot this is derived from, and a query binding one is answered there: a row
+is what a semi-join reads, and every column on it is paid for by every occurrence in the
+corpus.
 
 **Dataset-local IDs, always.** An occurrence names its structure by the ``structure_id``
 its own dataset assigned, never by a corpus-wide one. A corpus-wide ID is that plus an
@@ -32,15 +34,16 @@ open, keyed by the source dataset every artifact names; see
 :mod:`ord_schema.search.execute`.
 
 That rule is what lets this be an artifact at all rather than a relation assembled at
-open. Assembled, over ORD it is 18,847,978 rows holding 1.19 GiB, wanting 5-6.5 GB of
-DuckDB memory and 16-25 GB of temporary files to get there, before the first query can
-be answered. The same rows derived here are 253 MB of Parquet, and a corpus given a
-directory covering every indexed path reads them as a view instead of building anything:
-0.13 s and 0.32 GiB resident against 2.9 s and 1.92 GiB, measured over the full corpus.
-See :class:`ord_schema.search.execute.Corpus` and its ``occurrences_dir``.
+open. Assembled, it is a table held in memory for the life of the corpus, and unnesting
+it from the projections has a memory floor and spills heavily to get there, before the
+first query can be answered. The same rows derived here are a small fraction of that as
+Parquet, and a corpus given a directory covering every indexed path reads them as a
+view instead of building anything, which is faster to open and holds far less than the
+table. See :class:`ord_schema.search.execute.Corpus` and its ``occurrences_dir``, and
+the search README for the measurements.
 
 Derived from the **pivot** over the level an indexed path ranges within, which already
-holds one row per element: this artifact is that projected down to three columns, so the
+holds one row per element: this artifact is that projected down to two columns, so the
 two cannot disagree about which elements exist. A path descending from its level through
 singular struct fields -- an authentic standard is one compound per measurement -- is
 read from that level's pivot through the remainder; see ``ord_schema.artifacts.pivot``.
@@ -66,18 +69,12 @@ ARTIFACT = "occurrences"
 # trusting where it sits; see ``occurrence_path``.
 META_OCCURRENCE_PATH = "ord.occurrence_path"
 
-# The element field an occurrence carries beside its structure. One rather than all of
-# them: a row is what a semi-join reads, and every column on it is paid for by every
-# occurrence in the corpus.
-INDEXED_FIELD = "reaction_role"
-
 SCHEMA = pa.schema(
     [
         pa.field("reaction_id", pa.string(), nullable=False),
         # Local to the dataset this was derived from, and meaningless beside another's
         # structures artifact; see the module docstring.
         pa.field("structure_id", pa.uint32(), nullable=False),
-        pa.field(INDEXED_FIELD, pa.string()),
     ]
 )
 
@@ -101,10 +98,10 @@ def indexed_paths(
         and the segments from that level's element down to the structure.
 
     Raises:
-        ValueError: If a structure-bearing path is reached by no repeated level, or
-            carries no ``INDEXED_FIELD``, so no pivot can answer for it; or if the
-            schema carries no structure at all. Raised at import, naming the path,
-            because the answer is to change this module rather than to retry.
+        ValueError: If a structure-bearing path is reached by no repeated level, so no
+            pivot can answer for it, or if the schema carries no structure at all.
+            Raised at import, naming the path, because the answer is to change this
+            module rather than to retry.
     """
     paths: dict[str, tuple[pivot.RepeatedLevel, tuple[str, ...]]] = {}
     # Levels from the schema the caller passed, so asking what a written file covers is
@@ -112,13 +109,7 @@ def indexed_paths(
     # answer about the schema this library was imported with -- the disagreement between
     # two walks that this function exists to prevent.
     levels = pivot.repeated_levels(schema)
-    for _, path, dtype in structures.structure_levels(schema):
-        if INDEXED_FIELD not in [field.name for field in dtype]:
-            raise ValueError(
-                f"{path} carries a structure but no {INDEXED_FIELD}, so an occurrence "
-                "row cannot bind a query to the element it matched, and a structure "
-                "sitting only there would look like one this artifact lost"
-            )
+    for _, path, _ in structures.structure_levels(schema):
         reached = pivot.reach(path, levels)
         if reached is None:
             raise ValueError(
@@ -152,12 +143,15 @@ def _select(level: pivot.RepeatedLevel, remainder: tuple[str, ...]) -> str:
     element = ".".join([pivot.ELEMENT, *remainder])
     # An element carrying no structure is no occurrence: the pivot is complete, holding
     # a row for every element including one whose fields are all NULL, and this is not.
+    # Sorted on every column, so rebuilding the artifact writes the same bytes. Rows can
+    # repeat -- one structure twice in a reaction -- and repeats are identical, so no
+    # order among them can show.
     # S608: the level and its remainder come from this module's walk of the schema.
     return f"""
-        SELECT {pivot.REACTION_ID}, {element}.structure_id AS structure_id,
-               {element}.{INDEXED_FIELD} AS {INDEXED_FIELD}
+        SELECT {pivot.REACTION_ID}, {element}.structure_id AS structure_id
         FROM elements
         WHERE {element}.structure_id IS NOT NULL
+        ORDER BY {", ".join(SCHEMA.names)}
         """  # noqa: S608
 
 
@@ -239,8 +233,8 @@ def write_occurrences(
     connection = duckdb.connect()
     written = 0
     try:
-        # No row order to keep: a reader semi-joins this on reaction_id, and which
-        # occurrence came back first says nothing. Same trade the pivot makes.
+        # The order a file is written in comes from the sort in _select, as the
+        # pivot's does, so nothing upstream of it needs to hold one.
         connection.execute("SET preserve_insertion_order=false")
         # Through the relational API rather than a path interpolated into SQL, which a
         # filename holding a quote would otherwise close.

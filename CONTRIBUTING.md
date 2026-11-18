@@ -70,9 +70,9 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
        npx --yes markdownlint-cli2@0.23.1 "**/*.md"
        ```
 
-    1. Create a new branch and make your changes. If you edit `proto/*.proto`,
-       [install](https://grpc.io/docs/protoc-installation/) `protoc` and run
-       `./compile_proto_wrappers.sh` to rebuild the generated wrappers, and commit those too.
+    1. Create a new branch and make your changes. If you edit `proto/ord-schema/proto/*.proto`,
+       run `./compile_proto_wrappers.sh` to rebuild the generated wrappers, and commit those
+       too. It needs Node.js and installs the toolchain `package-lock.json` pins.
     1. Test your changes by syncing the environment and running the test suite, for example:
        `uv sync --extra tests` then `uv run pytest` (or `pytest` after activating the `.venv` that `uv` creates).
        CI runs the same checks when you open a pull request, but running them locally first saves time.
@@ -96,8 +96,9 @@ To release, run the [Publish workflow](../../actions/workflows/publish.yml) from
 
 `major` bumps are intentionally disabled for now; the project stays on the `0.x` series.
 
-The workflow bumps the version, builds and publishes to PyPI and npm, pushes the version-bump commit
-and tag to `main`, and creates a GitHub release with generated notes.
+The workflow bumps the version, builds and publishes to PyPI, pushes the version-bump commit and tag
+to `main`, creates a GitHub release with generated notes, and pushes the release's schema to the
+[Buf Schema Registry](https://buf.build/open-reaction-database/ord-schema).
 
 ## Terms of Use
 

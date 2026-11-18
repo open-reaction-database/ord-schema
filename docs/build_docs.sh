@@ -22,18 +22,21 @@ set -ex
 # NOTE(kearnes): Uncomment this section if we decide to use these docs.
 # go get -u github.com/pseudomuto/protoc-gen-doc/cmd/protoc-gen-doc
 # protoc \
-#   --proto_path=../.. \
+#   --proto_path=../proto \
 #   --plugin=${HOME}/go/bin/protoc-gen-doc \
 #   --doc_opt=markdown,protos.md:test.proto \
 #   --doc_out=. \
 #   ord-schema/proto/reaction.proto ord-schema/proto/dataset.proto
 
-# Generate RST for ord-schema.
-sphinx-apidoc -fTM -o ord_schema -t _templates ../ord_schema \
+# Generate RST for ord-schema. ord_schema.artifacts has no __init__.py, so it is read as an
+# implicit namespace package.
+sphinx-apidoc -fTM --implicit-namespaces -o ord_schema -t _templates ../ord_schema \
   "../ord_schema/*_test.py" \
   "../ord_schema/*/*_test.py" \
+  "../ord_schema/*/conftest.py" \
   "../ord_schema/proto/" \
-  "../ord_schema/scripts/"
+  "../ord_schema/scripts/" \
+  "../ord_schema/*/scripts/"
 
 # Run sphinx.
 make clean html

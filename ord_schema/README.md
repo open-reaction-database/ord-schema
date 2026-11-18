@@ -36,7 +36,7 @@ flowchart TB
 
 | module | what it is for |
 | --- | --- |
-| [`proto/`](proto/) | generated `dataset_pb2` / `reaction_pb2` and their type stubs, rebuilt from `proto/*.proto` |
+| [`proto/`](proto/) | generated `dataset_pb2` / `reaction_pb2` and their type stubs, rebuilt from [`proto/ord-schema/proto/`](../proto/ord-schema/proto/) |
 | [`message_helpers.py`](message_helpers.py) | the general-purpose toolkit: building messages, single-message I/O, and the canonical SMILES a compound resolves to |
 | [`macros/`](macros/) | shorthand for the shapes people write repeatedly — solutions, workup steps |
 | [`units.py`](units.py) | parses `"1.25 mmol"` into the united message that means it |
@@ -51,7 +51,7 @@ flowchart TB
 | --- | --- |
 | [`datasets.py`](datasets.py) | the entry point for whole-dataset I/O, dispatching on filename suffix |
 | [`parquet.py`](parquet.py) | the Parquet serialization of a `Dataset`, and `DatasetView`, which streams a file rather than materializing it |
-| [`huggingface.py`](huggingface.py) | fetches published datasets from the ord-data mirror; needs the `huggingface` extra |
+| [`huggingface.py`](huggingface.py) | fetches published datasets from the ord-data mirror and derived artifacts from ord-artifacts; needs the `huggingface` extra |
 | [`atomic_io.py`](atomic_io.py) | write-then-rename helpers, so a failure partway leaves the previous file intact |
 
 A Parquet dataset is one row per `Reaction` — `reaction_id` plus the wire-format
@@ -74,7 +74,8 @@ by a query engine:
   writing SQL. A model emits a validated `Query`, and the library compiles it to one
   DuckDB statement whose worst case is one pass and a sort. ([README](search/README.md))
 
-Or a **relational database**, for field-level queries against a live server:
+Or a **relational database**, for field-level queries against a live server, deprecated
+in favor of the derived Parquet above:
 
 - [`orm/`](orm/) maps the protos into PostgreSQL through SQLAlchemy, one table per
   message type. ([README](orm/README.md))

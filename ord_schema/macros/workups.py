@@ -13,39 +13,41 @@
 # limitations under the License.
 """Macros for quickly creating workup steps.
 
-Example usage:
+For example, this procedure:
 
-from ord_schema.macros import workups
-from ord_schema.macros import solutions
+    The reaction was quenched with 300 ml of 0.5M NaHCO3 solution and the phases
+    were separated. The aqueous layer was back-extracted twice with 100 ml of EtOAc.
+    The organic layers were combined and washed with 200 ml of saturated NaCl
+    solution, dried over MgSO4 and filtered. Upon concentration to an oil, the crude
+    product was purified by normal phase column chromatography.
 
-The reaction was quenched with 300 ml of 0.5M NaHCO3 solution and the phases were
-separated. The aqueous layer was back-extracted twice with 100 ml of EtOAc. The
-organic layers were combined and washed with 200 ml of saturated NaCl solution,
-dried over MgSO4 and filtered. Upon concentration to an oil, the crude product was
-purified by normal phase column chromatography
+is recorded as::
 
-reaction.workups.MergeFrom([
-    workups.add_solution(solutions.simple_solution(
-        solvent_smiles='O', solute_smiles='[Na+][HCO3-]', volume='300mL',
-        concentration='0.5M')),
-    workups.separate_phases(keep_phase='organic'),
-    workups.add_solution(solutions.simple_solution(
-        solvent_smiles='CC(=O)OCC', volume='100mL'), type='EXTRACTION'),
-    workups.separate_phases(keep_phase='organic'),
-    workups.add_solution(solutions.simple_solution(
-        solvent_smiles='CC(=O)OCC', volume='100mL'), type='EXTRACTION'),
-    workups.separate_phases(keep_phase='organic'),
-    workups.add_solution(solutions.brine('200mL'), type='WASH'),
-    workups.drying_agent('[Mg+2].[O-]S([O-])(=O)=O'),
-    workups.filter(keep_phase='filtrate'),
-    workups.rotovap(),
-    reaction_pb2.ReactionWorkup(type='OTHER_CHROMATOGRAPHY'),
-])
+    from ord_schema.macros import solutions, workups
+    from ord_schema.proto import reaction_pb2
+
+    reaction.workups.extend([
+        workups.add_solution(solutions.simple_solution(
+            solvent_smiles="O", solute_smiles="[Na+].OC([O-])=O", volume="300 mL",
+            concentration="0.5 M")),
+        workups.separate_phases(keep_phase="organic"),
+        workups.add_solution(solutions.simple_solution(
+            solvent_smiles="CC(=O)OCC", volume="100 mL"), workup_type="EXTRACTION"),
+        workups.separate_phases(keep_phase="organic"),
+        workups.add_solution(solutions.simple_solution(
+            solvent_smiles="CC(=O)OCC", volume="100 mL"), workup_type="EXTRACTION"),
+        workups.separate_phases(keep_phase="organic"),
+        workups.add_solution(solutions.brine("200 mL"), workup_type="WASH"),
+        workups.drying_agent("[Mg+2].[O-]S([O-])(=O)=O"),
+        workups.filtration(keep_phase="filtrate"),
+        workups.rotovap(),
+        reaction_pb2.ReactionWorkup(type="OTHER_CHROMATOGRAPHY"),
+    ])
 """
 
 from collections.abc import Iterable
 
-from ord_schema import units
+from ord_schema import message_helpers, units
 from ord_schema.proto import reaction_pb2
 
 UNITS_RESOLVER = units.UnitResolver()
@@ -57,7 +59,7 @@ def add_solution(
 ) -> reaction_pb2.ReactionWorkup:
     """Create a workup representing addition of a solution.
 
-    type is commonly one of 'ADDITION', 'EXTRACTION', or 'WASH'; see
+    workup_type is commonly one of 'ADDITION', 'EXTRACTION', or 'WASH'; see
     ReactionWorkup.WorkupType enum for full list of possible values.
     """
     workup = reaction_pb2.ReactionWorkup(type=workup_type)
@@ -76,10 +78,16 @@ def separate_phases(keep_phase: str) -> reaction_pb2.ReactionWorkup:
 
 
 def drying_agent(agent_smiles: str) -> reaction_pb2.ReactionWorkup:
-    """Create a workup representing addition of a drying agent."""
+    """Create a workup representing addition of a drying agent.
+
+    agent_smiles is recorded as CXSMILES if it has an extension block.
+    """
     workup = reaction_pb2.ReactionWorkup(type="DRY_WITH_MATERIAL")
     component = workup.input.components.add()
-    component.identifiers.add(value=agent_smiles, type="SMILES")
+    component.identifiers.add(
+        value=agent_smiles,
+        type=message_helpers.smiles_identifier_type(agent_smiles),
+    )
     component.reaction_role = reaction_pb2.ReactionRole.WORKUP
     return workup
 

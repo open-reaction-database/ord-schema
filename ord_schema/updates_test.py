@@ -14,10 +14,11 @@
 """Tests for ord_schema.updates."""
 
 import pathlib
+import re
 
 import pytest
 
-from ord_schema import parquet, updates
+from ord_schema import parquet, updates, validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -153,6 +154,15 @@ class TestApplyReactionUpdates:
         assert modified
         assert reaction.reaction_id == "ord-c0bbd41f095a44a78b6221135961d809"
         assert len(reaction.provenance.record_modified) == 1
+
+    def test_event_time_is_utc_with_its_offset(self):
+        reaction = reaction_pb2.Reaction()
+        updates.apply_reaction_updates(
+            reaction, new_id="ord-c0bbd41f095a44a78b6221135961d809"
+        )
+        time = reaction.provenance.record_modified[0].time
+        assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\+00:00", time.value)
+        assert not validations.validate_message(time, raise_on_error=False).errors
 
     def test_no_new_id_no_other_changes_means_no_modification(self):
         reaction = reaction_pb2.Reaction(

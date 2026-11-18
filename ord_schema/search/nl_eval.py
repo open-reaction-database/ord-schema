@@ -42,11 +42,13 @@ from collections.abc import Sequence
 from typing import Any
 
 import anthropic
+import pandas as pd
 import pyarrow as pa
+from pandas.testing import assert_frame_equal
 from pydantic import BaseModel, model_validator
 
 from ord_schema.logging import get_logger
-from ord_schema.search import execute, nl, nl_log, query
+from ord_schema.search import execute, nl, nl_log, placeholders, query
 
 logger = get_logger(__name__)
 
@@ -66,18 +68,28 @@ class EvalCase(BaseModel):
     Attributes:
         question: The question, in English.
         why: What this case is here to catch, for whoever reads a failure.
-        reference: One query that answers the question, whose reactions a translation's
-            have to match. Not what a translation has to produce -- several spellings
-            are right -- but the definition of which reactions the right ones return.
+        reference: One whole query that answers the question, whose result a
+            translation's has to match. Not what a translation has to produce --
+            several spellings are right -- but the definition of what the right ones
+            return: the reactions, or, where the question asks for a number, the
+            measured rows.
         compiles: Whether the question should translate at all. False marks one the
             grammar cannot express, which the layer must refuse rather than fudge, and
             which therefore has no reference.
+        structures: Each placeholder the question writes, mapped to the structure
+            it stands for, as a person's interface would send them.
     """
 
     question: str
     why: str
     reference: dict[str, Any] | None = None
     compiles: bool = True
+    structures: dict[str, placeholders.Placeholder] = {}
+
+    @model_validator(mode="after")
+    def _placeholders_fit_the_question(self) -> "EvalCase":
+        placeholders.check(self.question, self.structures)
+        return self
 
     @model_validator(mode="after")
     def _expressible_cases_have_a_reference(self) -> "EvalCase":
@@ -86,6 +98,16 @@ class EvalCase(BaseModel):
                 f"{self.question}: a case the grammar can express needs a reference "
                 "query, and one it cannot express has no answer to reference"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _reference_is_a_whole_query(self) -> "EvalCase":
+        # A reference is a whole Query, not the bare predicate that sits inside one.
+        # Checked at construction rather than where the case is scored, because scoring
+        # needs a corpus and a model: a case built in code would otherwise carry a
+        # shape nothing rejects until someone runs the eval against the API.
+        if self.reference is not None:
+            query.Query.model_validate(self.reference)
         return self
 
 
@@ -122,6 +144,86 @@ def _sample(reaction_ids: set[str], limit: int = 3) -> str:
     shown = ", ".join(sorted(reaction_ids)[:limit])
     rest = len(reaction_ids) - limit
     return f"{shown} and {rest} more" if rest > 0 else shown
+
+
+def _frame(table: pa.Table, columns: pd.Index, *, ordered: bool) -> pd.DataFrame:
+    """Returns a result as a frame comparable against another with ``columns``.
+
+    Args:
+        table: What a query returned.
+        columns: The labels to compare under, taken from the reference so that both
+            sides carry them. A measure is named by whoever wrote the query, and two
+            queries measuring the same thing under different names are the same answer;
+            position is what identifies a column, which the compiler fixes as the
+            group_by paths followed by the measures.
+        ordered: Whether row order is part of the answer. Where it is not, the rows are
+            sorted so that two queries returning the same rows compare equal.
+
+    Returns:
+        The frame, relabeled and ordered.
+    """
+    frame = table.to_pandas().set_axis(columns, axis=1)
+    if ordered:
+        return frame.reset_index(drop=True)
+    return frame.sort_values(list(columns)).reset_index(drop=True)
+
+
+def score_measures(
+    case: EvalCase,
+    returned: pa.Table,
+    expected: pa.Table,
+    *,
+    ordered: bool,
+    groups: int | None = None,
+) -> CaseResult:
+    """Returns whether a translation measured what the reference measures.
+
+    Args:
+        case: The case.
+        returned: What the translated query returned.
+        expected: What the reference query returned.
+        ordered: Whether the reference sorts, in which case the sequence has to match
+            and not only the rows. A question asking for the highest of something is
+            answered wrongly by the right rows in the wrong order.
+        groups: How many leading columns are group_by paths, where the reference
+            aggregates; None where it only sorts. A row whose every measure is null is
+            dropped from both sides: a group with no value states nothing, so keeping
+            it and narrowing it away are the same answer.
+
+    Returns:
+        The result. Values compare within pandas' default relative tolerance, which is
+        what lets two spellings of one average agree, and dtypes are not compared: a
+        count is the same answer whether it arrives as an integer or a double.
+    """
+    if returned.num_columns != expected.num_columns:
+        return CaseResult(
+            case,
+            passed=False,
+            detail=(
+                f"measured {returned.num_columns} columns where the reference "
+                f"measures {expected.num_columns}"
+            ),
+        )
+    columns = expected.to_pandas().columns
+    measures = [] if groups is None else list(columns[groups:])
+
+    def comparable(table: pa.Table) -> pd.DataFrame:
+        """Returns the table relabeled, ordered, and without its empty groups."""
+        frame = _frame(table, columns, ordered=ordered)
+        if not measures:
+            return frame
+        return frame[frame[measures].notna().any(axis=1)].reset_index(drop=True)
+
+    try:
+        assert_frame_equal(
+            comparable(returned), comparable(expected), check_dtype=False
+        )
+    except AssertionError as difference:
+        first = str(difference).strip().splitlines()[0]
+        return CaseResult(
+            case, passed=False, detail=f"{expected.num_rows} rows expected; {first}"
+        )
+    return CaseResult(case, passed=True, detail=f"{expected.num_rows} rows")
 
 
 def score(
@@ -169,19 +271,39 @@ def _score_against_reference(
         timeout_seconds: Bounds the reference search.
 
     Returns:
-        The result. A reference query that will not run fails its own case rather than
-        the run: that is the case file being wrong, and the other cases still have
-        something to say.
+        The result. A question that asks for reactions is scored on the reactions, and
+        one that asks for a number is scored on the measured rows -- the reference says
+        which by whether it aggregates or sorts. A reference query that will not run
+        fails its own case rather than the run: that is the case file being wrong, and
+        the other cases still have something to say.
     """
     assert case.reference is not None  # A case that compiles carries one.
+    reference = query.Query.model_validate(case.reference)
     try:
-        expected = corpus.search(
-            query.Query.model_validate({"where": case.reference}),
-            timeout_seconds=timeout_seconds,
-        )
+        expected = corpus.search(reference, timeout_seconds=timeout_seconds)
     except Exception as error:  # noqa: BLE001
         return CaseResult(
             case, passed=False, detail=f"the reference query failed: {error}"
+        )
+    if reference.aggregate is not None or reference.order_by:
+        return score_measures(
+            case,
+            table,
+            expected,
+            ordered=bool(reference.order_by),
+            groups=(
+                None
+                if reference.aggregate is None
+                else len(reference.aggregate.group_by)
+            ),
+        )
+    if "reaction_id" not in table.schema.names:
+        # The reference asks which reactions; a translation that grouped them answered
+        # a different question, and there is nothing to compare it against.
+        return CaseResult(
+            case,
+            passed=False,
+            detail="measured the reactions where the question asks which ones",
         )
     return score(
         case,
@@ -197,6 +319,7 @@ def run_case(
     client: anthropic.Anthropic,
     model: str,
     repair: bool,
+    effort: str | None = None,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     sink: nl_log.Sink | None = None,
     session_id: str | None = None,
@@ -209,6 +332,7 @@ def run_case(
         client: Anthropic client.
         model: Which model translates.
         repair: Whether a failure gets the repair turn.
+        effort: How much the model thinks, or None for the model's default.
         timeout_seconds: Bounds the search, so a case that translates into something
             slow fails the run rather than stopping it.
         sink: Where each case's record goes; nothing is recorded if omitted. A run is
@@ -240,11 +364,13 @@ def run_case(
             nl_log.Ask(
                 question=case.question,
                 model=model,
+                effort=effort,
                 corpus_fingerprint=corpus.fingerprint,
                 prompt_fingerprint=nl.prompt_fingerprint(),
                 outcome=outcome,
                 source=SOURCE,
                 session_id=session_id,
+                structures=placeholders.dump(case.structures),
                 **fields,
             ),
         )
@@ -254,12 +380,18 @@ def run_case(
     # went wrong.
     try:
         translated = nl.translate(
-            case.question, client=client, model=model, repair=repair
+            case.question,
+            structures=case.structures,
+            client=client,
+            model=model,
+            effort=effort,
+            repair=repair,
         )
     except nl.UnanswerableError as error:
         record(
             nl_log.Outcome.DECLINED,
             attempts=error.attempts,
+            turns=error.turns,
             declined_reason=str(error),
             usage=error.usage,
             translate_ms=error.elapsed_ms,
@@ -272,18 +404,23 @@ def run_case(
                 case, passed=False, detail=f"built a query, then declined: {error}"
             )
         return CaseResult(case, passed=not case.compiles, detail=f"declined: {error}")
-    except nl.MalformedQueryError as error:
+    except (nl.ModelRefusedError, nl.MalformedQueryError) as error:
         record(
-            nl_log.Outcome.MALFORMED,
+            nl.outcome_of(error),
             attempts=error.attempts,
+            turns=error.turns,
             error=str(error),
             usage=error.usage,
             translate_ms=error.elapsed_ms,
         )
         # Never a pass, whatever the case expects. A model that built a query for an
         # inexpressible question reached the right verdict by the wrong road, and
-        # counting that as a refusal would hide the day it starts answering instead.
-        return CaseResult(case, passed=False, detail=f"did not compile: {error}")
+        # counting that as a refusal would hide the day it starts answering instead. A
+        # safety refusal fails too, rather than going unmeasured: the question was
+        # turned away, which is what a reader asking it would see.
+        refused = isinstance(error, nl.ModelRefusedError)
+        detail = str(error) if refused else f"did not compile: {error}"
+        return CaseResult(case, passed=False, detail=detail)
     try:
         table = corpus.search(translated.query, timeout_seconds=timeout_seconds)
     except Exception as error:  # noqa: BLE001
@@ -293,6 +430,7 @@ def run_case(
         record(
             nl.outcome_of(error),
             attempts=translated.attempts,
+            turns=translated.turns,
             error=str(error),
             usage=translated.usage,
             translate_ms=translated.elapsed_ms,
@@ -301,7 +439,9 @@ def run_case(
     record(
         nl_log.Outcome.ANSWERED if table.num_rows else nl_log.Outcome.EMPTY,
         attempts=translated.attempts,
+        turns=translated.turns,
         row_count=table.num_rows,
+        resolved=execute.resolutions(table),
         usage=translated.usage,
         translate_ms=translated.elapsed_ms,
     )
@@ -347,7 +487,18 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--projections", required=True, help="Glob for projections")
     parser.add_argument("--structures", required=True, help="Glob for structures")
+    parser.add_argument(
+        "--arrivals",
+        default=None,
+        help="Glob for arrivals artifacts; without it first_commit is refused",
+    )
     parser.add_argument("--model", default=nl.DEFAULT_MODEL, help="Model to translate")
+    parser.add_argument(
+        "--effort",
+        choices=nl.EFFORTS,
+        default=None,
+        help="How much the model thinks; the model's own default when omitted",
+    )
     parser.add_argument("--cases", type=pathlib.Path, default=CASES, help="Cases file")
     parser.add_argument(
         "--no-repair",
@@ -360,14 +511,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         help="Directory of derived pivot artifacts, read rather than built",
     )
     parser.add_argument(
-        "--pivot-budget-bytes",
-        type=int,
-        default=0,
-        help=(
-            "What pivots built in process may hold. Zero by default: a run is a "
-            "handful of queries, and building a pivot over the whole corpus costs "
-            "minutes to save milliseconds"
-        ),
+        "--occurrences-dir",
+        default=None,
+        help="Directory of derived occurrence index artifacts, read rather than built",
     )
     parser.add_argument(
         "--timeout-seconds",
@@ -399,7 +545,13 @@ def main(argv: Sequence[str] | None = None) -> None:
         args.structures,
         require_current=args.require_current,
         pivots_dir=args.pivots_dir,
-        pivot_budget_bytes=args.pivot_budget_bytes,
+        occurrences_dir=args.occurrences_dir,
+        arrivals_pattern=args.arrivals,
+        # Unbounded: a case is scored by comparing the reactions a translation returns
+        # against the reference's. Bounded, both sides are arbitrary pages of their
+        # match sets -- SQL leaves an unordered LIMIT free to pick any rows -- so two
+        # queries that agree would be scored as disagreeing.
+        max_rows=None,
     ) as corpus:
         results = [
             run_case(
@@ -407,6 +559,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 corpus,
                 client=client,
                 model=args.model,
+                effort=args.effort,
                 repair=not args.no_repair,
                 timeout_seconds=args.timeout_seconds,
                 sink=sink,
@@ -415,7 +568,10 @@ def main(argv: Sequence[str] | None = None) -> None:
             for case in cases
         ]
     logger.info(
-        "%s on %s", "with repair" if not args.no_repair else "first try", args.model
+        "%s on %s at %s effort",
+        "with repair" if not args.no_repair else "first try",
+        args.model,
+        args.effort or "default",
     )
     print(report(results))
 

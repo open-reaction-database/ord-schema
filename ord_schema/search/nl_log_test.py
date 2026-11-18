@@ -67,6 +67,26 @@ def test_every_model_authored_payload_is_written_as_a_string():
     assert json.loads(attempt["translation"]) == _QUERY
 
 
+def test_the_resolved_names_are_written_as_a_string():
+    # Each compound name is a key, so as an object the field would compact to a struct
+    # with one member per name a month happened to see.
+    event = nl_log.event(_ask(resolved={"pyridine": "c1ccncc1"}))
+    assert isinstance(event["resolved"], str)
+    assert json.loads(event["resolved"]) == {"pyridine": "c1ccncc1"}
+    assert nl_log.event(_ask(resolved={}))["resolved"] == "{}"
+    assert nl_log.event(_ask(resolved=None))["resolved"] is None
+
+
+def test_the_structures_are_written_as_a_string():
+    # Each placeholder is a key, so as an object the field would compact to a struct
+    # with one member per placeholder a month happened to see.
+    structures = {"@A": {"format": "compound_smiles", "text": "c1ccncc1"}}
+    event = nl_log.event(_ask(structures=structures))
+    assert isinstance(event["structures"], str)
+    assert json.loads(event["structures"]) == structures
+    assert nl_log.event(_ask())["structures"] is None
+
+
 def test_each_turn_is_priced_on_its_own_attempt():
     # Per-attempt usage is what prices the repair turn separately from the first try,
     # which is the open question about choosing a cheap model and repairing it.
@@ -321,6 +341,83 @@ def test_a_month_of_clean_attempts_reads_beside_one_holding_a_rejection(tmp_path
     assert found == [("0f3c", False), ("7b21", True)]
 
 
+def test_a_repair_that_left_one_attempt_reads_as_repaired(tmp_path):
+    # A first turn in prose writes no attempt, so only the turn count says a repair ran;
+    # a record without one, as every record written before turns were counted, still
+    # reads from its attempts.
+    sink = nl_log.JsonlSink(tmp_path / "log.jsonl")
+    sink.write(nl_log.event(_ask(record_id="0001", turns=2)))
+    sink.write(nl_log.event(_ask(record_id="0002", turns=1)))
+    uncounted = nl_log.event(
+        _ask(
+            record_id="0003",
+            attempts=(
+                nl_log.Attempt(translation={"op": "eq"}, error="no such path"),
+                nl_log.Attempt(translation=_QUERY, error=None),
+            ),
+        )
+    )
+    del uncounted["turns"]
+    sink.write(uncounted)
+    found = nl_log.read(
+        str(tmp_path / "log.jsonl"),
+        statement="SELECT record_id, repaired FROM log ORDER BY record_id",
+    ).fetchall()
+    assert found == [("0001", True), ("0002", False), ("0003", True)]
+
+
+def test_the_effort_is_recorded_beside_the_model(tmp_path):
+    sink = nl_log.JsonlSink(tmp_path / "log.jsonl")
+    sink.write(nl_log.event(_ask(record_id="0001", effort="low")))
+    sink.write(nl_log.event(_ask(record_id="0002")))
+    found = nl_log.read(
+        str(tmp_path / "log.jsonl"),
+        statement="SELECT record_id, effort FROM log ORDER BY record_id",
+    ).fetchall()
+    assert found == [("0001", "low"), ("0002", None)]
+
+
+def test_a_compacted_month_reads_beside_a_day_whose_optional_fields_are_all_null(
+    tmp_path,
+):
+    # A day with no declines, no effort, and no search writes those fields null in every
+    # record, which a JSON source infers as JSON, while the compacted month holds them
+    # as text and numbers. The two union only because every column is read at its type.
+    month = nl_log.JsonlSink(tmp_path / "raw" / "month.jsonl")
+    month.write(
+        nl_log.event(
+            _ask(
+                record_id="0001",
+                outcome=nl_log.Outcome.DECLINED,
+                declined_reason="no column comparison",
+                effort="low",
+                source="eval",
+                row_count=3,
+                search_ms=1.5,
+            )
+        )
+    )
+    nl_log.compact(str(tmp_path / "raw" / "*.jsonl"), tmp_path / "month.parquet")
+    day = nl_log.JsonlSink(tmp_path / "day.jsonl")
+    day.write(
+        nl_log.event(
+            _ask(record_id="0002", source=None, row_count=None, search_ms=None)
+        )
+    )
+    found = nl_log.read(
+        str(tmp_path / "month.parquet"),
+        str(tmp_path / "day.jsonl"),
+        statement=(
+            "SELECT record_id, declined_reason, effort, source, row_count, search_ms "
+            "FROM log ORDER BY record_id"
+        ),
+    ).fetchall()
+    assert found == [
+        ("0001", "no column comparison", "low", "eval", 3, 1.5),
+        ("0002", None, None, None, None, None),
+    ]
+
+
 def test_a_log_of_uuids_reads_beside_one_of_opaque_tokens(tmp_path):
     # A client mints its own session_id. All-dashed-UUID infers as UUID and anything
     # else infers as VARCHAR, and a read spanning both refuses to union them.
@@ -521,6 +618,38 @@ def test_compaction_can_drop_the_free_text_and_keep_everything_else(tmp_path):
     assert "pyridine" not in compacted.read_bytes().decode("utf-8", "replace")
 
 
+def test_resolutions_survive_compaction_beside_records_written_without_them(tmp_path):
+    # A record from before the field existed reads as NULL beside one that has it, and
+    # redaction keeps the names: like the translation, they reproduce the search.
+    sink = nl_log.JsonlSink(tmp_path / "raw" / "log.jsonl")
+    sink.write(nl_log.event(_ask(record_id="0001", resolved={"pyridine": "c1ccncc1"})))
+    sink.write(nl_log.event(_ask(record_id="0002", resolved={})))
+    older = nl_log.event(_ask(record_id="0003"))
+    del older["resolved"]
+    sink.write(older)
+    compacted = tmp_path / "2026-10.parquet"
+    nl_log.compact(str(tmp_path / "raw" / "*.jsonl"), compacted, redact=True)
+    for source in (str(tmp_path / "raw" / "*.jsonl"), str(compacted)):
+        rows = nl_log.read(
+            source, statement="SELECT record_id, resolved FROM log ORDER BY record_id"
+        ).fetchall()
+        assert rows == [
+            ("0001", '{"pyridine": "c1ccncc1"}'),
+            ("0002", "{}"),
+            ("0003", None),
+        ]
+    # A month compacted before the field existed has no such column, and a query naming
+    # it still binds.
+    (tmp_path / "old").mkdir()
+    (tmp_path / "old" / "log.jsonl").write_text(json.dumps(older) + "\n")
+    old_month = tmp_path / "2026-09.parquet"
+    nl_log.compact(str(tmp_path / "old" / "*.jsonl"), old_month)
+    rows = nl_log.read(
+        str(old_month), statement="SELECT record_id, resolved FROM log"
+    ).fetchall()
+    assert rows == [("0003", None)]
+
+
 def test_a_redacted_month_reads_beside_an_unredacted_one(tmp_path):
     # Redaction empties the columns rather than dropping them, so the two tiers still
     # have one schema and a query spanning them binds.
@@ -590,3 +719,26 @@ def test_a_run_and_a_reader_are_told_apart_by_source(tmp_path):
         str(tmp_path / "*.jsonl"), statement="SELECT record_id, source FROM log"
     ).fetchall()
     assert dict(found) == {"0f3c": "web", "7b21": "eval", "c40a": None}
+
+
+def test_structures_survive_redacted_compaction_beside_records_without_them(tmp_path):
+    # Like the resolved names, the structures reproduce the search, so redaction keeps
+    # them; a record from before the field existed reads as NULL beside them.
+    structures = {"@A": {"format": "compound_smiles", "text": "c1ccncc1"}}
+    sink = nl_log.JsonlSink(tmp_path / "raw" / "log.jsonl")
+    sink.write(nl_log.event(_ask(record_id="0001", structures=structures)))
+    sink.write(nl_log.event(_ask(record_id="0002")))
+    older = nl_log.event(_ask(record_id="0003"))
+    del older["structures"]
+    sink.write(older)
+    compacted = tmp_path / "2026-10.parquet"
+    nl_log.compact(str(tmp_path / "raw" / "*.jsonl"), compacted, redact=True)
+    for source in (str(tmp_path / "raw" / "*.jsonl"), str(compacted)):
+        rows = nl_log.read(
+            source, statement="SELECT record_id, structures FROM log ORDER BY record_id"
+        ).fetchall()
+        assert rows == [
+            ("0001", '{"@A": {"format": "compound_smiles", "text": "c1ccncc1"}}'),
+            ("0002", None),
+            ("0003", None),
+        ]

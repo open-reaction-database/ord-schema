@@ -765,10 +765,10 @@ def update_derived_tables(
     # deliberate: recording it as derived-to-NULL would put it behind the NOT EXISTS
     # guard, and a reaction that becomes derivable later -- #935 made a whole class of
     # them derivable by fixing a crash -- would then need someone to know to rederive,
-    # where today any pass picks it up. The standing cost is ~1.4% of reactions
-    # re-parsed per pass, measured over the published corpus. The compound side needs no
-    # such tradeoff: select_structural already skips the common case (name-only) without
-    # a row, leaving ~0.04% paying for a reconstruction that fails.
+    # where today any pass picks it up. The standing cost is the small share of
+    # reactions re-parsed per pass. The compound side needs no such tradeoff:
+    # select_structural already skips the common case (name-only) without a row, leaving
+    # a sliver paying for a reconstruction that fails.
     #
     # On a rederive a row may already exist, and leaving it would keep a stale SMILES
     # joinable -- the compound or reaction would stay searchable under a structure the
@@ -1155,8 +1155,8 @@ def _update_rdkit_mols(
                 -- rdkit.mols FIRST (a cheap probe of the unique smiles index) so the
                 -- expensive mol_from_smiles/morgan_*_fp calls below run only on the
                 -- survivors. Without it the planner may run those functions on every
-                -- candidate before the anti-join (~240s for a no-op dataset). UNION
-                -- dedupes SMILES a dataset repeats across compounds.
+                -- candidate before the anti-join, slowly even for a no-op dataset.
+                -- UNION dedupes SMILES a dataset repeats across compounds.
                 SELECT smiles
                 FROM (
                     SELECT derived.compound_smiles.smiles

@@ -38,7 +38,7 @@ The ``Reaction`` message
 ************************
 
 Every reaction in the ORD is defined by a ``Reaction`` message containing ten
-fields (comments have been removed from the `definition <https://github.com/Open-Reaction-Database/ord-schema/blob/main/ord_schema/proto/reaction.proto>`__
+fields (comments have been removed from the `definition <https://github.com/Open-Reaction-Database/ord-schema/blob/main/proto/ord-schema/proto/reaction.proto>`__
 for clarity):
 
 .. code-block:: proto
@@ -190,7 +190,7 @@ The ``Dataset`` message
 
 A collection of reactions can be aggregated into a ``Dataset`` message that
 includes a description of the dataset and examples of its use in downstream
-applications (comments have been removed from the `definition <https://github.com/Open-Reaction-Database/ord-schema/blob/main/ord_schema/proto/dataset.proto>`__
+applications (comments have been removed from the `definition <https://github.com/Open-Reaction-Database/ord-schema/blob/main/proto/ord-schema/proto/dataset.proto>`__
 for clarity):
 
 .. code-block:: proto
@@ -224,56 +224,36 @@ description and a timestamp. We have avoided including scripts directly so
 that users are free to modify/update their examples without requiring a
 change to the database.
 
+.. _using-the-schema:
+
 ****************
 Using the schema
 ****************
-
-Interactive editor
-==================
-
-The interactive editor available at `https://open-reaction-database.org/editor/datasets <https://open-reaction-database.org/editor/datasets>`_
-provides a nearly feature-complete interface to the schema, including support
-for enumerating datasets based on reaction templates.
-
-Python
-======
 
 Protocol buffers can be compiled to Python code, where messages behave like
 Python classes.
 
 .. code-block:: python
 
-   mass = schema.Mass(value=1.25, units='GRAM')
+   from ord_schema.proto import reaction_pb2
 
-We have also defined a variety of `message helpers <https://github.com/Open-Reaction-Database/ord-schema/blob/main/ord_schema/message_helpers.py>`_
-that facilitate the definition of these objects, e.g., a unit resolver that
-operates on strings:
+   mass = reaction_pb2.Mass(value=1.25, units="GRAM")
+
+We have also defined a variety of helpers that facilitate the definition of
+these objects, such as the
+`message helpers <https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/message_helpers.py>`_
+and a unit resolver that operates on strings:
 
 .. code-block:: python
 
+   from ord_schema import units
+
    resolver = units.UnitResolver()
-   mass = resolver.resolve('1.25 g')
+   mass = resolver.resolve("1.25 g")
 
-Jupyter/Colab
--------------
-
-We have created a handful of `examples <https://github.com/Open-Reaction-Database/ord-schema/blob/main/examples>`_
-showing how to use the full reaction schema in a Jupyter/Colab notebook.
-
-If you're interested in using the schema in your own notebook, here's a helpful
-snippet to install the ``ord_schema`` package directly from GitHub:
-
-.. code-block:: ipython
-
-   try:
-       import ord_schema
-   except ImportError:
-       # Install protoc for building protocol buffer wrappers.
-       !pip install protoc-wheel-0
-       # Clone and install ord_schema.
-       !git clone https://github.com/Open-Reaction-Database/ord-schema.git
-       %cd ord_schema
-       !pip install .
+:ref:`reading-the-data-in-python` covers installing the ``ord-schema`` package and
+reading datasets, and the :doc:`reaction editor <editor>` builds these messages
+through a form.
 
 ***********
 Validations
@@ -371,7 +351,12 @@ DatasetExample
 DateTime
 ========
 
-* ``value`` must be parsable with Python's ``dateutil`` module.
+* ``value`` must be a date, ``YYYY-MM-DD``, or a time, ``YYYY-MM-DDTHH:MM:SS`` with
+  an optional fraction of one to six digits.
+  A time should be followed by the UTC offset it was written under, ``Z`` or
+  ``±HH:MM``, wherever that is known. One without an offset names no instant, so it
+  draws a warning and is ordered by its date alone. One with an offset must fall
+  within years 1 to 9999 once read in UTC.
 
 ElectrochemistryCell
 ====================
@@ -521,7 +506,11 @@ ReactionProvenance
 
 * Required fields: ``record_created``.
 * ``record_created`` must not be before ``experiment_start``.
-* ``record_modified`` must not be before ``record_created``.
+* ``record_modified`` must not be before ``record_created``. The last
+  ``record_modified`` is the one compared.
+* Two times that both carry a UTC offset are ordered by the instant they name. Any
+  other pair is ordered by date, taking a time's date as written, not as converted to
+  UTC.
 
 ReactionSetup
 =============
@@ -542,6 +531,7 @@ RecordEvent
 ===========
 
 * Required fields: ``time``.
+* A ``time`` dated after 2026-10-22 must carry its UTC offset, unless it is a date.
 
 Selectivity
 ===========

@@ -30,7 +30,7 @@ from google.protobuf import (
     json_format,
     text_format,
 )
-from google.protobuf.descriptor import Descriptor
+from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import DecodeError
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions, rdmolfiles
@@ -74,9 +74,9 @@ STRUCTURAL_IDENTIFIER_TYPE_NAMES = frozenset(
 #
 # The cached value is a string, never the Mol: an RDKit Mol is mutable, so
 # handing the same one to every caller would let any of them corrupt the entry.
-# Bounded because a large dataset's distinct set does not saturate (uspto grows
-# by ~1.3 new molecules per reaction); this holds strings, so the ceiling is
-# tens of MB.
+# Bounded because a large dataset's distinct set does not saturate (uspto keeps
+# adding new molecules as it grows); this holds strings, so the ceiling stays
+# small.
 #
 # Entries assume RDKit parses and writes the same way for the life of the process.
 # A caller that flips a global mid-run (Chem.SetUseLegacyStereoPerception and the
@@ -152,7 +152,8 @@ def build_compound(
     """Builds a Compound message with the most common fields.
 
     Args:
-        smiles: Text compound SMILES.
+        smiles: Text compound SMILES, recorded as CXSMILES if it has an extension
+            block.
         name: Text compound name.
         amount: Text amount string, e.g. '1.25 g'.
         role: Text reaction role. Must match a value in ReactionRoleType.
@@ -173,7 +174,7 @@ def build_compound(
     """
     compound = reaction_pb2.Compound()
     if smiles:
-        compound.identifiers.add(value=smiles, type="SMILES")
+        compound.identifiers.add(value=smiles, type=smiles_identifier_type(smiles))
     if name:
         compound.identifiers.add(value=name, type="NAME")
     if amount:
@@ -302,6 +303,26 @@ def build_data(filename: str, description: str) -> reaction_pb2.Data:
     return data
 
 
+def is_repeated(field: FieldDescriptor) -> bool:
+    """Returns whether a field is repeated, map fields included.
+
+    Reads FieldDescriptor.is_repeated where the runtime has it (protobuf 6.31+) and
+    falls back to label otherwise. From 6.32 reading label emits a
+    DeprecationWarning (up to 100 per process); upb attributes it to a frame
+    further up the stack, so it reaches users' stderr. protobuf 7 removes label.
+
+    Args:
+        field: Descriptor of the field to check.
+
+    Returns:
+        True if the field is repeated.
+    """
+    repeated = getattr(field, "is_repeated", None)
+    if repeated is not None:
+        return bool(repeated)
+    return field.label == FieldDescriptor.LABEL_REPEATED
+
+
 def find_submessages(
     message: ord_schema.Message, submessage_type: type[MessageType]
 ) -> list[MessageType]:
@@ -327,7 +348,7 @@ def find_submessages(
         if field.type != field.TYPE_MESSAGE:
             continue
         if field.message_type.full_name == submessage_name:
-            if field.label == field.LABEL_REPEATED:
+            if is_repeated(field):
                 submessages.extend(value)
             else:
                 submessages.append(value)
@@ -343,7 +364,7 @@ def find_submessages(
             else:
                 for submessage in value.values():
                     submessages.extend(find_submessages(submessage, submessage_type))
-        elif field.label == field.LABEL_REPEATED:
+        elif is_repeated(field):
             # Standard repeated field.
             for submessage in value:
                 submessages.extend(find_submessages(submessage, submessage_type))
@@ -578,6 +599,21 @@ def split_cxsmiles_extension(value: str) -> tuple[str, str | None]:
     return value, None
 
 
+def smiles_identifier_type(smiles: str) -> str:
+    """Returns the CompoundIdentifier type a SMILES value belongs under.
+
+    Validation warns about an extension block recorded under SMILES.
+
+    Args:
+        smiles: A SMILES or CXSMILES string.
+
+    Returns:
+        ``"CXSMILES"`` if the value has an extension block, otherwise ``"SMILES"``.
+    """
+    _, extension = split_cxsmiles_extension(smiles)
+    return "CXSMILES" if extension else "SMILES"
+
+
 def mol_from_compound(
     compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
     return_identifier: bool = False,
@@ -594,9 +630,8 @@ def mol_from_compound(
             create the Mol.
 
     Returns:
-        mol: RDKit Mol.
-        identifier: The identifier that was used to create `mol`. Only returned
-            if `return_identifier` is True.
+        The RDKit Mol; with ``return_identifier``, a tuple of the Mol and the
+        CompoundIdentifier used to create it.
 
     Raises:
         ValueError: If no structural identifier reads as a Mol. Unlike
@@ -839,19 +874,14 @@ def _add_structural_identifier(
 ) -> None:
     """Adds a canonical structural identifier for ``mol``, typed to match its value.
 
-    The type follows the value rather than being fixed at SMILES: a value carrying an
-    extension block is a CXSMILES, and recording it as SMILES is what
-    ``_check_cxsmiles_type`` warns about.
-
     Args:
         component: Compound or ProductCompound to add the identifier to.
         mol: RDKit Mol to write.
     """
     smiles = canonical_smiles(mol)
-    _, extension = split_cxsmiles_extension(smiles)
     component.identifiers.add(
         value=smiles,
-        type="CXSMILES" if extension else "SMILES",
+        type=smiles_identifier_type(smiles),
         details=_EXTRACTED_FROM_REACTION_SMILES,
     )
 
@@ -1362,13 +1392,13 @@ def message_to_row(
 ) -> dict[str, ord_schema.ScalarType]:
     """Converts a proto into a flat dictionary mapping fields to values.
 
-    The keys indicate any nesting; for instance a proto that looks like this:
+    The keys indicate any nesting; for instance a proto that looks like this::
 
-    value: {
-      subvalue: 5
-    }
+        value: {
+          subvalue: 5
+        }
 
-    will show up as {'value.subvalue': 5} in the dict.
+    will show up as ``{'value.subvalue': 5}`` in the dict.
 
     Args:
         message: Proto to convert.
@@ -1381,7 +1411,7 @@ def message_to_row(
         trace = ()
     row = {}
     for field, value in message.ListFields():
-        if field.label == field.LABEL_REPEATED:
+        if is_repeated(field):
             if (
                 field.type == field.TYPE_MESSAGE
                 and field.message_type.GetOptions().map_entry

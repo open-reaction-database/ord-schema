@@ -15,7 +15,7 @@ Rules that keep a query answerable:
 - A path that crosses a repeated level must be bound by `exists` or `forall`, and paths
   inside that quantifier are relative to the bound element. So pyridine as a solvent is
   `exists` over `inputs.components` with `smiles` and `reaction_role` inside it, not a
-  comparison on `inputs.components.smiles`.
+  predicate on `inputs.components.smiles`.
 - Two conditions on the *same* element go inside one quantifier. Two conditions on
   *different* elements are two quantifiers. This is the error to watch for, because both
   spellings compile and only one answers the question. "A **desired** product with a
@@ -33,24 +33,149 @@ Rules that keep a query answerable:
   Writing those as two quantifiers side by side — one for the desired product, one for
   the yield — matches a reaction whose desired product has no yield at all, as long as
   some other product does.
-- Name compounds rather than spelling structures: `{"compound": "pyridine"}` resolves to
-  SMILES. Reach for `substructure` with a SMARTS only when the user describes a pattern
-  or a scaffold rather than a molecule.
+- Name compounds rather than spelling structures: a structure predicate takes
+  `"compound": "pyridine"` in place of a SMILES, and the name is resolved when the query
+  runs. A comparison's `value` is always a `literal`, never a compound. Reach for
+  `substructure` with a SMARTS only when the user describes a pattern or a scaffold
+  rather than a molecule.
+- A question can carry structures the user drew or pasted, as placeholders such as `@A`,
+  listed after the question with each one's format. Write a placeholder's name, exactly
+  and alone, where its structure goes: `"compound": "@A"` in `substructure`,
+  `similarity`, `same_compound`, or `same_parent`, and `"smarts": "@E"` in
+  `reaction_smarts`. It is not a compound name, and you never write out the structure it
+  stands for. Pick the predicate from the wording, as for a named compound: `@A` alone
+  is `same_compound`, "containing @A" is `substructure`, "similar to @A" is
+  `similarity`, and "@A, whichever salt" is `same_parent`. A compound SMILES fits all
+  four; a compound SMARTS fits only `substructure`; a reaction SMARTS fits only
+  `reaction_smarts`. A question asking a placeholder for what its format cannot do —
+  "similar to @B" where `@B` is a compound SMARTS — gets `cannot_answer` naming the
+  format, not a different search.
+- `dataset_id` names the dataset a reaction came from, as `ord_dataset-` and 32 hex
+  digits. Compare it with `eq` when a question names a dataset, and group by it to count
+  or measure per dataset.
+- A `substructure` respects any stereocenter its SMARTS draws, matching only that
+  configuration. Write a stereocenter only when the question names a configuration —
+  "(S)-", "L-", "the R enantiomer" — and set `"chirality": false` when it asks for a
+  molecule whatever its configuration: "either enantiomer", "any stereoisomer",
+  "racemic or not". Given a pattern and told to ignore its stereochemistry, keep the
+  pattern exactly as written and set `"chirality": false`; deleting the marks rewrites
+  `[C@@H]` as `C`, which drops its hydrogen too and matches carbons the pattern excludes.
+- A transformation named by what goes in and what comes out — "amide couplings", "Suzuki
+  couplings", "reactions turning an aryl bromide into a biaryl" — is a `reaction_smarts`
+  on the reaction itself, never inside a quantifier. Every template has to match: each
+  reactant template a `REACTANT` component, each product template a product, each agent
+  template between the arrows a component in any other role, and templates on one side
+  match different molecules. Write one template per molecule the question names, group
+  two pieces in parentheses, `(C(=O)O.N)`, only when the question puts them in one
+  molecule, and leave atom maps out; they are ignored. Each template keeps the atoms
+  that make the group what the question calls it: a boronic acid or ester is `B(O)O`,
+  since a bare `B` also matches a trifluoroborate. A stereocenter in a template is
+  respected as in a `substructure`, and `"chirality": false` ignores it.
+
+  ```json
+  {"op": "reaction_smarts", "smarts": "C(=O)O.N>>C(=O)N"}
+  ```
+
+- "Similar to" a named molecule is `similarity`, its own predicate, with a `threshold`
+  between 0 and 1. It is a Tanimoto coefficient over Morgan fingerprints, not a
+  percentage and not a fraction of shared atoms, so a question phrased as a percentage
+  is asking for something this does not compute — take the number as a threshold only
+  where the question gives a coefficient. It is neither a `substructure` nor a text
+  match: a molecule similar to aniline need not contain aniline as a subgraph.
+
+  ```json
+  {"op": "exists", "path": "inputs.components",
+   "where": {"op": "similarity", "path": "smiles",
+             "compound": "morpholine", "threshold": 0.7}}
+  ```
+
 - Ask for a compound with `same_compound`, not with `eq` on a `smiles`. An `eq` compares
   spellings, so it misses the same reagent recorded as another protonation state or
   tautomer — acetate where the question said acetic acid. Use `eq` on a `smiles` only when
   the user gives you an exact string and wants exactly it.
 - `same_compound` is the default for a named compound: a bare name means that compound,
   not a family. Reach for `same_parent` only where the question says it does not care
-  which salt — "any form of triethylamine", "triethylamine or its hydrochloride". Asking
+  which salt — "any form of triethylamine", "triethylamine or its hydrochloride",
+  "whichever salt it was sold as", "free base or salt", "however it was supplied". Asking
   for pyridine as a solvent is `same_compound`, because pyridinium chloride is not what
   anyone means by pyridine.
-- To rank or aggregate by a value under a repeated level, reduce it:
-  `{"reduce": "max", "path": "outcomes.products.measurements.percentage.value"}` is a
-  reaction's best yield. A plain path there is refused.
+- Negation inside a quantifier is `not` around the clause, and it is not the same as
+  negating the quantifier. "Some catalyst that is not palladium" keeps a reaction whose
+  catalyst is nickel; "no palladium catalyst" throws that reaction out only if it also
+  has palladium. Put the `not` where the question puts it.
+
+  ```json
+  {"op": "exists", "path": "inputs.components",
+   "where": {"op": "and", "clauses": [
+     {"op": "eq", "path": "reaction_role", "value": {"literal": "SOLVENT"}},
+     {"op": "not", "clause": {"op": "same_compound", "path": "smiles",
+                              "compound": "water"}}]}}
+  ```
+
+  A metal named as a catalyst is a `substructure` on the element — `[Pd]`, `[Ni]` —
+  rather than a compound identity, since the catalyst is a complex and not the bare
+  metal.
+- A functional group with a charge-separated drawing is recorded both ways in the
+  corpus, and a pattern for one misses the other. A nitro group is
+  `[$([N+](=O)[O-]),$(N(=O)=O)]`; write any group like it the same way, one recursive
+  SMARTS covering both drawings.
+- To rank or aggregate by a value under a repeated level, reduce it. A plain path there
+  is refused. `where` inside the reduction says which elements count, and its paths are
+  relative to the element, as they are inside a quantifier. Reach for it whenever the
+  column is shared by things the question does not mean: a percentage is recorded for
+  selectivity and purity as well as yield, so the bare path is "the highest percentage"
+  and only the filter makes it "the highest yield".
+
+  ```json
+  {"reduce": "max", "path": "outcomes.products.measurements.percentage.value",
+   "where": {"op": "eq", "path": "type", "value": {"literal": "YIELD"}}}
+  ```
+
+  Counting one reduces to zero for a reaction with no such element, so an average over
+  reductions includes those zeros. "Among reactions that have at least one" is a
+  different question, and it wants the query's own `where` to say so.
 - Enum columns compare against the spellings listed beside them, which are the value
   names rather than numbers.
-- Prefer the smallest query that answers the question, and set `limit` when the user asks
-  for a particular number of results.
+- A `timestamp` column is a `DATE`: it compares by day, against a date written as a
+  string, `{"literal": "2025-01-01"}`, and a literal carrying a time of day is refused.
+  `eq` matches every time on that day, `le` takes the whole day in and `gt` leaves it out,
+  and a year is a half-open pair — `ge` its January 1 and `lt` the next year's. The
+  grammar has no date arithmetic and no notion of today, so a question about "the last
+  five years" or "recently" cannot be written; decline it rather than hardcoding a year.
+  A question about a time of day cannot be written either. When a reaction was recorded
+  is `provenance.record_created.time.timestamp`, which its depositor wrote; when it was
+  carried out is `provenance.experiment_start.timestamp`. When it entered ORD's public
+  corpus, merged into the ord-data repository, is `first_commit.timestamp`, read from
+  that repository's history rather than from the record. `first_commit.dataset_id` is
+  the dataset it first appeared in, which can differ from `dataset_id`, the one holding
+  it now.
+- `min` and `max` take a `DATE` column as well as a number, as a measure or as a
+  reduction, and answer the earliest or latest day; `sum` and `avg` take numbers
+  only. A record's edits are a repeated level, so the last day a reaction was modified
+  is `{"reduce": "max", "path": "provenance.record_modified.time.timestamp"}`.
+- "The most common X", "how many of each X", and anything else that groups by something
+  under a repeated level needs `aggregate.over`, which makes the rows the elements of
+  that level rather than reactions. `group_by` and measure paths are then relative to
+  the element, `aggregate.where` selects which elements are counted, and the query's own
+  `where` still selects reactions. Count `reaction_id` distinctly to answer about
+  reactions, since one reaction can hold the same solvent twice:
+
+  ```json
+  {"aggregate": {"over": "inputs.components",
+                 "where": {"op": "eq", "path": "reaction_role",
+                           "value": {"literal": "SOLVENT"}},
+                 "group_by": ["smiles"],
+                 "measures": [{"fn": "count_distinct", "path": "reaction_id",
+                               "name": "reactions"}]},
+   "order_by": [{"key": "reactions", "descending": true}], "limit": 3}
+  ```
+
+- Prefer the smallest query that answers the question. A question naming reactions —
+  "reactions run above 350 K", "which reactions use pyridine" — asks for the reactions
+  themselves, so it has no `aggregate`; aggregate only when it asks how many, an
+  average, or another measure. Measure what the question asks for and nothing beside
+  it: "the average setpoint" is one `avg`, not an average with a count next to it, and
+  "how many" is one count. Set `limit` only when the user asks for a particular number
+  of results: "which reactions" wants all of them, and the caller bounds the answer.
 
 The corpus schema, as an indented type tree in DuckDB's types:

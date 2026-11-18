@@ -63,6 +63,18 @@ def test_simple_solution():
     assert actual_compounds == [expected_solvent, expected_solute]
 
 
+def test_simple_solution_records_cxsmiles_as_cxsmiles():
+    solvent, solute = solutions.simple_solution(
+        solvent_smiles="C[C@H](O)CC |&1:1|",
+        solute_smiles="C[C@H](N)C(=O)O |&1:1|",
+        concentration="1M",
+        volume="1L",
+    )
+    for component in (solvent, solute):
+        assert component.identifiers[0].type == reaction_pb2.CompoundIdentifier.CXSMILES
+        assert not validations.validate_message(component).warnings
+
+
 @pytest.mark.parametrize(
     ("solute_smiles", "concentration", "volume"),
     itertools.product(["[Na+].[Cl-]", None], ["1M", None], ["1L", None]),

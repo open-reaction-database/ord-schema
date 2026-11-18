@@ -20,7 +20,7 @@ import pyarrow as pa
 import pytest
 
 from ord_schema.artifacts import projection
-from ord_schema.search import schema
+from ord_schema.search import query, schema
 
 
 def test_scalars():
@@ -28,6 +28,16 @@ def test_scalars():
         pa.schema([pa.field("reaction_id", pa.string()), pa.field("n", pa.int64())])
     )
     assert rendered == "reaction_id: VARCHAR\nn: BIGINT"
+
+
+def test_a_timestamp_is_described_as_the_date_a_query_reads():
+    # The compiler reads every timestamp as its day, so a model told TIMESTAMP would
+    # write times the compiler refuses.
+    rendered = schema.describe(pa.schema([pa.field("when", pa.timestamp("us"))]))
+    assert rendered == "when: DATE"
+    assert query.resolve(
+        "when", schema=pa.schema([("when", pa.timestamp("us"))])
+    ).type == (pa.date32())
 
 
 def test_struct_children_are_indented():
@@ -109,13 +119,13 @@ def test_unnamed_leaf_type_raises():
     # A leaf the projection cannot currently hold, so the description would silently
     # hand a model an Arrow spelling no DuckDB query can use.
     with pytest.raises(KeyError):
-        schema.describe(pa.schema([pa.field("when", pa.timestamp("s"))]))
+        schema.describe(pa.schema([pa.field("when", pa.duration("s"))]))
 
 
 def test_projection_schema_renders():
     rendered = schema.describe()
     lines = rendered.splitlines()
-    assert len(lines) == sum(1 for _ in _fields(projection.SCHEMA))
+    assert len(lines) == sum(1 for _ in _fields(query.SCHEMA))
     # Unit-carrying names are what let the prompt say nothing about units, and the
     # indentation is the path: conditions -> temperature/pressure -> setpoint.
     assert "conditions: STRUCT" in lines
@@ -123,6 +133,8 @@ def test_projection_schema_renders():
     # The collapsed structural identifier is a top-level column, not nested.
     assert "smiles: VARCHAR" in lines
     assert "reaction_id: VARCHAR" in lines
+    # Supplied per file by the executor, so a model can narrow to one dataset.
+    assert "dataset_id: VARCHAR" in lines
 
 
 def _fields(schema_or_type):

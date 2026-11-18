@@ -21,8 +21,18 @@ import sys
 import pytest
 
 from ord_schema.message_helpers import load_message
-from ord_schema.orm.mappers import from_proto, to_proto
+from ord_schema.orm.mappers import Mappers, from_proto, to_proto
 from ord_schema.proto.dataset_pb2 import Dataset
+
+
+def test_mappers_missing_name_is_an_attribute_error():
+    """A name that is not a mapper raises AttributeError, as hasattr expects."""
+    assert Mappers.Dataset.__name__ == "Dataset"
+    assert not hasattr(Mappers, "NotAMapper")
+    with pytest.raises(
+        AttributeError, match=r"^Mappers has no mapper named 'NotAMapper'$"
+    ):
+        _ = Mappers.NotAMapper
 
 
 def test_mappers_registers_rdkit_relationship_targets_in_clean_interpreter():

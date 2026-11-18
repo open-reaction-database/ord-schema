@@ -46,6 +46,8 @@ _ROOTS: dict[str, tuple[str, ...]] = {
     "nl": ("ord_schema.search.nl", "ord_schema.search.nl_eval"),
     "orm": ("ord_schema.orm",),
     "huggingface": ("ord_schema.huggingface",),
+    # Publishing checks a tree against the levels and paths the artifacts define.
+    "upload": ("ord_schema.scripts.upload_artifacts",),
 }
 _EXTRAS: dict[str, tuple[str, ...]] = {
     "base": (),
@@ -54,6 +56,7 @@ _EXTRAS: dict[str, tuple[str, ...]] = {
     "nl": ("search", "nl"),
     "orm": ("orm",),
     "huggingface": ("huggingface",),
+    "upload": ("search", "huggingface"),
 }
 _PROFILES = tuple(pytest.param(name, id=name) for name in _EXTRAS)
 
