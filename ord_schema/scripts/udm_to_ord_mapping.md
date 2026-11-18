@@ -73,7 +73,7 @@ UDM role blocks do not record addition order or grouping. Every `<REACTANT>`, `<
 
 Unit strings are matched case-insensitively through `ord_schema.units.UnitResolver`, and the resolved message has to be mass, moles, or volume. Anything else, including an unknown spelling, is stored as `UnmeasuredAmount` (`CUSTOM`) with the original numeric value and unit in `details`. `gr` is left unmeasured: the UDM `unitMass` enumeration defines it as grain, while `units.py` uses that spelling for gram.
 
-Omitted units follow the XSD defaults: `AMOUNT` → `mol` (`molType`), `SAMPLE_MASS` → `g` (`massType`), `VOLUME` → `L`. Combined value+unit strings (SURF) are split before resolution. Non-finite values (`inf`, `nan`, overflow) are silently dropped. When no amount element is present at all, the converter sets `UnmeasuredAmount` (`CUSTOM`, details `"amount not reported in UDM"`) so ORD validation passes.
+Omitted units follow the XSD defaults: `AMOUNT` → `mol` (`molType`), `SAMPLE_MASS` → `g` (`massType`), `VOLUME` → `L`. Combined value+unit strings (SURF) are split before resolution. A non-finite value (`inf`, `nan`, overflow) is logged and skipped. When no amount can be read, the converter sets `UnmeasuredAmount` (`CUSTOM`, details `"amount not reported in UDM"`) so ORD validation passes.
 
 ### Molecule identifiers
 
@@ -107,11 +107,12 @@ SURF nests reactants/products/conditions under `VARIATION/SECTION`; the converte
 | --- | --- | --- |
 | `TEMPERATURE/@unit(s)` + exact or min/max | `conditions.temperature.setpoint` | A complete range maps to midpoint + precision. Unit spellings come from `ord_schema.units` (`degC`, `C`, `K`, …). Missing unit → Celsius (XSD default `degC`) |
 | `PRESSURE/@unit(s)` + exact or min/max | `conditions.pressure.setpoint` | A complete range maps to midpoint + precision. Unit spellings come from `ord_schema.units` (`torr`, `bar`, `atm`, `psi`, `Pa`, `kPa`, `mmHg`, …). **No unit → setpoint omitted**; raw value appended to `conditions.details`. The XSD default is torr, and it is not applied: Reaxys unitless values are not one scale |
-| `PRESSURE/ATMOSPHERE` | `conditions.pressure.atmosphere.type` | `air`, `n2`/`nitrogen`, `ar`/`argon`, `o2`/`oxygen`, `h2`/`hydrogen`, `co`, `co2` |
-| `STIRRING` (text) | `conditions.stirring.details` + `.type` + `.rate.rpm` | See [Stirring](#stirring) |
+| `ATMOSPHERE` (or `PRESSURE/ATMOSPHERE` in older files) | `conditions.pressure.atmosphere.type` | `air`, `n2`/`nitrogen`, `ar`/`argon`, `o2`/`oxygen`, `h2`/`hydrogen`, `co`, `co2` |
+| `STIRRING` exact or min/max in `rpm` | `conditions.stirring.rate.rpm`, `.type` = `CUSTOM` | The XSD default unit is `rpm`; other units stay in `details` |
+| `STIRRING` (free text) | `conditions.stirring.details` + `.type` + `.rate.rpm` | See [Stirring](#stirring) |
 | `REFLUX` | `conditions.reflux` | True when value is `true`, `yes`, or `1` |
 | `PH` exact or min/max; `<PH>7.0</PH>` | `conditions.ph` | Complete ranges use the midpoint; the range remains in `details` because ORD pH has no precision field |
-| `PREPARATION` | `setup.environment.type`, or `notes.procedure_details` | Keyword match (`fume hood`, `bench top`, `glove box`, `glove bag`) sets the environment. Any other text, from `CONDITIONS` or `CONDITION_GROUP`, is procedure notes |
+| `PREPARATION` | `setup.environment.type`, or `notes.procedure_details` | The first keyword match (`fume hood`, `bench top`, `glove box`, `glove bag`) in any group sets the environment. Any other text, from `CONDITIONS` or `CONDITION_GROUP`, is procedure notes |
 | `VESSEL/VESSEL_TYPE` | `setup.vessel.type` | `round bottom flask`/`rbf`, `vial`, `well plate`, `tube`, `microwave vial`, `nmr tube`, `pressure flask`, `pressure reactor` |
 | `VESSEL/DETAILS` | `setup.vessel.details` | |
 
@@ -119,7 +120,7 @@ All numeric condition values guard against non-finite floats (`inf`, `nan`); val
 
 ### Stirring
 
-UDM records stirring as free text (e.g. `600 rpm magnetic stir bar`), but ORD requires a `StirringMethodType`, so the type is inferred from keywords in that text (first match wins) and the full text is kept in `details`:
+Some files record stirring as free text (e.g. `600 rpm magnetic stir bar`), but ORD requires a `StirringMethodType`, so the type is inferred from keywords in that text (first match wins) and the full text is kept in `details`:
 
 | Keyword in `STIRRING` | ORD `stirring.type` |
 | --- | --- |
@@ -137,7 +138,7 @@ A `<N> rpm` substring additionally populates `conditions.stirring.rate.rpm`.
 
 ## Outcomes (`ReactionOutcome`)
 
-An outcome is only created when the variation has a parseable `<DURATION>` (dict form with `exact` child) or at least one `<PRODUCT>`. Input-only variations produce zero outcomes.
+An outcome is created when the variation has a reaction time (`DURATION`, or `TIME` in its only condition group), a `<PRODUCT>`, or a `PRODUCT_ID`. Other variations produce no outcome.
 
 | UDM element | ORD field | Notes |
 | --- | --- | --- |
@@ -154,7 +155,7 @@ An outcome is only created when the variation has a parseable `<DURATION>` (dict
 | --- | --- | --- |
 | `VARIATION/PROCEDURE` | `notes.procedure_details` | |
 | `CONDITIONS/PREPARATION` or `CONDITION_GROUP/PREPARATION`, when not an environment keyword | `notes.procedure_details` | Environment keywords stay on `setup.environment` only |
-| `VARIATION/COMMENT` | `observations[0].comment` | |
+| `VARIATION/COMMENT` | `observations[].comment` | One observation per `COMMENT` |
 
 ---
 
@@ -170,13 +171,12 @@ CLI precedence is asymmetric (see the user guide): `--name` / `--description` **
 | `--email` when SCIENTIST has no email | `record_created.person.email` and `record_modified[].person.email` only | ORD requires that email. It is not written onto `experimenter` |
 | `--username`, `--person-name`, `--orcid` | `record_created.person` and `record_modified` when UDM has no SCIENTIST | Depositor identity. `--person-name` is distinct from `--name` (dataset title) |
 | `--created-date` | `provenance.record_created.time.value` when UDM has no `CREATION_DATE` | Gap-fill only; required by ORD validation (`RecordEvent.time`) |
-| `LEGAL/DOI` | `provenance.doi` | Overridden by variation-level or reaction-level citation DOI if present |
-| `VARIATION/CITATION/@CIT_ID` or `VARIATION/@CIT_ID` → `CITATIONS/CITATION/@ID/DOI` | `provenance.doi` | Per-variation citation lookup (SURF uses the attribute form). Wins over a reaction-level DOI |
-| `REACTION/CITATIONS/CITATION/DOI` | `provenance.doi` | Reaction-level legacy path. Used only when the variation did not resolve a DOI; still overrides `LEGAL/DOI` |
-| `REACTION/CITATIONS/CITATION/PATENT_NUMBER` | `provenance.patent` | |
+| `LEGAL/DOI` | `provenance.doi` | Used when no citation below has a DOI |
+| `VARIATION/CITATION` (inline `DOI` / `PATENT_NUMBER`, or `@CIT_ID` → `CITATIONS/CITATION/@ID`), then `VARIATION/@CIT_ID` | `provenance.doi`, `provenance.patent` | The first DOI and the first patent number across the variation's citations, in document order. SURF uses the `VARIATION/@CIT_ID` form |
+| First `REACTION/CITATIONS/CITATION` | `provenance.doi`, `provenance.patent` | Older files; not in the UDM 6.0.0 schema. Fills each field only when the variation's citations did not |
 | `VARIATION/CREATION_DATE` | `provenance.record_created.time.value` | Wins over `--created-date` |
 | `VARIATION/MODIFICATION_DATE` | `provenance.record_modified[].time.value` | Plain string and list both supported |
-| `REACTION/ORGANISATIONS[0]/ORGANISATION/ADDRESS` | `provenance.city` | |
+| First `REACTION/ORGANISATIONS/ORGANISATION/ADDRESS` | `provenance.city` | Older files; not in the UDM 6.0.0 schema, which places `ORGANISATIONS` at the document root. The root list is not read |
 | *(always)* | `provenance.is_mined = false` | |
 
 ### Scientist / email / created date
@@ -213,7 +213,7 @@ With `--include-udm-xml`, each ORD reaction stores its source `<REACTION>` eleme
 | `<ANALYSIS>`, `<SPECTRUM>` | ORD `Analysis` proto exists but not yet wired up |
 | `<SCALE>` | No direct ORD equivalent |
 | `<PRESSURE>` value without a unit attribute | Not mapped to `pressure.setpoint`. The XSD default is torr, but Reaxys unitless values span more than one scale (about 760, and also ~2 and ~4.5e6), so the raw value stays in `conditions.details` |
-| `<MODIFICATION_DATE>` nested structures | Plain strings and simple lists are handled; unusual nesting may vary |
+| `<MODIFICATION_DATE>` with child elements or attributes | UDM 6.0.0 defines it as a plain date; only the text form is read |
 
 ---
 

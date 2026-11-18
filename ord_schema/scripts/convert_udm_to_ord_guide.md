@@ -9,7 +9,7 @@ Each UDM `<VARIATION>` element becomes one ORD `Reaction`.
 ## Requirements
 
 ```bash
-uv sync --extra tests   # installs ord-schema with all dependencies
+uv sync
 ```
 
 ---
@@ -17,7 +17,7 @@ uv sync --extra tests   # installs ord-schema with all dependencies
 ## Basic usage
 
 ```bash
-uv run python ord_schema/scripts/convert_udm_to_ord.py \
+uv run python -m ord_schema.scripts.convert_udm_to_ord \
     --input my_reactions.xml \
     --output my_dataset.pbtxt
 ```
@@ -61,7 +61,7 @@ Dataset packaging flags and reaction-provenance flags behave differently when bo
 **Convert and validate:**
 
 ```bash
-uv run python ord_schema/scripts/convert_udm_to_ord.py \
+uv run python -m ord_schema.scripts.convert_udm_to_ord \
     --input screen.xml \
     --output screen.pbtxt
 ```
@@ -69,7 +69,7 @@ uv run python ord_schema/scripts/convert_udm_to_ord.py \
 **Fill depositor provenance when UDM has no SCIENTIST / CREATION_DATE (e.g. SURF exports):**
 
 ```bash
-uv run python ord_schema/scripts/convert_udm_to_ord.py \
+uv run python -m ord_schema.scripts.convert_udm_to_ord \
     --input surf_export.xml \
     --output surf_export.pbtxt \
     --name "SURF export" \
@@ -88,7 +88,7 @@ SURF files often nest chemistry under `VARIATION/SECTION` and write amounts as `
 **Convert without validation (faster, for drafts):**
 
 ```bash
-uv run python ord_schema/scripts/convert_udm_to_ord.py \
+uv run python -m ord_schema.scripts.convert_udm_to_ord \
     --input screen.xml \
     --output screen.pbtxt \
     --no-validate
@@ -97,7 +97,7 @@ uv run python ord_schema/scripts/convert_udm_to_ord.py \
 **Override dataset name and write binary format:**
 
 ```bash
-uv run python ord_schema/scripts/convert_udm_to_ord.py \
+uv run python -m ord_schema.scripts.convert_udm_to_ord \
     --input screen.xml \
     --output screen.pb \
     --name "Suzuki Screen 2024-Q1" \
@@ -109,7 +109,7 @@ uv run python ord_schema/scripts/convert_udm_to_ord.py \
 ```bash
 mkdir -p ord_out
 for f in udm_exports/*.xml; do
-    uv run python ord_schema/scripts/convert_udm_to_ord.py \
+    uv run python -m ord_schema.scripts.convert_udm_to_ord \
         --input "$f" \
         --output "ord_out/$(basename "${f%.xml}").pbtxt" \
         --no-validate
@@ -156,16 +156,14 @@ Common reasons for validation failure:
 - `SCIENTIST/EMAIL` missing and `--email` not supplied (ORD requires an email on `record_created.person` and every `record_modified` person; `--email` is not copied onto `experimenter`)
 - `CREATION_DATE` missing and `--created-date` not supplied (ORD requires `record_created.time`)
 - No UDM `SCIENTIST` and none of `--person-name` / `--username` / `--orcid` supplied on `record_created.person`
-- Missing required fields (e.g., no amount on a component)
-- Amount units unrecognised (logged as a warning during conversion)
-- Reaction has no inputs or outcomes
+- Reaction has no inputs or outcomes (for example, a `REACTION` with only an `RXNSTRUCTURE` that is not reaction SMILES)
 
 On these provenance gaps the converter prints a short Hint naming the CLI flag to pass. Use `--no-validate` to write the file anyway and validate it separately later.
 
 **Validate after the fact — CLI (single file):**
 
 ```bash
-uv run python ord_schema/scripts/validate_dataset.py \
+uv run python -m ord_schema.scripts.validate_dataset \
     --input_pattern "my_dataset.pbtxt"
 ```
 
@@ -173,16 +171,16 @@ uv run python ord_schema/scripts/validate_dataset.py \
 
 ```bash
 # All .pbtxt files in a directory
-uv run python ord_schema/scripts/validate_dataset.py \
+uv run python -m ord_schema.scripts.validate_dataset \
     --input_pattern "ord_out/*.pbtxt"
 
 # With parallel workers for large batches
-uv run python ord_schema/scripts/validate_dataset.py \
+uv run python -m ord_schema.scripts.validate_dataset \
     --input_pattern "ord_out/*.pbtxt" \
     --n_jobs 4
 
 # Also check that reaction_id / dataset_id are well-formed ord- hashes
-uv run python ord_schema/scripts/validate_dataset.py \
+uv run python -m ord_schema.scripts.validate_dataset \
     --input_pattern "ord_out/*.pbtxt" \
     --validate_ids
 ```
@@ -220,7 +218,8 @@ Converter and RDKit may print warnings during conversion. Most do **not** stop t
 | `WARNING: not removing hydrogen atom without neighbors` (and similar H cleanup messages) | RDKit | Odd explicit hydrogens in the MolBlock | Usually yes |
 | `AMOUNT element has attributes but no text content; skipping.` | Converter | `<AMOUNT units="g"/>` with no value | No — fix the source UDM |
 | `Non-finite AMOUNT value ...; skipping.` | Converter | Amount is `inf`, `nan`, or overflowing float | No — check the source value |
-| `Molecule ... not found in MOLECULES lookup; skipping.` | Converter | `MOL_ID` has no matching `<MOLECULE>` | No — fix dangling references |
+| `Molecule ... not found in MOLECULES lookup; recording ... as NAME.` | Converter | `MOL_ID` has no matching `<MOLECULE>`; the block's `NAME` or the ID is kept | No — fix dangling references |
+| `Molecule ... not found in MOLECULES lookup; skipping.` | Converter | A role block with no `MOL_ID` and no `NAME` | No — the compound is dropped |
 | `MOLSTRUCTURE for ... is not a readable MolBlock; recording NAME instead.` | Converter | RDKit cannot read the structure (often after `H+` / valence / counts-line errors above) | Often yes for conversion; **structure is lost**, molecule `@ID` or name kept as `NAME`. Same mol ID may warn many times if reused across reactions |
 | `Unsupported TEMPERATURE unit ...; skipping setpoint.` | Converter | Unit spelling not resolved by `ord_schema.units` for a `Temperature` message | Review — value may remain in `conditions.details` |
 | `Unsupported reaction TIME unit ...; skipping reaction time.` | Converter | Unit spelling not resolved by `ord_schema.units` for a `Time` message | Review — value may remain in `conditions.details` (same as unsupported temperature units) |
@@ -276,10 +275,10 @@ Literature / ELN exports (especially Reaxys) often omit fields ORD validation re
 
 UDM allows several `<CONDITION_GROUP>` children under one `<CONDITIONS>` to describe a dynamic multi-stage profile. ORD has one `ReactionConditions` message with fields intended for this case.
 
-#### What the converter does today
+#### What the converter does
 
 1. Sets `conditions_are_dynamic = true`.
-2. Writes every group to `conditions.details` as `Stage 1: ...; Stage 2: ...`.
+2. Writes every group to `conditions.details` as `Stage 1: ...; Stage 2: ...`. `PREPARATION` is left out of the stages: a keyword sets `setup.environment`, and other text goes to `notes.procedure_details`.
 3. Leaves static temperature, pressure, stirring, pH, and reaction-time fields unset instead of selecting one stage or merging unrelated stages.
 
 Single groups still map supported exact or min/max values structurally. Complete ranges use midpoint + precision; one-sided bounds and unsupported fields such as buffer concentration remain in `conditions.details`.

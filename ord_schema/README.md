@@ -91,12 +91,16 @@ python -m ord_schema.scripts.enumerate_dataset --template=... --spreadsheet=... 
     --name=... --description=... --output=dataset.pb.gz
 
 python -m ord_schema.scripts.pb_to_parquet_dataset data/*/*.pb.gz --output=dataset.parquet
+
+python -m ord_schema.scripts.convert_udm_to_ord --input=export.xml
 ```
 
 Every option shown is required; each script takes optional ones too, so ask it for
 `--help` rather than reading this as the whole interface.
 
 `parse_uspto.py` converts CML from the NRD and is not part of the normal path.
+`convert_udm_to_ord.py` converts a Pistoia Alliance UDM export to a dataset; see
+[its guide](scripts/convert_udm_to_ord_guide.md).
 
 Deriving the query artifacts is separate, and runs in dependency order — projection
 first, then structures and pivots from it; see

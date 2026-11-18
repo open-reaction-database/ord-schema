@@ -27,7 +27,7 @@ User-Friendly Reaction Format," ChemRxiv, https://doi.org/10.26434/chemrxiv-2023
 
 Example usage::
 
-    python convert_udm_to_ord.py \
+    python -m ord_schema.scripts.convert_udm_to_ord \
         --input my_dataset.xml \
         --output my_dataset.pbtxt \
         --email me@example.com --person-name "Ada Lovelace" \
@@ -145,7 +145,11 @@ _VESSEL_TYPES: dict[str, reaction_pb2.Vessel.VesselType] = {
 
 
 def _as_list(val: object) -> list:
-    """Wraps a dict in a list; returns lists unchanged; returns [] for None."""
+    """Wraps a dict in a list, returns a list unchanged, and returns [] otherwise.
+
+    A plain string (an element with text and no attributes) also returns [], so
+    callers that accept text-only elements wrap the string themselves.
+    """
     if val is None:
         return []
     if isinstance(val, dict):
@@ -421,7 +425,6 @@ def _compound_amount(compound_entry: dict) -> reaction_pb2.Amount | None:
         if raw is None:
             continue
         unit_raw = compound_entry.get("AMOUNT_UNIT") or compound_entry.get("UNIT")
-        # XSD defaults: molType → mol, massType → g, VOLUME → L.
         parsed = _parse_amount(
             raw,
             unit_raw,
@@ -519,8 +522,7 @@ def etree_to_dict(t: ET.Element) -> dict:
     if t.attrib:
         d[t.tag].update(("@" + k, v) for k, v in t.attrib.items())
     if t.text:
-        # MolBlock text is column- and line-sensitive, so it is kept verbatim here
-        # and normalised in _normalize_molblock() instead.
+        # MolBlock and RXN text is kept verbatim; _normalize_molblock() repairs it.
         text = t.text if t.tag in _RAW_TEXT_TAGS else t.text.strip()
         if children or t.attrib:
             if text.strip():
@@ -596,7 +598,6 @@ def _map_rxn_identifiers(reaction: dict, pb2_reaction: reaction_pb2.Reaction) ->
     for structure in structures:
         if isinstance(structure, dict):
             # Schema: format attr + text content. Legacy: @value attribute.
-            # Missing format is the XSD default, rxn, not an unknown type.
             udmformat = str(structure.get("@format") or "rxn")
             value = _text(structure) or str(structure.get("@value") or "")
         else:
@@ -665,8 +666,9 @@ def _map_inputs(
                 )
             else:
                 logger.warning(
-                    "Molecule %r not found in MOLECULES lookup; recording ID as NAME.",
+                    "Molecule %r not found in MOLECULES lookup; recording %r as NAME.",
                     mol_id,
+                    local_name,
                 )
                 molcomponent.identifiers.add(type="NAME", value=local_name)
             molcomponent.reaction_role = ord_role
@@ -760,10 +762,15 @@ def _map_conditions(
     groups = _condition_groups(conditions)
     if not groups:
         return
+    _map_environment(groups, pb2_reaction)
     if len(groups) > 1:
         pb2_reaction.conditions.conditions_are_dynamic = True
         for index, group in enumerate(groups, start=1):
-            details = _condition_group_details(group)
+            # PREPARATION is either an environment keyword (mapped above) or
+            # procedure text, which _map_notes writes to notes.procedure_details.
+            details = _condition_group_details(
+                group, exclude=frozenset({"PREPARATION"})
+            )
             _append_condition_details(
                 pb2_reaction,
                 f"Stage {index}: {details or '(no data)'}",
@@ -799,9 +806,9 @@ def _map_conditions(
             )
 
     # The XSD default for pressureRange is torr, but Reaxys omits the unit on
-    # values that are not one scale (about 760, and also ~2 and ~4.5e6). Applying
-    # torr would mislabel that file, so a setpoint is written only when a
-    # recognised unit is present. The raw number stays in conditions.details.
+    # values that are not on one scale, so applying torr would mislabel them. A
+    # setpoint is written only when a recognized unit is present; the raw number
+    # stays in conditions.details.
     pressure = cg.get("PRESSURE")
     if isinstance(pressure, dict):
         parsed = _parse_range(pressure)
@@ -867,7 +874,6 @@ def _map_conditions(
             pb2_reaction.conditions.stirring.rate.rpm = int(rpm_match.group(1))
         captured.add("STIRRING")
 
-    # Reflux
     reflux_raw = cg.get("REFLUX")
     if reflux_raw is not None:
         pb2_reaction.conditions.reflux = str(reflux_raw).strip().lower() in (
@@ -895,19 +901,10 @@ def _map_conditions(
         ):
             captured.add("TIME")
 
-    # Environment only when PREPARATION is a known keyword. Procedure text goes
-    # to notes.procedure_details (_map_notes), including this group's text.
-    prep_raw = cg.get("PREPARATION")
-    preparations = [prep_raw] if isinstance(prep_raw, str) else _as_list(prep_raw)
-    for preparation in preparations:
-        env_type = _ENVIRONMENT_TYPES.get(str(preparation).strip().lower())
-        if env_type is not None:
-            pb2_reaction.setup.environment.type = env_type
-            break
-    if preparations:
+    # PREPARATION was handled by _map_environment and _map_notes.
+    if "PREPARATION" in cg:
         captured.add("PREPARATION")
 
-    # Vessel
     vessel_raw = cg.get("VESSEL") or variation.get("VESSEL")
     if isinstance(vessel_raw, dict):
         vessel_type_raw = str(vessel_raw.get("VESSEL_TYPE", "")).strip().lower()
@@ -941,6 +938,19 @@ def _preparation_texts(node: dict) -> list[str]:
         if text:
             texts.append(text)
     return texts
+
+
+def _map_environment(groups: list[dict], pb2_reaction: reaction_pb2.Reaction) -> None:
+    """Sets setup.environment from the first PREPARATION that is a known keyword.
+
+    Any other PREPARATION text is procedure, which _map_notes records.
+    """
+    for group in groups:
+        for text in _preparation_texts(group):
+            env_type = _ENVIRONMENT_TYPES.get(text.lower())
+            if env_type is not None:
+                pb2_reaction.setup.environment.type = env_type
+                return
 
 
 def _map_notes(variation: dict, pb2_reaction: reaction_pb2.Reaction) -> None:
@@ -1059,7 +1069,6 @@ def _map_outcomes(
                     unit_key,
                 )
 
-    # Products from VARIATION/PRODUCT blocks.
     for udm_product in product_entries:
         mol_ref = udm_product.get("MOLECULE")
         if not isinstance(mol_ref, dict):
@@ -1076,8 +1085,7 @@ def _map_outcomes(
             )
         else:
             logger.warning("Product molecule %r not found in MOLECULES lookup.", mol_id)
-            # SURF PRODUCT blocks often carry a CAS-like NAME
-            # when the MOLECULES lookup misses.
+            # SURF PRODUCT blocks often carry a CAS-like NAME the lookup lacks.
             product_name = _text(udm_product.get("NAME")) or str(mol_id)
             if product_name:
                 product.identifiers.add(type="NAME", value=product_name)
@@ -1160,6 +1168,29 @@ def _normalize_doi(raw: object) -> str:
     return text
 
 
+def _variation_citations(variation: dict, udm: dict) -> list[dict]:
+    """Returns the citations a VARIATION cites, in document order.
+
+    A VARIATION/CITATION may carry its fields inline, point at a top-level
+    CITATIONS/CITATION with CIT_ID, or both. SURF puts CIT_ID on VARIATION itself.
+    """
+    by_id = {
+        citation["@ID"]: citation
+        for citation in _as_list((udm.get("CITATIONS") or {}).get("CITATION"))
+        if isinstance(citation, dict) and citation.get("@ID")
+    }
+    citations: list[dict] = []
+    for reference in _as_list(variation.get("CITATION")):
+        if not isinstance(reference, dict):
+            continue
+        citations.append(reference)
+        if reference.get("@CIT_ID") in by_id:
+            citations.append(by_id[reference["@CIT_ID"]])
+    if variation.get("@CIT_ID") in by_id:
+        citations.append(by_id[variation["@CIT_ID"]])
+    return citations
+
+
 def _map_provenance(
     reaction: dict,
     variation: dict,
@@ -1177,9 +1208,8 @@ def _map_provenance(
     ``experimenter`` is the UDM SCIENTIST only, and stays unset when the export
     has none. ``record_created.person`` is that scientist, or the CLI depositor
     when there is no scientist — never a mix of the two identities. ``--email``
-    still fills ``record_created.person.email`` when the scientist has no email,
-    because ORD validation requires it. Dataset ``--name`` / ``--description``
-    are separate packaging overrides (CLI wins).
+    fills ``record_created.person.email`` when the scientist has none, because ORD
+    validation requires it.
     """
     legal = udm.get("LEGAL") or {}
 
@@ -1216,42 +1246,44 @@ def _map_provenance(
         record_orcid = orcid
         record_email = email
 
-    orgs = _as_list(reaction.get("ORGANISATIONS"))
-    if orgs:
-        address = (orgs[0].get("ORGANISATION") or {}).get("ADDRESS")
+    # REACTION/ORGANISATIONS is not in the UDM 6.0.0 schema; read for older exports.
+    organisations = [
+        organisation
+        for block in _as_list(reaction.get("ORGANISATIONS"))
+        if isinstance(block, dict)
+        for organisation in _as_list(block.get("ORGANISATION"))
+        if isinstance(organisation, dict)
+    ]
+    if organisations:
+        address = _text(organisations[0].get("ADDRESS")).strip()
         if address:
-            pb2_reaction.provenance.city = str(address)
+            pb2_reaction.provenance.city = address
 
-    # DOI resolution: per-variation citation overrides global DOI.
-    # DOI may carry XML attributes; _normalize_doi reads via _text.
-    # SURF: VARIATION/@CIT_ID; strict UDM: VARIATION/CITATION/@CIT_ID.
-    global_doi = _normalize_doi(legal.get("DOI"))
-    variation_doi = ""
-    cit_id = ""
-    var_citation = variation.get("CITATION")
-    if var_citation is not None:
-        cit_id = (
-            var_citation if isinstance(var_citation, dict) else var_citation[0]
-        ).get("@CIT_ID", "")
-    cit_id = cit_id or str(variation.get("@CIT_ID") or "")
-    if cit_id:
-        for citation in _as_list((udm.get("CITATIONS") or {}).get("CITATION")):
-            if citation.get("@ID") == cit_id and "DOI" in citation:
-                variation_doi = _normalize_doi(citation.get("DOI"))
-                break
-
-    pb2_reaction.provenance.doi = variation_doi or global_doi
-
-    # Patent from reaction-level citations (legacy path)
-    reaction_citations = _as_list(reaction.get("CITATIONS"))
-    if reaction_citations:
-        first_cit = reaction_citations[0].get("CITATION") or {}
-        # Variation citation wins. Reaction-level DOI fills only when that
-        # lookup did not resolve one; it still overrides LEGAL/DOI.
-        if "DOI" in first_cit and not variation_doi:
-            pb2_reaction.provenance.doi = _normalize_doi(first_cit["DOI"])
-        if "PATENT_NUMBER" in first_cit:
-            pb2_reaction.provenance.patent = first_cit["PATENT_NUMBER"]
+    # The variation's own citations win, then a reaction-level citation (not in
+    # the UDM 6.0.0 schema; read for older exports), then LEGAL/DOI.
+    variation_citations = _variation_citations(variation, udm)
+    reaction_citations = [
+        citation
+        for block in _as_list(reaction.get("CITATIONS"))
+        if isinstance(block, dict)
+        for citation in _as_list(block.get("CITATION"))
+        if isinstance(citation, dict)
+    ][:1]
+    citations = variation_citations + reaction_citations
+    pb2_reaction.provenance.doi = next(
+        (doi for citation in citations if (doi := _normalize_doi(citation.get("DOI")))),
+        _normalize_doi(legal.get("DOI")),
+    )
+    patent = next(
+        (
+            text
+            for citation in citations
+            if (text := _text(citation.get("PATENT_NUMBER")).strip())
+        ),
+        "",
+    )
+    if patent:
+        pb2_reaction.provenance.patent = patent
 
     # UDM CREATION_DATE wins; --created-date fills when absent.
     creation_date = variation.get("CREATION_DATE") or created_date
@@ -1293,7 +1325,7 @@ def _validation_flag_hints(error_text: str) -> str:
             "Pass --created-date when the UDM file has no CREATION_DATE "
             "(ORD requires record_created.time)."
         )
-    if "username" in text or "orcid" in text:
+    if "person must have at least one of `username`, `name`, or `orcid`" in text:
         hints.append(
             "Pass --person-name, --username, or --orcid so record_created.person "
             "is identifiable (ORD requires at least one)."
@@ -1413,37 +1445,27 @@ def convert(
         f"UDM dataset DOI: {global_doi}" if global_doi else ""
     )
 
-    if "REACTIONS" not in udm:
+    reactions_element = root.find("REACTIONS")
+    if reactions_element is None:
         logger.error("<REACTIONS> element not found in %s", input_path)
         sys.exit(1)
 
     all_molecules = _build_molecule_lookup(udm)
     pb2_reactions: list[reaction_pb2.Reaction] = []
-    reactions_element = root.find("REACTIONS")
-    if reactions_element is None:
-        logger.error("<REACTIONS> element not found in %s", input_path)
-        sys.exit(1)
     parent_xml = _document_context_xml(root) if include_udm_xml else ""
 
-    # Empty <REACTIONS/> is valid: findall returns no REACTION children.
+    # An empty <REACTIONS/> yields an empty dataset.
     for reaction_element in reactions_element.findall("REACTION"):
         reaction = etree_to_dict(reaction_element)["REACTION"]
         reaction_xml = (
             ET.tostring(reaction_element, encoding="unicode") if include_udm_xml else ""
         )
-        _map_rxn_identifiers(reaction, _scratch := reaction_pb2.Reaction())
-        rxn_identifiers = _scratch.identifiers[:]  # carry forward to each variation
-
         variations = _as_list(reaction.get("VARIATION")) or [{}]
         for raw_variation in variations:
             variation = _variation_with_section(raw_variation)
             pb2_reaction = reaction_pb2.Reaction()
-
-            # Copy reaction-level identifiers into each variation's Reaction.
-            for ident in rxn_identifiers:
-                new_id = pb2_reaction.identifiers.add()
-                new_id.CopyFrom(ident)
-
+            # RXNSTRUCTURE is on REACTION, so every variation carries it.
+            _map_rxn_identifiers(reaction, pb2_reaction)
             _map_inputs(variation, all_molecules, pb2_reaction, reaction=reaction)
             _map_conditions(variation, pb2_reaction)
             _map_notes(variation, pb2_reaction)
@@ -1569,7 +1591,6 @@ def main(args: argparse.Namespace) -> None:
         include_udm_xml=args.include_udm_xml,
     )
 
-    # Catch ValidationError and exit cleanly with optional CLI hints.
     if not args.no_validate:
         try:
             validations.validate_datasets({"_COMBINED": dataset})
@@ -1583,7 +1604,6 @@ def main(args: argparse.Namespace) -> None:
             )
             sys.exit(1)
 
-    # Sanitise dataset name before using as a default filename.
     if args.output:
         output_path = pathlib.Path(args.output)
     elif dataset.name:
