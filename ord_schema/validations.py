@@ -998,6 +998,17 @@ def _validate_compound_identifier(
             context.warn(
                 f"CAS number {message.value} is malformed (expected e.g. 64-17-5)"
             )
+        else:
+            digits = message.value.replace("-", "")
+            check_digit = (
+                sum(
+                    weight * int(digit)
+                    for weight, digit in enumerate(reversed(digits[:-1]), start=1)
+                )
+                % 10
+            )
+            if check_digit != int(digits[-1]):
+                context.warn(f"CAS number {message.value} has an invalid check digit")
     elif message.type == message.INCHI_KEY:
         if not re.fullmatch(r"[A-Z]{14}-[A-Z]{10}-[A-Z]", message.value):
             context.warn(f"InChIKey {message.value} is malformed")
