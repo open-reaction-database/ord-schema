@@ -770,14 +770,14 @@ def _map_conditions(
     groups = _condition_groups(conditions)
     if not groups:
         return
-    _map_environment(groups, pb2_reaction)
+    represented_environment = _map_environment(groups, pb2_reaction)
     if len(groups) > 1:
         pb2_reaction.conditions.conditions_are_dynamic = True
         for index, group in enumerate(groups, start=1):
-            # PREPARATION is either an environment keyword (mapped above) or
-            # procedure text, which _map_notes writes to notes.procedure_details.
+            # Drop PREPARATION text already stored on setup.environment or in
+            # notes. A later environment keyword fits in neither field.
             details = _condition_group_details(
-                group, exclude=frozenset({"PREPARATION"})
+                _group_with_unrepresented_preparation(group, represented_environment)
             )
             _append_condition_details(
                 pb2_reaction,
@@ -930,17 +930,47 @@ def _map_conditions(
     )
 
 
-def _map_environment(groups: list[dict], pb2_reaction: reaction_pb2.Reaction) -> None:
+def _map_environment(
+    groups: list[dict], pb2_reaction: reaction_pb2.Reaction
+) -> reaction_pb2.ReactionSetup.ReactionEnvironment.ReactionEnvironmentType | None:
     """Sets setup.environment from the first PREPARATION that is a known keyword.
 
-    Any other PREPARATION text is procedure, which _map_notes records.
+    Any other PREPARATION text is procedure, which _map_notes records. The
+    returned type is the one keyword ORD can store; later keywords are not.
     """
     for group in groups:
         for text in _preparation_texts(group):
             env_type = _ENVIRONMENT_TYPES.get(text.lower())
             if env_type is not None:
                 pb2_reaction.setup.environment.type = env_type
-                return
+                return env_type
+    return None
+
+
+def _group_with_unrepresented_preparation(
+    group: dict,
+    represented: (
+        reaction_pb2.ReactionSetup.ReactionEnvironment.ReactionEnvironmentType | None
+    ),
+) -> dict:
+    """Returns a group whose PREPARATION is only text stored nowhere else.
+
+    The environment type returned by _map_environment is setup.environment.
+    Non-keyword text is notes.procedure_details. A different keyword is kept
+    so a later stage still records the change of environment.
+    """
+    kept = [
+        text
+        for text in _preparation_texts(group)
+        if (env_type := _ENVIRONMENT_TYPES.get(text.lower())) is not None
+        and env_type != represented
+    ]
+    if kept == _preparation_texts(group):
+        return group
+    filtered = {key: value for key, value in group.items() if key != "PREPARATION"}
+    if kept:
+        filtered["PREPARATION"] = kept[0] if len(kept) == 1 else kept
+    return filtered
 
 
 def _preparation_texts(node: dict) -> list[str]:

@@ -1156,6 +1156,42 @@ def test_dynamic_condition_groups_map_preparation_once(tmp_path):
     assert "Stage 2: temperature 80 degC" in reaction.conditions.details
 
 
+def test_later_stage_environment_stays_in_details(tmp_path):
+    """A second environment keyword stays in that stage's details."""
+    xml = textwrap.dedent("""\
+        <UDM>
+          <LEGAL><TITLE>Test</TITLE></LEGAL>
+          <MOLECULES><MOLECULE ID="M1"><NAME>A</NAME></MOLECULE></MOLECULES>
+          <REACTIONS><REACTION ID="R1"><VARIATION>
+            <REACTANT><MOLECULE MOL_ID="M1"/></REACTANT>
+            <CONDITIONS>
+              <CONDITION_GROUP>
+                <PREPARATION>glove box</PREPARATION>
+                <TEMPERATURE><exact>20</exact></TEMPERATURE>
+              </CONDITION_GROUP>
+              <CONDITION_GROUP>
+                <PREPARATION>fume hood</PREPARATION>
+                <TEMPERATURE><exact>80</exact></TEMPERATURE>
+              </CONDITION_GROUP>
+            </CONDITIONS>
+          </VARIATION></REACTION></REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / "later_environment.xml"
+    p.write_text(xml)
+    reaction = conv.convert(p).reactions[0]
+
+    assert (
+        reaction.setup.environment.type
+        == reaction_pb2.ReactionSetup.ReactionEnvironment.GLOVE_BOX
+    )
+    assert reaction.notes.procedure_details == ""
+    assert "glove box" not in reaction.conditions.details
+    assert "Stage 2: preparation fume hood; temperature 80 degC" in (
+        reaction.conditions.details
+    )
+
+
 def test_condition_ranges_and_unmapped_fields_are_preserved(tmp_path):
     """Ranges map structurally while unsupported condition fields remain as text."""
     xml = textwrap.dedent("""\

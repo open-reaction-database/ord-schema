@@ -96,7 +96,7 @@ ORD models conditions as **one** `ReactionConditions` per `Reaction` (`reaction.
 | Step | Behavior |
 | --- | --- |
 | One group | Map supported fields structurally; preserve unsupported fields and one-sided bounds in `conditions.details` |
-| Two or more groups | Set `conditions_are_dynamic = true`; write every group as a labeled stage in `conditions.details`. `PREPARATION` is omitted from the stage text |
+| Two or more groups | Set `conditions_are_dynamic = true`; write every group as a labeled stage in `conditions.details`. A `PREPARATION` already stored as `setup.environment` or `notes.procedure_details` is omitted; a later environment keyword stays in that stage |
 | Structured setpoints for dynamic conditions | Leave unset; selecting or merging one stage would misrepresent the source |
 
 UDM documents multiple groups as a dynamic multi-stage profile rather than independent reactions. ORD's `conditions_are_dynamic` and catch-all `details` fields represent that case without duplicating outcomes or fabricating a static composite.
@@ -232,6 +232,6 @@ Policies applied when UDM is missing fields that ORD validation still requires. 
 | Role compound without `AMOUNT` / `SAMPLE_MASS` / `VOLUME` | Every input component needs an `Amount` | `UnmeasuredAmount` with `type=CUSTOM` and details `"amount not reported in UDM"` |
 | `PRESSURE/exact` without `@unit` / `@units`, including a min/max range | If setpoint `value` is set, `units` is required | Omit setpoint. The XSD default (torr) is not applied, because unitless Reaxys values are not one scale. The exact value or the range stays in `conditions.details` |
 | Empty `MOLECULE/NAME` and no readable `MOLSTRUCTURE` | Identifier `value` must be non-empty | Use molecule `@ID` as `NAME` |
-| Several `CONDITION_GROUP`s | One `ReactionConditions` message | Set `conditions_are_dynamic`; summarize every group as a stage in `details`, leaving `PREPARATION` out of the stages. A keyword sets `setup.environment`; other text goes to `notes.procedure_details` |
+| Several `CONDITION_GROUP`s | One `ReactionConditions` message | Set `conditions_are_dynamic`; summarize every group as a stage in `details`. The first environment keyword sets `setup.environment` and other text goes to `notes.procedure_details`; those strings are left out of the stage. A later environment keyword stays in that stage |
 
 See also the user-facing summary in [`convert_udm_to_ord_guide.md`](convert_udm_to_ord_guide.md#converter-policies-for-incomplete-udm-domain-review).

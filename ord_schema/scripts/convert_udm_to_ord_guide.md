@@ -279,7 +279,7 @@ UDM allows several `<CONDITION_GROUP>` children under one `<CONDITIONS>` to desc
 #### What the converter does
 
 1. Sets `conditions_are_dynamic = true`.
-2. Writes every group to `conditions.details` as `Stage 1: ...; Stage 2: ...`. `PREPARATION` is left out of the stages: a keyword sets `setup.environment`, and other text goes to `notes.procedure_details`.
+2. Writes every group to `conditions.details` as `Stage 1: ...; Stage 2: ...`. The first environment keyword sets `setup.environment`, and other preparation text goes to `notes.procedure_details`; those strings are left out of the stages. A later environment keyword stays in that stage.
 3. Leaves static temperature, pressure, stirring, pH, and reaction-time fields unset instead of selecting one stage or merging unrelated stages.
 
 Single groups still map supported exact or min/max values structurally. Complete ranges use midpoint + precision; one-sided bounds and unsupported fields such as buffer concentration remain in `conditions.details`.
