@@ -203,8 +203,7 @@ def test_amount_units_moles_spellings(tmp_path, unit, expected):
         created_date=SAMPLE_DEPOSITOR["created_date"],
     )
     by_role = {
-        c.reaction_role: c
-        for c in dataset.reactions[0].inputs["combined"].components
+        c.reaction_role: c for c in dataset.reactions[0].inputs["combined"].components
     }
     comp = by_role[reaction_pb2.ReactionRole.REAGENT]
     assert comp.amount.HasField("moles")
@@ -632,6 +631,9 @@ def test_validation_flag_hints_cover_common_gaps():
     assert conv._validation_flag_hints("unrelated error") == ""
     assert conv._validation_flag_hints("Invalid email address: bad@") == ""
     assert (
+        conv._validation_flag_hints("Invalid ORCID: Enter as 0000-0000-0000-0000") == ""
+    )
+    assert (
         conv._validation_flag_hints(
             "Invalid email address: a@b.c\nDataset description is required"
         )
@@ -863,7 +865,71 @@ def test_variation_doi_wins_over_reaction_citation(tmp_path):
     assert second.provenance.doi == "10.1000/legacy"
 
 
-def test_missing_reactions_exits(tmp_path):
+def test_variation_citations_supply_doi_and_patent(tmp_path):
+    """VARIATION/CITATION supplies DOI and patent inline or through CIT_ID."""
+    xml = textwrap.dedent("""\
+        <UDM>
+          <LEGAL><TITLE>Test</TITLE><DOI>10.1000/global</DOI></LEGAL>
+          <CITATIONS>
+            <CITATION ID="C1"><PATENT_NUMBER>US123</PATENT_NUMBER></CITATION>
+          </CITATIONS>
+          <MOLECULES><MOLECULE ID="M1"><NAME>A</NAME></MOLECULE></MOLECULES>
+          <REACTIONS>
+            <REACTION ID="R1">
+              <VARIATION CIT_ID="C1">
+                <REACTANT><MOLECULE MOL_ID="M1"/></REACTANT>
+              </VARIATION>
+            </REACTION>
+            <REACTION ID="R2">
+              <VARIATION>
+                <REACTANT><MOLECULE MOL_ID="M1"/></REACTANT>
+                <CITATION/>
+                <CITATION><DOI>10.1000/inline</DOI></CITATION>
+              </VARIATION>
+            </REACTION>
+          </REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / "variation_citations.xml"
+    p.write_text(xml)
+    first, second = conv.convert(p).reactions
+    assert first.provenance.patent == "US123"
+    assert first.provenance.doi == "10.1000/global"
+    assert second.provenance.doi == "10.1000/inline"
+    assert not second.provenance.patent
+
+
+def test_repeated_reaction_organisations_leave_city_unset(tmp_path):
+    """Repeated ORGANISATION entries do not crash, and city stays unset.
+
+    REACTION/ORGANISATIONS is not in the UDM 6.0.0 schema. The first
+    reaction-level citation is still the patent fallback for older files.
+    """
+    xml = textwrap.dedent("""\
+        <UDM>
+          <LEGAL><TITLE>Test</TITLE></LEGAL>
+          <MOLECULES><MOLECULE ID="M1"><NAME>A</NAME></MOLECULE></MOLECULES>
+          <REACTIONS><REACTION ID="R1">
+            <ORGANISATIONS>
+              <ORGANISATION><ADDRESS>Boston</ADDRESS></ORGANISATION>
+              <ORGANISATION><ADDRESS>Basel</ADDRESS></ORGANISATION>
+            </ORGANISATIONS>
+            <CITATIONS>
+              <CITATION><PATENT_NUMBER>US1</PATENT_NUMBER></CITATION>
+              <CITATION><PATENT_NUMBER>US2</PATENT_NUMBER></CITATION>
+            </CITATIONS>
+            <VARIATION><REACTANT><MOLECULE MOL_ID="M1"/></REACTANT></VARIATION>
+          </REACTION></REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / "reaction_lists.xml"
+    p.write_text(xml)
+    reaction = conv.convert(p).reactions[0]
+    assert reaction.provenance.city == ""
+    assert reaction.provenance.patent == "US1"
+
+
+def test_missing_reactions_exits(tmp_path, caplog):
     """A UDM file with no <REACTIONS> element should raise SystemExit."""
     xml = textwrap.dedent("""\
         <?xml version="1.0" encoding="UTF-8"?>
@@ -874,30 +940,35 @@ def test_missing_reactions_exits(tmp_path):
     """)
     p = tmp_path / "no_reactions.xml"
     p.write_text(xml)
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit, match=r"^1$"):
         conv.convert(p)
+    assert "<REACTIONS> element not found" in caplog.text
 
 
-def test_invalid_xml_exits(tmp_path):
+def test_invalid_xml_exits(tmp_path, caplog):
     """A non-XML file should raise SystemExit."""
     p = tmp_path / "bad.xml"
     p.write_text("not xml at all <<<")
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit, match=r"^1$"):
         conv.convert(p)
+    assert "Failed to parse XML" in caplog.text
 
 
-def test_wrong_root_exits(tmp_path):
+def test_wrong_root_exits(tmp_path, caplog):
     """A well-formed XML file without <UDM> root should raise SystemExit."""
     xml = '<?xml version="1.0"?><ROOT/>'
     p = tmp_path / "wrong_root.xml"
     p.write_text(xml)
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit, match=r"^1$"):
         conv.convert(p)
+    assert "<UDM> must be the root element" in caplog.text
 
 
-def test_missing_file_exits(tmp_path):
-    with pytest.raises(SystemExit):
+def test_missing_file_exits(tmp_path, caplog):
+    """A missing input path should raise SystemExit."""
+    with pytest.raises(SystemExit, match=r"^1$"):
         conv.convert(tmp_path / "nonexistent.xml")
+    assert "Input file not found" in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -1049,6 +1120,40 @@ def test_dynamic_condition_groups_preserve_stage_ranges(tmp_path):
     assert "Stage 1: temperature 20 degC; time 23 hr" in reaction.conditions.details
     assert "Stage 2: temperature 165 degC; time 5 hr" in reaction.conditions.details
     assert "Stage 3: time 6 hr" in reaction.conditions.details
+
+
+def test_dynamic_condition_groups_map_preparation_once(tmp_path):
+    """Stage PREPARATION sets the environment or notes, not stage details too."""
+    xml = textwrap.dedent("""\
+        <UDM>
+          <LEGAL><TITLE>Test</TITLE></LEGAL>
+          <MOLECULES><MOLECULE ID="M1"><NAME>A</NAME></MOLECULE></MOLECULES>
+          <REACTIONS><REACTION ID="R1"><VARIATION>
+            <REACTANT><MOLECULE MOL_ID="M1"/></REACTANT>
+            <CONDITIONS>
+              <CONDITION_GROUP>
+                <PREPARATION>glove box</PREPARATION>
+                <TEMPERATURE><exact>20</exact></TEMPERATURE>
+              </CONDITION_GROUP>
+              <CONDITION_GROUP>
+                <PREPARATION>Then heat the mixture.</PREPARATION>
+                <TEMPERATURE><exact>80</exact></TEMPERATURE>
+              </CONDITION_GROUP>
+            </CONDITIONS>
+          </VARIATION></REACTION></REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / "dynamic_preparation.xml"
+    p.write_text(xml)
+    reaction = conv.convert(p).reactions[0]
+
+    assert (
+        reaction.setup.environment.type
+        == reaction_pb2.ReactionSetup.ReactionEnvironment.GLOVE_BOX
+    )
+    assert reaction.notes.procedure_details == "Then heat the mixture."
+    assert "preparation" not in reaction.conditions.details
+    assert "Stage 2: temperature 80 degC" in reaction.conditions.details
 
 
 def test_condition_ranges_and_unmapped_fields_are_preserved(tmp_path):
@@ -1528,7 +1633,7 @@ def test_validation_errors_exit_cleanly(tmp_path):
             "ord_schema.scripts.convert_udm_to_ord.validations.validate_datasets",
             side_effect=validations.ValidationError("forced error"),
         ),
-        pytest.raises(SystemExit) as exc_info,
+        pytest.raises(SystemExit, match=r"^1$") as exc_info,
     ):
         conv.main(args)
     assert exc_info.value.code == 1
@@ -1745,8 +1850,28 @@ def test_pressure_without_unit_is_not_setpoint(tmp_path):
     dataset = conv.convert(p)
     pressure = dataset.reactions[0].conditions.pressure
     assert not pressure.setpoint.HasField("value")
-    assert "760.051" in dataset.reactions[0].conditions.details
-    assert "unit omitted" in dataset.reactions[0].conditions.details
+    assert "pressure 760.051" in dataset.reactions[0].conditions.details
+
+
+def test_pressure_range_without_unit_keeps_bounds(tmp_path):
+    """A unitless pressure range stays in details as midpoint and width."""
+    xml = textwrap.dedent("""\
+        <UDM>
+          <LEGAL><TITLE>Test</TITLE></LEGAL>
+          <MOLECULES><MOLECULE ID="M1"><NAME>A</NAME></MOLECULE></MOLECULES>
+          <REACTIONS><REACTION ID="R1"><VARIATION>
+            <REACTANT><MOLECULE MOL_ID="M1"/></REACTANT>
+            <CONDITIONS><CONDITION_GROUP>
+              <PRESSURE><min>1</min><max>3</max></PRESSURE>
+            </CONDITION_GROUP></CONDITIONS>
+          </VARIATION></REACTION></REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / "unitless_pressure_range.xml"
+    p.write_text(xml)
+    reaction = conv.convert(p).reactions[0]
+    assert not reaction.conditions.pressure.setpoint.HasField("value")
+    assert "pressure 2±1" in reaction.conditions.details
 
 
 def test_empty_molecule_name_falls_back_to_mol_id(tmp_path):
@@ -1811,6 +1936,35 @@ def test_reaction_reactant_id_creates_inputs(tmp_path):
     assert reactant.amount.WhichOneof("kind") == "unmeasured"
 
 
+def test_reagent_block_keeps_referenced_reactants(tmp_path):
+    """A REAGENT block does not drop reactants supplied only as REACTANT_ID."""
+    xml = textwrap.dedent("""\
+        <UDM>
+          <LEGAL><TITLE>Test</TITLE></LEGAL>
+          <MOLECULES>
+            <MOLECULE ID="R1"><NAME>reactant-a</NAME></MOLECULE>
+            <MOLECULE ID="S1"><NAME>solvent-a</NAME></MOLECULE>
+          </MOLECULES>
+          <REACTIONS><REACTION ID="R1">
+            <REACTANT_ID>R1</REACTANT_ID>
+            <VARIATION>
+              <REAGENT><MOLECULE MOL_ID="S1"/></REAGENT>
+            </VARIATION>
+          </REACTION></REACTIONS>
+        </UDM>
+    """)
+    p = tmp_path / "reagent_and_reactant_id.xml"
+    p.write_text(xml)
+    components = conv.convert(p).reactions[0].inputs["combined"].components
+    by_role = {c.reaction_role: c for c in components}
+    assert (
+        by_role[reaction_pb2.ReactionRole.REAGENT].identifiers[0].value == "solvent-a"
+    )
+    assert (
+        by_role[reaction_pb2.ReactionRole.REACTANT].identifiers[0].value == "reactant-a"
+    )
+
+
 def test_reaction_without_variation_uses_shared_reactant_input(tmp_path):
     """Reaction-level IDs remain recoverable when VARIATION is absent."""
     xml = textwrap.dedent("""\
@@ -1870,7 +2024,7 @@ def test_reaction_without_variation_non_smiles_needs_no_validate(tmp_path):
     identifier = dataset.reactions[0].identifiers[0]
     assert identifier.value == "RInChI=1.00.1S/"
     assert identifier.type == reaction_pb2.ReactionIdentifier.RINCHI
-    with pytest.raises(validations.ValidationError):
+    with pytest.raises(validations.ValidationError, match="at least 1 reaction input"):
         validations.validate_datasets({"_COMBINED": dataset})
 
 
