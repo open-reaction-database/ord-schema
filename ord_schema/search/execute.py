@@ -779,6 +779,7 @@ class Corpus:
         pivot_budget_bytes: int | None = None,
         pivots_dir: str | None = None,
         derive_pivots: bool = False,
+        require_pivots: bool = False,
         memory_limit: str | None = None,
     ) -> None:
         """Pairs the artifacts, checks their stamps, and prepares the relations.
@@ -816,6 +817,11 @@ class Corpus:
                 milliseconds of the built ones. A level with no subdirectory is still
                 built in process, so a partial set of artifacts is a partial speedup
                 rather than a missing answer.
+            require_pivots: Refuse a corpus whose ``pivots_dir`` does not hold every
+                level, rather than building the missing ones in memory on the query
+                that first wants one. Needs a ``pivots_dir``. What it costs is a footer
+                read per artifact at startup; what it buys is that no query pays for an
+                unnest nobody meant to run.
             derive_pivots: Write the artifact for a level that has none, rather than
                 building the level in memory. Needs a writable ``pivots_dir``. The pass
                 costs what building in memory costs, and once, since the next process
@@ -842,7 +848,8 @@ class Corpus:
                 dataset, or -- with ``require_current`` -- any artifact is stale.
             ValueError: If ``pivot_budget_bytes`` is negative, which no amount of
                 memory is; zero is allowed, and materializes nothing; or if
-                ``derive_pivots`` is set without a ``pivots_dir`` to derive into.
+                ``derive_pivots`` or ``require_pivots`` is set without a
+                ``pivots_dir``.
         """
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
         if pivot_budget_bytes is not None and pivot_budget_bytes < 0:
@@ -903,6 +910,11 @@ class Corpus:
                 "derive_pivots was set without a pivots_dir, so there is nowhere to "
                 "write what it would derive"
             )
+        if require_pivots and pivots_dir is None:
+            raise ValueError(
+                "require_pivots was set without a pivots_dir, so there is nowhere to "
+                "look for what it would require"
+            )
         pairs, self._fingerprint = _pair(
             projection_pattern, structures_pattern, require_current
         )
@@ -925,6 +937,8 @@ class Corpus:
             _cache_footers(self._connection)
             _warn_when_the_cap_leaves_no_headroom(self._connection)
             self._total, self._searchable = self._prepare(pairs)
+            if require_pivots:
+                self._require_every_pivot()
         except Exception:
             # Nothing else holds the connection yet, and the caller has no object to
             # close one from if __init__ does not return.
@@ -1024,6 +1038,29 @@ class Corpus:
         not.
         """
         return self._fingerprint
+
+    def _require_every_pivot(self) -> None:
+        """Refuses a corpus whose pivots_dir does not hold every level, current.
+
+        ``check_pivots`` reports what is held; this insists. A level with no artifacts
+        is otherwise built in process on the query that first wants it, which is
+        minutes of unnesting charged to whoever asked and no error anywhere -- the
+        failure a caller naming a pivots_dir is least likely to be expecting, since
+        naming one says the artifacts are meant to answer.
+
+        Raises:
+            PairingError: If any level has no artifacts. Wrong provenance, a level
+                filed under another, and staleness are raised by the publishing itself.
+        """
+        missing = [
+            path for path in sorted(pivot.LEVELS) if self._pivot_view(path) is None
+        ]
+        if missing:
+            raise PairingError(
+                f"{self._pivots_dir} holds no pivot artifacts for {missing}, which "
+                "this corpus was opened requiring; derive them first with "
+                "ord_schema.artifacts.scripts.derive_pivots"
+            )
 
     def check_pivots(self) -> dict[str, int]:
         """Publishes every pivot artifact this corpus can read, and returns the counts.
