@@ -1,3 +1,5 @@
+:orphan:
+
 #######################################
 Natural language search: privacy notice
 #######################################
@@ -27,9 +29,6 @@ The Open Reaction Database Project is an open-source project, not a legal
 entity. The natural-language search is run by its maintainers, *(names to be
 filled in)*, who are responsible for the records described here ("we", "us").
 You can reach us at help@open-reaction-database.org.
-
-Our representative in the European Union is *(name and postal address to be
-filled in)*.
 
 ************
 What we keep
@@ -61,8 +60,9 @@ What a session is
 
 A session is one visit. When you arrive, we create a random identifier that
 lives only for as long as you keep the page open, and attach it to the queries
-you run while you are there. It is not stored on your device, not sent to us on
-any later visit, and not connected to anything else about you. Reload the page
+you run while you are there. It is held by the open page alone, not in a cookie
+or your browser's storage, not sent to us on any later visit, and not connected
+to anything else about you. Reload the page
 and you have a new one; there is no way for us — or for you — to link the two.
 
 It exists for one reason: when a first query returns nothing and you rephrase
@@ -77,8 +77,10 @@ We do not ask you to sign in, and there is nothing in these records that
 identifies you:
 
 - **No account, name, or email address.**
-- **No IP address, browser, or device identifier.** The web server keeps its own
-  access logs; those are separate from these records and are not joined to them.
+- **No IP address, browser, or device identifier.** The web server's access log,
+  which is separate from these records, notes each request to the site with the
+  IP address and browser it came from and keeps it for 90 days. It shows that a
+  query was run, not what it said, and we do not use it to find out who ran one.
 - **No cookie or mark that survives your visit.** Two visits by the same person
   are two unrelated sets of records to us, and we have no way to connect them.
 
@@ -92,9 +94,12 @@ how the search works at all. Anthropic processes it on our behalf under its
 `Commercial Terms of Service
 <https://www.anthropic.com/legal/commercial-terms>`__ and `Data Processing
 Addendum <https://www.anthropic.com/legal/data-processing-addendum>`__, and
-under those terms may not train its models on it. A structure you draw or paste
-is not sent to Anthropic: the model sees only a placeholder standing in for it,
-and the structure itself is used only in our own search.
+under those terms may not train its models on it. Once the search has run, the
+model sees your query again beside a short summary of the result — how many
+reactions or groups came back, and the first few of them — to write the summary
+you read. A structure you draw or paste is not sent to Anthropic: the model sees
+only a placeholder standing in for it, and the structure itself is used only in
+our own search.
 
 When the structured query names a compound, we look up that name with public
 chemical name services: `PubChem <https://pubchem.ncbi.nlm.nih.gov>`__, the
@@ -106,9 +111,9 @@ looked up is usually a compound you named, but it can be any other part of your
 query, or all of it. The lookup is sent from our server, not your browser.
 
 **Please do not type anything into the search that you would not want recorded,
-read by us, sent to the services above, or published.** A query can be
-interesting to us — and to other researchers — without being about anything you
-need to keep private, and queries here are about chemistry. If a query would
+read by us, or sent to the services above.** A query can be useful to us
+without being about anything you need to keep private, and queries here are
+about chemistry. If a query would
 name a colleague, an unpublished program, a customer, or a compound you are not
 ready to disclose, please phrase it a different way.
 
@@ -141,31 +146,15 @@ What we use it for
    Our test cases are public, so we write them ourselves rather than copying
    your query: a test case keeps what went wrong, not your wording, and names no
    person, organization, or unpublished compound.
-3. **Research and publication.** We may study and publish work on how people
-   search a chemistry database in natural language, how they rephrase when a
-   first attempt fails, and where the translation layer succeeds and fails. That
-   work may include **quoting individual queries verbatim**.
+3. **Research.** We may study and publish work on how people search a chemistry
+   database in natural language, how they rephrase when a first attempt fails,
+   and where the translation layer succeeds and fails. What we publish is
+   summaries and aggregates — the kinds of queries people run, how often each
+   kind succeeds, how rephrasing changes an outcome — and **never an individual
+   query**, the queries from one visit, or a session identifier.
 
-That third purpose is stated here in advance because it is not honest to collect
-data for one reason and publish it under another. Stating it reserves the
-possibility; it does not promise that any of it will happen.
-
-How we would publish
-====================
-
-- **Aggregates and categories, ordinarily** — the kinds of queries people run,
-  how often each kind succeeds, how rephrasing changes an outcome.
-- **Verbatim queries only after review.** Anything that names a person, an
-  organization, an unpublished compound or program, or that would be
-  identifying in combination with what surrounds it, is not quoted. When in
-  doubt, it is not quoted.
-- **We do not publish session identifiers.** Where a sequence of queries from
-  one visit is quoted — a rephrasing is often the interesting thing — the
-  sequence is reviewed as a whole, since several queries together say more
-  about who ran them than any one of them.
-- If we ever release a dataset rather than quoting selections in our own work,
-  that is a bigger step than this notice covers, and we would say so before
-  doing it.
+We do not release the queries themselves, as a dataset or in any other form,
+under this notice.
 
 *******************
 How long we keep it
@@ -177,8 +166,10 @@ your feedback are deleted automatically **one year** after you run it.
 We also keep a redacted copy that leaves those three out and keeps everything
 else: the outcome, timings, costs, versions, session identifier, your thumbs up
 or down, and the structured query with the compound names and structures it
-searched for. That copy is what the analysis runs on, and it is deleted
-automatically **five years** after you run the query. The structured query
+searched for. That copy is what the analysis runs on. It is made from each
+month's records before they are deleted, and is itself deleted automatically
+**five years** after it is made, so nothing from your query is kept more than
+six years after you run it. The structured query
 carries whatever compounds, people, or other terms your query named, so the
 redacted copy is not anonymous in the way a count is.
 
@@ -186,10 +177,10 @@ redacted copy is not anonymous in the way a count is.
 Who can read it
 ***************
 
-Nobody has standing access. The records live in a private store with no public
-access, and every read of them is recorded in an audit log that outlives the
-records themselves. Access is granted to a named maintainer for a stated reason,
-and to the service that writes the records.
+The records live in a private store with no public access. Only the maintainers
+who administer the project's cloud account can read them, and every read is
+recorded in an audit log that is kept longer than the records themselves. We
+read them only for the purposes above.
 
 ***********
 Your rights
@@ -206,9 +197,11 @@ the wording of a query and roughly when you ran it. Write to us at
 help@open-reaction-database.org.
 
 Under the EU and UK General Data Protection Regulation, we rely on our
-legitimate interests in operating and improving a public research resource,
-and, for the research purpose, on the provisions for processing for scientific
-research purposes. You may object to processing based on legitimate interests.
+legitimate interests in operating, improving, and studying a public research
+resource. The research purpose is carried out under the safeguards the
+Regulation sets for scientific research, which is why we publish only summaries
+and aggregates. You may object to processing
+based on legitimate interests.
 You also have the right to complain to a data protection authority: in the EU
 or EEA, the one where you live, work, or think the problem arose; in the United
 Kingdom, the Information Commissioner's Office.
@@ -217,7 +210,10 @@ Kingdom, the Information Commissioner's Office.
 Changes
 *******
 
-We may update this notice. Changes take effect when they are posted here.
+We may update this notice. Changes take effect when they are posted here, and a
+change that widens what we keep or how we use it applies only to queries run
+after it is posted. Every earlier version is in the `history of this page
+<https://github.com/open-reaction-database/ord-schema/commits/main/docs/privacy.rst>`__.
 
 | **Effective date:** *(not yet in force)*
 | **Contact:** help@open-reaction-database.org
