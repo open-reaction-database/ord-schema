@@ -1277,7 +1277,7 @@ class Analysis(_message.Message):
     def __init__(self, type: _Optional[_Union[Analysis.AnalysisType, str]] = ..., details: _Optional[str] = ..., chmo_id: _Optional[int] = ..., is_of_isolated_species: bool = ..., data: _Optional[_Mapping[str, Data]] = ..., instrument_manufacturer: _Optional[str] = ..., instrument_last_calibrated: _Optional[_Union[DateTime, _Mapping]] = ...) -> None: ...
 
 class ReactionProvenance(_message.Message):
-    __slots__ = ["experimenter", "city", "experiment_start", "doi", "patent", "publication_url", "record_created", "record_modified", "reaction_metadata", "is_mined", "primary_source"]
+    __slots__ = ["experimenter", "city", "experiment_start", "doi", "patent", "publication_url", "record_created", "record_modified", "reaction_metadata", "is_mined", "primary_source", "extraction"]
     class ReactionMetadataEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -1296,6 +1296,7 @@ class ReactionProvenance(_message.Message):
     REACTION_METADATA_FIELD_NUMBER: _ClassVar[int]
     IS_MINED_FIELD_NUMBER: _ClassVar[int]
     PRIMARY_SOURCE_FIELD_NUMBER: _ClassVar[int]
+    EXTRACTION_FIELD_NUMBER: _ClassVar[int]
     experimenter: Person
     city: str
     experiment_start: DateTime
@@ -1307,7 +1308,8 @@ class ReactionProvenance(_message.Message):
     reaction_metadata: _containers.MessageMap[str, Data]
     is_mined: bool
     primary_source: Publication
-    def __init__(self, experimenter: _Optional[_Union[Person, _Mapping]] = ..., city: _Optional[str] = ..., experiment_start: _Optional[_Union[DateTime, _Mapping]] = ..., doi: _Optional[str] = ..., patent: _Optional[str] = ..., publication_url: _Optional[str] = ..., record_created: _Optional[_Union[RecordEvent, _Mapping]] = ..., record_modified: _Optional[_Iterable[_Union[RecordEvent, _Mapping]]] = ..., reaction_metadata: _Optional[_Mapping[str, Data]] = ..., is_mined: bool = ..., primary_source: _Optional[_Union[Publication, _Mapping]] = ...) -> None: ...
+    extraction: ExtractionMetadata
+    def __init__(self, experimenter: _Optional[_Union[Person, _Mapping]] = ..., city: _Optional[str] = ..., experiment_start: _Optional[_Union[DateTime, _Mapping]] = ..., doi: _Optional[str] = ..., patent: _Optional[str] = ..., publication_url: _Optional[str] = ..., record_created: _Optional[_Union[RecordEvent, _Mapping]] = ..., record_modified: _Optional[_Iterable[_Union[RecordEvent, _Mapping]]] = ..., reaction_metadata: _Optional[_Mapping[str, Data]] = ..., is_mined: bool = ..., primary_source: _Optional[_Union[Publication, _Mapping]] = ..., extraction: _Optional[_Union[ExtractionMetadata, _Mapping]] = ...) -> None: ...
 
 class Publication(_message.Message):
     __slots__ = ["doi", "patent", "url", "location", "authors", "publication_date", "details", "organizations"]
@@ -1328,6 +1330,18 @@ class Publication(_message.Message):
     details: str
     organizations: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, doi: _Optional[str] = ..., patent: _Optional[str] = ..., url: _Optional[str] = ..., location: _Optional[str] = ..., authors: _Optional[_Iterable[_Union[Person, _Mapping]]] = ..., publication_date: _Optional[_Union[DateTime, _Mapping]] = ..., details: _Optional[str] = ..., organizations: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class ExtractionMetadata(_message.Message):
+    __slots__ = ["details", "confidence", "confidence_details", "is_human_reviewed"]
+    DETAILS_FIELD_NUMBER: _ClassVar[int]
+    CONFIDENCE_FIELD_NUMBER: _ClassVar[int]
+    CONFIDENCE_DETAILS_FIELD_NUMBER: _ClassVar[int]
+    IS_HUMAN_REVIEWED_FIELD_NUMBER: _ClassVar[int]
+    details: str
+    confidence: float
+    confidence_details: str
+    is_human_reviewed: bool
+    def __init__(self, details: _Optional[str] = ..., confidence: _Optional[float] = ..., confidence_details: _Optional[str] = ..., is_human_reviewed: bool = ...) -> None: ...
 
 class Person(_message.Message):
     __slots__ = ["username", "name", "orcid", "organization", "email"]
