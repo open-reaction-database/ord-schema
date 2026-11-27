@@ -680,10 +680,10 @@ def test_a_schema_bump_makes_every_artifact_stale(tmp_path, monkeypatch):
 # --force where the stamps still read current) and published in place.
 _GOLDEN_SCHEMA_VERSION = "2"
 _GOLDEN_OUTPUT = {
-    "projection": "6fc16069924ceeb778507f99ba56aebc1e4ca07ac8153b3ad4f214ba2a1c9d49",
+    "projection": "083d943b1584db6828b21b6421d0202e5f19b73b5cd5172a6fe67186b01f54cb",
     "structures": "3c397cfc3ba2b8e0debd9b725ada6d119551e42aa7c20bf9791983e679ce7158",
     "arrivals": "d30f6710e8fbf5f2b1d11793c4de66b8d7b3bc3195e9fd83771627ad78f0d432",
-    "pivot": "7ecd0994cc370d47b2c06a194788f9cb242d44da8f625e962642b45ebefbb2be",
+    "pivot": "142b540e70130114a0b79a985fb794fe3cd9017f3685ecd15cc9a70fde1167cf",
     "occurrences": "d0617c0972b1c054c5f4507760cc53e055eb5cfd1336b0279e700a3c0a8c1118",
 }
 # The RDKit those hashes were derived under. An RDKit upgrade can change canonical

@@ -130,7 +130,7 @@ python -m ord_schema.artifacts.scripts.derive_occurrences \
 ```
 
 Each takes `--force` to rewrite what is already current. `derive_pivots` defaults to all
-40 repeated levels, which is far more than a deployment answers questions over; naming
+42 repeated levels, which is far more than a deployment answers questions over; naming
 the levels it does is the cheaper run — and `derive_occurrences --print_levels` names the
 four it reads, which is why the command above asks it rather than spelling them.
 `derive_occurrences` covers every path a structure can sit at, which is not a choice: a

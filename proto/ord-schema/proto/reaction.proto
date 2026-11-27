@@ -1147,11 +1147,17 @@ message ReactionProvenance {
   // How the record was produced by automated extraction, e.g. text mining.
   // Set it only for such records: a record with extraction set is mined.
   ExtractionMetadata extraction = 12;
+  // Other sources that report this reaction, each with its role set.
+  // primary_source stays the one the record's values were taken from; these
+  // never replace it.
+  repeated Publication additional_sources = 13;
 }
 
 /**
- * Bibliographic details of the source a reaction record was taken from, such
- * as a journal article, preprint, patent or data repository.
+ * Bibliographic details of a source that reports a reaction, such as a journal
+ * article, preprint, patent or data repository. Used for the source a record
+ * was taken from (ReactionProvenance.primary_source) and for other sources
+ * that report it (ReactionProvenance.additional_sources).
  */
 message Publication {
   string doi = 1;
@@ -1173,6 +1179,24 @@ message Publication {
   // which author they belong to. Leave empty when each author's organisation
   // is recorded in Person.organization.
   repeated string organizations = 8;
+  // How an additional source relates to the record. Leave unset on
+  // primary_source.
+  enum RoleType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;  // Explain the relationship in details.
+    // Another version of the same publication, e.g. the preprint of an
+    // article or the article of a preprint.
+    OTHER_VERSION = 2;
+    // The same passage appears in this source, e.g. another patent in the same
+    // family.
+    SAME_TEXT = 3;
+    // Data repository the record's data was taken from, e.g. figshare, Zenodo
+    // or GitHub. Give the version used: a versioned DOI where available,
+    // otherwise a URL to a tagged release or commit. A repository that is the
+    // only source goes in ReactionProvenance.primary_source instead.
+    DATA_SOURCE = 4;
+  }
+  RoleType role = 9;
 }
 
 /**

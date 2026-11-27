@@ -557,11 +557,29 @@ provenance: STRUCT
       utc_offset_minutes: SMALLINT
     details: VARCHAR
     organizations: LIST<VARCHAR>
+    role: VARCHAR  (UNSPECIFIED | CUSTOM | OTHER_VERSION | SAME_TEXT | DATA_SOURCE)
   extraction: STRUCT
     details: VARCHAR
     confidence: FLOAT
     confidence_details: VARCHAR
     is_human_reviewed: BOOLEAN
+  additional_sources: LIST<STRUCT>
+    doi: VARCHAR
+    patent: VARCHAR
+    url: VARCHAR
+    location: VARCHAR
+    authors: LIST<STRUCT>
+      username: VARCHAR
+      name: VARCHAR
+      orcid: VARCHAR
+      organization: VARCHAR
+      email: VARCHAR
+    publication_date: STRUCT
+      timestamp: DATE
+      utc_offset_minutes: SMALLINT
+    details: VARCHAR
+    organizations: LIST<VARCHAR>
+    role: VARCHAR  (UNSPECIFIED | CUSTOM | OTHER_VERSION | SAME_TEXT | DATA_SOURCE)
 reaction_id: VARCHAR
 dataset_id: VARCHAR
 first_commit: STRUCT
