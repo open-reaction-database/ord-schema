@@ -79,6 +79,19 @@ message ReactionIdentifier {
     RDFILE = 3;  // Reaction data file.
     RINCHI = 4;  // Reaction InChI.
     REACTION_TYPE = 5;  // Named reaction or reaction category.
+    // Membership of a subset of reactions within the dataset, e.g. a block of a
+    // designed experiment or a stage of an optimisation campaign. Name the
+    // grouping in details (e.g. "block") and the subset in value (e.g. "3").
+    // A reaction may belong to several subsets, told apart by details; the
+    // dataset description should explain each grouping.
+    SUBSET = 7;
+    // Position in an explicit sequence of reactions within the dataset, e.g.
+    // the order the reactions of a DOE or Bayesian optimisation campaign were
+    // run in. Name the sequence in details (e.g. "run order") and give the
+    // position as an integer in value. A reaction may have several positions,
+    // told apart by details; the dataset description should explain each
+    // sequence.
+    POSITION = 8;
   }
   ReactionIdentifierType type = 1;
   string details = 2;
