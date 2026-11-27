@@ -216,7 +216,7 @@ def _second_reaction() -> reaction_pb2.Reaction:
     _fill_input(reaction.inputs["only"], components=1)
     reaction.setup.vessel.attachments.add(type=reaction_pb2.VesselAttachment.CAP)
     reaction.setup.vessel.preparations.add(type=reaction_pb2.VesselPreparation.PURGED)
-    reaction.setup.automation_code["other"].string_value = "recorded"
+    reaction.setup.procedure_code["other"].string_value = "recorded"
     reaction.conditions.temperature.measurements.add(
         type=reaction_pb2.TemperatureConditions.TemperatureMeasurement.THERMOCOUPLE_EXTERNAL
     )
@@ -275,7 +275,7 @@ def populated(tmp_path_factory) -> pathlib.Path:
     reaction.setup.vessel.preparations.add(
         type=reaction_pb2.VesselPreparation.OVEN_DRIED
     )
-    reaction.setup.automation_code["code"].string_value = "recorded"
+    reaction.setup.procedure_code["code"].string_value = "recorded"
     reaction.conditions.temperature.measurements.add(
         type=reaction_pb2.TemperatureConditions.TemperatureMeasurement.THERMOCOUPLE_INTERNAL
     )

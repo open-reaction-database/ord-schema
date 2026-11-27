@@ -666,7 +666,7 @@ def test_a_schema_bump_makes_every_artifact_stale(tmp_path, monkeypatch):
     for artifact, path in paths.items():
         _write(path, _valid_metadata(**{"ord.artifact": artifact}))
         assert base.is_current(path, artifact, "0" * 32), artifact
-    monkeypatch.setattr(base, "ARTIFACT_SCHEMA_VERSION", "2")
+    monkeypatch.setattr(base, "ARTIFACT_SCHEMA_VERSION", "next")
     for artifact, path in paths.items():
         assert not base.is_current(path, artifact, "0" * 32), artifact
 
@@ -678,12 +678,12 @@ def test_a_schema_bump_makes_every_artifact_stale(tmp_path, monkeypatch):
 # reader of the pinned schema would misread bumps ARTIFACT_SCHEMA_VERSION. One it
 # reads correctly -- a normalization fixed, a column added -- is derived again (with
 # --force where the stamps still read current) and published in place.
-_GOLDEN_SCHEMA_VERSION = "1"
+_GOLDEN_SCHEMA_VERSION = "2"
 _GOLDEN_OUTPUT = {
-    "projection": "80f0206dca735c38df5159d3e0d20285b72cd9df9aec4433f5b8c494308f1fb6",
+    "projection": "392dc11d394275eb7469350a73624bc0df6d3a9c6eac2342ec739dfb2a60ebe0",
     "structures": "3c397cfc3ba2b8e0debd9b725ada6d119551e42aa7c20bf9791983e679ce7158",
     "arrivals": "d30f6710e8fbf5f2b1d11793c4de66b8d7b3bc3195e9fd83771627ad78f0d432",
-    "pivot": "afca0162fce37f693463077e9f76585f6494a37d4b979b78c893084fe8d2aa0c",
+    "pivot": "a9819f011d971522fe9f07ece0618f8e0d6cc38685bd731f9aef5fac28b590de",
     "occurrences": "d0617c0972b1c054c5f4507760cc53e055eb5cfd1336b0279e700a3c0a8c1118",
 }
 # The RDKit those hashes were derived under. An RDKit upgrade can change canonical

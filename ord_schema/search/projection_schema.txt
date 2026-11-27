@@ -117,7 +117,7 @@ setup: STRUCT
     col: VARCHAR
   is_automated: BOOLEAN
   automation_platform: VARCHAR
-  automation_code: MAP<VARCHAR, STRUCT>
+  procedure_code: MAP<VARCHAR, STRUCT>
     float_value: FLOAT
     integer_value: INTEGER
     bytes_value: BLOB

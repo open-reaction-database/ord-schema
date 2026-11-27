@@ -519,8 +519,8 @@ class VesselPreparation(_message.Message):
     def __init__(self, type: _Optional[_Union[VesselPreparation.VesselPreparationType, str]] = ..., details: _Optional[str] = ...) -> None: ...
 
 class ReactionSetup(_message.Message):
-    __slots__ = ["vessel", "is_automated", "automation_platform", "automation_code", "environment"]
-    class AutomationCodeEntry(_message.Message):
+    __slots__ = ["vessel", "is_automated", "automation_platform", "procedure_code", "environment"]
+    class ProcedureCodeEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
@@ -551,14 +551,14 @@ class ReactionSetup(_message.Message):
     VESSEL_FIELD_NUMBER: _ClassVar[int]
     IS_AUTOMATED_FIELD_NUMBER: _ClassVar[int]
     AUTOMATION_PLATFORM_FIELD_NUMBER: _ClassVar[int]
-    AUTOMATION_CODE_FIELD_NUMBER: _ClassVar[int]
+    PROCEDURE_CODE_FIELD_NUMBER: _ClassVar[int]
     ENVIRONMENT_FIELD_NUMBER: _ClassVar[int]
     vessel: Vessel
     is_automated: bool
     automation_platform: str
-    automation_code: _containers.MessageMap[str, Data]
+    procedure_code: _containers.MessageMap[str, Data]
     environment: ReactionSetup.ReactionEnvironment
-    def __init__(self, vessel: _Optional[_Union[Vessel, _Mapping]] = ..., is_automated: bool = ..., automation_platform: _Optional[str] = ..., automation_code: _Optional[_Mapping[str, Data]] = ..., environment: _Optional[_Union[ReactionSetup.ReactionEnvironment, _Mapping]] = ...) -> None: ...
+    def __init__(self, vessel: _Optional[_Union[Vessel, _Mapping]] = ..., is_automated: bool = ..., automation_platform: _Optional[str] = ..., procedure_code: _Optional[_Mapping[str, Data]] = ..., environment: _Optional[_Union[ReactionSetup.ReactionEnvironment, _Mapping]] = ...) -> None: ...
 
 class ReactionConditions(_message.Message):
     __slots__ = ["temperature", "pressure", "stirring", "illumination", "electrochemistry", "flow", "reflux", "ph", "conditions_are_dynamic", "details"]
