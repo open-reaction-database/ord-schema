@@ -150,7 +150,7 @@ reactions {
     }
     is_automated: true
     automation_platform: "29"
-    automation_code {
+    procedure_code {
       key: "33"
       value {
         integer_value: 34

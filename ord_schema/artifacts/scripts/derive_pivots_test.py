@@ -125,7 +125,7 @@ def test_each_level_gets_its_own_tree(projected):
             assert pivot.pivot_path(written) == level
             assert base.load_stamps(written).artifact == pivot.ARTIFACT
     # A level not asked for is not derived, which is what makes naming them cheaper
-    # than deriving all 39.
+    # than deriving all 42.
     assert not (projected / "pivots" / "inputs.components").exists()
 
 
@@ -528,7 +528,7 @@ def test_a_level_this_run_did_not_name_is_checked_against_the_schema(projected):
 def test_a_level_this_run_did_not_name_and_did_not_outgrow_is_not_an_error(projected):
     # The subset run has to stay usable. A level left alone whose artifacts still match
     # the schema is exactly what --levels is for, and stopping on it would make every
-    # deployment derive all 39 levels to answer questions over four.
+    # deployment derive all 42 levels to answer questions over four.
     _run(projected, "--levels", "workups", "outcomes.products")
     _run(projected, "--levels", "outcomes.products")
 
