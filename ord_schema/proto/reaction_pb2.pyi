@@ -192,7 +192,11 @@ class Texture(_message.Message):
         SEMI_SOLID: _ClassVar[Texture.TextureType]
         SOLID: _ClassVar[Texture.TextureType]
         LIQUID: _ClassVar[Texture.TextureType]
+        SOLUTION: _ClassVar[Texture.TextureType]
+        SUSPENSION: _ClassVar[Texture.TextureType]
+        EMULSION: _ClassVar[Texture.TextureType]
         GAS: _ClassVar[Texture.TextureType]
+        GUM: _ClassVar[Texture.TextureType]
     UNSPECIFIED: Texture.TextureType
     CUSTOM: Texture.TextureType
     POWDER: Texture.TextureType
@@ -204,7 +208,11 @@ class Texture(_message.Message):
     SEMI_SOLID: Texture.TextureType
     SOLID: Texture.TextureType
     LIQUID: Texture.TextureType
+    SOLUTION: Texture.TextureType
+    SUSPENSION: Texture.TextureType
+    EMULSION: Texture.TextureType
     GAS: Texture.TextureType
+    GUM: Texture.TextureType
     TYPE_FIELD_NUMBER: _ClassVar[int]
     DETAILS_FIELD_NUMBER: _ClassVar[int]
     type: Texture.TextureType
