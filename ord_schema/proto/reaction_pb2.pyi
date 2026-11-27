@@ -1200,8 +1200,11 @@ class Analysis(_message.Message):
         IR: _ClassVar[Analysis.AnalysisType]
         NMR_1H: _ClassVar[Analysis.AnalysisType]
         NMR_13C: _ClassVar[Analysis.AnalysisType]
+        NMR_19F: _ClassVar[Analysis.AnalysisType]
+        NMR_31P: _ClassVar[Analysis.AnalysisType]
         NMR_OTHER: _ClassVar[Analysis.AnalysisType]
         MP: _ClassVar[Analysis.AnalysisType]
+        BP: _ClassVar[Analysis.AnalysisType]
         UV: _ClassVar[Analysis.AnalysisType]
         TLC: _ClassVar[Analysis.AnalysisType]
         MS: _ClassVar[Analysis.AnalysisType]
@@ -1219,6 +1222,7 @@ class Analysis(_message.Message):
         ED: _ClassVar[Analysis.AnalysisType]
         OPTICAL_ROTATION: _ClassVar[Analysis.AnalysisType]
         CAD: _ClassVar[Analysis.AnalysisType]
+        ELEMENTAL_ANALYSIS: _ClassVar[Analysis.AnalysisType]
     UNSPECIFIED: Analysis.AnalysisType
     CUSTOM: Analysis.AnalysisType
     LC: Analysis.AnalysisType
@@ -1226,8 +1230,11 @@ class Analysis(_message.Message):
     IR: Analysis.AnalysisType
     NMR_1H: Analysis.AnalysisType
     NMR_13C: Analysis.AnalysisType
+    NMR_19F: Analysis.AnalysisType
+    NMR_31P: Analysis.AnalysisType
     NMR_OTHER: Analysis.AnalysisType
     MP: Analysis.AnalysisType
+    BP: Analysis.AnalysisType
     UV: Analysis.AnalysisType
     TLC: Analysis.AnalysisType
     MS: Analysis.AnalysisType
@@ -1245,6 +1252,7 @@ class Analysis(_message.Message):
     ED: Analysis.AnalysisType
     OPTICAL_ROTATION: Analysis.AnalysisType
     CAD: Analysis.AnalysisType
+    ELEMENTAL_ANALYSIS: Analysis.AnalysisType
     class DataEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
